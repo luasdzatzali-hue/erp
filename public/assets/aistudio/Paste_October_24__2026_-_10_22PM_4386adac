@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material & Production Management System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full flex flex-col justify-between overflow-hidden select-none">
+
+    <!-- Top Header Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleSidebar(true)" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <div>
+                <h1 class="font-bold text-sm text-white tracking-wide">PRODTRACK <span id="adminBadge" class="hidden ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-semibold rounded border border-amber-500/30">ADMIN</span></h1>
+                <p class="text-[11px] text-slate-400" id="currentViewTitle">Dashboard Stock</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="openStorageTankModal()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-medium text-slate-200 hover:bg-slate-700 transition">
+                <i data-lucide="droplet" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span id="headerTankTemp">48.5°C</span>
+            </button>
+            <button onclick="openAdminModal()" id="headerAuthBtn" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                <i data-lucide="shield" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container (Scrollable Area) -->
+    <main id="mainContainer" class="flex-1 overflow-y-auto p-4 pb-24 relative">
+        <!-- Dynamic Views Injected Here -->
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bg-slate-900/95 backdrop-blur border-t border-slate-800 px-2 py-2 flex items-center justify-around z-20 shrink-0">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-16 py-1 text-cyan-400 transition">
+            <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i>
+            <span class="text-[10px] font-medium">Dashboard</span>
+        </button>
+        <button onclick="switchTab('permintaan')" id="nav-permintaan" class="flex flex-col items-center justify-center w-16 py-1 text-slate-400 hover:text-slate-200 transition">
+            <i data-lucide="file-text" class="w-5 h-5 mb-1"></i>
+            <span class="text-[10px] font-medium">Permintaan</span>
+        </button>
+        <button onclick="switchTab('penerimaan')" id="nav-penerimaan" class="flex flex-col items-center justify-center w-16 py-1 text-slate-400 hover:text-slate-200 transition">
+            <i data-lucide="truck" class="w-5 h-5 mb-1"></i>
+            <span class="text-[10px] font-medium">Penerimaan</span>
+        </button>
+        <button onclick="switchTab('pemakaian')" id="nav-pemakaian" class="flex flex-col items-center justify-center w-16 py-1 text-slate-400 hover:text-slate-200 transition">
+            <i data-lucide="cpu" class="w-5 h-5 mb-1"></i>
+            <span class="text-[10px] font-medium">Pemakaian</span>
+        </button>
+    </nav>
+
+    <!-- Sidebar Drawer -->
+    <div id="sidebarOverlay" onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden transition-opacity opacity-0"></div>
+    <aside id="sidebarDrawer" class="fixed top-0 bottom-0 left-0 w-80 bg-slate-900 border-r border-slate-800 z-50 transform -translate-x-full transition-transform duration-300 flex flex-col justify-between shadow-2xl">
+        <div>
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                        <i data-lucide="package-open" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-sm text-white">ProdTrack System</h2>
+                        <p class="text-xs text-slate-400" id="sidebarRoleText">Mode: Operator / Viewer</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar(false)" class="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Sidebar Links -->
+            <div class="p-4 space-y-2">
+                <button onclick="switchTab('dashboard'); toggleSidebar(false);" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Dashboard Stock</span>
+                </button>
+                <button onclick="switchTab('permintaan'); toggleSidebar(false);" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <i data-lucide="file-text" class="w-4 h-4 text-amber-400"></i>
+                    <span>Permintaan Material</span>
+                </button>
+                <button onclick="switchTab('penerimaan'); toggleSidebar(false);" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <i data-lucide="truck" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Penerimaan Material</span>
+                </button>
+                <button onclick="switchTab('pemakaian'); toggleSidebar(false);" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <i data-lucide="cpu" class="w-4 h-4 text-purple-400"></i>
+                    <span>Pemakaian Material</span>
+                </button>
+
+                <div class="pt-3 pb-1 border-t border-slate-800">
+                    <p class="px-3 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">Administrator Menu</p>
+                </div>
+
+                <button onclick="checkAdminAccess(() => { switchTab('master'); toggleSidebar(false); });" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <i data-lucide="database" class="w-4 h-4 text-rose-400"></i>
+                    <span>Master Data & BOM Hierarki</span>
+                </button>
+
+                <button onclick="checkAdminAccess(() => { openResetModal(); toggleSidebar(false); });" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose-400 hover:bg-rose-500/10 transition">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 text-rose-500"></i>
+                    <span>Reset Semua Data</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-4 border-t border-slate-800">
+            <div id="sidebarAuthSection">
+                <button onclick="openAdminModal()" class="w-full py-2.5 px-4 bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-cyan-600/20">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span>Login Administrator</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Modal Container -->
+    <div id="appModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div id="modalContent" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 shadow-2xl relative">
+            <!-- Dynamic Modal -->
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 transform -translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div id="toastMessage" class="bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-medium flex items-center space-x-2">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+            <span id="toastText">Berhasil memperbarui data</span>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script>
+        let appState = {
+            isAdmin: false,
+            currentTab: 'dashboard',
+            master: {
+                materials: [], // { id, name, type, source, packaging, weightKg }
+                wips: [],      // { id, name, batchWeightKg }
+                skus: [],      // { id, name, isKite, targetHour, cartonWeightKg }
+                skuWips: [],   // { id, skuId, wipId, kgWipPerCartonSku }
+                wipMats: []    // { id, wipId, materialId, materialKgPerBatch }
+            },
+            transactions: {
+                requests: [],   // { id, date, skuId, wipId, materialId, qty, batch, saldoAwal, supplier }
+                receipts: [],   // { id, date, requestId, materialId, requestedQty, receivedQty, location, status }
+                usages: []      // { id, date, skuId, wipId, materialId, qty, batch, usageQty }
+            },
+            tank: {
+                level: 750.0,
+                temp: 48.5
+            }
+        };
+
+        function saveState() {
+            localStorage.setItem('prodtrack_state_v6', JSON.stringify(appState));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('prodtrack_state_v6');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch (e) {
+                    console.error("Failed to parse saved state", e);
+                }
+            }
+        }
+
+        window.onload = function() {
+            loadState();
+            lucide.createIcons();
+            renderView();
+            setInterval(simulateTankTemp, 5000);
+        };
+
+        function simulateTankTemp() {
+            let delta = (Math.random() - 0.5) * 0.8;
+            appState.tank.temp = Math.min(55, Math.max(45, appState.tank.temp + delta));
+            const tankEl = document.getElementById('headerTankTemp');
+            if (tankEl) tankEl.innerText = appState.tank.temp.toFixed(1) + '°C';
+            saveState();
+        }
+
+        function switchTab(tabId) {
+            appState.currentTab = tabId;
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('text-cyan-400');
+                btn.classList.add('text-slate-400');
+            });
+            const activeBtn = document.getElementById('nav-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-400');
+                activeBtn.classList.add('text-cyan-400');
+            }
+            renderView();
+        }
+
+        function toggleSidebar(open) {
+            const drawer = document.getElementById('sidebarDrawer');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (open) {
+                drawer.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                drawer.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastText = document.getElementById('toastText');
+            toastText.innerText = msg;
+            toast.classList.remove('pointer-events-none', '-translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        function openAdminModal() {
+            if (appState.isAdmin) {
+                appState.isAdmin = false;
+                saveState();
+                updateAdminUI();
+                showToast("Berhasil keluar dari mode Administrator");
+                renderView();
+                return;
+            }
+
+            const modal = document.getElementById('appModal');
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-amber-400"></i>
+                        <h3 class="font-bold text-sm text-white">Autentikasi Administrator</h3>
+                    </div>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">PIN Administrator</label>
+                        <input type="password" id="adminPinInput" required placeholder="Masukkan PIN" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div class="pt-2">
+                        <button type="submit" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/20 transition">Masuk sebagai Admin</button>
+                    </div>
+                </form>
+            `;
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const pin = document.getElementById('adminPinInput').value;
+            if (pin === '12345678') {
+                appState.isAdmin = true;
+                saveState();
+                closeModal();
+                updateAdminUI();
+                showToast("Akses Administrator Diizinkan");
+                renderView();
+            } else {
+                showToast("PIN Administrator Salah", true);
+            }
+        }
+
+        function checkAdminAccess(callback) {
+            if (appState.isAdmin) {
+                callback();
+            } else {
+                openAdminModal();
+            }
+        }
+
+        function updateAdminUI() {
+            const badge = document.getElementById('adminBadge');
+            const headerAuthBtn = document.getElementById('headerAuthBtn');
+            const sidebarRole = document.getElementById('sidebarRoleText');
+            const authSection = document.getElementById('sidebarAuthSection');
+
+            if (appState.isAdmin) {
+                badge.classList.remove('hidden');
+                headerAuthBtn.innerHTML = `<i data-lucide="unlock" class="w-5 h-5 text-amber-400"></i>`;
+                sidebarRole.innerText = "Mode: Administrator Aktif";
+                authSection.innerHTML = `<button onclick="openAdminModal()" class="w-full py-2.5 px-4 bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-400 font-medium rounded-xl text-xs flex items-center justify-center space-x-2 transition">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>Keluar Admin</span>
+                </button>`;
+            } else {
+                badge.classList.add('hidden');
+                headerAuthBtn.innerHTML = `<i data-lucide="shield" class="w-5 h-5"></i>`;
+                sidebarRole.innerText = "Mode: Operator / Viewer";
+                authSection.innerHTML = `<button onclick="openAdminModal()" class="w-full py-2.5 px-4 bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-cyan-600/20">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span>Login Administrator</span>
+                </button>`;
+            }
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('appModal').classList.add('hidden');
+        }
+
+        function renderView() {
+            updateAdminUI();
+            const container = document.getElementById('mainContainer');
+            const titleEl = document.getElementById('currentViewTitle');
+
+            if (appState.currentTab === 'dashboard') {
+                titleEl.innerText = "Dashboard Stock & Storage";
+                container.innerHTML = renderDashboardView();
+            } else if (appState.currentTab === 'permintaan') {
+                titleEl.innerText = "Permintaan Material";
+                container.innerHTML = renderPermintaanView();
+            } else if (appState.currentTab === 'penerimaan') {
+                titleEl.innerText = "Penerimaan Material";
+                container.innerHTML = renderPenerimaanView();
+            } else if (appState.currentTab === 'pemakaian') {
+                titleEl.innerText = "Pemakaian Material & WIP";
+                container.innerHTML = renderPemakaianView();
+            } else if (appState.currentTab === 'master') {
+                titleEl.innerText = "Master Data & BOM Hierarki";
+                container.innerHTML = renderMasterView();
+            }
+            lucide.createIcons();
+        }
+
+        // --- 1. DASHBOARD VIEW ---
+        function renderDashboardView() {
+            let stockMap = {};
+            appState.master.materials.forEach(m => {
+                stockMap[m.id] = { ck: 0, wineroto: 0, total: 0, name: m.name, type: m.type };
+            });
+
+            appState.transactions.receipts.forEach(r => {
+                if (r.status === 'Received') {
+                    if (stockMap[r.materialId]) {
+                        if (r.location === 'CK') stockMap[r.materialId].ck += r.receivedQty;
+                        if (r.location === 'WINEROTO') stockMap[r.materialId].wineroto += r.receivedQty;
+                        stockMap[r.materialId].total += r.receivedQty;
+                    }
+                }
+            });
+
+            appState.transactions.usages.forEach(u => {
+                if (stockMap[u.materialId]) {
+                    let rem = u.usageQty;
+                    if (stockMap[u.materialId].ck >= rem) {
+                        stockMap[u.materialId].ck -= rem;
+                    } else {
+                        rem -= stockMap[u.materialId].ck;
+                        stockMap[u.materialId].ck = 0;
+                        stockMap[u.materialId].wineroto = Math.max(0, stockMap[u.materialId].wineroto - rem);
+                    }
+                    stockMap[u.materialId].total = stockMap[u.materialId].ck + stockMap[u.materialId].wineroto;
+                }
+            });
+
+            let totalCk = 0, totalWineroto = 0;
+            Object.values(stockMap).forEach(s => {
+                totalCk += s.ck;
+                totalWineroto += s.wineroto;
+            });
+
+            let materialRows = Object.values(stockMap).map(s => `
+                <tr class="border-b border-slate-800/60 hover:bg-slate-900/40 text-xs">
+                    <td class="py-3 px-3 font-medium text-white">${s.name} <span class="text-[10px] text-slate-400 block">${s.type}</span></td>
+                    <td class="py-3 px-3 text-right text-slate-300">${s.ck.toFixed(4)} kg</td>
+                    <td class="py-3 px-3 text-right text-slate-300">${s.wineroto.toFixed(4)} kg</td>
+                    <td class="py-3 px-3 text-right font-bold text-cyan-400">${s.total.toFixed(4)} kg</td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="space-y-4 max-w-4xl mx-auto">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Area Penyimpanan CK</span>
+                                <i data-lucide="warehouse" class="w-4 h-4 text-cyan-400"></i>
+                            </div>
+                            <div class="text-2xl font-bold text-white mb-1">${totalCk.toFixed(2)} <span class="text-xs font-normal text-slate-400">kg</span></div>
+                            <p class="text-[11px] text-slate-400">Bubuk GDRM & Formulasi</p>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Area WINEROTO</span>
+                                <i data-lucide="building-2" class="w-4 h-4 text-emerald-400"></i>
+                            </div>
+                            <div class="text-2xl font-bold text-white mb-1">${totalWineroto.toFixed(2)} <span class="text-xs font-normal text-slate-400">kg</span></div>
+                            <p class="text-[11px] text-slate-400">Liquid & Bubuk Campuran</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-slate-900 to-cyan-950/30 border border-cyan-500/30 p-4 rounded-2xl relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Tank Liquid (1000 kg)</span>
+                                <i data-lucide="thermometer" class="w-4 h-4 text-cyan-400"></i>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <div class="text-2xl font-bold text-white">${appState.tank.level.toFixed(1)} <span class="text-xs font-normal text-slate-400">kg</span></div>
+                                <div class="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${appState.tank.temp.toFixed(1)}°C (45-55°C)</div>
+                            </div>
+                            <div class="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+                                <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full" style="width: ${(appState.tank.level / 1000 * 100)}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="boxes" class="w-4 h-4 text-cyan-400"></i>
+                                <span>Rincian Stock Material Aktual (Auto-Saved Database)</span>
+                            </h3>
+                            <span class="text-xs text-slate-400">Total SKU: ${appState.master.skus.length} | WIP: ${appState.master.wips.length} | Material: ${appState.master.materials.length}</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800/50 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                                        <th class="py-2.5 px-3">Nama Material</th>
+                                        <th class="py-2.5 px-3 text-right">Stock CK</th>
+                                        <th class="py-2.5 px-3 text-right">Stock Wineroto</th>
+                                        <th class="py-2.5 px-3 text-right">Total Aktual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${materialRows.length > 0 ? materialRows : `<tr><td colspan="4" class="text-center py-8 text-slate-500 text-xs">Aplikasi awal kosong. Belum ada material atau stock tercatat. Silakan input Master Data terlebih dahulu.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 2. PERMINTAAN VIEW ---
+        function renderPermintaanView() {
+            if (appState.master.wips.length === 0 || appState.master.skus.length === 0 || appState.master.skuWips.length === 0) {
+                return `
+                    <div class="max-w-md mx-auto text-center py-12 px-4 bg-slate-900 border border-slate-800 rounded-2xl mt-8">
+                        <i data-lucide="alert-triangle" class="w-12 h-12 text-amber-400 mx-auto mb-3"></i>
+                        <h3 class="font-bold text-base text-white mb-1">Master Data / BOM Belum Lengkap</h3>
+                        <p class="text-xs text-slate-400 mb-4">Sebelum komponen penyusun WIP dan hierarki BOM ditetapkan administrator, permintaan material tidak dapat dilakukan.</p>
+                        <button onclick="checkAdminAccess(() => switchTab('master'))" class="px-4 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold">Buka Master Data & BOM</button>
+                    </div>
+                `;
+            }
+
+            let skuOptions = appState.master.skus.map(s => `<option value="${s.id}">${s.name} ${s.isKite ? '(KITE)' : '(Domestik)'} - ${s.cartonWeightKg.toFixed(4)} kg/karton</option>`).join('');
+            let wipOptions = appState.master.wips.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+            let matOptions = appState.master.materials.map(m => `<option value="${m.id}">${m.name} (${m.source} - ${m.type} - ${m.weightKg.toFixed(4)} kg)</option>`).join('');
+
+            let historyRows = appState.transactions.requests.map(req => {
+                let sObj = appState.master.skus.find(s => s.id == req.skuId);
+                let wObj = appState.master.wips.find(w => w.id == req.wipId);
+                let mObj = appState.master.materials.find(m => m.id == req.materialId);
+                return `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/40 text-xs">
+                        <td class="py-3 px-3 font-medium text-white">${sObj ? sObj.name : '-'} <span class="text-[10px] text-amber-400 block">${sObj && sObj.isKite ? 'Ekspor KITE' : 'Domestik'}</span></td>
+                        <td class="py-3 px-3 text-slate-300">${wObj ? wObj.name : '-'}</td>
+                        <td class="py-3 px-3 text-slate-300">${mObj ? mObj.name : '-'} <span class="text-[10px] text-cyan-400 block">${req.supplier}</span></td>
+                        <td class="py-3 px-3 text-right font-bold text-cyan-400">${req.qty.toFixed(4)} kg / ${req.batch.toFixed(4)} batch</td>
+                        <td class="py-3 px-3 text-right text-slate-400">${req.saldoAwal.toFixed(4)} kg</td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div class="max-w-4xl mx-auto space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                        <h3 class="font-bold text-sm text-white mb-3 flex items-center space-x-2">
+                            <i data-lucide="file-plus" class="w-4 h-4 text-cyan-400"></i>
+                            <span>Form Permintaan Material ke Supplier (GDRM / Formulasi)</span>
+                        </h3>
+                        <form onsubmit="handleCreateRequest(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih SKU Produk</label>
+                                <select id="reqSkuId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih SKU --</option>
+                                    ${skuOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Jenis WIP</label>
+                                <select id="reqWipId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih WIP --</option>
+                                    ${wipOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Material Dibutuhkan (Database Acuan)</label>
+                                <select id="reqMatId" onchange="autofillRequestQty()" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih Material --</option>
+                                    ${matOptions}
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Jumlah Batch WIP</label>
+                                    <input type="number" step="0.0001" id="reqBatchCount" oninput="autofillRequestQty()" required placeholder="1.0000" value="1" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Supplier</label>
+                                    <select id="reqSupplier" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                        <option value="GDRM">GDRM</option>
+                                        <option value="Formulasi">Formulasi</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Qty Total (kg) - (Autofill Database x Jumlah Batch)</label>
+                                <input type="number" step="0.0001" id="reqQty" required placeholder="0.0000" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono text-cyan-400">
+                            </div>
+                            <div class="sm:col-span-2 pt-2">
+                                <button type="submit" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-cyan-600/20 transition flex items-center justify-center space-x-2">
+                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                    <span>Kirim Permintaan Material</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-800">
+                            <h3 class="font-bold text-sm text-white">History Permintaan Material</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800/50 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                                        <th class="py-2.5 px-3">SKU</th>
+                                        <th class="py-2.5 px-3">WIP</th>
+                                        <th class="py-2.5 px-3">Nama Material</th>
+                                        <th class="py-2.5 px-3 text-right">Qty/Batch</th>
+                                        <th class="py-2.5 px-3 text-right">Saldo Awal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${historyRows.length > 0 ? historyRows : `<tr><td colspan="5" class="text-center py-8 text-slate-500 text-xs">Belum ada history permintaan material.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function autofillRequestQty() {
+            const matId = document.getElementById('reqMatId').value;
+            const batchCount = parseFloat(document.getElementById('reqBatchCount').value) || 1;
+            const mObj = appState.master.materials.find(m => m.id === matId);
+            const qtyField = document.getElementById('reqQty');
+            const supplierField = document.getElementById('reqSupplier');
+
+            if (mObj && qtyField) {
+                let totalReq = mObj.weightKg * batchCount;
+                qtyField.value = totalReq.toFixed(4);
+                if (supplierField && mObj.source) {
+                    supplierField.value = mObj.source;
+                }
+            }
+        }
+
+        function handleCreateRequest(e) {
+            e.preventDefault();
+            const skuId = document.getElementById('reqSkuId').value;
+            const wipId = document.getElementById('reqWipId').value;
+            const materialId = document.getElementById('reqMatId').value;
+            const qty = parseFloat(document.getElementById('reqQty').value) || 0;
+            const batchCount = parseFloat(document.getElementById('reqBatchCount').value) || 1;
+            const supplier = document.getElementById('reqSupplier').value;
+
+            let saldoAwal = Math.random() * 500 + 100;
+
+            const newReq = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('id-ID'),
+                skuId,
+                wipId,
+                materialId,
+                qty,
+                batch: batchCount,
+                saldoAwal,
+                supplier
+            };
+
+            appState.transactions.requests.push(newReq);
+            saveState();
+            showToast("Permintaan material berhasil dikirim ke " + supplier);
+            renderView();
+        }
+
+        // --- 3. PENERIMAAN VIEW ---
+        function renderPenerimaanView() {
+            let pendingRequests = appState.transactions.requests;
+
+            let receiptRows = appState.transactions.receipts.map(rec => {
+                let mObj = appState.master.materials.find(m => m.id == rec.materialId);
+                return `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/40 text-xs">
+                        <td class="py-3 px-3 text-slate-300">${rec.date}</td>
+                        <td class="py-3 px-3 font-medium text-white">${mObj ? mObj.name : 'Material'}</td>
+                        <td class="py-3 px-3 text-right text-slate-300">${rec.requestedQty.toFixed(4)} kg</td>
+                        <td class="py-3 px-3 text-right font-bold text-emerald-400">${rec.receivedQty.toFixed(4)} kg</td>
+                        <td class="py-3 px-3 text-cyan-400">${rec.location}</td>
+                        <td class="py-3 px-3 text-right"><span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded text-[10px]">${rec.status}</span></td>
+                    </tr>
+                `;
+            }).join('');
+
+            let requestOptionsForReceive = pendingRequests.map(req => {
+                let mObj = appState.master.materials.find(m => m.id == req.materialId);
+                return `<option value="${req.id}">${mObj ? mObj.name : 'Mat'} - Req: ${req.qty.toFixed(4)} kg (${req.supplier})</option>`;
+            }).join('');
+
+            return `
+                <div class="max-w-4xl mx-auto space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                        <h3 class="font-bold text-sm text-white mb-3 flex items-center space-x-2">
+                            <i data-lucide="truck" class="w-4 h-4 text-emerald-400"></i>
+                            <span>Pencatatan Kedatangan & Penerimaan Material (GDRM / Formulasi)</span>
+                        </h3>
+                        <form onsubmit="handleReceiveMaterial(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Permintaan Material</label>
+                                <select id="recReqId" onchange="populateReceiveQty(this.value)" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih Permintaan --</option>
+                                    ${requestOptionsForReceive}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Lokasi Penyimpanan Tujuan</label>
+                                <select id="recLocation" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="CK">Area CK</option>
+                                    <option value="WINEROTO">Area WINEROTO</option>
+                                    <option value="STORAGE_TANK">Tank Liquid (1000 kg)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Koreksi Kuantitas Diterima (kg)</label>
+                                <input type="number" step="0.0001" id="recQty" required placeholder="Sesuai fisik kedatangan" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-emerald-600/20 transition flex items-center justify-center space-x-2">
+                                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                    <span>Terima & Simpan Material</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-800">
+                            <h3 class="font-bold text-sm text-white">History Penerimaan Material</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800/50 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                                        <th class="py-2.5 px-3">Tanggal</th>
+                                        <th class="py-2.5 px-3">Material</th>
+                                        <th class="py-2.5 px-3 text-right">Diminta</th>
+                                        <th class="py-2.5 px-3 text-right">Diterima</th>
+                                        <th class="py-2.5 px-3">Lokasi Simpan</th>
+                                        <th class="py-2.5 px-3 text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${receiptRows.length > 0 ? receiptRows : `<tr><td colspan="6" class="text-center py-8 text-slate-500 text-xs">Belum ada history penerimaan material.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function populateReceiveQty(reqId) {
+            const reqObj = appState.transactions.requests.find(r => r.id == reqId);
+            const recQty = document.getElementById('recQty');
+            if (reqObj && recQty) {
+                recQty.value = reqObj.qty;
+            }
+        }
+
+        function handleReceiveMaterial(e) {
+            e.preventDefault();
+            const reqId = document.getElementById('recReqId').value;
+            const location = document.getElementById('recLocation').value;
+            const receivedQty = parseFloat(document.getElementById('recQty').value) || 0;
+
+            const reqObj = appState.transactions.requests.find(r => r.id == reqId);
+            if (!reqObj) {
+                showToast("Permintaan tidak ditemukan", true);
+                return;
+            }
+
+            const newReceipt = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('id-ID'),
+                requestId: reqId,
+                materialId: reqObj.materialId,
+                requestedQty: reqObj.qty,
+                receivedQty,
+                location,
+                status: 'Received'
+            };
+
+            appState.transactions.receipts.push(newReceipt);
+            if (location === 'STORAGE_TANK') {
+                appState.tank.level = Math.min(1000, appState.tank.level + receivedQty);
+            }
+            saveState();
+            showToast("Penerimaan material berhasil dicatat dan stok diperbarui");
+            renderView();
+        }
+
+        // --- 4. PEMAKAIAN VIEW ---
+        function renderPemakaianView() {
+            let skuOptions = appState.master.skus.map(s => `<option value="${s.id}">${s.name} ${s.isKite ? '(KITE)' : '(Domestik)'}</option>`).join('');
+            let wipOptions = appState.master.wips.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+            let matOptions = appState.master.materials.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
+            let usageRows = appState.transactions.usages.map(u => {
+                let sObj = appState.master.skus.find(s => s.id == u.skuId);
+                let wObj = appState.master.wips.find(w => w.id == u.wipId);
+                let mObj = appState.master.materials.find(m => m.id == u.materialId);
+                return `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/40 text-xs">
+                        <td class="py-3 px-3 font-medium text-white">${sObj ? sObj.name : '-'}</td>
+                        <td class="py-3 px-3 text-slate-300">${wObj ? wObj.name : '-'}</td>
+                        <td class="py-3 px-3 text-slate-300">${mObj ? mObj.name : '-'}</td>
+                        <td class="py-3 px-3 text-right text-slate-300">${u.qty.toFixed(4)} kg / ${u.batch.toFixed(4)} batch</td>
+                        <td class="py-3 px-3 text-right font-bold text-rose-400">-${u.usageQty.toFixed(4)} kg</td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div class="max-w-4xl mx-auto space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                        <h3 class="font-bold text-sm text-white mb-3 flex items-center space-x-2">
+                            <i data-lucide="cpu" class="w-4 h-4 text-purple-400"></i>
+                            <span>Input Rencana Pemakaian Material & WIP</span>
+                        </h3>
+                        <form onsubmit="handleUsageMaterial(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih SKU Produk</label>
+                                <select id="useSkuId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih SKU --</option>
+                                    ${skuOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih WIP Produksi</label>
+                                <select id="useWipId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih WIP --</option>
+                                    ${wipOptions}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Material Terpakai (Database)</label>
+                                <select id="useMatId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="">-- Pilih Material --</option>
+                                    ${matOptions}
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Qty (kg)</label>
+                                    <input type="number" step="0.0001" id="useQty" required placeholder="0.0000" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Total Pemakaian (kg)</label>
+                                    <input type="number" step="0.0001" id="useUsageQty" required placeholder="0.0000" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                </div>
+                            </div>
+                            <div class="sm:col-span-2 pt-2">
+                                <button type="submit" class="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-purple-600/20 transition flex items-center justify-center space-x-2">
+                                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                    <span>Catat Pemakaian & Kurangi Stock Otomatis</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-800">
+                            <h3 class="font-bold text-sm text-white">History Pemakaian Material</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800/50 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                                        <th class="py-2.5 px-3">SKU</th>
+                                        <th class="py-2.5 px-3">WIP</th>
+                                        <th class="py-2.5 px-3">Nama Material</th>
+                                        <th class="py-2.5 px-3 text-right">Qty/Batch</th>
+                                        <th class="py-2.5 px-3 text-right">Pemakaian</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${usageRows.length > 0 ? usageRows : `<tr><td colspan="5" class="text-center py-8 text-slate-500 text-xs">Belum ada history pemakaian material.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleUsageMaterial(e) {
+            e.preventDefault();
+            const skuId = document.getElementById('useSkuId').value;
+            const wipId = document.getElementById('useWipId').value;
+            const materialId = document.getElementById('useMatId').value;
+            const qty = parseFloat(document.getElementById('useQty').value) || 0;
+            const usageQty = parseFloat(document.getElementById('useUsageQty').value) || 0;
+
+            const newUsage = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('id-ID'),
+                skuId,
+                wipId,
+                materialId,
+                qty,
+                batch: qty / 25,
+                usageQty
+            };
+
+            appState.transactions.usages.push(newUsage);
+            let mObj = appState.master.materials.find(m => m.id == materialId);
+            if (mObj && mObj.type.toLowerCase() === 'liquid') {
+                appState.tank.level = Math.max(0, appState.tank.level - usageQty);
+            }
+
+            saveState();
+            showToast("Pemakaian material berhasil dicatat dan stok dikurangi");
+            renderView();
+        }
+
+        // --- 5. MASTER DATA & HIERARCHICAL BOM VIEW ---
+        function renderMasterView() {
+            if (!appState.isAdmin) {
+                return `
+                    <div class="max-w-md mx-auto text-center py-12 px-4 bg-slate-900 border border-slate-800 rounded-2xl mt-8">
+                        <i data-lucide="lock" class="w-12 h-12 text-rose-400 mx-auto mb-3"></i>
+                        <h3 class="font-bold text-base text-white mb-1">Akses Dibatasi</h3>
+                        <p class="text-xs text-slate-400 mb-4">Hanya Administrator yang dapat mengakses Master Data dan hierarki Bill of Materials (BOM).</p>
+                        <button onclick="openAdminModal()" class="px-4 py-2 bg-cyan-600 text-white rounded-xl text-xs font-semibold">Login Administrator</button>
+                    </div>
+                `;
+            }
+
+            let matList = appState.master.materials.map(m => `
+                <div class="bg-slate-800/50 border border-slate-700/60 p-3 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-bold text-white">${m.name}</span>
+                        <div class="text-[10px] text-slate-400">Tipe: ${m.type} | Supplier: ${m.source} | Kemasan: ${m.packaging}</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-cyan-400 font-semibold">${m.weightKg.toFixed(4)} kg</span>
+                        <button onclick="deleteMaterial('${m.id}')" class="text-rose-400 hover:text-rose-300 block text-[10px] mt-1">Hapus</button>
+                    </div>
+                </div>
+            `).join('');
+
+            let wipList = appState.master.wips.map(w => `
+                <div class="bg-slate-800/50 border border-slate-700/60 p-3 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-bold text-white">${w.name}</span>
+                        <div class="text-[10px] text-slate-400">Berat Batch: ${w.batchWeightKg.toFixed(4)} kg</div>
+                    </div>
+                    <button onclick="deleteWip('${w.id}')" class="text-rose-400 hover:text-rose-300 text-[10px]">Hapus</button>
+                </div>
+            `).join('');
+
+            let skuList = appState.master.skus.map(s => `
+                <div class="bg-slate-800/50 border border-slate-700/60 p-3 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-bold text-white">${s.name} <span class="text-[10px] px-1.5 py-0.2 ${s.isKite ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'} rounded">${s.isKite ? 'KITE (Ekspor)' : 'Domestik'}</span></span>
+                        <div class="text-[10px] text-slate-400">Target: ${s.targetHour} karton/jam | Berat: ${s.cartonWeightKg.toFixed(4)} kg/karton</div>
+                    </div>
+                    <button onclick="deleteSku('${s.id}')" class="text-rose-400 hover:text-rose-300 text-[10px]">Hapus</button>
+                </div>
+            `).join('');
+
+            let skuSelectOptions = appState.master.skus.map(s => `<option value="${s.id}">${s.name} ${s.isKite ? '(KITE)' : '(Domestik)'}</option>`).join('');
+            let wipSelectOptions = appState.master.wips.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+            let matSelectOptions = appState.master.materials.map(m => `<option value="${m.id}">${m.name} (${m.type} - ${m.weightKg.toFixed(4)} kg)</option>`).join('');
+
+            // Hierarchical BOM visualization & configuration (Separated per WIP)
+            let hierarchicalBOMHTML = appState.master.skus.map(sku => {
+                let skuWipComps = appState.master.skuWips.filter(sw => sw.skuId === sku.id);
+                let wipComponentsHTML = skuWipComps.map(sw => {
+                    let wObj = appState.master.wips.find(w => w.id === sw.wipId);
+                    let wipMatComps = appState.master.wipMats.filter(wm => wm.wipId === sw.wipId);
+                    let materialBreakdownHTML = wipMatComps.map(wm => {
+                        let mObj = appState.master.materials.find(m => m.id === wm.materialId);
+                        return `
+                            <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs ml-4 my-1.5">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="box" class="w-3 h-3 text-cyan-400"></i>
+                                    <span class="text-slate-300">${mObj ? mObj.name : 'Material'} <span class="text-[10px] text-slate-400">(${mObj ? mObj.type : ''})</span></span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="font-mono text-cyan-400">${wm.materialKgPerBatch.toFixed(4)} kg / batch WIP</span>
+                                    <button onclick="deleteWipMat('${wm.id}')" class="text-rose-400 hover:text-rose-300 text-[10px]">Hapus</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <div class="bg-slate-800/60 border border-slate-700 p-3 rounded-xl space-y-2 mb-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i data-lucide="layers" class="w-4 h-4 text-amber-400"></i>
+                                    <span class="font-bold text-white text-xs">WIP Terpisah: ${wObj ? wObj.name : 'WIP'}</span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-xs font-semibold text-amber-400">${sw.kgWipPerCartonSku.toFixed(4)} kg WIP / karton SKU</span>
+                                    <button onclick="deleteSkuWip('${sw.id}')" class="text-rose-400 hover:text-rose-300 text-[10px]">Hapus</button>
+                                </div>
+                            </div>
+                            <div class="pl-4 border-l-2 border-amber-500/30 space-y-1">
+                                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Kalkulasi 1 Batch WIP dari Database Material:</p>
+                                ${materialBreakdownHTML.length > 0 ? materialBreakdownHTML : '<p class="text-[11px] text-slate-500 italic">Belum ada material yang diinput untuk batch WIP ini.</p>'}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-slate-800/30 border border-slate-700/70 p-4 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                            <div class="flex items-center space-x-2">
+                                <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
+                                <h4 class="font-bold text-sm text-white">SKU: ${sku.name} <span class="text-xs px-1.5 py-0.5 ${sku.isKite ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'} rounded">${sku.isKite ? 'KITE (Ekspor)' : 'Domestik'}</span> <span class="text-xs font-normal text-slate-400">(${sku.cartonWeightKg.toFixed(4)} kg/karton, Target: ${sku.targetHour} karton/jam)</span></h4>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded">Hierarki Utama</span>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Komponen WIP Terpisah (kg WIP / karton SKU):</p>
+                            ${wipComponentsHTML.length > 0 ? wipComponentsHTML : '<p class="text-[11px] text-slate-500 italic py-1">Belum ada WIP terpisah yang diikat ke SKU ini.</p>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="max-w-4xl mx-auto space-y-6 pb-8">
+                    <!-- Notification Banner for Auto-Save Database -->
+                    <div class="bg-cyan-950/40 border border-cyan-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-cyan-300">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="database" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+                            <span>Database Material Aktif (Autosave): Semua material yang diinput tersimpan otomatis & langsung menjadi acuan dropdown batch WIP dengan autofill berat kilogram (4 desimal).</span>
+                        </div>
+                        <span class="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 font-semibold rounded text-[10px]">Auto-Saved</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Material Master Form -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="database" class="w-4 h-4 text-rose-400"></i>
+                                <span>1. Input Material (Autosave DB)</span>
+                            </h3>
+                            <form onsubmit="handleAddMaterial(event)" class="space-y-2">
+                                <input type="text" id="matName" required placeholder="Nama Material" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <select id="matType" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="liquid">Liquid</option>
+                                    <option value="bubuk">Bubuk</option>
+                                    <option value="padat">Padat</option>
+                                </select>
+                                <select id="matSource" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <option value="GDRM">GDRM (Kemasan 20/25/50kg)</option>
+                                    <option value="Formulasi">Formulasi (Custom Batch)</option>
+                                </select>
+                                <input type="text" id="matPackaging" required placeholder="Kemasan (e.g. 25 kg atau Batching 6.447 kg)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <input type="number" step="0.0001" id="matWeight" required placeholder="Berat (Kilogram, 4 desimal)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <button type="submit" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold">Simpan & Autosave Material</button>
+                            </form>
+                            <div class="space-y-2 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
+                                ${matList || '<p class="text-[11px] text-slate-500">Belum ada material.</p>'}
+                            </div>
+                        </div>
+
+                        <!-- WIP Master Form -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="layers" class="w-4 h-4 text-amber-400"></i>
+                                <span>2. Input WIP</span>
+                            </h3>
+                            <form onsubmit="handleAddWip(event)" class="space-y-2">
+                                <input type="text" id="wipName" required placeholder="Nama WIP" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <input type="number" step="0.0001" id="wipBatchWeight" required placeholder="Berat 1 Batch WIP (kg, 4 desimal)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <button type="submit" class="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold">Simpan WIP</button>
+                            </form>
+                            <div class="space-y-2 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
+                                ${wipList || '<p class="text-[11px] text-slate-500">Belum ada WIP.</p>'}
+                            </div>
+                        </div>
+
+                        <!-- SKU Master Form -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="box" class="w-4 h-4 text-cyan-400"></i>
+                                <span>3. Input SKU (Domestik / KITE Ekspor)</span>
+                            </h3>
+                            <form onsubmit="handleAddSku(event)" class="space-y-2">
+                                <input type="text" id="skuName" required placeholder="Nama SKU Produk" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <div class="flex items-center space-x-2 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700">
+                                    <input type="checkbox" id="skuIsKite" class="w-4 h-4 rounded text-cyan-600 bg-slate-700 border-slate-600">
+                                    <label for="skuIsKite" class="text-xs text-slate-300 font-medium">Tandai sebagai SKU Ekspor (KITE)</label>
+                                </div>
+                                <input type="number" step="0.0001" id="skuTarget" required placeholder="Target SKU per Jam (karton)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <input type="number" step="0.0001" id="skuWeight" required placeholder="Berat SKU (Kilogram per karton)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <button type="submit" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold">Simpan SKU</button>
+                            </form>
+                            <div class="space-y-2 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
+                                ${skuList || '<p class="text-[11px] text-slate-500">Belum ada SKU.</p>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: BOM Configuration (A. SKU to WIP kg/carton, B. WIP batch to Material kg with Autofill) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- A. Tentukan WIP (kg/karton) untuk SKU -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="git-branch" class="w-4 h-4 text-cyan-400"></i>
+                                <span>A. Tentukan Jenis WIP (kg/karton) untuk 1 Karton SKU</span>
+                            </h3>
+                            <form onsubmit="handleAddSkuWip(event)" class="space-y-3 bg-slate-800/40 p-3 rounded-xl border border-slate-700/50">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Pilih SKU Produk</label>
+                                    <select id="swSkuId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                        <option value="">-- Pilih SKU --</option>
+                                        ${skuSelectOptions}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Jenis WIP Terpisah</label>
+                                    <select id="swWipId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                        <option value="">-- Pilih WIP --</option>
+                                        ${wipSelectOptions}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Kebutuhan WIP (Kilogram / Karton SKU)</label>
+                                    <input type="number" step="0.0001" id="swKgPerCarton" required placeholder="0.0000" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold">Tautkan WIP ke SKU</button>
+                            </form>
+                        </div>
+
+                        <!-- B. Tentukan Batch WIP dari Database Material dengan Autofill -->
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="cpu" class="w-4 h-4 text-amber-400"></i>
+                                <span>B. Tentukan Batch WIP dari Database Material (Autofill kg)</span>
+                            </h3>
+                            <form onsubmit="handleAddWipMat(event)" class="space-y-3 bg-slate-800/40 p-3 rounded-xl border border-slate-700/50">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Target WIP</label>
+                                    <select id="wmWipId" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                        <option value="">-- Pilih WIP --</option>
+                                        ${wipSelectOptions}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Pilih Material dari Database (Autosave)</label>
+                                    <select id="wmMatId" onchange="autofillMaterialWeight(this.value)" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                                        <option value="">-- Pilih Material Database --</option>
+                                        ${matSelectOptions}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Berat Material per Batch WIP (Kilogram - Autofilled)</label>
+                                    <input type="number" step="0.0001" id="wmKgBatch" required placeholder="0.0000" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono text-cyan-400">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold">Tautkan Material ke Batch WIP</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Professional Hierarchical BOM Tree Visualization (Separated per WIP) -->
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+                                <i data-lucide="network" class="w-4 h-4 text-emerald-400"></i>
+                                <span>Visualisasi BOM Hierarki Profesional (SKU &rarr; WIP Terpisah &rarr; Material Database)</span>
+                            </h3>
+                            <span class="text-xs text-slate-400">Industrial Standard 4-Decimal Precision</span>
+                        </div>
+                        <div class="space-y-4">
+                            ${hierarchicalBOMHTML || '<div class="text-center py-8 text-slate-500 text-xs">Belum ada konfigurasi hierarki BOM terpisah. Silakan tambahkan SKU, WIP, dan Material terlebih dahulu.</div>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function autofillMaterialWeight(materialId) {
+            const mObj = appState.master.materials.find(m => m.id === materialId);
+            const inputField = document.getElementById('wmKgBatch');
+            if (mObj && inputField) {
+                inputField.value = mObj.weightKg;
+                showToast("Autofill berat material: " + mObj.weightKg + " kg");
+            }
+        }
+
+        function handleAddMaterial(e) {
+            e.preventDefault();
+            const name = document.getElementById('matName').value;
+            const type = document.getElementById('matType').value;
+            const source = document.getElementById('matSource').value;
+            const packaging = document.getElementById('matPackaging').value;
+            const weightKg = parseFloat(document.getElementById('matWeight').value) || 0;
+
+            appState.master.materials.push({
+                id: 'mat_' + Date.now(),
+                name, type, source, packaging, weightKg
+            });
+            saveState();
+            showToast("Material berhasil di-autosave ke database");
+            renderView();
+        }
+
+        function handleAddWip(e) {
+            e.preventDefault();
+            const name = document.getElementById('wipName').value;
+            const batchWeightKg = parseFloat(document.getElementById('wipBatchWeight').value) || 0;
+
+            appState.master.wips.push({
+                id: 'wip_' + Date.now(),
+                name, batchWeightKg
+            });
+            saveState();
+            showToast("WIP berhasil ditambahkan");
+            renderView();
+        }
+
+        function handleAddSku(e) {
+            e.preventDefault();
+            const name = document.getElementById('skuName').value;
+            const isKite = document.getElementById('skuIsKite').checked;
+            const targetHour = parseFloat(document.getElementById('skuTarget').value) || 0;
+            const cartonWeightKg = parseFloat(document.getElementById('skuWeight').value) || 0;
+
+            appState.master.skus.push({
+                id: 'sku_' + Date.now(),
+                name, isKite, targetHour, cartonWeightKg
+            });
+            saveState();
+            showToast("SKU (" + (isKite ? 'KITE Ekspor' : 'Domestik') + ") berhasil ditambahkan");
+            renderView();
+        }
+
+        function handleAddSkuWip(e) {
+            e.preventDefault();
+            const skuId = document.getElementById('swSkuId').value;
+            const wipId = document.getElementById('swWipId').value;
+            const kgWipPerCartonSku = parseFloat(document.getElementById('swKgPerCarton').value) || 0;
+
+            appState.master.skuWips.push({
+                id: 'sw_' + Date.now(),
+                skuId,
+                wipId,
+                kgWipPerCartonSku
+            });
+            saveState();
+            showToast("WIP terpisah berhasil diikat ke SKU (kg WIP/karton SKU)");
+            renderView();
+        }
+
+        function handleAddWipMat(e) {
+            e.preventDefault();
+            const wipId = document.getElementById('wmWipId').value;
+            const materialId = document.getElementById('wmMatId').value;
+            const materialKgPerBatch = parseFloat(document.getElementById('wmKgBatch').value) || 0;
+
+            appState.master.wipMats.push({
+                id: 'wm_' + Date.now(),
+                wipId,
+                materialId,
+                materialKgPerBatch
+            });
+            saveState();
+            showToast("Material dari database berhasil ditautkan ke batch WIP dengan autofill");
+            renderView();
+        }
+
+        function deleteMaterial(id) {
+            appState.master.materials = appState.master.materials.filter(m => m.id !== id);
+            appState.master.wipMats = appState.master.wipMats.filter(wm => wm.materialId !== id);
+            saveState();
+            showToast("Material dihapus");
+            renderView();
+        }
+
+        function deleteWip(id) {
+            appState.master.wips = appState.master.wips.filter(w => w.id !== id);
+            appState.master.skuWips = appState.master.skuWips.filter(sw => sw.wipId !== id);
+            appState.master.wipMats = appState.master.wipMats.filter(wm => wm.wipId !== id);
+            saveState();
+            showToast("WIP dihapus");
+            renderView();
+        }
+
+        function deleteSku(id) {
+            appState.master.skus = appState.master.skus.filter(s => s.id !== id);
+            appState.master.skuWips = appState.master.skuWips.filter(sw => sw.skuId !== id);
+            saveState();
+            showToast("SKU dihapus");
+            renderView();
+        }
+
+        function deleteSkuWip(id) {
+            appState.master.skuWips = appState.master.skuWips.filter(sw => sw.id !== id);
+            saveState();
+            showToast("Relasi WIP terpisah ke SKU dihapus");
+            renderView();
+        }
+
+        function deleteWipMat(id) {
+            appState.master.wipMats = appState.master.wipMats.filter(wm => wm.id !== id);
+            saveState();
+            showToast("Relasi Material ke WIP dihapus");
+            renderView();
+        }
+
+        function openResetModal() {
+            const modal = document.getElementById('appModal');
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                    <div class="flex items-center space-x-2 text-rose-400">
+                        <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm text-white">Reset Semua Data Sistem</h3>
+                    </div>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <p class="text-xs text-slate-300 mb-4">Tindakan ini akan menghapus seluruh data SKU, WIP, Material Autosave Database, BOM Hierarki, Permintaan, Penerimaan, Pemakaian, dan stock kembali kosong total.</p>
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">Batal</button>
+                    <button onclick="executeFullReset()" class="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-rose-600/20">Reset Sekarang</button>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function executeFullReset() {
+            appState = {
+                isAdmin: false,
+                currentTab: 'dashboard',
+                master: { materials: [], wips: [], skus: [], skuWips: [], wipMats: [] },
+                transactions: { requests: [], receipts: [], usages: [] },
+                tank: { level: 1000.0, temp: 50.0 }
+            };
+            saveState();
+            closeModal();
+            showToast("Semua data berhasil di-reset bersih total");
+            renderView();
+        }
+
+        function openStorageTankModal() {
+            const modal = document.getElementById('appModal');
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                    <div class="flex items-center space-x-2 text-cyan-400">
+                        <i data-lucide="droplet" class="w-5 h-5"></i>
+                        <h3 class="font-bold text-sm text-white">Storage Tank Liquid (Kapasitas 1000 kg)</h3>
+                    </div>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="space-y-4 text-xs">
+                    <div class="bg-slate-800 p-3 rounded-xl flex justify-between items-center">
+                        <span class="text-slate-300">Level Liquid Aktual:</span>
+                        <span class="font-bold text-cyan-400 text-sm">${appState.tank.level.toFixed(2)} kg / 1000 kg</span>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded-xl flex justify-between items-center">
+                        <span class="text-slate-300">Suhu Storage Tank:</span>
+                        <span class="font-bold text-amber-400 text-sm">${appState.tank.temp.toFixed(1)}°C (Target: 45-55°C)</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Pengurangan WIP liquid disesuaikan otomatis dengan jumlah material liquid yang terpakai.</p>
+                    <button onclick="closeModal()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold">Tutup</button>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
