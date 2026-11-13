@@ -17,7 +17,8 @@ import {
   Droplet,
   PlayCircle,
   Truck,
-  RotateCw
+  RotateCw,
+  Scale
 } from 'lucide-react';
 import { AppState, ShiftNumber } from '../../types';
 import { getCurrentShift, SHIFTS_CONFIG } from '../../utils/shifts';
@@ -29,6 +30,7 @@ interface AdminPortalViewProps {
   onOpenPdfModal: () => void;
   onOpenTankModal: () => void;
   onOpenUserManagement: () => void;
+  onOpenStockAdjustment?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -38,6 +40,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   onOpenPdfModal,
   onOpenTankModal,
   onOpenUserManagement,
+  onOpenStockAdjustment,
   showToast
 }) => {
   const currentShift = getCurrentShift();
@@ -205,15 +208,25 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           <div className="pt-2.5 flex items-center space-x-2">
             <button
               onClick={() => onSwitchTab('tank-monitoring')}
-              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
+              className="flex-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
             >
               <span>Monitoring Tangki WIP</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            {onOpenStockAdjustment && (
+              <button
+                onClick={onOpenStockAdjustment}
+                title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
+                className="py-2 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold rounded-xl text-xs transition border border-amber-300 flex items-center space-x-1 shadow-xs"
+              >
+                <Scale className="w-3.5 h-3.5 text-amber-700" />
+                <span>Adjust Saldo</span>
+              </button>
+            )}
             <button
               onClick={() => onSwitchTab('penerimaan')}
               title="Penerimaan Bahan Baku Gudang GDRM"
-              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300"
+              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300"
             >
               Penerimaan
             </button>
@@ -380,6 +393,16 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
               <span>Buka Konfigurasi Master BOM</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            {onOpenStockAdjustment && (
+              <button
+                onClick={onOpenStockAdjustment}
+                title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
+                className="py-2 px-3 bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold rounded-xl text-xs transition border border-amber-300 flex items-center space-x-1 shadow-xs active:scale-95"
+              >
+                <Scale className="w-3.5 h-3.5 text-amber-700" />
+                <span>Adjust Saldo Awal</span>
+              </button>
+            )}
             <button
               onClick={onOpenUserManagement}
               title="Kelola Pendaftaran Operator & Izin Management"

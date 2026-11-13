@@ -35,7 +35,8 @@ import {
   CheckSquare,
   Square,
   UserPlus,
-  Filter
+  Filter,
+  Scale
 } from 'lucide-react';
 import { MaterialImportModal } from '../MaterialImportModal';
 import { MachineImportModal } from '../MachineImportModal';
@@ -124,6 +125,7 @@ interface MasterBOMViewProps {
   onChangeAdminPin?: (newPin: string) => void;
   onOpenAdminModal: () => void;
   onOpenUserManagement?: () => void;
+  onOpenStockAdjustment?: (materialId?: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -169,6 +171,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   onChangeAdminPin,
   onOpenAdminModal,
   onOpenUserManagement,
+  onOpenStockAdjustment,
   showToast
 }) => {
   // Master sub-tab selection
@@ -1158,12 +1161,22 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <Database className="w-4 h-4 text-rose-400" />
               <span>1. Input Material (DB)</span>
             </h3>
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-2">
+              {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+                <button
+                  type="button"
+                  onClick={() => onOpenStockAdjustment()}
+                  className="text-[11px] text-amber-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-amber-950/60 border border-amber-800 hover:bg-amber-900/60 transition"
+                  title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
+                >
+                  <Scale className="w-3 h-3 text-amber-400" />
+                  <span>Adjust Saldo Awal</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
-                  if (!state.isAdmin) {
-                    onOpenAdminModal();
+                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                     showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
                     return;
                   }
@@ -1262,17 +1275,35 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     <span className="text-[10px] text-slate-400 block mt-0.5">
                       <span className="text-slate-300 font-medium">{m.type.toUpperCase()}</span> • <span className={m.source === 'Formulasi' ? 'text-purple-300 font-medium' : 'text-blue-300 font-medium'}>{m.source}</span> • {m.packaging}
                     </span>
+                    <span className="text-[10px] text-amber-300/90 font-mono block mt-0.5">
+                      Saldo Awal: Total {((m.initialStockCk || 0) + (m.initialStockWineroto || 0) + (m.initialStockTank || 0)).toFixed(1)} kg
+                      <span className="text-slate-400 text-[9px] ml-1">
+                        (CK: {m.initialStockCk || 0} | WR: {m.initialStockWineroto || 0} | TK: {m.initialStockTank || 0})
+                      </span>
+                    </span>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="font-mono text-cyan-400 font-semibold block text-[11px]">
                       {m.weightKg.toFixed(4)} kg
                     </span>
-                    <button
-                      onClick={() => onDeleteMaterial(m.id)}
-                      className="text-rose-400 hover:text-rose-300 text-[10px] mt-0.5"
-                    >
-                      Hapus
-                    </button>
+                    <div className="flex items-center space-x-2 mt-0.5 justify-end">
+                      {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenStockAdjustment(m.id)}
+                          className="text-amber-400 hover:text-amber-300 text-[10px] font-medium"
+                          title="Sesuaikan Saldo Awal Material Ini"
+                        >
+                          Adjust Saldo
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onDeleteMaterial(m.id)}
+                        className="text-rose-400 hover:text-rose-300 text-[10px]"
+                      >
+                        Hapus
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))

@@ -26,7 +26,8 @@ import {
   UserRole,
   RegisteredOperator,
   RegisteredManagement,
-  ActiveSkuProductionRun
+  ActiveSkuProductionRun,
+  MaterialStockAdjustment
 } from './types';
 import {
   loadStoredState,
@@ -54,6 +55,7 @@ import { ShiftReportPdfModal } from './components/ShiftReportPdfModal';
 import { WipCompletionAlarmModal } from './components/WipCompletionAlarmModal';
 import { UserRoleSwitcherModal } from './components/UserRoleSwitcherModal';
 import { UserManagementModal } from './components/UserManagementModal';
+import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers } from 'lucide-react';
 
@@ -70,8 +72,15 @@ export default function App() {
   const [isPdfReportModalOpen, setIsPdfReportModalOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const [isStockAdjustmentModalOpen, setIsStockAdjustmentModalOpen] = useState(false);
+  const [stockAdjustmentPreselectedMatId, setStockAdjustmentPreselectedMatId] = useState<string | undefined>(undefined);
   const [alarmWipBatch, setAlarmWipBatch] = useState<WipProductionBatch | null>(null);
   const [preselectedRequestId, setPreselectedRequestId] = useState<string | undefined>(undefined);
+
+  const handleOpenStockAdjustment = (materialId?: string) => {
+    setStockAdjustmentPreselectedMatId(materialId);
+    setIsStockAdjustmentModalOpen(true);
+  };
 
   // Toast Notification state
   const [toast, setToast] = useState<{ msg: string; isError: boolean; visible: boolean }>({
@@ -566,6 +575,87 @@ export default function App() {
       }
     }));
     showToast('Material berhasil dihapus');
+  };
+
+  // Adjust Stock Material Awal (Akses Khusus Administrator)
+  const handleAdjustMaterialStock = (
+    materialId: string,
+    adjustments: {
+      initialStockCk: number;
+      initialStockWineroto: number;
+      initialStockTank: number;
+      reason: string;
+      notes?: string;
+    }
+  ) => {
+    if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+      showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan adjust saldo awal material', true);
+      return;
+    }
+
+    setState(prev => {
+      const targetMat = prev.master.materials.find(m => m.id === materialId);
+      if (!targetMat) return prev;
+
+      const prevCk = Number(targetMat.initialStockCk ?? 0);
+      const prevWineroto = Number(targetMat.initialStockWineroto ?? 0);
+      const prevTank = Number(targetMat.initialStockTank ?? 0);
+      const prevTotal = prevCk + prevWineroto + prevTank;
+
+      const newCk = Math.max(0, adjustments.initialStockCk);
+      const newWineroto = Math.max(0, adjustments.initialStockWineroto);
+      const newTank = Math.max(0, adjustments.initialStockTank);
+      const newTotal = newCk + newWineroto + newTank;
+      const deltaTotal = newTotal - prevTotal;
+
+      const updatedMaterials = prev.master.materials.map(m => {
+        if (m.id !== materialId) return m;
+        return {
+          ...m,
+          initialStockCk: newCk,
+          initialStockWineroto: newWineroto,
+          initialStockTank: newTank
+        };
+      });
+
+      const now = new Date();
+      const adjRecord: MaterialStockAdjustment = {
+        id: `adj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        adjustmentNumber: `ADJ-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String((prev.transactions.stockAdjustments?.length || 0) + 1).padStart(3, '0')}`,
+        date: now.toISOString().slice(0, 10),
+        timestamp: now.toISOString(),
+        materialId: targetMat.id,
+        materialName: targetMat.name,
+        materialCode: targetMat.code,
+        location: (newCk !== prevCk ? 'CK' : (newWineroto !== prevWineroto ? 'WINEROTO' : (newTank !== prevTank ? 'STORAGE_TANK' : 'ALL'))),
+        previousInitialStockKg: prevTotal,
+        newInitialStockKg: newTotal,
+        deltaKg: deltaTotal,
+        previousStockCk: prevCk,
+        newStockCk: newCk,
+        previousStockWineroto: prevWineroto,
+        newStockWineroto: newWineroto,
+        previousStockTank: prevTank,
+        newStockTank: newTank,
+        reason: adjustments.reason || 'Penyesuaian Saldo Awal Material oleh Administrator',
+        adjustedBy: prev.currentSession?.name || 'Administrator',
+        notes: adjustments.notes
+      };
+
+      return {
+        ...prev,
+        master: {
+          ...prev.master,
+          materials: updatedMaterials
+        },
+        transactions: {
+          ...prev.transactions,
+          stockAdjustments: [adjRecord, ...(prev.transactions.stockAdjustments || [])]
+        }
+      };
+    });
+
+    showToast(`Saldo awal material berhasil disesuaikan oleh Administrator`);
   };
 
   // Import Materials (Internal Storage & Google Drive Batch Loader)
@@ -2567,6 +2657,7 @@ export default function App() {
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               onOpenTankModal={() => setIsTankModalOpen(true)}
               onOpenUserManagement={() => setIsUserManagementOpen(true)}
+              onOpenStockAdjustment={handleOpenStockAdjustment}
               showToast={showToast}
             />
           )}
@@ -2610,6 +2701,7 @@ export default function App() {
               onCreateMultipleRequests={handleCreateMultipleRequests}
               onJumpToReceive={handleJumpToReceive}
               onSwitchTab={handleSwitchTab}
+              onOpenStockAdjustment={handleOpenStockAdjustment}
               showToast={showToast}
             />
           )}
@@ -2619,6 +2711,7 @@ export default function App() {
               state={state}
               onReceiveMaterial={handleReceiveMaterial}
               preselectedRequestId={preselectedRequestId}
+              onOpenStockAdjustment={handleOpenStockAdjustment}
               showToast={showToast}
             />
           )}
@@ -2641,6 +2734,7 @@ export default function App() {
               onAddMaterial={handleAddMaterial}
               onDeleteMaterial={handleDeleteMaterial}
               onImportMaterials={handleImportMaterials}
+              onOpenStockAdjustment={handleOpenStockAdjustment}
               onAddWip={handleAddWip}
               onUpdateWip={handleUpdateWip}
               onDeleteWip={handleDeleteWip}
@@ -2768,6 +2862,16 @@ export default function App() {
         onToggleManagementAccess={handleToggleManagementAccess}
         onDeleteManagement={handleDeleteManagement}
         onChangeAdminPin={handleChangePin}
+        showToast={showToast}
+      />
+
+      {/* Administrator Material Initial Stock Adjustment Modal */}
+      <MaterialStockAdjustmentModal
+        isOpen={isStockAdjustmentModalOpen}
+        onClose={() => setIsStockAdjustmentModalOpen(false)}
+        state={state}
+        preselectedMaterialId={stockAdjustmentPreselectedMatId}
+        onAdjustStock={handleAdjustMaterialStock}
         showToast={showToast}
       />
 

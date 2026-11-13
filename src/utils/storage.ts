@@ -19,7 +19,8 @@ import {
   StorageLocation,
   PalletAllocation,
   PalletInventoryLot,
-  ZakReceiptBreakdown
+  ZakReceiptBreakdown,
+  MaterialStockAdjustment
 } from '../types';
 
 export const STORAGE_KEY = 'prodtrack_state_v9';
@@ -371,7 +372,8 @@ export const DEFAULT_STATE: AppState = {
     cartonProductions: [],
     tankLogs: [],
     changeovers: [],
-    productionStops: []
+    productionStops: [],
+    stockAdjustments: []
   },
   activeSkuRun: null,
   activeSkuRuns: [],
@@ -386,16 +388,16 @@ export const DEFAULT_STATE: AppState = {
 };
 
 export const SAMPLE_MATERIALS: Material[] = [
-  { id: 'mat_1', name: 'Tepung Terigu Premix', code: 'MAT-TP-01', type: 'bubuk', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 100 },
-  { id: 'mat_2', name: 'Gula Pasir Rafinasi (50 kg)', code: 'MAT-GL-01', type: 'padat', source: 'GDRM', packaging: 'Zak 50.0000 kg', weightKg: 50.0000, minStockAlert: 200 },
-  { id: 'mat_2_15k', name: 'Gula Pasir Rafinasi (15 kg)', code: 'MAT-GL-01', type: 'padat', source: 'GDRM', packaging: 'Zak 15.0000 kg', weightKg: 15.0000, minStockAlert: 100 },
-  { id: 'mat_2_form', name: 'Gula Pasir Formulasi Khusus', code: 'MAT-GL-01', type: 'padat', source: 'Formulasi', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 50 },
-  { id: 'mat_3', name: 'Minyak Nabati RBDPO', code: 'MAT-MY-01', type: 'liquid', source: 'GDRM', packaging: 'Drum 180.0000 kg', weightKg: 180.0000, minStockAlert: 300 },
-  { id: 'mat_4', name: 'Flavor Choco Paste', code: 'MAT-FL-02', type: 'liquid', source: 'Formulasi', packaging: 'Jerigen 10.0000 kg', weightKg: 10.0000, minStockAlert: 30 },
-  { id: 'mat_5', name: 'Premix Vitamin Custom', code: 'MAT-PX-03', type: 'bubuk', source: 'Formulasi', packaging: 'Batching 4.2500 kg', weightKg: 4.2500, minStockAlert: 15 },
-  { id: 'mat_6', name: 'Lecithin Emulsifier', code: 'MAT-LC-01', type: 'liquid', source: 'Formulasi', packaging: 'Batching 1.8500 kg', weightKg: 1.8500, minStockAlert: 10 },
-  { id: 'mat_7', name: 'Garam Halus Industri', code: 'MAT-GR-01', type: 'padat', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 50 },
-  { id: 'mat_8', name: 'Skim Milk Powder', code: 'MAT-SM-01', type: 'bubuk', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 75 },
+  { id: 'mat_1', name: 'Tepung Terigu Premix', code: 'MAT-TP-01', type: 'bubuk', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 100, initialStockCk: 2500, initialStockWineroto: 500, initialStockTank: 0 },
+  { id: 'mat_2', name: 'Gula Pasir Rafinasi (50 kg)', code: 'MAT-GL-01', type: 'padat', source: 'GDRM', packaging: 'Zak 50.0000 kg', weightKg: 50.0000, minStockAlert: 200, initialStockCk: 1500, initialStockWineroto: 1000, initialStockTank: 0 },
+  { id: 'mat_2_15k', name: 'Gula Pasir Rafinasi (15 kg)', code: 'MAT-GL-01', type: 'padat', source: 'GDRM', packaging: 'Zak 15.0000 kg', weightKg: 15.0000, minStockAlert: 100, initialStockCk: 300, initialStockWineroto: 150, initialStockTank: 0 },
+  { id: 'mat_2_form', name: 'Gula Pasir Formulasi Khusus', code: 'MAT-GL-01', type: 'padat', source: 'Formulasi', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 50, initialStockCk: 50, initialStockWineroto: 250, initialStockTank: 0 },
+  { id: 'mat_3', name: 'Minyak Nabati RBDPO', code: 'MAT-MY-01', type: 'liquid', source: 'GDRM', packaging: 'Drum 180.0000 kg', weightKg: 180.0000, minStockAlert: 300, initialStockCk: 0, initialStockWineroto: 0, initialStockTank: 3500 },
+  { id: 'mat_4', name: 'Flavor Choco Paste', code: 'MAT-FL-02', type: 'liquid', source: 'Formulasi', packaging: 'Jerigen 10.0000 kg', weightKg: 10.0000, minStockAlert: 30, initialStockCk: 40, initialStockWineroto: 120, initialStockTank: 0 },
+  { id: 'mat_5', name: 'Premix Vitamin Custom', code: 'MAT-PX-03', type: 'bubuk', source: 'Formulasi', packaging: 'Batching 4.2500 kg', weightKg: 4.2500, minStockAlert: 15, initialStockCk: 15, initialStockWineroto: 85, initialStockTank: 0 },
+  { id: 'mat_6', name: 'Lecithin Emulsifier', code: 'MAT-LC-01', type: 'liquid', source: 'Formulasi', packaging: 'Batching 1.8500 kg', weightKg: 1.8500, minStockAlert: 10, initialStockCk: 10, initialStockWineroto: 50, initialStockTank: 0 },
+  { id: 'mat_7', name: 'Garam Halus Industri', code: 'MAT-GR-01', type: 'padat', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 50, initialStockCk: 500, initialStockWineroto: 250, initialStockTank: 0 },
+  { id: 'mat_8', name: 'Skim Milk Powder', code: 'MAT-SM-01', type: 'bubuk', source: 'GDRM', packaging: 'Zak 25.0000 kg', weightKg: 25.0000, minStockAlert: 75, initialStockCk: 750, initialStockWineroto: 250, initialStockTank: 0 },
 ];
 
 export const SAMPLE_WIPS: WIP[] = [
@@ -896,7 +898,8 @@ export function getSampleState(): AppState {
           notes: 'Clearance QC disetujui Doni Pratama',
           cartonsProducedDuringRun: 60
         }
-      ]
+      ],
+      stockAdjustments: []
     },
     activeSkuRun: null,
     activeSkuRuns: [],
@@ -1043,7 +1046,18 @@ export function loadStoredState(): AppState {
           master: {
             ...DEFAULT_STATE.master,
             ...parsed.master,
-            materials: sanitizeUniqueIds(parsed.master?.materials || DEFAULT_STATE.master.materials, 'mat'),
+            materials: sanitizeUniqueIds(
+              (parsed.master?.materials || DEFAULT_STATE.master.materials).map((m: any) => {
+                const sample = SAMPLE_MATERIALS.find(sm => sm.id === m.id || sm.name === m.name);
+                return {
+                  ...m,
+                  initialStockCk: typeof m.initialStockCk === 'number' ? m.initialStockCk : (sample?.initialStockCk ?? 0),
+                  initialStockWineroto: typeof m.initialStockWineroto === 'number' ? m.initialStockWineroto : (sample?.initialStockWineroto ?? 0),
+                  initialStockTank: typeof m.initialStockTank === 'number' ? m.initialStockTank : (sample?.initialStockTank ?? 0)
+                };
+              }),
+              'mat'
+            ),
             wips: sanitizeUniqueIds(wips.length > 0 ? wips : SAMPLE_WIPS, 'wip'),
             skus: sanitizeUniqueIds(parsed.master?.skus || DEFAULT_STATE.master.skus, 'sku'),
             skuWips: sanitizeUniqueIds(parsed.master?.skuWips || DEFAULT_STATE.master.skuWips, 'sw'),
@@ -1062,7 +1076,8 @@ export function loadStoredState(): AppState {
             cartonProductions: sanitizeUniqueIds(parsed.transactions?.cartonProductions || [], 'cp'),
             tankLogs: sanitizeUniqueIds(parsed.transactions?.tankLogs || [], 'tl'),
             changeovers: sanitizeUniqueIds(parsed.transactions?.changeovers || [], 'co'),
-            productionStops: sanitizeUniqueIds(parsed.transactions?.productionStops || [], 'stop')
+            productionStops: sanitizeUniqueIds(parsed.transactions?.productionStops || [], 'stop'),
+            stockAdjustments: sanitizeUniqueIds(parsed.transactions?.stockAdjustments || [], 'adj')
           },
           activeSkuRun: parsed.activeSkuRun || (Array.isArray(parsed.activeSkuRuns) ? parsed.activeSkuRuns.find((r: any) => r && r.isRunning) || null : null),
           activeSkuRuns: Array.isArray(parsed.activeSkuRuns)
@@ -1097,6 +1112,10 @@ export interface MaterialStockBalance {
   source: string;
   packaging: string;
   standardWeightKg: number;
+  initialStockCk: number;
+  initialStockWineroto: number;
+  initialStockTank: number;
+  initialStockTotal: number;
   stockCk: number;
   stockWineroto: number;
   stockTank: number;
@@ -1108,8 +1127,13 @@ export interface MaterialStockBalance {
 export function calculateStockBalances(state: AppState): Record<string, MaterialStockBalance> {
   const stockMap: Record<string, MaterialStockBalance> = {};
 
-  // Initialize from master materials
+  // Initialize from master materials with initial stock (Saldo Awal)
   state.master.materials.forEach(m => {
+    const initCk = Number(m.initialStockCk ?? 0);
+    const initWineroto = Number(m.initialStockWineroto ?? 0);
+    const initTank = Number(m.initialStockTank ?? 0);
+    const initTotal = initCk + initWineroto + initTank;
+
     stockMap[m.id] = {
       materialId: m.id,
       materialName: m.name,
@@ -1118,10 +1142,14 @@ export function calculateStockBalances(state: AppState): Record<string, Material
       source: m.source,
       packaging: m.packaging,
       standardWeightKg: m.weightKg,
-      stockCk: 0,
-      stockWineroto: 0,
-      stockTank: 0,
-      totalActual: 0,
+      initialStockCk: initCk,
+      initialStockWineroto: initWineroto,
+      initialStockTank: initTank,
+      initialStockTotal: initTotal,
+      stockCk: initCk,
+      stockWineroto: initWineroto,
+      stockTank: initTank,
+      totalActual: initTotal,
       minAlert: m.minStockAlert || 50,
       isLowStock: false
     };

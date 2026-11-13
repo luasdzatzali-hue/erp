@@ -171,8 +171,11 @@ export function calculateMaterialStockBreakdown(
         const saldoAkhirKg = totalOnhandKg;
         const saldoAkhirBatch = totalOnhandBatch;
 
-        // Saldo Awal = Saldo Akhir - Kedatangan + Pemakaian
-        const saldoAwalKg = Math.max(0, saldoAkhirKg - kedatanganKg + pemakaianKg);
+        // Saldo Awal = Sesuai Saldo Awal Material yang dikonfigurasi/di-adjust Admin atau rekonsiliasi akhir
+        const matInitialTotal = (mat.initialStockCk ?? 0) + (mat.initialStockWineroto ?? 0) + (mat.initialStockTank ?? 0);
+        const saldoAwalKg = matInitialTotal > 0
+          ? matInitialTotal
+          : Math.max(0, saldoAkhirKg - kedatanganKg + pemakaianKg);
         const saldoAwalBatch = batchSizeKg > 0 ? saldoAwalKg / batchSizeKg : 0;
 
         let status: 'AMAN' | 'MENIPIS' | 'KOSONG' = 'AMAN';

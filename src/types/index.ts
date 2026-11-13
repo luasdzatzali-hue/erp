@@ -11,6 +11,9 @@ export interface Material {
   packaging: string;
   weightKg: number;
   minStockAlert?: number;
+  initialStockCk?: number; // Saldo awal material di Gudang CK (kg)
+  initialStockWineroto?: number; // Saldo awal material di Gudang WINEROTO (kg)
+  initialStockTank?: number; // Saldo awal material di Storage Tank (kg)
 }
 
 export type WipTankType = 'HOLDING_TANK' | 'STORAGE_TANK';
@@ -218,6 +221,7 @@ export interface MaterialRequest {
   id: string;
   requestNumber: string;
   date: string;
+  shift?: ShiftNumber; // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
   skuId: string;
   wipId: string;
   materialId: string;
@@ -254,6 +258,7 @@ export interface RequestCartItem {
   batch: number;
   saldoAwal: number;
   supplier: MaterialSource;
+  shift?: ShiftNumber; // SOP Rule: Shift 1
   notes?: string;
   addedAt: string;
 }
@@ -301,6 +306,7 @@ export interface MaterialReceipt {
   id: string;
   receiptNumber: string;
   date: string;
+  shift?: ShiftNumber; // SOP Rule: Pengiriman material dilakukan di shift 1 dan 2
   requestId?: string;
   materialId: string;
   requestedQty: number;
@@ -315,6 +321,29 @@ export interface MaterialReceipt {
   standardTotalKg?: number; // Total berat standar pabrikan (misal 2500 kg)
   weightVarianceKg?: number; // Selisih timbang aktual vs standar (misal -5 kg)
   zakBreakdown?: ZakReceiptBreakdown[]; // Rincian kelompok timbangan zak
+}
+
+export interface MaterialStockAdjustment {
+  id: string;
+  adjustmentNumber: string;
+  date: string;
+  timestamp: string;
+  materialId: string;
+  materialName: string;
+  materialCode?: string;
+  location: StorageLocation | 'ALL';
+  previousInitialStockKg: number;
+  newInitialStockKg: number;
+  deltaKg: number;
+  previousStockCk?: number;
+  newStockCk?: number;
+  previousStockWineroto?: number;
+  newStockWineroto?: number;
+  previousStockTank?: number;
+  newStockTank?: number;
+  reason: string;
+  adjustedBy: string;
+  notes?: string;
 }
 
 export type ShiftNumber = 1 | 2 | 3;
@@ -505,6 +534,7 @@ export interface AppState {
     tankLogs?: TankTransferLog[];
     changeovers?: MachineChangeoverRecord[];
     productionStops?: ProductionStopLog[];
+    stockAdjustments?: MaterialStockAdjustment[];
   };
   activeSkuRun?: ActiveSkuProductionRun | null;
   activeSkuRuns?: ActiveSkuProductionRun[];

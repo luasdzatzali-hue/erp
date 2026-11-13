@@ -27,7 +27,9 @@ import {
   AlertCircle,
   RotateCcw,
   BookOpen,
-  Zap
+  Zap,
+  Scale,
+  Lock
 } from 'lucide-react';
 import { AppState, MaterialRequest, MaterialSource, RequestCartItem, WipRecipeItem } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
@@ -38,6 +40,7 @@ interface PermintaanViewProps {
   onCreateMultipleRequests?: (reqs: Array<Omit<MaterialRequest, 'id' | 'requestNumber' | 'date' | 'status'>>) => void;
   onJumpToReceive: (req: MaterialRequest) => void;
   onSwitchTab: (tab: AppState['currentTab']) => void;
+  onOpenStockAdjustment?: (materialId?: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -47,6 +50,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   onCreateMultipleRequests,
   onJumpToReceive,
   onSwitchTab,
+  onOpenStockAdjustment,
   showToast
 }) => {
   const [selectedSkuId, setSelectedSkuId] = useState('');
@@ -315,6 +319,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       batch: batchCount,
       saldoAwal: currentSaldoAwal,
       supplier,
+      shift: 1, // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
       notes: isGdrmSolid
         ? (notes ? `${notes} (Dibulatkan: ${bagCount} Zak @ ${gdrmBagSize} kg)` : `Pembulatan GDRM: ${bagCount} Zak @ ${gdrmBagSize} kg`)
         : notes,
@@ -370,6 +375,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       batch: batchCount,
       saldoAwal: currentSaldoAwal,
       supplier,
+      shift: 1, // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
       notes: isGdrmSolid
         ? (notes ? `${notes} (Dibulatkan: ${bagCount} Zak @ ${gdrmBagSize} kg)` : `Pembulatan GDRM: ${bagCount} Zak @ ${gdrmBagSize} kg`)
         : notes
@@ -379,8 +385,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     setNotes('');
     showToast(
       isGdrmSolid
-        ? `Permintaan langsung dikirim ke GDRM: ${qtyNumber.toFixed(4)} kg (${bagCount} Zak @ ${gdrmBagSize} kg)`
-        : `Permintaan material berhasil dikirim ke ${supplier}`
+        ? `Permintaan langsung Shift 1 dikirim ke GDRM: ${qtyNumber.toFixed(4)} kg (${bagCount} Zak @ ${gdrmBagSize} kg)`
+        : `Permintaan material Shift 1 berhasil dikirim ke ${supplier}`
     );
   };
 
@@ -410,6 +416,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       batch: item.batch,
       saldoAwal: item.saldoAwal,
       supplier: item.supplier,
+      shift: (1 as const), // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
       notes: item.notes
     }));
 
@@ -474,6 +481,40 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
+      {/* SOP Rule Banner: Permintaan Hanya di Shift 1 */}
+      <div className="bg-sky-500/10 border border-sky-500/30 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-start sm:items-center space-x-3">
+          <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs sm:text-sm font-bold text-sky-300">
+                Aturan SOP: Permintaan Material HANYA Dapat Dilakukan di Shift 1
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 font-mono">
+                Shift 1 (07:01 - 15:00)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Sesuai SOP produksi pabrik, seluruh formulir order permintaan material ke gudang/supplier (GDRM / Formulasi) hanya diterbitkan pada Shift 1. Pengiriman & kedatangan material dilayani pada Shift 1 dan Shift 2.
+            </p>
+          </div>
+        </div>
+
+        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+          <button
+            type="button"
+            onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
+            className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs"
+            title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>Adjust Saldo Awal (Admin)</span>
+          </button>
+        )}
+      </div>
+
       {/* Request Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
         <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
@@ -483,12 +524,37 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
             <span>Form Permintaan Material ke Supplier (GDRM / Formulasi)</span>
           </h3>
-          <span className="text-[11px] text-slate-400 font-mono">
-            Saldo Aktual: <strong className="text-cyan-400">{currentSaldoAwal.toFixed(4)} kg</strong>
-          </span>
+          <div className="flex items-center space-x-2 text-[11px] font-mono">
+            <span className="text-slate-400">
+              Saldo Aktual: <strong className="text-cyan-400">{currentSaldoAwal.toFixed(4)} kg</strong>
+            </span>
+            {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && selectedMatId && (
+              <button
+                type="button"
+                onClick={() => onOpenStockAdjustment(selectedMatId)}
+                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold"
+                title="Sesuaikan Saldo Awal Material Ini"
+              >
+                (Adjust Saldo Awal)
+              </button>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleAddToCart} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {/* Shift Indicator (Locked to Shift 1 per Factory SOP) */}
+          <div className="sm:col-span-2 bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Lock className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-[11px] text-slate-300">
+                Shift Operasional Permintaan: <strong className="text-sky-300 font-bold">Shift 1 (Pagi • 07:01 - 15:00)</strong>
+              </span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/30 font-semibold">
+              Terkunci Sesuai Aturan SOP
+            </span>
+          </div>
+
           {/* SKU Selection */}
           <div>
             <label className="block text-[11px] font-medium text-slate-300 mb-1">
@@ -1174,7 +1240,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   return (
                     <tr key={`${req.id}_${idx}`} className="hover:bg-slate-800/40 transition">
                       <td className="py-3 px-3">
-                        <span className="font-mono font-semibold text-white block">{req.requestNumber}</span>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-mono font-semibold text-white block">{req.requestNumber}</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold font-mono">
+                            Shift {req.shift || 1}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-slate-400">{req.date}</span>
                       </td>
                       <td className="py-3 px-3">

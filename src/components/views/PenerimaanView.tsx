@@ -19,14 +19,18 @@ import {
   ChevronUp,
   Package,
   Layers,
-  Sparkles
+  Sparkles,
+  Clock,
+  Lock
 } from 'lucide-react';
-import { AppState, MaterialReceipt, StorageLocation, ZakReceiptBreakdown } from '../../types';
+import { AppState, MaterialReceipt, StorageLocation, ZakReceiptBreakdown, ShiftNumber } from '../../types';
+import { getCurrentShift } from '../../utils/shifts';
 
 interface PenerimaanViewProps {
   state: AppState;
   onReceiveMaterial: (receipt: Omit<MaterialReceipt, 'id' | 'receiptNumber' | 'date'>) => void;
   preselectedRequestId?: string;
+  onOpenStockAdjustment?: (materialId?: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -34,6 +38,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
   state,
   onReceiveMaterial,
   preselectedRequestId,
+  onOpenStockAdjustment,
   showToast
 }) => {
   const [selectedReqId, setSelectedReqId] = useState(preselectedRequestId || '');
@@ -44,6 +49,12 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
   const [batchLotNumber, setBatchLotNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Shift Pengiriman (SOP: Hanya Shift 1 dan Shift 2, Shift 3 ditutup)
+  const [deliveryShift, setDeliveryShift] = useState<ShiftNumber>(() => {
+    const cur = getCurrentShift().shift;
+    return cur === 3 ? 1 : cur;
+  });
 
   // Zak / Kemasan Pabrikan Correction State (Khusus Kedatangan GDRM ke Area CK)
   // Default false: Proses koreksi timbangan zak tidak langsung ditampilkan
@@ -270,6 +281,12 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
       return;
     }
 
+    // Validate delivery shift (SOP: Shift 1 and Shift 2 only)
+    if (deliveryShift === 3) {
+      showToast('Aturan SOP: Pengiriman material HANYA dilayani pada Shift 1 dan Shift 2 (Shift 3 ditutup)', true);
+      return;
+    }
+
     if (isZakCorrection && totalZakCount <= 0) {
       showToast('Jumlah zak harus lebih dari 0', true);
       return;
@@ -301,6 +318,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
       materialId: selectedMatId,
       requestedQty: requestedQty || qty,
       receivedQty: qty,
+      shift: deliveryShift, // SOP Rule: Pengiriman material dilakukan di shift 1 dan 2
       location,
       batchLotNumber: batchLotNumber || `LOT-${Date.now().toString().slice(-6)}`,
       status: hasVariance || (isZakCorrection && Math.abs(weightVarianceKg) > 0.01) ? 'Discrepancy' : 'Received',
@@ -349,6 +367,40 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
+      {/* SOP Rule Banner: Pengiriman di Shift 1 dan Shift 2 */}
+      <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-start sm:items-center space-x-3">
+          <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+            <Truck className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs sm:text-sm font-bold text-emerald-300">
+                Aturan SOP: Pengiriman Material Dilakukan di Shift 1 dan Shift 2
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+                Shift 1 & 2 Aktif
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Pengiriman dan penerimaan fisik material dari supplier / gudang dilayani pada Shift 1 (07:01 - 15:00) dan Shift 2 (15:01 - 23:00). Shift 3 ditutup untuk penerimaan material.
+            </p>
+          </div>
+        </div>
+
+        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+          <button
+            type="button"
+            onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
+            className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs"
+            title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>Adjust Saldo Awal (Admin)</span>
+          </button>
+        )}
+      </div>
+
       {/* Penerimaan Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
         <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
@@ -358,12 +410,74 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             </div>
             <span>Pencatatan Kedatangan & Penerimaan Fisik Material</span>
           </h3>
-          <span className="text-[11px] text-slate-400">
-            Pending Request: <strong className="text-amber-400">{pendingRequests.length}</strong>
-          </span>
+          <div className="flex items-center space-x-3 text-[11px] text-slate-400">
+            <span>
+              Pending Request: <strong className="text-amber-400">{pendingRequests.length}</strong>
+            </span>
+            {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && selectedMatId && (
+              <button
+                type="button"
+                onClick={() => onOpenStockAdjustment(selectedMatId)}
+                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold"
+                title="Sesuaikan Saldo Awal Material Ini"
+              >
+                (Adjust Saldo Awal)
+              </button>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {/* Shift Pengiriman Selector (Shift 1 & Shift 2 allowed, Shift 3 locked per SOP) */}
+          <div className="sm:col-span-2 bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-slate-200 flex items-center space-x-1.5">
+                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Pilih Shift Pengiriman / Kedatangan Material:</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-mono">
+                SOP: Pengiriman Hanya Shift 1 & 2
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryShift(1)}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border ${
+                  deliveryShift === 1
+                    ? 'bg-sky-500/20 border-sky-400 text-sky-200 shadow-sm shadow-sky-500/30'
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <span>Shift 1 (Pagi)</span>
+                <span className="text-[10px] text-sky-300 font-mono">07:01-15:00</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeliveryShift(2)}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border ${
+                  deliveryShift === 2
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm shadow-amber-500/30'
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <span>Shift 2 (Sore)</span>
+                <span className="text-[10px] text-amber-300 font-mono">15:01-23:00</span>
+              </button>
+
+              <button
+                type="button"
+                disabled
+                title="Sesuai aturan SOP pabrik, pengiriman material ditutup pada Shift 3"
+                className="py-2 px-3 rounded-xl text-xs font-bold bg-slate-900/60 border border-slate-800 text-slate-600 cursor-not-allowed flex items-center justify-center space-x-1.5 opacity-60"
+              >
+                <Lock className="w-3 h-3 text-slate-600" />
+                <span>Shift 3 (Ditutup)</span>
+              </button>
+            </div>
+          </div>
+
           {/* Linked Request (Excludes already received requests) */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -835,7 +949,16 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                     <React.Fragment key={rec.id}>
                       <tr className="hover:bg-slate-800/40 transition">
                         <td className="py-3 px-3">
-                          <span className="font-mono font-semibold text-white block">{rec.receiptNumber}</span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="font-mono font-semibold text-white block">{rec.receiptNumber}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-mono border ${
+                              rec.shift === 2
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                            }`}>
+                              Shift {rec.shift || 1}
+                            </span>
+                          </div>
                           <span className="text-[10px] text-slate-400">{rec.date}</span>
                         </td>
                         <td className="py-3 px-3">
