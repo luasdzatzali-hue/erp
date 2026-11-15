@@ -45,6 +45,7 @@ import { MachineChangeoverModal } from '../MachineChangeoverModal';
 import { MachineChangeoverHistoryModal } from '../MachineChangeoverHistoryModal';
 import { RecipeImportModal } from '../RecipeImportModal';
 import { SkuImportModal } from '../SkuImportModal';
+import { SkuWipImportModal } from '../SkuWipImportModal';
 import {
   AppState,
   Material,
@@ -80,6 +81,7 @@ interface MasterBOMViewProps {
   onImportSkus?: (skus: SKU[], mode: 'replace' | 'append') => void;
   onAddSkuWip: (sw: Omit<SkuWip, 'id'>) => void;
   onDeleteSkuWip: (id: string) => void;
+  onImportSkuWips?: (skuWips: SkuWip[], mode: 'replace' | 'append') => void;
   onAddWipMat: (wm: Omit<WipMaterial, 'id'>) => void;
   onDeleteWipMat: (id: string) => void;
   onAddRecipe?: (recipe: Omit<WipRecipe, 'id' | 'createdAt'>) => void;
@@ -142,6 +144,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   onImportSkus,
   onAddSkuWip,
   onDeleteSkuWip,
+  onImportSkuWips,
   onAddWipMat,
   onDeleteWipMat,
   onAddRecipe,
@@ -265,6 +268,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [isCreatingRecipe, setIsCreatingRecipe] = useState(false);
   const [isRecipeImportOpen, setIsRecipeImportOpen] = useState(false);
   const [isSkuImportOpen, setIsSkuImportOpen] = useState(false);
+  const [isSkuWipImportOpen, setIsSkuWipImportOpen] = useState(false);
   const [newRecipeCode, setNewRecipeCode] = useState('');
   const [newRecipeName, setNewRecipeName] = useState('');
   const [newRecipeDesc, setNewRecipeDesc] = useState('');
@@ -1809,15 +1813,28 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* A. Tentukan WIP (kg/karton) untuk 1 Karton SKU */}
         <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-              <GitBranch className="w-4 h-4" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2 gap-2">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                <GitBranch className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-xs sm:text-sm text-white">
+                  A. Tentukan Jenis WIP (kg/karton) untuk 1 Karton SKU
+                </h3>
+                <p className="text-[10px] text-slate-400">Hubungkan komponen WIP terpisah ke dalam 1 karton SKU</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-xs sm:text-sm text-white">
-                A. Tentukan Jenis WIP (kg/karton) untuk 1 Karton SKU
-              </h3>
-              <p className="text-[10px] text-slate-400">Hubungkan komponen WIP terpisah ke dalam 1 karton SKU</p>
+            <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSkuWipImportOpen(true)}
+                title="Import konfigurasi kebutuhan WIP per karton SKU dari File CSV/JSON atau Google Drive"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 rounded-xl text-[11px] font-semibold transition active:scale-95 shadow-sm"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Import File</span>
+              </button>
             </div>
           </div>
 
@@ -5654,6 +5671,21 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       onImportSkus={(newSkus, mode) => {
         if (onImportSkus) {
           onImportSkus(newSkus, mode);
+        }
+      }}
+      showToast={showToast}
+    />
+
+    {/* Google Drive & Local File SKU-WIP Mapping Import Modal */}
+    <SkuWipImportModal
+      isOpen={isSkuWipImportOpen}
+      onClose={() => setIsSkuWipImportOpen(false)}
+      availableSkus={state.master.skus}
+      availableWips={state.master.wips}
+      existingSkuWips={state.master.skuWips}
+      onImportSkuWips={(newSkuWips, mode) => {
+        if (onImportSkuWips) {
+          onImportSkuWips(newSkuWips, mode);
         }
       }}
       showToast={showToast}

@@ -857,6 +857,56 @@ export default function App() {
     showToast('Relasi WIP ke SKU dihapus');
   };
 
+  // Import SkuWip links (Local File & Google Drive Batch Loader)
+  const handleImportSkuWips = (newSkuWips: SkuWip[], mode: 'replace' | 'append') => {
+    setState(prev => {
+      let finalSkuWips: SkuWip[] = [];
+
+      if (mode === 'replace') {
+        const map = new Map<string, SkuWip>();
+        newSkuWips.forEach((sw, idx) => {
+          const key = `${sw.skuId}__${sw.wipId}`;
+          const id = sw.id || `sw_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+          map.set(key, { ...sw, id });
+        });
+        finalSkuWips = Array.from(map.values());
+      } else {
+        const map = new Map<string, SkuWip>();
+        prev.master.skuWips.forEach(sw => {
+          map.set(`${sw.skuId}__${sw.wipId}`, sw);
+        });
+        newSkuWips.forEach((sw, idx) => {
+          const key = `${sw.skuId}__${sw.wipId}`;
+          const existing = map.get(key);
+          if (existing) {
+            map.set(key, {
+              ...existing,
+              kgWipPerCartonSku: sw.kgWipPerCartonSku
+            });
+          } else {
+            const id = sw.id || `sw_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+            map.set(key, { ...sw, id });
+          }
+        });
+        finalSkuWips = Array.from(map.values());
+      }
+
+      showToast(
+        mode === 'replace'
+          ? `Berhasil mengganti seluruh relasi WIP per karton SKU (${finalSkuWips.length} relasi)`
+          : `Berhasil mengimpor & memperbarui ${newSkuWips.length} relasi WIP per karton SKU (Total: ${finalSkuWips.length})`
+      );
+
+      return {
+        ...prev,
+        master: {
+          ...prev.master,
+          skuWips: finalSkuWips
+        }
+      };
+    });
+  };
+
   // Add WipMat link
   const handleAddWipMat = (wmData: Omit<WipMaterial, 'id'>) => {
     const newWM: WipMaterial = {
@@ -2743,6 +2793,7 @@ export default function App() {
               onImportSkus={handleImportSkus}
               onAddSkuWip={handleAddSkuWip}
               onDeleteSkuWip={handleDeleteSkuWip}
+              onImportSkuWips={handleImportSkuWips}
               onAddWipMat={handleAddWipMat}
               onDeleteWipMat={handleDeleteWipMat}
               onAddRecipe={handleAddRecipe}
