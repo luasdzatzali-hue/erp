@@ -62,6 +62,7 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
@@ -4048,6 +4049,7 @@ export default function App() {
           <span>{toast.msg}</span>
         </div>
       </div>
+      <Analytics />
     </div>
   );
 }
