@@ -29,9 +29,11 @@ import {
   ArrowRight,
   FileText,
   Eye,
-  Shield
+  Shield,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { AppState, StorageLocation, WipProductionBatch, ProductionStopLog } from '../../types';
+import { AppState, StorageLocation, ProductionLine, ProductionStopLog } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
 import { calculateMaterialStockBreakdown } from '../../utils/reportBreakdown';
 import { getCurrentShift, formatIndonesianDate, ShiftNumber } from '../../utils/shifts';
@@ -46,13 +48,50 @@ interface DashboardViewProps {
     skuId: string,
     cartonCount: number,
     operatorName?: string,
-    notes?: string
+    notes?: string,
+    overrideSelectedHoldingTanks?: Record<string, string>,
+    runId?: string,
+    lineId?: string,
+    lineName?: string
   ) => { success: boolean; message: string };
-  onStartSkuProduction?: (skuId: string, operatorName?: string, speedMultiplier?: number) => void;
-  onStartMultipleSkus?: (skuIds: string[], operatorName?: string, speedMultiplier?: number) => void;
+  onStartSkuProduction?: (
+    skuId: string,
+    operatorName?: string,
+    speedMultiplier?: number,
+    selectedHoldingTanks?: Record<string, string>,
+    lineId?: string,
+    plannedCartons?: number,
+    shiftOverride?: ShiftNumber
+  ) => void;
+  onStartMultipleSkus?: (
+    skuIds: string[],
+    operatorName?: string,
+    speedMultiplier?: number,
+    selectedHoldingTanksBySku?: Record<string, Record<string, string>>
+  ) => void;
+  onStartLineBatchRuns?: (
+    assignments: {
+      lineId: string;
+      skuId: string;
+      plannedCartons: number;
+      shift?: ShiftNumber;
+      operatorName?: string;
+      speedMultiplier?: number;
+      selectedHoldingTanks?: Record<string, string>;
+    }[]
+  ) => void;
+  onCompleteLineRun?: (runIdOrLineId: string, notes?: string) => void;
+  onResumeLineRun?: (runIdOrLineId: string) => void;
+  onRecordMaterialShortage?: (runIdOrLineId: string, reasonMessage: string) => void;
+  onUpdateRunHoldingTank?: (skuId: string, wipId: string, tankId: string, runId?: string) => void;
   onStopSkuProduction?: (stopData: Omit<ProductionStopLog, 'id'>) => void;
   onStopAllSkuProduction?: () => void;
-  onSetRunSpeedMultiplier?: (multiplier: number, skuId?: string) => void;
+  onTriggerShiftHandover?: () => void;
+  onSetRunSpeedMultiplier?: (multiplier: number, runIdOrSkuId?: string) => void;
+  onAddProductionLine?: (lineData: Omit<ProductionLine, 'id'>) => void;
+  onUpdateProductionLine?: (lineId: string, updates: Partial<ProductionLine>) => void;
+  onDeleteProductionLine?: (lineId: string) => void;
+  onSetProductionLinesCount?: (count: number) => void;
   onOpenPdfModal?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
@@ -65,9 +104,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onProduceCartons,
   onStartSkuProduction,
   onStartMultipleSkus,
+  onStartLineBatchRuns,
+  onCompleteLineRun,
+  onResumeLineRun,
+  onRecordMaterialShortage,
+  onUpdateRunHoldingTank,
   onStopSkuProduction,
   onStopAllSkuProduction,
+  onTriggerShiftHandover,
   onSetRunSpeedMultiplier,
+  onAddProductionLine,
+  onUpdateProductionLine,
+  onDeleteProductionLine,
+  onSetProductionLinesCount,
   onOpenPdfModal,
   showToast
 }) => {
@@ -83,6 +132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [stockViewLayout, setStockViewLayout] = useState<'breakdown-sku-wip' | 'by-location'>('breakdown-sku-wip');
   const [filterSkuId, setFilterSkuId] = useState<string>('all');
   const [filterWipId, setFilterWipId] = useState<string>('all');
+  const [isSkuCatalogExpanded, setIsSkuCatalogExpanded] = useState<boolean>(false);
 
   const isManagement = state.currentUserRole === 'MANAGEMENT';
   const currentLiveShift = getCurrentShift();
@@ -483,16 +533,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
       </div>
 
-      {/* Production Target Panel: 24 Jam Penuh (3 Shift × 8 Jam Kerja) & SKU Aktif */}
+      {/* Production Target Panel: 24 Jam Penuh (3 Shift × 8 Jam Kerja) & Line Produksi */}
       <ProductionTargetPanel
         state={state}
         onSwitchTab={onSwitchTab}
         onProduceCartons={onProduceCartons}
         onStartSkuProduction={onStartSkuProduction}
         onStartMultipleSkus={onStartMultipleSkus}
+        onStartLineBatchRuns={onStartLineBatchRuns}
+        onCompleteLineRun={onCompleteLineRun}
+        onResumeLineRun={onResumeLineRun}
+        onRecordMaterialShortage={onRecordMaterialShortage}
+        onUpdateRunHoldingTank={onUpdateRunHoldingTank}
         onStopSkuProduction={onStopSkuProduction}
         onStopAllSkuProduction={onStopAllSkuProduction}
+        onTriggerShiftHandover={onTriggerShiftHandover}
         onSetRunSpeedMultiplier={onSetRunSpeedMultiplier}
+        onAddProductionLine={onAddProductionLine}
+        onUpdateProductionLine={onUpdateProductionLine}
+        onDeleteProductionLine={onDeleteProductionLine}
+        onSetProductionLinesCount={onSetProductionLinesCount}
         showToast={showToast}
       />
 
@@ -591,7 +651,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </button>
             <button
-              onClick={() => setActiveViewTab('skus')}
+              onClick={() => {
+                setActiveViewTab('skus');
+                setIsSkuCatalogExpanded(true);
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition flex items-center space-x-1.5 ${
                 activeViewTab === 'skus'
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
@@ -632,25 +695,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* SKU Catalog Section (Visible in 'all' or 'skus' view tab) */}
+      {/* SKU Catalog Section (Collapsed by default; expands on click) */}
       {(activeViewTab === 'all' || activeViewTab === 'skus') && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl no-print">
-          <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+          <div
+            className={`p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${
+              isSkuCatalogExpanded ? 'border-b border-slate-800' : ''
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setIsSkuCatalogExpanded(prev => !prev)}
+              aria-expanded={isSkuCatalogExpanded}
+              className="flex items-center space-x-2.5 text-left flex-1 w-full sm:w-auto group focus:outline-none"
+            >
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20 transition">
                 <Package className="w-4 h-4" />
               </div>
-              <div>
-                <h3 className="font-bold text-sm text-white">
-                  Katalog SKU Produk ({filteredSkus.length} Item)
-                </h3>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-bold text-sm text-white group-hover:text-amber-300 transition">
+                    Katalog SKU Produk ({filteredSkus.length} Item)
+                  </h3>
+                  <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-semibold text-slate-300 group-hover:border-amber-500/40 group-hover:text-amber-300 transition">
+                    {isSkuCatalogExpanded ? (
+                      <>
+                        <ChevronUp className="w-3 h-3" />
+                        <span>Sembunyikan</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3 h-3" />
+                        <span>Lihat Katalog</span>
+                      </>
+                    )}
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-400">
-                  Target kapasitas line & akses cepat kebutuhan BOM
+                  Target kapasitas line &amp; akses cepat kebutuhan BOM · Klik untuk {isSkuCatalogExpanded ? 'menutup' : 'menampilkan'} daftar SKU
                 </p>
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
+            </button>
+            <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
               <button
+                type="button"
                 onClick={() => onSwitchTab('master')}
                 className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center space-x-1"
               >
@@ -660,8 +748,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4">
-            {filteredSkus.length > 0 ? (
+          {isSkuCatalogExpanded && (
+            <div className="p-4">
+              {filteredSkus.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredSkus.map(sku => {
                   const skuCode = sku.code || `SKU-${sku.id.slice(-4).toUpperCase()}`;
@@ -740,6 +829,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 

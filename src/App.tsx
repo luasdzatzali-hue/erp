@@ -27,7 +27,9 @@ import {
   RegisteredOperator,
   RegisteredManagement,
   ActiveSkuProductionRun,
-  MaterialStockAdjustment
+  MaterialStockAdjustment,
+  ProductionLine,
+  ShiftNumber
 } from './types';
 import {
   loadStoredState,
@@ -36,7 +38,8 @@ import {
   DEFAULT_STATE
 } from './utils/storage';
 import { getMaterialCompositeKey } from './utils/materialParser';
-import { getCurrentShift } from './utils/shifts';
+import { getCurrentShift, getShiftPeriodInfo, getNextShiftNumber } from './utils/shifts';
+import { getAllTanksForWip, checkRunHoldingTankAvailability } from './utils/skuTankHelper';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { StorageTankModal } from './components/StorageTankModal';
@@ -49,6 +52,7 @@ import { PemakaianView } from './components/views/PemakaianView';
 import { MasterBOMView } from './components/views/MasterBOMView';
 import { BOMCalculatorView } from './components/views/BOMCalculatorView';
 import { TankMonitoringView } from './components/views/TankMonitoringView';
+import { ShiftSummaryView } from './components/views/ShiftSummaryView';
 import { AuthPortalView } from './components/views/AuthPortalView';
 import { AdminPortalView } from './components/views/AdminPortalView';
 import { ShiftReportPdfModal } from './components/ShiftReportPdfModal';
@@ -96,10 +100,25 @@ export default function App() {
     }, 3000);
   }, []);
 
-  // Save state on any change
+  // Save state with lightweight debounce & unload flush to prevent excessive synchronous writes
   useEffect(() => {
-    saveStateToStorage(state);
+    const timer = setTimeout(() => {
+      saveStateToStorage(state);
+    }, 350);
+    return () => clearTimeout(timer);
   }, [state]);
+
+  useEffect(() => {
+    const flushState = () => {
+      saveStateToStorage(stateRef.current);
+    };
+    window.addEventListener('beforeunload', flushState);
+    window.addEventListener('pagehide', flushState);
+    return () => {
+      window.removeEventListener('beforeunload', flushState);
+      window.removeEventListener('pagehide', flushState);
+    };
+  }, []);
 
   // Sync theme with HTML document element (Midnight vs Daylight)
   useEffect(() => {
@@ -157,8 +176,8 @@ export default function App() {
       return;
     }
     const role = stateRef.current.currentUserRole;
-    if (role === 'MANAGEMENT' && tab !== 'dashboard' && tab !== 'tank-monitoring') {
-      showToast('Akses dibatasi: User Management hanya memiliki izin melihat Dashboard dan Tangki WIP', true);
+    if (role === 'MANAGEMENT' && tab !== 'dashboard' && tab !== 'tank-monitoring' && tab !== 'shift-summary') {
+      showToast('Akses dibatasi: User Management hanya memiliki izin melihat Dashboard, Tangki WIP, dan Ringkasan Shift', true);
       return;
     }
     if (role !== 'ADMINISTRATOR' && (tab === 'master' || tab === 'admin-portal')) {
@@ -218,8 +237,8 @@ export default function App() {
       const isNewAdmin = role === 'ADMINISTRATOR';
       let nextTab = prev.currentTab;
 
-      // Management is strictly restricted to dashboard & tank-monitoring
-      if (role === 'MANAGEMENT' && nextTab !== 'dashboard' && nextTab !== 'tank-monitoring') {
+      // Management is strictly restricted to dashboard, tank-monitoring, and shift-summary
+      if (role === 'MANAGEMENT' && nextTab !== 'dashboard' && nextTab !== 'tank-monitoring' && nextTab !== 'shift-summary') {
         nextTab = 'dashboard';
       }
       // Non-admins cannot stay in Master BOM
@@ -1548,6 +1567,15 @@ export default function App() {
 
   // Update Tank Item
   const handleUpdateTankItem = (tankId: string, updates: Partial<WipTank>) => {
+    if (
+      updates.currentLevelKg !== undefined &&
+      stateRef.current.currentUserRole !== 'ADMINISTRATOR' &&
+      !stateRef.current.isAdmin
+    ) {
+      showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan kalibrasi isi tangki', true);
+      return;
+    }
+
     setState(prev => ({
       ...prev,
       master: {
@@ -1559,6 +1587,11 @@ export default function App() {
 
   // Top Up / Transfer WIP into Tank
   const handleTopUpTank = (tankId: string, amountKg: number, notes?: string) => {
+    if (stateRef.current.currentUserRole !== 'ADMINISTRATOR' && !stateRef.current.isAdmin) {
+      showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan Isi Batch WIP ke tangki', true);
+      return;
+    }
+
     setState(prev => {
       let logEntry: TankTransferLog | null = null;
       const updatedTanks = prev.master.tanks.map(t => {
@@ -1604,7 +1637,11 @@ export default function App() {
     skuId: string,
     cartonCount: number,
     operatorName?: string,
-    notes?: string
+    notes?: string,
+    overrideSelectedHoldingTanks?: Record<string, string>,
+    runId?: string,
+    lineId?: string,
+    lineName?: string
   ): { success: boolean; message: string } => {
     const currentState = stateRef.current;
     const targetSku = currentState.master.skus.find(s => s.id === skuId);
@@ -1618,13 +1655,62 @@ export default function App() {
       };
     }
 
-    // Pre-check all candidate tanks (holding & storage tanks) to guarantee sufficient WIP availability
+    const activeRunsNow = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const activeRunForLine =
+      (runId ? activeRunsNow.find(r => r.id === runId) : undefined) ||
+      (lineId ? activeRunsNow.find(r => r.lineId === lineId && r.isRunning) : undefined) ||
+      activeRunsNow.find(r => r.skuId === skuId && r.isRunning) ||
+      activeRunsNow.find(r => r.skuId === skuId);
+
+    const resolvedLineId = lineId || activeRunForLine?.lineId;
+    const resolvedLineName = lineName || activeRunForLine?.lineName;
+
+    let effectiveCartons = cartonCount;
+    if (activeRunForLine?.plannedCartons && activeRunForLine.plannedCartons > 0) {
+      const remaining = activeRunForLine.plannedCartons - (activeRunForLine.cartonsProducedTotal || 0);
+      if (remaining <= 0) {
+        setState(prev => {
+          const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+          const updatedRuns = prevRuns.map(r => {
+            const isMatch = runId
+              ? r.id === runId
+              : resolvedLineId
+              ? r.lineId === resolvedLineId && r.isRunning
+              : r.skuId === skuId && r.isRunning;
+            return isMatch
+              ? { ...r, isRunning: false, completionStatus: 'COMPLETED' as const, completedAt: new Date().toISOString() }
+              : r;
+          });
+          return {
+            ...prev,
+            activeSkuRuns: updatedRuns,
+            activeSkuRun: updatedRuns.find(r => r.isRunning) || null
+          };
+        });
+        return {
+          success: true,
+          message: `Planning ${activeRunForLine.plannedCartons.toLocaleString()} karton pada ${resolvedLineName || targetSku.name} telah selesai tercapai!`
+        };
+      }
+      effectiveCartons = Math.min(cartonCount, remaining);
+    }
+
+    const effectiveSelectedTanks: Record<string, string> = {
+      ...(activeRunForLine?.selectedHoldingTanks || {}),
+      ...(overrideSelectedHoldingTanks || {})
+    };
+
+    // Pre-check all candidate tanks (respecting selected Holding Tank when configured)
     for (const sw of linkedWips) {
       const wip = currentState.master.wips.find(w => w.id === sw.wipId);
-      const neededKg = cartonCount * sw.kgWipPerCartonSku;
-      const candidateTanks = currentState.master.tanks.filter(
-        t => t.id === wip?.targetTankId || t.assignedWipId === wip?.id
-      );
+      const neededKg = effectiveCartons * sw.kgWipPerCartonSku;
+      const allWipTanks = getAllTanksForWip(wip, currentState.master.tanks);
+      const chosenHtId = wip ? effectiveSelectedTanks[wip.id] : undefined;
+      const hasValidChosenHt = Boolean(chosenHtId && allWipTanks.some(t => t.id === chosenHtId));
+
+      const candidateTanks = hasValidChosenHt
+        ? allWipTanks.filter(t => t.type !== 'HOLDING_TANK' || t.id === chosenHtId)
+        : allWipTanks;
 
       if (candidateTanks.length === 0) {
         return {
@@ -1635,9 +1721,12 @@ export default function App() {
 
       const totalAvailableKg = candidateTanks.reduce((sum, t) => sum + t.currentLevelKg, 0);
       if (totalAvailableKg < neededKg) {
+        const chosenTankObj = hasValidChosenHt ? allWipTanks.find(t => t.id === chosenHtId) : undefined;
         return {
           success: false,
-          message: `Massa WIP "${wip?.name}" tidak cukup! Butuh ${neededKg.toFixed(2)} kg, total di holding & storage tank hanya tersisa ${totalAvailableKg.toFixed(2)} kg.`
+          message: chosenTankObj
+            ? `Massa WIP "${wip?.name}" pada Holding Tank terpilih (${chosenTankObj.code}) tidak cukup! Butuh ${neededKg.toFixed(2)} kg, tersisa ${totalAvailableKg.toFixed(2)} kg.`
+            : `Massa WIP "${wip?.name}" tidak cukup! Butuh ${neededKg.toFixed(2)} kg, total di holding & storage tank hanya tersisa ${totalAvailableKg.toFixed(2)} kg.`
         };
       }
     }
@@ -1647,21 +1736,46 @@ export default function App() {
     const currentShiftObj = getCurrentShift();
     const deductions: CartonProductionLog['tankDeductions'] = [];
     const newTankLogs: TankTransferLog[] = [];
+    let autoCompletedLineMsg: string | null = null;
 
     setState(prev => {
       const updatedTanks = prev.master.tanks.map(t => ({ ...t }));
+      const prevRunsForChoice = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const runForChoice =
+        (runId ? prevRunsForChoice.find(r => r.id === runId) : undefined) ||
+        (resolvedLineId ? prevRunsForChoice.find(r => r.lineId === resolvedLineId && r.isRunning) : undefined) ||
+        prevRunsForChoice.find(r => r.skuId === skuId && r.isRunning) ||
+        prevRunsForChoice.find(r => r.skuId === skuId);
+
+      const runSelectedTanks: Record<string, string> = {
+        ...(runForChoice?.selectedHoldingTanks || {}),
+        ...(overrideSelectedHoldingTanks || {})
+      };
 
       linkedWips.forEach(sw => {
         const wip = prev.master.wips.find(w => w.id === sw.wipId);
-        let neededKg = cartonCount * sw.kgWipPerCartonSku;
+        let neededKg = effectiveCartons * sw.kgWipPerCartonSku;
 
-        // Find candidate tanks, prioritizing HOLDING_TANK first, then STORAGE_TANK
+        const allWipTanks = getAllTanksForWip(wip, updatedTanks);
+        const allWipTankIdSet = new Set(allWipTanks.map(t => t.id));
+        const chosenHtId = wip ? runSelectedTanks[wip.id] : undefined;
+        const hasValidChosenHt = Boolean(chosenHtId && allWipTankIdSet.has(chosenHtId));
+
+        // Find candidate tanks: if user selected a Holding Tank for this WIP, ONLY use that Holding Tank (plus Storage Tank if linked)
         const candidateIndices = updatedTanks
           .map((t, idx) => ({ t, idx }))
-          .filter(
-            item => item.t.id === wip?.targetTankId || item.t.assignedWipId === wip?.id
-          )
+          .filter(({ t }) => {
+            if (!allWipTankIdSet.has(t.id)) return false;
+            if (hasValidChosenHt && t.type === 'HOLDING_TANK' && t.id !== chosenHtId) {
+              return false;
+            }
+            return true;
+          })
           .sort((a, b) => {
+            if (hasValidChosenHt) {
+              if (a.t.id === chosenHtId && b.t.id !== chosenHtId) return -1;
+              if (a.t.id !== chosenHtId && b.t.id === chosenHtId) return 1;
+            }
             if (a.t.type === 'HOLDING_TANK' && b.t.type !== 'HOLDING_TANK') return -1;
             if (a.t.type !== 'HOLDING_TANK' && b.t.type === 'HOLDING_TANK') return 1;
             return 0;
@@ -1690,7 +1804,7 @@ export default function App() {
           });
 
           newTankLogs.push({
-            id: `tl_${Date.now()}_${sw.id}_${updatedTanks[idx].id}`,
+            id: `tl_${Date.now()}_${sw.id}_${updatedTanks[idx].id}_${Math.random().toString(36).slice(2, 6)}`,
             timestamp,
             tankId: updatedTanks[idx].id,
             tankCode: updatedTanks[idx].code,
@@ -1701,35 +1815,139 @@ export default function App() {
             newLevelKg: newLvl,
             wipId: wip?.id,
             wipName: wip?.name,
-            skuName: targetSku.name,
-            cartonsCount: cartonCount,
+            skuName: resolvedLineName ? `[${resolvedLineName}] ${targetSku.name}` : targetSku.name,
+            cartonsCount: effectiveCartons,
             operatorName,
-            notes: notes || `Otomatis terpotong untuk ${cartonCount} karton ${targetSku.name} (${updatedTanks[idx].type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})`
+            notes:
+              notes ||
+              `Otomatis terpotong untuk ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''} (${updatedTanks[idx].type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})`
           });
         }
       });
 
+      const dateKey = timestamp.slice(0, 10);
+      const isAutoTick = Boolean(notes?.startsWith('Auto ['));
+
       const newCartonLog: CartonProductionLog = {
-        id: `cp_${Date.now()}`,
+        id: `cp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         timestamp,
+        lineId: resolvedLineId,
+        lineName: resolvedLineName,
         skuId: targetSku.id,
         skuName: targetSku.name,
         skuCode: targetSku.code,
-        cartonsProduced: cartonCount,
-        shift: currentShiftObj.shift,
+        cartonsProduced: effectiveCartons,
+        shift: currentShiftObj.shift, // Selalu mengikuti jam shift berjalan
         operatorName,
         tankDeductions: deductions,
         notes
       };
 
-      // Update active SKU runs cartons count if running
+      const prevCartonLogs = prev.transactions.cartonProductions || [];
+      let nextCartonLogs: CartonProductionLog[];
+      if (isAutoTick) {
+        const matchIdx = prevCartonLogs.findIndex(
+          cp =>
+            cp.notes?.startsWith('Auto [') &&
+            (cp.timestamp || '').slice(0, 10) === dateKey &&
+            cp.shift === currentShiftObj.shift &&
+            (cp.lineId || '') === (resolvedLineId || '') &&
+            cp.skuId === targetSku.id
+        );
+        if (matchIdx >= 0) {
+          const existing = prevCartonLogs[matchIdx];
+          const mergedDeductions = [...(existing.tankDeductions || [])];
+          deductions.forEach(d => {
+            const dIdx = mergedDeductions.findIndex(
+              m => m.tankId === d.tankId && m.wipId === d.wipId
+            );
+            if (dIdx >= 0) {
+              mergedDeductions[dIdx] = {
+                ...mergedDeductions[dIdx],
+                kgDeducted: parseFloat((mergedDeductions[dIdx].kgDeducted + d.kgDeducted).toFixed(4)),
+                remainingLevelKg: d.remainingLevelKg
+              };
+            } else {
+              mergedDeductions.push({ ...d });
+            }
+          });
+          const mergedEntry: CartonProductionLog = {
+            ...existing,
+            timestamp,
+            cartonsProduced: existing.cartonsProduced + effectiveCartons,
+            operatorName: operatorName || existing.operatorName,
+            tankDeductions: mergedDeductions,
+            notes
+          };
+          nextCartonLogs = [
+            mergedEntry,
+            ...prevCartonLogs.slice(0, matchIdx),
+            ...prevCartonLogs.slice(matchIdx + 1)
+          ];
+        } else {
+          nextCartonLogs = [newCartonLog, ...prevCartonLogs];
+        }
+      } else {
+        nextCartonLogs = [newCartonLog, ...prevCartonLogs];
+      }
+
+      const prevTankLogs = [...(prev.transactions.tankLogs || [])];
+      let nextTankLogs: TankTransferLog[];
+      if (isAutoTick) {
+        const mergedFresh: TankTransferLog[] = [];
+        newTankLogs.forEach(ntl => {
+          const existingIdx = prevTankLogs.findIndex(
+            tl =>
+              tl.type === 'CARTON_DEPLETION' &&
+              tl.notes?.startsWith('Auto [') &&
+              (tl.timestamp || '').slice(0, 10) === dateKey &&
+              tl.tankId === ntl.tankId &&
+              (tl.wipId || '') === (ntl.wipId || '') &&
+              (tl.skuName || '') === (ntl.skuName || '')
+          );
+          if (existingIdx >= 0) {
+            const ex = prevTankLogs[existingIdx];
+            prevTankLogs.splice(existingIdx, 1);
+            mergedFresh.push({
+              ...ex,
+              timestamp,
+              amountKg: parseFloat((ex.amountKg + ntl.amountKg).toFixed(4)),
+              newLevelKg: ntl.newLevelKg,
+              cartonsCount: (ex.cartonsCount || 0) + (ntl.cartonsCount || 0),
+              operatorName: ntl.operatorName || ex.operatorName,
+              notes: ntl.notes
+            });
+          } else {
+            mergedFresh.push(ntl);
+          }
+        });
+        nextTankLogs = [...mergedFresh, ...prevTankLogs].slice(0, 200);
+      } else {
+        nextTankLogs = [...newTankLogs, ...prevTankLogs].slice(0, 200);
+      }
+
+      // Update ONLY the matched active SKU run cartons count
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedActiveRuns = prevRuns.map(r => {
-        if (r.skuId === targetSku.id) {
+        const isMatch = runId
+          ? r.id === runId
+          : resolvedLineId
+          ? r.lineId === resolvedLineId && r.isRunning
+          : r.skuId === targetSku.id && r.isRunning;
+
+        if (isMatch) {
+          const newTotal = (r.cartonsProducedTotal || 0) + effectiveCartons;
+          const reachedTarget = Boolean(r.plannedCartons && r.plannedCartons > 0 && newTotal >= r.plannedCartons);
+          if (reachedTarget) {
+            autoCompletedLineMsg = `${r.lineName || 'Line'}: Target planning ${r.plannedCartons?.toLocaleString()} karton (${r.skuName}) selesai diproduksi!`;
+          }
           return {
             ...r,
-            cartonsProducedTotal: (r.cartonsProducedTotal || 0) + cartonCount,
-            lastDeductionTime: timestamp
+            cartonsProducedTotal: newTotal,
+            lastDeductionTime: timestamp,
+            isRunning: reachedTarget ? false : r.isRunning,
+            completionStatus: reachedTarget ? ('COMPLETED' as const) : r.completionStatus,
+            completedAt: reachedTarget ? timestamp : r.completedAt
           };
         }
         return r;
@@ -1747,15 +1965,19 @@ export default function App() {
         },
         transactions: {
           ...prev.transactions,
-          cartonProductions: [newCartonLog, ...(prev.transactions.cartonProductions || [])],
-          tankLogs: [...newTankLogs, ...(prev.transactions.tankLogs || [])]
+          cartonProductions: nextCartonLogs,
+          tankLogs: nextTankLogs
         }
       };
     });
 
+    if (autoCompletedLineMsg) {
+      setTimeout(() => showToast(autoCompletedLineMsg!), 30);
+    }
+
     return {
       success: true,
-      message: `Berhasil mencatat ${cartonCount} karton ${targetSku.name}. Isi tangki Holding & Storage otomatis berkurang secara real-time!`
+      message: `Berhasil mencatat ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''}. Isi tangki Holding & Storage otomatis berkurang!`
     };
   };
 
@@ -1871,8 +2093,151 @@ export default function App() {
     };
   };
 
-  // Start Single SKU Production - Supports running multiple SKUs concurrently
-  const handleStartSkuProduction = (skuId: string, operatorName?: string, speedMultiplier: number = 1) => {
+  // Production Line Customization CRUD (Line A, B, C, D, etc.)
+  const isAdminSession = () => {
+    const s = stateRef.current;
+    return s.currentUserRole === 'ADMINISTRATOR' || s.isAdmin;
+  };
+
+  const handleAddProductionLine = (lineData: Omit<ProductionLine, 'id'>) => {
+    if (!isAdminSession()) {
+      showToast('Akses ditolak: Pengaturan Line Produksi hanya dapat dilakukan di Mode Administrator.', true);
+      return;
+    }
+    const newLine: ProductionLine = {
+      ...lineData,
+      id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    };
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        productionLines: [...(prev.master.productionLines || []), newLine]
+      }
+    }));
+    showToast(`Line produksi "${newLine.name}" berhasil ditambahkan`);
+  };
+
+  const handleUpdateProductionLine = (lineId: string, updates: Partial<ProductionLine>) => {
+    if (!isAdminSession()) {
+      showToast('Akses ditolak: Pengaturan Line Produksi hanya dapat dilakukan di Mode Administrator.', true);
+      return;
+    }
+    setState(prev => {
+      const updatedLines = (prev.master.productionLines || []).map(l =>
+        l.id === lineId ? { ...l, ...updates } : l
+      );
+      const updatedLineName = updates.name;
+      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const updatedRuns = updatedLineName
+        ? prevRuns.map(r => (r.lineId === lineId ? { ...r, lineName: updatedLineName } : r))
+        : prevRuns;
+
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun:
+          prev.activeSkuRun && prev.activeSkuRun.lineId === lineId && updatedLineName
+            ? { ...prev.activeSkuRun, lineName: updatedLineName }
+            : prev.activeSkuRun,
+        master: {
+          ...prev.master,
+          productionLines: updatedLines
+        }
+      };
+    });
+    showToast('Data line produksi berhasil diperbarui');
+  };
+
+  const handleDeleteProductionLine = (lineId: string) => {
+    if (!isAdminSession()) {
+      showToast('Akses ditolak: Pengaturan Line Produksi hanya dapat dilakukan di Mode Administrator.', true);
+      return;
+    }
+    const currentState = stateRef.current;
+    const runs = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const isBusy = runs.some(r => r.lineId === lineId && r.isRunning);
+    if (isBusy) {
+      showToast('Tidak dapat menghapus line yang sedang memproduksi SKU.', true);
+      return;
+    }
+    const existing = currentState.master.productionLines || [];
+    if (existing.length <= 1) {
+      showToast('Minimal harus terdapat 1 line produksi.', true);
+      return;
+    }
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        productionLines: (prev.master.productionLines || []).filter(l => l.id !== lineId)
+      }
+    }));
+    showToast('Line produksi berhasil dihapus');
+  };
+
+  const handleSetProductionLinesCount = (targetCount: number) => {
+    if (!isAdminSession()) {
+      showToast('Akses ditolak: Pengaturan Line Produksi hanya dapat dilakukan di Mode Administrator.', true);
+      return;
+    }
+    const currentState = stateRef.current;
+    const existing = currentState.master.productionLines || [];
+    const runs = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const runningLineIds = new Set(runs.filter(r => r.isRunning && r.lineId).map(r => r.lineId!));
+
+    const getAlpha = (index: number) => {
+      let n = index;
+      let label = '';
+      while (n >= 0) {
+        label = String.fromCharCode((n % 26) + 65) + label;
+        n = Math.floor(n / 26) - 1;
+      }
+      return label;
+    };
+
+    let nextLines = [...existing];
+    if (targetCount > existing.length) {
+      for (let i = existing.length; i < targetCount; i++) {
+        const alpha = getAlpha(i);
+        nextLines.push({
+          id: `line_${alpha.toLowerCase()}_${Date.now()}_${i}`,
+          code: `LINE-${alpha}`,
+          name: `Line ${alpha}`,
+          description: `Jalur Produksi ${alpha}`,
+          isActive: true
+        });
+      }
+    } else if (targetCount < existing.length) {
+      // Remove from the end only lines that are NOT currently running
+      while (nextLines.length > targetCount) {
+        const removableIdx = [...nextLines].reverse().findIndex(l => !runningLineIds.has(l.id));
+        if (removableIdx === -1) break;
+        const actualIdx = nextLines.length - 1 - removableIdx;
+        nextLines.splice(actualIdx, 1);
+      }
+    }
+
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        productionLines: nextLines
+      }
+    }));
+    showToast(`Jumlah line produksi diperbarui menjadi ${nextLines.length} line`);
+  };
+
+  // Start Single SKU Production on a Line (Enforces 1 SKU per Line; allows same SKU on multiple lines concurrently)
+  const handleStartSkuProduction = (
+    skuId: string,
+    operatorName?: string,
+    speedMultiplier: number = 1,
+    selectedHoldingTanks?: Record<string, string>,
+    lineId?: string,
+    plannedCartons?: number,
+    shiftOverride?: ShiftNumber
+  ) => {
     const currentState = stateRef.current;
     const targetSku = currentState.master.skus.find(s => s.id === skuId);
     if (!targetSku) return;
@@ -1883,26 +2248,68 @@ export default function App() {
       return;
     }
 
-    const currentShiftObj = getCurrentShift();
-    const op = operatorName || 'Operator Line Produksi';
+    const lines = currentState.master.productionLines || [];
+    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const runningRuns = prevRuns.filter(r => r.isRunning);
+
+    let targetLine = lineId ? lines.find(l => l.id === lineId) : undefined;
+    if (lineId && !targetLine) {
+      showToast('Line produksi tidak ditemukan.', true);
+      return;
+    }
+
+    if (targetLine) {
+      const busyRun = runningRuns.find(r => r.lineId === targetLine!.id);
+      if (busyRun) {
+        showToast(
+          `${targetLine.name} sedang memproduksi "${busyRun.skuName}". Tunggu hingga selesai/dihentikan sebelum menjalankan SKU lain.`,
+          true
+        );
+        return;
+      }
+    } else {
+      targetLine = lines.find(l => l.isActive && !runningRuns.some(r => r.lineId === l.id)) || lines[0];
+      if (targetLine && runningRuns.some(r => r.lineId === targetLine!.id)) {
+        showToast('Semua line produksi sedang berjalan. Selesaikan satu line terlebih dahulu atau tambahkan line baru.', true);
+        return;
+      }
+    }
+
+    const currentPeriod = getShiftPeriodInfo();
+    const activeShift = shiftOverride || currentPeriod.shift;
+    const op = operatorName || currentState.currentSession?.name || 'Operator Line Produksi';
+    const resolvedPlanned = plannedCartons && plannedCartons > 0 ? plannedCartons : (targetSku.targetHour || 500) * 8;
+    const resolvedLineId = targetLine?.id || 'line_a';
+    const resolvedLineName = targetLine?.name || 'Line A';
+    const runId = `run_${resolvedLineId}_${Date.now()}`;
 
     const newRun: ActiveSkuProductionRun = {
+      id: runId,
+      lineId: resolvedLineId,
+      lineName: resolvedLineName,
       skuId: targetSku.id,
       skuName: targetSku.name,
       skuCode: targetSku.code,
-      shift: currentShiftObj.shift,
+      shift: activeShift,
+      shiftPeriodKey: currentPeriod.shiftKey,
+      plannedCartons: resolvedPlanned,
       startedAt: new Date().toISOString(),
       isRunning: true,
+      completionStatus: 'RUNNING',
       cartonsProducedTotal: 0,
       operatorName: op,
       targetPerHour: targetSku.targetHour,
-      speedMultiplier: speedMultiplier || 1
+      speedMultiplier: speedMultiplier || 1,
+      selectedHoldingTanks: selectedHoldingTanks && Object.keys(selectedHoldingTanks).length > 0 ? selectedHoldingTanks : undefined
     };
 
     setState(prev => {
-      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-      const otherRuns = prevRuns.filter(r => r.skuId !== targetSku.id);
-      const updatedRuns = [newRun, ...otherRuns];
+      const curRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      // Keep runs on other lines AND archived SHIFT_HANDOVER records for shift summaries
+      const preservedRuns = curRuns.filter(
+        r => r.lineId !== resolvedLineId || r.completionStatus === 'SHIFT_HANDOVER'
+      );
+      const updatedRuns = [newRun, ...preservedRuns];
       return {
         ...prev,
         activeSkuRuns: updatedRuns,
@@ -1910,48 +2317,122 @@ export default function App() {
       };
     });
 
-    // Langsung lakukan pemotongan awal (1 karton) seketika tombol Start ditekan,
-    // sehingga isi holding & storage tank langsung terpotong secara real-time tanpa harus input manual
+    // Deduct initial 1 carton immediately from Holding Tank per BOM
     setTimeout(() => {
-      handleProduceCartons(
+      const res = handleProduceCartons(
         targetSku.id,
         1,
         op,
-        `Mulai Produksi: Pengurangan awal otomatis (${targetSku.name}) - Target BOM: ${targetSku.targetHour} ktn/jam`
+        `Mulai Produksi [${resolvedLineName}]: ${targetSku.name} (Planning ${resolvedPlanned.toLocaleString()} ktn / Shift ${activeShift})`,
+        selectedHoldingTanks,
+        runId,
+        resolvedLineId,
+        resolvedLineName
       );
+      if (!res.success) {
+        handleTriggerMaterialShortageStop(newRun, res.message);
+      }
     }, 50);
 
-    showToast(`Produksi "${targetSku.name}" dimulai! Isi holding & storage tank otomatis berkurang secara real-time (${targetSku.targetHour} ktn/jam).`);
+    const selectedCodes = selectedHoldingTanks
+      ? Object.values(selectedHoldingTanks)
+          .map(tId => currentState.master.tanks.find(t => t.id === tId)?.code)
+          .filter(Boolean)
+      : [];
+
+    showToast(
+      selectedCodes.length > 0
+        ? `[${resolvedLineName}] Produksi "${targetSku.name}" dimulai (Planning: ${resolvedPlanned.toLocaleString()} ktn) dengan Holding Tank [${selectedCodes.join(', ')}].`
+        : `[${resolvedLineName}] Produksi "${targetSku.name}" dimulai (Planning: ${resolvedPlanned.toLocaleString()} ktn / Shift ${activeShift}).`
+    );
   };
 
-  // Start Multiple SKUs Production Concurrently
-  const handleStartMultipleSkus = (skuIds: string[], operatorName?: string, speedMultiplier: number = 1) => {
+  // Start 1 or Multiple Production Lines Concurrently (supports same or different SKUs across lines)
+  const handleStartLineBatchRuns = (
+    assignments: {
+      lineId: string;
+      skuId: string;
+      plannedCartons: number;
+      shift?: ShiftNumber;
+      operatorName?: string;
+      speedMultiplier?: number;
+      selectedHoldingTanks?: Record<string, string>;
+    }[]
+  ) => {
     const currentState = stateRef.current;
-    const validSkus = currentState.master.skus.filter(s => skuIds.includes(s.id));
-    if (validSkus.length === 0) {
-      showToast('Pilih minimal satu SKU untuk dijalankan.', true);
+    if (assignments.length === 0) {
+      showToast('Pilih minimal satu line produksi & SKU untuk dijalankan.', true);
       return;
     }
 
-    const currentShiftObj = getCurrentShift();
-    const op = operatorName || 'Operator Line Produksi';
+    const lines = currentState.master.productionLines || [];
+    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const runningLineIds = new Set(prevRuns.filter(r => r.isRunning && r.lineId).map(r => r.lineId!));
+    const currentPeriod = getShiftPeriodInfo();
 
-    const newRuns: ActiveSkuProductionRun[] = validSkus.map(s => ({
-      skuId: s.id,
-      skuName: s.name,
-      skuCode: s.code,
-      shift: currentShiftObj.shift,
-      startedAt: new Date().toISOString(),
-      isRunning: true,
-      cartonsProducedTotal: 0,
-      operatorName: op,
-      targetPerHour: s.targetHour,
-      speedMultiplier: speedMultiplier || 1
-    }));
+    // Validate every assignment
+    const seenLineIds = new Set<string>();
+    const newRuns: ActiveSkuProductionRun[] = [];
 
+    for (let i = 0; i < assignments.length; i++) {
+      const a = assignments[i];
+      if (seenLineIds.has(a.lineId)) {
+        showToast('Setiap line produksi hanya dapat memproduksi 1 jenis SKU dalam satu waktu.', true);
+        return;
+      }
+      seenLineIds.add(a.lineId);
+
+      const lineObj = lines.find(l => l.id === a.lineId);
+      if (!lineObj) {
+        showToast('Line produksi tidak ditemukan.', true);
+        return;
+      }
+      if (runningLineIds.has(a.lineId)) {
+        showToast(`${lineObj.name} masih berjalan. Selesaikan atau hentikan dahulu sebelum mengganti SKU.`, true);
+        return;
+      }
+
+      const skuObj = currentState.master.skus.find(s => s.id === a.skuId);
+      if (!skuObj) {
+        showToast(`SKU untuk ${lineObj.name} belum dipilih.`, true);
+        return;
+      }
+      const linkedWips = currentState.master.skuWips.filter(sw => sw.skuId === skuObj.id);
+      if (linkedWips.length === 0) {
+        showToast(`SKU "${skuObj.name}" (${lineObj.name}) belum memiliki relasi BOM WIP di Master BOM.`, true);
+        return;
+      }
+
+      const planned = a.plannedCartons > 0 ? a.plannedCartons : (skuObj.targetHour || 500) * 8;
+      const op = a.operatorName || currentState.currentSession?.name || 'Operator Line Produksi';
+
+      newRuns.push({
+        id: `run_${lineObj.id}_${Date.now()}_${i}`,
+        lineId: lineObj.id,
+        lineName: lineObj.name,
+        skuId: skuObj.id,
+        skuName: skuObj.name,
+        skuCode: skuObj.code,
+        shift: a.shift || currentPeriod.shift,
+        shiftPeriodKey: currentPeriod.shiftKey,
+        plannedCartons: planned,
+        startedAt: new Date().toISOString(),
+        isRunning: true,
+        completionStatus: 'RUNNING',
+        cartonsProducedTotal: 0,
+        operatorName: op,
+        targetPerHour: skuObj.targetHour,
+        speedMultiplier: a.speedMultiplier || 1,
+        selectedHoldingTanks: a.selectedHoldingTanks && Object.keys(a.selectedHoldingTanks).length > 0 ? a.selectedHoldingTanks : undefined
+      });
+    }
+
+    const replacingLineIds = new Set(newRuns.map(r => r.lineId));
     setState(prev => {
-      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-      const unchangedRuns = prevRuns.filter(r => !skuIds.includes(r.skuId));
+      const curRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const unchangedRuns = curRuns.filter(
+        r => !replacingLineIds.has(r.lineId) || r.completionStatus === 'SHIFT_HANDOVER'
+      );
       const updatedRuns = [...newRuns, ...unchangedRuns];
       return {
         ...prev,
@@ -1960,33 +2441,116 @@ export default function App() {
       };
     });
 
-    // Trigger initial deduction for each started SKU
     newRuns.forEach((run, idx) => {
       setTimeout(() => {
-        handleProduceCartons(
+        const res = handleProduceCartons(
           run.skuId,
           1,
-          op,
-          `Mulai Multi-SKU: Pengurangan awal otomatis (${run.skuName})`
+          run.operatorName,
+          `Mulai Produksi [${run.lineName}]: ${run.skuName} (Planning ${run.plannedCartons?.toLocaleString()} ktn / Shift ${run.shift})`,
+          run.selectedHoldingTanks,
+          run.id,
+          run.lineId,
+          run.lineName
         );
-      }, 50 * (idx + 1));
+        if (!res.success) {
+          handleTriggerMaterialShortageStop(run, res.message);
+        }
+      }, 60 * (idx + 1));
     });
 
-    showToast(`${validSkus.length} SKU berhasil dijalankan bersamaan! Tangki holding & storage otomatis berkurang secara real-time.`);
+    showToast(`${newRuns.length} Line Produksi dijalankan bersamaan! Pengurangan WIP Holding Tank aktif sesuai BOM.`);
   };
 
-  // Change Speed Multiplier for live automated depletion (can target specific SKU or all)
-  const handleSetRunSpeedMultiplier = (speedMultiplier: number, skuId?: string) => {
+  // Legacy wrapper for multi-SKU quick start
+  const handleStartMultipleSkus = (
+    skuIds: string[],
+    operatorName?: string,
+    speedMultiplier: number = 1,
+    selectedHoldingTanksBySku?: Record<string, Record<string, string>>
+  ) => {
+    const currentState = stateRef.current;
+    const lines = currentState.master.productionLines || [];
+    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const busyLineIds = new Set(prevRuns.filter(r => r.isRunning && r.lineId).map(r => r.lineId!));
+    const freeLines = lines.filter(l => l.isActive && !busyLineIds.has(l.id));
+
+    const assignments = skuIds.slice(0, freeLines.length).map((skuId, idx) => {
+      const sku = currentState.master.skus.find(s => s.id === skuId);
+      return {
+        lineId: freeLines[idx].id,
+        skuId,
+        plannedCartons: (sku?.targetHour || 500) * 8,
+        operatorName,
+        speedMultiplier,
+        selectedHoldingTanks: selectedHoldingTanksBySku?.[skuId]
+      };
+    });
+
+    if (assignments.length === 0) {
+      showToast('Tidak ada line produksi standby yang tersedia.', true);
+      return;
+    }
+    handleStartLineBatchRuns(assignments);
+  };
+
+  // Switch active Holding Tank for a WIP during an ongoing line production run
+  const handleUpdateRunHoldingTank = (skuId: string, wipId: string, tankId: string, runId?: string) => {
+    const currentState = stateRef.current;
+    const tankObj = currentState.master.tanks.find(t => t.id === tankId);
+    const wipObj = currentState.master.wips.find(w => w.id === wipId);
+
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
-        if (!skuId || r.skuId === skuId) {
+        const isMatch = runId ? r.id === runId : r.skuId === skuId && r.isRunning;
+        if (!isMatch) return r;
+        return {
+          ...r,
+          selectedHoldingTanks: {
+            ...(r.selectedHoldingTanks || {}),
+            [wipId]: tankId
+          }
+        };
+      });
+      const updatedActiveRun =
+        prev.activeSkuRun && (runId ? prev.activeSkuRun.id === runId : prev.activeSkuRun.skuId === skuId)
+          ? {
+              ...prev.activeSkuRun,
+              selectedHoldingTanks: {
+                ...(prev.activeSkuRun.selectedHoldingTanks || {}),
+                [wipId]: tankId
+              }
+            }
+          : prev.activeSkuRun;
+
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun: updatedActiveRun
+      };
+    });
+
+    if (tankObj && wipObj) {
+      showToast(`Sumber Holding Tank untuk ${wipObj.name} dialihkan ke ${tankObj.code} (${tankObj.name})`);
+    }
+  };
+
+  // Change Speed Multiplier for live automated depletion (targets specific runId/lineId or skuId)
+  const handleSetRunSpeedMultiplier = (speedMultiplier: number, runIdOrSkuId?: string) => {
+    setState(prev => {
+      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const updatedRuns = prevRuns.map(r => {
+        if (!runIdOrSkuId || r.id === runIdOrSkuId || r.lineId === runIdOrSkuId || r.skuId === runIdOrSkuId) {
           return { ...r, speedMultiplier };
         }
         return r;
       });
       const updatedActiveRun = prev.activeSkuRun
-        ? (!skuId || prev.activeSkuRun.skuId === skuId
+        ? (!runIdOrSkuId ||
+          prev.activeSkuRun.id === runIdOrSkuId ||
+          prev.activeSkuRun.lineId === runIdOrSkuId ||
+          prev.activeSkuRun.skuId === runIdOrSkuId
             ? { ...prev.activeSkuRun, speedMultiplier }
             : prev.activeSkuRun)
         : null;
@@ -1999,20 +2563,354 @@ export default function App() {
     });
   };
 
-  // Stop Specific SKU Production (Six Big Losses TPM)
-  const handleStopSkuProduction = (stopData: Omit<ProductionStopLog, 'id'>) => {
-    const newStopLog: ProductionStopLog = {
-      ...stopData,
-      id: `stop_${Date.now()}`
-    };
-
-    const targetSkuId = stopData.skuId;
+  // Complete a Line Run Normally (Target finished / batch selesai - no SBL breakdown recorded)
+  const handleCompleteLineRun = (runIdOrLineId: string, notes?: string) => {
+    const completedAt = new Date().toISOString();
+    let completedInfo = '';
 
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
-        if (r.skuId === targetSkuId) {
-          return { ...r, isRunning: false };
+        if (r.id === runIdOrLineId || (r.lineId === runIdOrLineId && r.isRunning)) {
+          completedInfo = `${r.lineName || 'Line'} (${r.skuName} · ${(r.cartonsProducedTotal || 0).toLocaleString()} ktn)`;
+          return {
+            ...r,
+            isRunning: false,
+            completionStatus: 'COMPLETED' as const,
+            completedAt
+          };
+        }
+        return r;
+      });
+      const stillRunning = updatedRuns.find(r => r.isRunning);
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun: stillRunning || null
+      };
+    });
+
+    showToast(
+      `Produksi selesai normal: ${completedInfo || 'Line'} sekarang berstatus Standby${notes ? ` (${notes})` : ''}.`
+    );
+  };
+
+  // Stop a line automatically due to Material Shortage (empty / insufficient WIP in Holding Tank)
+  const handleTriggerMaterialShortageStop = (
+    targetRunOrId: ActiveSkuProductionRun | string,
+    reasonMessage: string
+  ) => {
+    const currentState = stateRef.current;
+    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const targetRun =
+      typeof targetRunOrId === 'string'
+        ? prevRuns.find(r => r.id === targetRunOrId || (r.lineId === targetRunOrId && r.isRunning))
+        : prevRuns.find(r => (targetRunOrId.id ? r.id === targetRunOrId.id : r.lineId === targetRunOrId.lineId && r.isRunning)) ||
+          targetRunOrId;
+
+    if (!targetRun) return;
+
+    const stoppedAt = new Date().toISOString();
+    const stopLogId = `stop_shortage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newStopLog: ProductionStopLog = {
+      id: stopLogId,
+      lineId: targetRun.lineId,
+      lineName: targetRun.lineName,
+      skuId: targetRun.skuId,
+      skuName: targetRun.skuName,
+      skuCode: targetRun.skuCode,
+      shift: targetRun.shift || getCurrentShift().shift,
+      startedAt: targetRun.startedAt,
+      stoppedAt,
+      durationMinutes: 1,
+      category: 'MATERIAL_SHORTAGE',
+      categoryLabel: 'Material Shortage (WIP Holding Tank Habis)',
+      lossType: 'DOWNTIME',
+      reasonTitle: reasonMessage || 'Material / WIP di Holding Tank habis atau di bawah kebutuhan 1 karton',
+      subReason: 'Stok WIP di Holding Tank habis saat produksi berjalan',
+      actionTaken: 'Menunggu pengisian / transfer batch WIP kembali ke Holding Tank',
+      operatorName: targetRun.operatorName,
+      cartonsProducedDuringRun: targetRun.cartonsProducedTotal || 0
+    };
+
+    setState(prev => {
+      const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const updatedRuns = currentRuns.map(r => {
+        const isMatch = targetRun.id
+          ? r.id === targetRun.id
+          : r.lineId === targetRun.lineId && r.skuId === targetRun.skuId && r.isRunning;
+        if (!isMatch) return r;
+        return {
+          ...r,
+          isRunning: false,
+          completionStatus: 'STOPPED_SHORTAGE' as const,
+          shortageReason: reasonMessage,
+          shortageStopLogId: stopLogId,
+          sblStopLogId: undefined,
+          sblEstimatedMinutes: undefined,
+          sblStoppedAt: undefined,
+          sblReason: undefined,
+          sblCategoryLabel: undefined,
+          completedAt: stoppedAt
+        };
+      });
+      const stillRunning = updatedRuns.find(r => r.isRunning);
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun: stillRunning || null,
+        transactions: {
+          ...prev.transactions,
+          productionStops: [newStopLog, ...(prev.transactions.productionStops || [])]
+        }
+      };
+    });
+
+    showToast(
+      `Material Shortage [${targetRun.lineName || 'Line'} · ${targetRun.skuName}]: ${reasonMessage}`,
+      true
+    );
+  };
+
+  // Resume a stopped line run (e.g. after Material Shortage WIP has been replenished in Holding Tank)
+  const handleResumeLineRun = (runIdOrLineId: string) => {
+    const currentState = stateRef.current;
+    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const targetRun = prevRuns.find(
+      r =>
+        !r.isRunning &&
+        r.completionStatus !== 'SHIFT_HANDOVER' &&
+        (r.id === runIdOrLineId || r.lineId === runIdOrLineId)
+    );
+    if (!targetRun) {
+      showToast('Data run produksi yang akan dilanjutkan tidak ditemukan.', true);
+      return;
+    }
+
+    if (targetRun.lineId && prevRuns.some(r => r.lineId === targetRun.lineId && r.isRunning)) {
+      showToast(`${targetRun.lineName || 'Line'} sedang menjalankan SKU lain.`, true);
+      return;
+    }
+
+    const availability = checkRunHoldingTankAvailability(
+      targetRun.skuId,
+      currentState,
+      targetRun.selectedHoldingTanks
+    );
+
+    if (!availability.isReady) {
+      showToast(
+        `WIP di Holding Tank belum mencukupi untuk melanjutkan [${targetRun.lineName || 'Line'}]: ${availability.missingDetails.join('; ')}`,
+        true
+      );
+      return;
+    }
+
+    const resumedAtIso = new Date().toISOString();
+    const currentPeriod = getShiftPeriodInfo();
+    const isCrossShiftResume =
+      targetRun.shift !== currentPeriod.shift ||
+      (targetRun.shiftPeriodKey
+        ? !targetRun.shiftPeriodKey.startsWith('MANUAL_HANDOVER_') &&
+          targetRun.shiftPeriodKey !== currentPeriod.shiftKey
+        : new Date(targetRun.startedAt).getTime() < new Date(currentPeriod.periodStartIso).getTime());
+
+    const targetRunId = isCrossShiftResume
+      ? `run_${targetRun.lineId || 'line'}_${Date.now()}_resumed`
+      : targetRun.id || `run_${targetRun.lineId || 'line'}_${Date.now()}`;
+    const wasSblStop = targetRun.completionStatus === 'STOPPED_SBL';
+    const linkedSblLog = targetRun.sblStopLogId
+      ? (currentState.transactions.productionStops || []).find(l => l.id === targetRun.sblStopLogId)
+      : undefined;
+    const sblEstMin =
+      targetRun.sblEstimatedMinutes ?? linkedSblLog?.estimatedRepairMinutes ?? linkedSblLog?.durationMinutes ?? 0;
+    const sblStoppedTimestamp = targetRun.sblStoppedAt || linkedSblLog?.stoppedAt || targetRun.completedAt;
+    const sblElapsedMin = sblStoppedTimestamp
+      ? Math.max(1, Math.round((Date.now() - new Date(sblStoppedTimestamp).getTime()) / 60000))
+      : 1;
+    const sblSavedMin = Math.max(0, sblEstMin - sblElapsedMin);
+
+    setState(prev => {
+      const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      let resumedRunObj: ActiveSkuProductionRun | null = null;
+      const updatedRuns: ActiveSkuProductionRun[] = [];
+
+      currentRuns.forEach(r => {
+        const isMatch = targetRun.id ? r.id === targetRun.id : r.lineId === targetRun.lineId && r.skuId === targetRun.skuId;
+        if (!isMatch) {
+          updatedRuns.push(r);
+          return;
+        }
+        if (isCrossShiftResume) {
+          const remaining =
+            r.plannedCartons && r.plannedCartons > 0
+              ? Math.max(1, r.plannedCartons - (r.cartonsProducedTotal || 0))
+              : (r.targetPerHour || 500) * 8;
+          resumedRunObj = {
+            ...r,
+            id: targetRunId,
+            shift: currentPeriod.shift,
+            shiftPeriodKey: currentPeriod.shiftKey,
+            startedAt: resumedAtIso,
+            isRunning: true,
+            completionStatus: 'RUNNING' as const,
+            cartonsProducedTotal: 0,
+            plannedCartons: remaining,
+            carriedOverFromShift: r.shift,
+            previousShiftCartons: r.cartonsProducedTotal || 0,
+            shortageReason: undefined,
+            shortageStopLogId: undefined,
+            sblStopLogId: undefined,
+            sblEstimatedMinutes: undefined,
+            sblStoppedAt: undefined,
+            sblReason: undefined,
+            sblCategoryLabel: undefined,
+            completedAt: undefined,
+            lastDeductionTime: resumedAtIso
+          };
+          updatedRuns.push(resumedRunObj, {
+            ...r,
+            isRunning: false,
+            completionStatus: 'SHIFT_HANDOVER' as const,
+            handoverToShift: currentPeriod.shift,
+            completedAt: resumedAtIso
+          });
+        } else {
+          resumedRunObj = {
+            ...r,
+            id: targetRunId,
+            isRunning: true,
+            completionStatus: 'RUNNING' as const,
+            shortageReason: undefined,
+            shortageStopLogId: undefined,
+            sblStopLogId: undefined,
+            sblEstimatedMinutes: undefined,
+            sblStoppedAt: undefined,
+            sblReason: undefined,
+            sblCategoryLabel: undefined,
+            completedAt: undefined,
+            lastDeductionTime: resumedAtIso
+          };
+          updatedRuns.push(resumedRunObj);
+        }
+      });
+
+      const updatedStops = (prev.transactions.productionStops || []).map(log => {
+        if (targetRun.shortageStopLogId && log.id === targetRun.shortageStopLogId) {
+          const elapsedMin = Math.max(
+            1,
+            Math.round((Date.now() - new Date(log.stoppedAt).getTime()) / 60000)
+          );
+          return {
+            ...log,
+            durationMinutes: elapsedMin,
+            actualRepairMinutes: elapsedMin,
+            resumedAt: resumedAtIso,
+            actionTaken: 'Produksi dilanjutkan kembali setelah WIP tersedia di Holding Tank'
+          };
+        }
+        if (targetRun.sblStopLogId && log.id === targetRun.sblStopLogId) {
+          const estMin = targetRun.sblEstimatedMinutes ?? log.estimatedRepairMinutes ?? log.durationMinutes;
+          const elapsedMin = Math.max(
+            1,
+            Math.round((Date.now() - new Date(log.stoppedAt).getTime()) / 60000)
+          );
+          const savedMin = Math.max(0, estMin - elapsedMin);
+          const summaryNote =
+            savedMin > 0
+              ? `Perbaikan selesai ${elapsedMin} mnt (lebih cepat ${savedMin} mnt dari est. ${estMin} mnt) · Produksi dilanjutkan`
+              : `Perbaikan selesai (${elapsedMin} mnt dari est. ${estMin} mnt) · Produksi dilanjutkan`;
+          return {
+            ...log,
+            estimatedRepairMinutes: estMin,
+            actualRepairMinutes: elapsedMin,
+            durationMinutes: elapsedMin,
+            resumedAt: resumedAtIso,
+            actionTaken: log.actionTaken ? `${log.actionTaken} | ${summaryNote}` : summaryNote
+          };
+        }
+        return log;
+      });
+
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun: resumedRunObj || updatedRuns.find(r => r.isRunning) || null,
+        transactions: {
+          ...prev.transactions,
+          productionStops: updatedStops
+        }
+      };
+    });
+
+    setTimeout(() => {
+      const res = handleProduceCartons(
+        targetRun.skuId,
+        1,
+        targetRun.operatorName,
+        wasSblStop
+          ? `Lanjut Produksi [${targetRun.lineName || 'Line'}]: ${targetRun.skuName} setelah perbaikan SBL (${sblElapsedMin} mnt)`
+          : `Lanjut Produksi [${targetRun.lineName || 'Line'}]: ${targetRun.skuName} setelah pengisian WIP Holding Tank`,
+        targetRun.selectedHoldingTanks,
+        targetRunId,
+        targetRun.lineId,
+        targetRun.lineName
+      );
+      if (!res.success) {
+        handleTriggerMaterialShortageStop(targetRunId, res.message);
+      }
+    }, 50);
+
+    const remainingTarget = targetRun.plannedCartons
+      ? Math.max(0, targetRun.plannedCartons - (targetRun.cartonsProducedTotal || 0))
+      : 0;
+    if (wasSblStop) {
+      showToast(
+        sblSavedMin > 0
+          ? `[${targetRun.lineName || 'Line'}] Perbaikan selesai dalam ${sblElapsedMin} menit (lebih cepat ${sblSavedMin} mnt dari estimasi ${sblEstMin} mnt)! Produksi "${targetRun.skuName}" dilanjutkan.`
+          : `[${targetRun.lineName || 'Line'}] Perbaikan selesai (${sblElapsedMin} menit). Produksi "${targetRun.skuName}" dilanjutkan kembali.`
+      );
+    } else {
+      showToast(
+        `[${targetRun.lineName || 'Line'}] Produksi "${targetRun.skuName}" dilanjutkan kembali! WIP siap (±${availability.minPossibleCartons.toLocaleString()} ktn${remainingTarget > 0 ? `, sisa target ${remainingTarget.toLocaleString()} ktn` : ''}).`
+      );
+    }
+  };
+
+  // Stop Specific Line / SKU Production due to Problem (Six Big Losses TPM)
+  const handleStopSkuProduction = (stopData: Omit<ProductionStopLog, 'id'>) => {
+    const newStopLog: ProductionStopLog = {
+      ...stopData,
+      estimatedRepairMinutes: stopData.estimatedRepairMinutes ?? stopData.durationMinutes,
+      id: `stop_${Date.now()}`
+    };
+
+    const targetLineId = stopData.lineId;
+    const targetSkuId = stopData.skuId;
+    const completedAt = new Date().toISOString();
+    const isMaterialShortage = stopData.category === 'MATERIAL_SHORTAGE';
+    const estMinutes = stopData.estimatedRepairMinutes ?? stopData.durationMinutes;
+
+    setState(prev => {
+      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const updatedRuns = prevRuns.map(r => {
+        const isMatch = targetLineId
+          ? r.lineId === targetLineId && r.isRunning
+          : r.skuId === targetSkuId && r.isRunning;
+        if (isMatch) {
+          return {
+            ...r,
+            isRunning: false,
+            completionStatus: isMaterialShortage ? ('STOPPED_SHORTAGE' as const) : ('STOPPED_SBL' as const),
+            shortageReason: isMaterialShortage ? stopData.reasonTitle : undefined,
+            shortageStopLogId: isMaterialShortage ? newStopLog.id : undefined,
+            sblStopLogId: !isMaterialShortage ? newStopLog.id : undefined,
+            sblEstimatedMinutes: !isMaterialShortage ? estMinutes : undefined,
+            sblStoppedAt: !isMaterialShortage ? (stopData.stoppedAt || completedAt) : undefined,
+            sblReason: !isMaterialShortage ? stopData.reasonTitle : undefined,
+            sblCategoryLabel: !isMaterialShortage ? stopData.categoryLabel : undefined,
+            completedAt
+          };
         }
         return r;
       });
@@ -2021,7 +2919,7 @@ export default function App() {
       return {
         ...prev,
         activeSkuRuns: updatedRuns,
-        activeSkuRun: stillRunning || (prev.activeSkuRun?.skuId === targetSkuId ? { ...prev.activeSkuRun, isRunning: false } : prev.activeSkuRun),
+        activeSkuRun: stillRunning || null,
         transactions: {
           ...prev.transactions,
           productionStops: [newStopLog, ...(prev.transactions.productionStops || [])]
@@ -2029,34 +2927,222 @@ export default function App() {
       };
     });
 
-    showToast(`Produksi SKU "${stopData.skuName}" dihentikan: Alasan Six Big Losses tercatat.`);
+    showToast(
+      isMaterialShortage
+        ? `Produksi ${stopData.lineName ? `[${stopData.lineName}] ` : ''}"${stopData.skuName}" dihentikan: Material Shortage tercatat. Dapat dilanjutkan kembali setelah WIP Holding Tank terisi.`
+        : `Produksi ${stopData.lineName ? `[${stopData.lineName}] ` : ''}"${stopData.skuName}" dihentikan (SBL · Est. perbaikan ${estMinutes} mnt). Klik "Start Produksi Kembali" jika perbaikan selesai.`
+    );
   };
 
-  // Stop All Running SKUs Production
+  // Stop All Running Lines Production
   const handleStopAllSkuProduction = () => {
+    const completedAt = new Date().toISOString();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-      const updatedRuns = prevRuns.map(r => ({ ...r, isRunning: false }));
+      const updatedRuns = prevRuns.map(r =>
+        r.isRunning
+          ? { ...r, isRunning: false, completionStatus: 'COMPLETED' as const, completedAt }
+          : r
+      );
       return {
         ...prev,
         activeSkuRuns: updatedRuns,
-        activeSkuRun: prev.activeSkuRun ? { ...prev.activeSkuRun, isRunning: false } : null
+        activeSkuRun: null
       };
     });
-    showToast('Seluruh lini SKU yang sedang berjalan telah dihentikan.');
+    showToast('Seluruh line produksi yang sedang berjalan telah dihentikan.');
   };
 
-  // Engine Pengurangan Isi Tangki Otomatis Real-Time untuk SEMUA SKU yang Sedang Berjalan (Multi-SKU)
-  // Menghitung laju konsumsi WIP berdasarkan Target Karton per Jam (targetHour) masing-masing SKU dari Master BOM.
+  // Shift Transition / Handover Logic:
+  // Every start of a new shift stops running production from the previous shift and continues it into the next shift.
+  const handleTriggerShiftHandover = (options?: {
+    isAutomatic?: boolean;
+    targetShift?: ShiftNumber;
+    targetPeriodKey?: string;
+    forceHandoverAll?: boolean;
+  }) => {
+    const currentState = stateRef.current;
+    const curRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+    const currentPeriod = getShiftPeriodInfo(new Date());
+    const isAuto = options?.isAutomatic ?? false;
+    const forceAll = options?.forceHandoverAll ?? !isAuto;
+
+    const runsToHandover = curRuns.filter(r => {
+      if (!r.isRunning) return false;
+      if (forceAll) return true;
+      const isManual = r.shiftPeriodKey?.startsWith('MANUAL_HANDOVER_');
+      if (isManual) {
+        return Boolean(options?.targetShift && r.shift !== options.targetShift);
+      }
+      return (
+        r.shift !== currentPeriod.shift ||
+        (r.shiftPeriodKey
+          ? r.shiftPeriodKey !== currentPeriod.shiftKey
+          : new Date(r.startedAt).getTime() < new Date(currentPeriod.periodStartIso).getTime())
+      );
+    });
+
+    if (runsToHandover.length === 0) {
+      if (!isAuto) {
+        showToast('Tidak ada line produksi aktif yang perlu di-handover ke shift berikutnya.', true);
+      }
+      return;
+    }
+
+    const handoverIso = new Date().toISOString();
+    const handoverRunIds = new Set(runsToHandover.map((r, i) => r.id || `${r.lineId}_${r.skuId}_${i}`));
+    const firstFromShift = runsToHandover[0].shift;
+    const resolvedGlobalNextShift = isAuto
+      ? options?.targetShift || currentPeriod.shift
+      : getNextShiftNumber(firstFromShift);
+
+    setState(prev => {
+      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const continuedRuns: ActiveSkuProductionRun[] = [];
+      const archivedPrevRuns: ActiveSkuProductionRun[] = [];
+      const untouchedRuns: ActiveSkuProductionRun[] = [];
+
+      prevRuns.forEach((r, idx) => {
+        const key = r.id || `${r.lineId}_${r.skuId}_${idx}`;
+        const matches =
+          r.isRunning &&
+          (forceAll ||
+            handoverRunIds.has(key) ||
+            (!r.shiftPeriodKey?.startsWith('MANUAL_HANDOVER_') &&
+              (r.shift !== currentPeriod.shift ||
+                (r.shiftPeriodKey ? r.shiftPeriodKey !== currentPeriod.shiftKey : false))));
+
+        if (!matches) {
+          untouchedRuns.push(r);
+          return;
+        }
+
+        const nextShift = isAuto
+          ? options?.targetShift || currentPeriod.shift
+          : getNextShiftNumber(r.shift);
+        const nextPeriodKey = isAuto
+          ? options?.targetPeriodKey || currentPeriod.shiftKey
+          : `MANUAL_HANDOVER_${currentPeriod.shiftKey}_${Date.now()}`;
+
+        const skuObj = prev.master.skus.find(s => s.id === r.skuId);
+        const defaultShiftPlan = (skuObj?.targetHour || r.targetPerHour || 500) * 8;
+        const remainingTarget =
+          r.plannedCartons && r.plannedCartons > 0
+            ? Math.max(0, r.plannedCartons - (r.cartonsProducedTotal || 0))
+            : defaultShiftPlan;
+        const nextPlannedCartons = remainingTarget > 0 ? remainingTarget : defaultShiftPlan;
+
+        archivedPrevRuns.push({
+          ...r,
+          isRunning: false,
+          completionStatus: 'SHIFT_HANDOVER' as const,
+          handoverToShift: nextShift,
+          completedAt: handoverIso
+        });
+
+        continuedRuns.push({
+          ...r,
+          id: `run_${r.lineId || 'line'}_${Date.now()}_${idx}`,
+          shift: nextShift,
+          shiftPeriodKey: nextPeriodKey,
+          startedAt: handoverIso,
+          completedAt: undefined,
+          isRunning: true,
+          completionStatus: 'RUNNING' as const,
+          cartonsProducedTotal: 0,
+          plannedCartons: nextPlannedCartons,
+          carriedOverFromShift: r.shift,
+          previousShiftCartons: r.cartonsProducedTotal || 0,
+          handoverToShift: undefined,
+          shortageReason: undefined,
+          shortageStopLogId: undefined,
+          sblStopLogId: undefined,
+          sblEstimatedMinutes: undefined,
+          sblStoppedAt: undefined,
+          sblReason: undefined,
+          sblCategoryLabel: undefined,
+          lastDeductionTime: handoverIso
+        });
+      });
+
+      const updatedRuns = [...continuedRuns, ...archivedPrevRuns, ...untouchedRuns];
+      return {
+        ...prev,
+        activeSkuRuns: updatedRuns,
+        activeSkuRun: continuedRuns[0] || updatedRuns.find(r => r.isRunning) || null,
+        lastShiftHandover: {
+          fromShift: firstFromShift,
+          toShift: resolvedGlobalNextShift,
+          timestamp: handoverIso,
+          handedOverCount: continuedRuns.length
+        }
+      };
+    });
+
+    showToast(
+      `Pergantian Shift: ${runsToHandover.length} line produksi dari Shift ${firstFromShift} dihentikan & otomatis dilanjutkan ke Shift ${resolvedGlobalNextShift}.`
+    );
+  };
+
+  // Automatic clock watcher for shift boundaries (07:01 Shift 1, 15:01 Shift 2, 23:01 Shift 3)
+  const lastClockShiftKeyRef = useRef<string>(getShiftPeriodInfo().shiftKey);
   useEffect(() => {
-    const prevRuns = state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : []);
+    const checkShiftBoundary = () => {
+      const period = getShiftPeriodInfo(new Date());
+      const clockBoundaryCrossed = lastClockShiftKeyRef.current !== period.shiftKey;
+      if (clockBoundaryCrossed) {
+        lastClockShiftKeyRef.current = period.shiftKey;
+      }
+
+      const runsNow =
+        stateRef.current.activeSkuRuns ||
+        (stateRef.current.activeSkuRun ? [stateRef.current.activeSkuRun] : []);
+      const hasPendingHandover = runsNow.some(r => {
+        if (!r.isRunning) return false;
+        const isManual = r.shiftPeriodKey?.startsWith('MANUAL_HANDOVER_');
+        if (isManual) {
+          return clockBoundaryCrossed && r.shift !== period.shift;
+        }
+        return (
+          r.shift !== period.shift ||
+          (r.shiftPeriodKey
+            ? r.shiftPeriodKey !== period.shiftKey
+            : new Date(r.startedAt).getTime() < new Date(period.periodStartIso).getTime())
+        );
+      });
+
+      if (hasPendingHandover) {
+        handleTriggerShiftHandover({
+          isAutomatic: true,
+          targetShift: period.shift,
+          targetPeriodKey: period.shiftKey,
+          forceHandoverAll: false
+        });
+      }
+    };
+
+    checkShiftBoundary();
+    const timer = setInterval(checkShiftBoundary, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Engine Pengurangan Isi Tangki Otomatis Real-Time untuk SEMUA Line Produksi yang Berjalan Bersamaan
+  const runningRunsSnapshot = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).filter(
+    r => r.isRunning
+  );
+  const runningRunsSignature = runningRunsSnapshot
+    .map(r => `${r.id || r.lineId || r.skuId}:${r.skuId}:${r.speedMultiplier || 1}`)
+    .join('|');
+
+  useEffect(() => {
+    const prevRuns = stateRef.current.activeSkuRuns || (stateRef.current.activeSkuRun ? [stateRef.current.activeSkuRun] : []);
     const runningRuns = prevRuns.filter(r => r.isRunning);
     if (runningRuns.length === 0) return;
 
     const intervalIds: NodeJS.Timeout[] = [];
 
     runningRuns.forEach(run => {
-      const currentSku = state.master.skus.find(s => s.id === run.skuId);
+      const currentSku = stateRef.current.master.skus.find(s => s.id === run.skuId);
       if (!currentSku) return;
 
       const targetPerHour = currentSku.targetHour || 600;
@@ -2067,29 +3153,25 @@ export default function App() {
       const timer = setInterval(() => {
         const activeState = stateRef.current;
         const runsNow = activeState.activeSkuRuns || (activeState.activeSkuRun ? [activeState.activeSkuRun] : []);
-        const thisRun = runsNow.find(r => r.skuId === run.skuId);
+        const thisRun =
+          (run.id ? runsNow.find(r => r.id === run.id) : undefined) ||
+          (run.lineId ? runsNow.find(r => r.lineId === run.lineId && r.isRunning) : undefined) ||
+          runsNow.find(r => r.skuId === run.skuId && r.isRunning);
         if (!thisRun?.isRunning) return;
 
         const res = handleProduceCartons(
           run.skuId,
           1,
           thisRun.operatorName || 'Auto Depletion Engine (BOM)',
-          `Auto Multi-SKU (${currentSku.name} - Target BOM: ${targetPerHour} ktn/jam) - Pengurangan Tangki Holding & Storage`
+          `Auto [${thisRun.lineName || 'Line'}] (${currentSku.name} - ${targetPerHour} ktn/jam) - Pengurangan Holding Tank sesuai BOM`,
+          thisRun.selectedHoldingTanks,
+          thisRun.id,
+          thisRun.lineId,
+          thisRun.lineName
         );
 
         if (!res.success) {
-          setState(prev => {
-            const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-            const updatedRuns = currentRuns.map(r =>
-              r.skuId === run.skuId ? { ...r, isRunning: false } : r
-            );
-            return {
-              ...prev,
-              activeSkuRuns: updatedRuns,
-              activeSkuRun: updatedRuns.find(r => r.isRunning) || null
-            };
-          });
-          showToast(`⚠️ Stok Tangki Habis untuk SKU "${currentSku.name}": ${res.message}`, true);
+          handleTriggerMaterialShortageStop(thisRun, res.message);
         }
       }, intervalMs);
 
@@ -2099,11 +3181,7 @@ export default function App() {
     return () => {
       intervalIds.forEach(id => clearInterval(id));
     };
-  }, [
-    state.activeSkuRuns,
-    state.activeSkuRun,
-    state.master.skus
-  ]);
+  }, [runningRunsSignature, state.master.skus]);
 
 
   // Create Single Request
@@ -2203,14 +3281,15 @@ export default function App() {
     });
   };
 
-  // Record Usage
+  // Record Usage (Shift selalu mengikuti jam shift berjalan saat transaksi dicatat)
   const handleRecordUsage = (usageData: Omit<MaterialUsage, 'id' | 'usageNumber' | 'date'>) => {
+    const liveShift = getCurrentShift().shift;
     setState(prev => {
       const count = prev.transactions.usages.length + 1;
       const usageNumber = `USG-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
       const newUsage: MaterialUsage = {
         ...usageData,
-        shift: usageData.shift || (getCurrentShift().shift),
+        shift: liveShift,
         id: `use_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         usageNumber,
         date: new Date().toISOString().slice(0, 10)
@@ -2251,6 +3330,7 @@ export default function App() {
       return;
     }
 
+    const liveShift = getCurrentShift().shift;
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -2261,6 +3341,7 @@ export default function App() {
 
     const newBatch: WipProductionBatch = {
       ...batchData,
+      shift: liveShift, // Pemakaian material & batch selalu mengikuti shift sesuai jam berjalan
       id: batchId,
       batchCode,
       status: 'SEDANG_PRODUKSI',
@@ -2282,7 +3363,7 @@ export default function App() {
         id: `use_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
         usageNumber,
         date: dateStr,
-        shift: batchData.shift || (getCurrentShift().shift),
+        shift: liveShift,
         skuId: batchData.skuId || state.master.skus[0]?.id || 'SKU_GENERIC',
         wipId: batchData.wipId,
         materialId: matItem.materialId,
@@ -2290,7 +3371,7 @@ export default function App() {
         batch: 1,
         usageQty: matItem.actualUsedKg,
         sourceLocation: matItem.sourceLocation,
-        operatorName: batchData.operatorName || `Operator Shift ${batchData.shift || 1}`,
+        operatorName: batchData.operatorName || `Operator Shift ${liveShift}`,
         notes: `Produksi Batch ${batchCode} (1 Batch ${batchData.wipName})${palletSummary}`,
         batchOrderId: batchId,
         palletAllocations: matItem.palletAllocations
@@ -2530,6 +3611,7 @@ export default function App() {
     'admin-portal': 'Cockpit Modul MRP & WMS Administrator',
     dashboard: 'Manufacturing - Simulasi Produksi & Status Line',
     'tank-monitoring': 'Inventory & Tangki WIP - Monitoring 5 Tangki',
+    'shift-summary': 'Ringkasan Produksi Shift (Output, SBL & Konsumsi Material)',
     permintaan: 'Permintaan Material GDRM (Warehouse)',
     penerimaan: 'Penerimaan Material & Inbound Kedatangan',
     pemakaian: 'Work Order WIP & Pemakaian Material Resep',
@@ -2633,15 +3715,16 @@ export default function App() {
                   >
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                     <span className="font-bold text-cyan-300 font-mono">
-                      {runs.length === 1 ? '1 SKU Diproses:' : `${runs.length} SKU Diproses:`}
+                      {runs.length === 1 ? '1 Line Aktif:' : `${runs.length} Line Aktif:`}
                     </span>
                     <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar max-w-[280px] sm:max-w-[450px]">
                       {runs.map((r, i) => (
-                        <span key={r.skuId} className="flex items-center space-x-1 whitespace-nowrap">
-                          {i > 0 && <span className="text-slate-500">•</span>}
+                        <span key={r.id || `${r.lineId || ''}_${r.skuId}_${i}`} className="flex items-center space-x-1 whitespace-nowrap">
+                          {i > 0 && <span className="text-slate-500">·</span>}
+                          {r.lineName && <span className="text-cyan-300 font-bold">{r.lineName}:</span>}
                           <span className="text-white font-semibold">{r.skuName}</span>
                           <span className="text-cyan-400 font-mono text-[10px]">
-                            ({((r.targetPerHour || 600) * (r.speedMultiplier || 1)).toFixed(0)} ktn/j)
+                            ({(r.cartonsProducedTotal || 0).toLocaleString()}{r.plannedCartons ? `/${r.plannedCartons.toLocaleString()}` : ''} ktn)
                           </span>
                         </span>
                       ))}
@@ -2721,9 +3804,19 @@ export default function App() {
               onProduceCartons={handleProduceCartons}
               onStartSkuProduction={handleStartSkuProduction}
               onStartMultipleSkus={handleStartMultipleSkus}
+              onStartLineBatchRuns={handleStartLineBatchRuns}
+              onCompleteLineRun={handleCompleteLineRun}
+              onResumeLineRun={handleResumeLineRun}
+              onRecordMaterialShortage={handleTriggerMaterialShortageStop}
+              onUpdateRunHoldingTank={handleUpdateRunHoldingTank}
               onStopSkuProduction={handleStopSkuProduction}
               onStopAllSkuProduction={handleStopAllSkuProduction}
+              onTriggerShiftHandover={() => handleTriggerShiftHandover({ isAutomatic: false, forceHandoverAll: true })}
               onSetRunSpeedMultiplier={handleSetRunSpeedMultiplier}
+              onAddProductionLine={handleAddProductionLine}
+              onUpdateProductionLine={handleUpdateProductionLine}
+              onDeleteProductionLine={handleDeleteProductionLine}
+              onSetProductionLinesCount={handleSetProductionLinesCount}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               showToast={showToast}
             />
@@ -2737,6 +3830,7 @@ export default function App() {
               onTopUpTank={handleTopUpTank}
               onTransferTanks={handleTransferBetweenTanks}
               onStartSkuProduction={handleStartSkuProduction}
+              onUpdateRunHoldingTank={handleUpdateRunHoldingTank}
               onStopSkuProduction={handleStopSkuProduction}
               onSetRunSpeedMultiplier={handleSetRunSpeedMultiplier}
               showToast={showToast}
@@ -2832,6 +3926,15 @@ export default function App() {
               state={state}
               onSwitchTab={handleSwitchTab}
               onQuickGenerateRequest={handleCreateRequest}
+              showToast={showToast}
+            />
+          )}
+
+          {state.currentTab === 'shift-summary' && (
+            <ShiftSummaryView
+              state={state}
+              onSwitchTab={handleSwitchTab}
+              onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               showToast={showToast}
             />
           )}

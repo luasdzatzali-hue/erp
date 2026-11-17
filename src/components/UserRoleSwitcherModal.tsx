@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   UserCheck,
@@ -38,6 +38,13 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
     state.registeredManagement.find(m => m.hasViewAccess)?.id || state.registeredManagement[0]?.id || ''
   );
   const [pinError, setPinError] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setAdminPinInput('');
+      setPinError('');
+    }
+  }, [isOpen, selectedRoleTab]);
 
   if (!isOpen) return null;
 
@@ -240,13 +247,14 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
                     <input
                       type="password"
                       autoFocus
+                      autoComplete="off"
                       required
                       value={adminPinInput}
                       onChange={(e) => {
                         setAdminPinInput(e.target.value);
                         setPinError('');
                       }}
-                      placeholder="Masukkan 8-digit PIN..."
+                      placeholder="Masukkan PIN Administrator..."
                       className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-slate-900 font-mono text-sm tracking-widest focus:outline-none focus:border-amber-500"
                     />
                   </div>

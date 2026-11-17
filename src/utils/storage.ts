@@ -20,10 +20,18 @@ import {
   PalletAllocation,
   PalletInventoryLot,
   ZakReceiptBreakdown,
-  MaterialStockAdjustment
+  MaterialStockAdjustment,
+  ProductionLine
 } from '../types';
 
 export const STORAGE_KEY = 'prodtrack_state_v9';
+
+export const SAMPLE_PRODUCTION_LINES: ProductionLine[] = [
+  { id: 'line_a', code: 'LINE-A', name: 'Line A', description: 'Jalur Produksi Utama A', isActive: true },
+  { id: 'line_b', code: 'LINE-B', name: 'Line B', description: 'Jalur Produksi B', isActive: true },
+  { id: 'line_c', code: 'LINE-C', name: 'Line C', description: 'Jalur Produksi C', isActive: true },
+  { id: 'line_d', code: 'LINE-D', name: 'Line D', description: 'Jalur Produksi D', isActive: true }
+];
 
 export const SAMPLE_OPERATORS: RegisteredOperator[] = [
   {
@@ -362,7 +370,8 @@ export const DEFAULT_STATE: AppState = {
     skuWips: [],
     wipMats: [],
     machines: [],
-    tanks: []
+    tanks: [],
+    productionLines: SAMPLE_PRODUCTION_LINES
   },
   transactions: {
     requests: [],
@@ -647,7 +656,8 @@ export function getSampleState(): AppState {
       wipMats: SAMPLE_WIP_MATS,
       recipes: SAMPLE_RECIPES,
       machines: SAMPLE_MACHINES,
-      tanks: SAMPLE_TANKS
+      tanks: SAMPLE_TANKS,
+      productionLines: SAMPLE_PRODUCTION_LINES
     },
     transactions: {
       requests: [
@@ -1031,6 +1041,25 @@ export function loadStoredState(): AppState {
           ? parsed.master.recipes
           : SAMPLE_RECIPES;
 
+        const rawCartonProductions: CartonProductionLog[] = sanitizeUniqueIds(
+          parsed.transactions?.cartonProductions || [],
+          'cp'
+        );
+        const compactedCartonProductions =
+          rawCartonProductions.length > 120
+            ? coalesceCartonProductionLogs(rawCartonProductions)
+            : rawCartonProductions;
+
+        const rawTankLogs: TankTransferLog[] = sanitizeUniqueIds(parsed.transactions?.tankLogs || [], 'tl');
+        const trimmedTankLogs = rawTankLogs.slice(0, 200);
+
+        const rawActiveRuns = Array.isArray(parsed.activeSkuRuns)
+          ? parsed.activeSkuRuns
+          : parsed.activeSkuRun
+          ? [parsed.activeSkuRun]
+          : [];
+        const compactedActiveRuns = compactActiveRuns(rawActiveRuns, 80);
+
         return {
           ...DEFAULT_STATE,
           ...parsed,
@@ -1064,7 +1093,13 @@ export function loadStoredState(): AppState {
             wipMats: sanitizeUniqueIds(parsed.master?.wipMats || DEFAULT_STATE.master.wipMats, 'wm'),
             recipes: sanitizeUniqueIds(rawRecipes, 'rcp'),
             machines: sanitizeUniqueIds(machines, 'mach'),
-            tanks: sanitizeUniqueIds(tanks, 'tank')
+            tanks: sanitizeUniqueIds(tanks, 'tank'),
+            productionLines: sanitizeUniqueIds(
+              Array.isArray(parsed.master?.productionLines) && parsed.master.productionLines.length > 0
+                ? parsed.master.productionLines
+                : SAMPLE_PRODUCTION_LINES,
+              'line'
+            )
           },
           transactions: {
             ...DEFAULT_STATE.transactions,
@@ -1073,16 +1108,17 @@ export function loadStoredState(): AppState {
             receipts: sanitizeUniqueIds(parsed.transactions?.receipts, 'rec'),
             usages: sanitizeUniqueIds(parsed.transactions?.usages, 'use'),
             wipBatches: sanitizeUniqueIds(parsed.transactions?.wipBatches || [], 'wpb'),
-            cartonProductions: sanitizeUniqueIds(parsed.transactions?.cartonProductions || [], 'cp'),
-            tankLogs: sanitizeUniqueIds(parsed.transactions?.tankLogs || [], 'tl'),
+            cartonProductions: compactedCartonProductions,
+            tankLogs: trimmedTankLogs,
             changeovers: sanitizeUniqueIds(parsed.transactions?.changeovers || [], 'co'),
             productionStops: sanitizeUniqueIds(parsed.transactions?.productionStops || [], 'stop'),
             stockAdjustments: sanitizeUniqueIds(parsed.transactions?.stockAdjustments || [], 'adj')
           },
-          activeSkuRun: parsed.activeSkuRun || (Array.isArray(parsed.activeSkuRuns) ? parsed.activeSkuRuns.find((r: any) => r && r.isRunning) || null : null),
-          activeSkuRuns: Array.isArray(parsed.activeSkuRuns)
-            ? parsed.activeSkuRuns
-            : (parsed.activeSkuRun ? [parsed.activeSkuRun] : []),
+          activeSkuRun:
+            parsed.activeSkuRun ||
+            compactedActiveRuns.find((r: any) => r && r.isRunning) ||
+            null,
+          activeSkuRuns: compactedActiveRuns,
           tank: {
             ...DEFAULT_STATE.tank,
             ...parsed.tank
@@ -1096,11 +1132,186 @@ export function loadStoredState(): AppState {
   return getSampleState();
 }
 
-export function saveStateToStorage(state: AppState): void {
+function cleanupLegacyStorageKeys(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (err) {
-    console.error('Failed to save state to localStorage:', err);
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('prodtrack_state_') && k !== STORAGE_KEY) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {
+    // ignore storage access errors
+  }
+}
+
+function compactActiveRuns<T extends { isRunning?: boolean }>(
+  runs: T[] | undefined,
+  maxArchived: number
+): T[] {
+  if (!Array.isArray(runs)) return [];
+  const running: T[] = [];
+  const archived: T[] = [];
+  for (const r of runs) {
+    if (!r) continue;
+    if (r.isRunning) {
+      running.push(r);
+    } else if (archived.length < maxArchived) {
+      archived.push(r);
+    }
+  }
+  return [...running, ...archived];
+}
+
+/**
+ * Menggabungkan log produksi karton pada tanggal, shift, line, dan SKU yang sama
+ * agar ukuran penyimpanan tetap ringan tanpa mengurangi total output maupun deduksi tangki.
+ */
+export function coalesceCartonProductionLogs(
+  logs: CartonProductionLog[]
+): CartonProductionLog[] {
+  if (!Array.isArray(logs) || logs.length <= 1) return logs || [];
+  const map = new Map<string, CartonProductionLog>();
+
+  for (const cp of logs) {
+    if (!cp) continue;
+    const dateKey = (cp.timestamp || '').slice(0, 10);
+    const shiftKey = cp.shift || 1;
+    const lineKey = cp.lineId || '';
+    const key = `${dateKey}__S${shiftKey}__${lineKey}__${cp.skuId}`;
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        ...cp,
+        tankDeductions: (cp.tankDeductions || []).map(d => ({ ...d }))
+      });
+      continue;
+    }
+
+    const mergedDeductions = [...(existing.tankDeductions || [])];
+    for (const d of cp.tankDeductions || []) {
+      const idx = mergedDeductions.findIndex(
+        m => m.tankId === d.tankId && m.wipId === d.wipId
+      );
+      if (idx >= 0) {
+        const isIncomingNewer = (cp.timestamp || '') >= (existing.timestamp || '');
+        mergedDeductions[idx] = {
+          ...mergedDeductions[idx],
+          kgDeducted: parseFloat((mergedDeductions[idx].kgDeducted + (d.kgDeducted || 0)).toFixed(4)),
+          remainingLevelKg: isIncomingNewer
+            ? d.remainingLevelKg
+            : mergedDeductions[idx].remainingLevelKg
+        };
+      } else {
+        mergedDeductions.push({ ...d });
+      }
+    }
+
+    const isIncomingNewer = (cp.timestamp || '') >= (existing.timestamp || '');
+    existing.cartonsProduced += cp.cartonsProduced || 0;
+    existing.tankDeductions = mergedDeductions;
+    if (isIncomingNewer) {
+      existing.timestamp = cp.timestamp;
+      if (cp.operatorName) existing.operatorName = cp.operatorName;
+      if (cp.notes) existing.notes = cp.notes;
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    (b.timestamp || '').localeCompare(a.timestamp || '')
+  );
+}
+
+function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
+  const cartonLogs = state.transactions.cartonProductions || [];
+  const tankLogs = state.transactions.tankLogs || [];
+  const runs = state.activeSkuRuns || [];
+
+  if (level === 0) {
+    const needsCartonCompaction = cartonLogs.length > 120;
+    const needsTankTrim = tankLogs.length > 200;
+    const needsRunsTrim = runs.length > 90;
+    if (!needsCartonCompaction && !needsTankTrim && !needsRunsTrim) {
+      return state;
+    }
+    return {
+      ...state,
+      activeSkuRuns: compactActiveRuns(runs, 80),
+      transactions: {
+        ...state.transactions,
+        cartonProductions: needsCartonCompaction
+          ? coalesceCartonProductionLogs(cartonLogs)
+          : cartonLogs,
+        tankLogs: needsTankTrim ? tankLogs.slice(0, 200) : tankLogs
+      }
+    };
+  }
+
+  if (level === 1) {
+    return {
+      ...state,
+      activeSkuRuns: compactActiveRuns(runs, 20),
+      transactions: {
+        ...state.transactions,
+        cartonProductions: coalesceCartonProductionLogs(cartonLogs).slice(0, 300),
+        tankLogs: tankLogs.slice(0, 40),
+        changeovers: (state.transactions.changeovers || []).slice(0, 100),
+        productionStops: (state.transactions.productionStops || []).slice(0, 150),
+        stockAdjustments: (state.transactions.stockAdjustments || []).slice(0, 100)
+      }
+    };
+  }
+
+  // Level 2: emergency quota recovery keeping master, active runs, and recent core transactions
+  const cutoffDate = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+  const activeOrRecentBatches = (state.transactions.wipBatches || []).filter(
+    (b, idx) => b.status === 'SEDANG_PRODUKSI' || idx < 80
+  );
+  return {
+    ...state,
+    activeSkuRuns: compactActiveRuns(runs, 5),
+    transactions: {
+      ...state.transactions,
+      cartonProductions: coalesceCartonProductionLogs(cartonLogs)
+        .filter(c => (c.timestamp || '').slice(0, 10) >= cutoffDate)
+        .slice(0, 120),
+      tankLogs: [],
+      wipBatches: activeOrRecentBatches,
+      changeovers: [],
+      productionStops: (state.transactions.productionStops || []).slice(0, 50),
+      stockAdjustments: []
+    }
+  };
+}
+
+let legacyCleanedUp = false;
+
+export function saveStateToStorage(state: AppState): void {
+  if (!legacyCleanedUp) {
+    cleanupLegacyStorageKeys();
+    legacyCleanedUp = true;
+  }
+
+  const levels: Array<0 | 1 | 2> = [0, 1, 2];
+  for (const level of levels) {
+    try {
+      const candidate = compactStateForStorage(state, level);
+      const serialized = JSON.stringify(candidate);
+      if (level === 0 && serialized.length > 2_500_000) {
+        // Proactively skip writing near-limit payload and compact to level 1
+        continue;
+      }
+      localStorage.setItem(STORAGE_KEY, serialized);
+      return;
+    } catch (err) {
+      cleanupLegacyStorageKeys();
+      if (level === 2) {
+        console.error('Failed to save state to localStorage after compaction:', err);
+      }
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ShieldCheck,
@@ -55,6 +55,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [newPinInput, setNewPinInput] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPinInput('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -428,10 +434,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <input
                       type={showPin ? 'text' : 'password'}
                       id="adminPinInput"
+                      autoComplete="off"
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
                       required
-                      placeholder="Masukkan 8-digit PIN"
+                      placeholder="Masukkan PIN Administrator"
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-cyan-500 pr-10"
                     />
                     <button

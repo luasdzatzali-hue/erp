@@ -67,17 +67,16 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   const [activeTab, setActiveTab] = useState<'batch-order' | 'batch-history' | 'material-history' | 'shift-activity'>('batch-order');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 3-Shift Operator System State
-  const currentLiveShift = getCurrentShift();
-  const [selectedShift, setSelectedShift] = useState<ShiftNumber>(currentLiveShift.shift);
+  // 3-Shift Operator System State (Otomatis mengikuti jam shift berjalan)
   const [filterShift, setFilterShift] = useState<'all' | '1' | '2' | '3'>('all');
   const [usageViewMode, setUsageViewMode] = useState<'breakdown-sku-wip' | 'list'>('breakdown-sku-wip');
   const [usageFilterSkuId, setUsageFilterSkuId] = useState<string>('all');
   const [usageFilterWipId, setUsageFilterWipId] = useState<string>('all');
 
-  // WIP Production Duration state (minutes) & live clock ticker for real-time countdown
+  // WIP Production Duration state (minutes) & live clock ticker for real-time countdown & live shift sync
   const [batchDurationMinutes, setBatchDurationMinutes] = useState<string>('30');
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const currentLiveShift = getCurrentShift(new Date(currentTime));
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -406,7 +405,9 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
     const durMins = parseFloat(batchDurationMinutes) || selectedWipObj.productionDurationMinutes || 30;
     const estimatedCompletion = new Date(Date.now() + durMins * 60 * 1000).toISOString();
 
-    // Trigger Start Batch (strictly batchSize: 1 with shift assignment & duration config)
+    const activeShiftNow = getCurrentShift().shift;
+
+    // Trigger Start Batch (strictly batchSize: 1 with shift synchronized to live shift hours)
     onStartWipBatch({
       wipId,
       wipName: selectedWipObj.name,
@@ -415,11 +416,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
       recipeName: activeRecipeObj?.recipeName,
       skuId: skuId || undefined,
       skuName: selectedSkuObj?.name,
-      shift: selectedShift,
+      shift: activeShiftNow,
       batchSize: 1, // Strictly 1 batch
       batchWeightKg: selectedWipObj.batchWeightKg,
-      operatorName: operatorName || `Operator Shift ${selectedShift}`,
-      notes: notes ? `${notes} (Shift ${selectedShift})` : `Shift ${selectedShift}`,
+      operatorName: operatorName || `Operator Shift ${activeShiftNow}`,
+      notes: notes ? `${notes} (Shift ${activeShiftNow})` : `Shift ${activeShiftNow}`,
       materials: configuredMaterials,
       durationMinutes: durMins,
       estimatedCompletionTime: estimatedCompletion,
@@ -573,26 +574,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           </div>
         </div>
 
-        {/* Shift selector for Work Order execution */}
-        <div className="flex items-center space-x-1.5 self-end md:self-auto bg-slate-950/70 p-1 rounded-xl border border-slate-800">
-          <span className="text-[10px] text-slate-400 px-2 font-medium">Shift Pengerjaan:</span>
-          {([1, 2, 3] as ShiftNumber[]).map(sNum => {
-            const sInfo = SHIFTS_CONFIG[sNum];
-            return (
-              <button
-                key={sNum}
-                type="button"
-                onClick={() => setSelectedShift(sNum)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                  selectedShift === sNum
-                    ? `${sInfo.badgeBg} border ${sInfo.borderClass} shadow-sm font-bold`
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                }`}
-              >
-                {sInfo.shortLabel}
-              </button>
-            );
-          })}
+        {/* Live Shift Sync Notice */}
+        <div className="flex items-center space-x-2 self-end md:self-auto bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
+          <span className="text-[10px] text-slate-400 font-medium">Pemakaian Material:</span>
+          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${currentLiveShift.badgeBg} border ${currentLiveShift.borderClass}`}>
+            Otomatis {currentLiveShift.shortLabel} ({currentLiveShift.timeRange})
+          </span>
         </div>
       </div>
       {/* Active WIP Batches Alert Bar (if any in plant) */}
@@ -1001,20 +988,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 </div>
               </div>
 
-              {/* Shift Selector */}
+              {/* Shift Otomatis Sesuai Jam Shift Berjalan */}
               <div>
                 <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                  Shift Operator (3 Shift)
+                  Shift Pemakaian Material (Jam Aktual)
                 </label>
-                <select
-                  value={selectedShift}
-                  onChange={(e) => setSelectedShift(Number(e.target.value) as ShiftNumber)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-semibold"
-                >
-                  <option value={1}>Shift 1 (07:01 - 15:00)</option>
-                  <option value={2}>Shift 2 (15:01 - 23:00)</option>
-                  <option value={3}>Shift 3 (23:01 - 07:00)</option>
-                </select>
+                <div className={`w-full bg-slate-800/90 border ${currentLiveShift.borderClass} rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-between`}>
+                  <span className={currentLiveShift.colorClass}>
+                    {currentLiveShift.name} ({currentLiveShift.timeRange})
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400">Otomatis</span>
+                </div>
               </div>
 
               {/* Konfigurasi Lama Waktu Produksi WIP (Menit) */}

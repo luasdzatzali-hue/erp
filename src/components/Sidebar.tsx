@@ -23,7 +23,8 @@ import {
   UserCheck,
   Eye,
   KeyRound,
-  ArrowRight
+  ArrowRight,
+  ClipboardList
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
@@ -234,7 +235,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* 4. Report PDF (Shift Production & Actual Stock Balance) */}
+          {/* 4. Ringkasan Produksi Shift Saat Ini */}
+          <button
+            onClick={() => handleNavClick('shift-summary')}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl font-medium transition text-left ${
+              state.currentTab === 'shift-summary'
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4 text-sky-400 shrink-0" />
+            <div className="flex-1 truncate">
+              <span className="block leading-tight">4. Ringkasan Shift</span>
+              <span className="text-[10px] text-slate-400 font-mono">Output, SBL &amp; Konsumsi</span>
+            </div>
+          </button>
+
+          {/* 5. Report PDF (Shift Production & Actual Stock Balance) */}
           <button
             onClick={() => {
               if (onOpenPdfModal) onOpenPdfModal();
@@ -244,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Printer className="w-4 h-4 text-rose-400 shrink-0" />
             <div className="flex-1 truncate">
-              <span className="block leading-tight">4. Report PDF Shift</span>
+              <span className="block leading-tight">5. Report PDF Shift</span>
               <span className="text-[10px] text-slate-400 font-mono">Landscape A4</span>
             </div>
           </button>
@@ -261,7 +278,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Database className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="flex-1 truncate">
-                <span className="block leading-tight">5. Konfigurasi Master BOM</span>
+                <span className="block leading-tight">6. Konfigurasi Master BOM</span>
                 <span className="text-[10px] text-amber-400/70 font-mono">Hierarki 4 Tingkat</span>
               </div>
             </button>

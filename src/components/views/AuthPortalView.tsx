@@ -43,7 +43,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   showToast
 }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMINISTRATOR');
-  const [adminPinInput, setAdminPinInput] = useState('12345678');
+  const [adminPinInput, setAdminPinInput] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [pinError, setPinError] = useState('');
@@ -82,7 +82,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       });
       showToast('Berhasil masuk sebagai Administrator (Akses Penuh MRP & WMS)');
     } else {
-      setPinError('PIN Administrator tidak cocok. (Default PIN: 12345678)');
+      setPinError('PIN Administrator tidak cocok. Silakan coba lagi.');
       showToast('PIN Administrator salah', true);
     }
   };
@@ -246,7 +246,13 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
           {/* CARD 1: ADMINISTRATOR */}
           <div
-            onClick={() => setSelectedRole('ADMINISTRATOR')}
+            onClick={() => {
+              if (selectedRole !== 'ADMINISTRATOR') {
+                setSelectedRole('ADMINISTRATOR');
+                setAdminPinInput('');
+                setPinError('');
+              }
+            }}
             className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between relative overflow-hidden ${
               selectedRole === 'ADMINISTRATOR'
                 ? 'bg-slate-900/90 border-amber-500/60 shadow-xl shadow-amber-950/20 ring-1 ring-amber-500/30'
@@ -290,7 +296,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           setAdminPinInput(e.target.value);
                           setPinError('');
                         }}
-                        placeholder="PIN default: 12345678"
+                        autoComplete="off"
+                        placeholder="Masukkan PIN Administrator..."
                         required
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono tracking-widest text-sm focus:outline-none focus:border-amber-500"
                       />

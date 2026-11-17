@@ -5,42 +5,51 @@ import {
   Target,
   Package,
   TrendingUp,
-  Layers,
   ChevronRight,
-  Sparkles,
   CheckCircle2,
-  AlertCircle,
   Play,
   Square,
   ShieldAlert,
   Plus,
   Cylinder,
-  RotateCw,
   History,
-  Activity,
-  Flame,
-  Check,
-  Zap,
-  Info,
+  Factory,
+  Lock,
+  Settings2,
   X,
-  Boxes,
-  CheckSquare,
-  Square as SquareIcon
+  AlertTriangle,
+  Check,
+  RotateCcw,
+  Droplets,
+  ArrowRightLeft,
+  MessageCircle
 } from 'lucide-react';
 import {
   AppState,
-  SKU,
+  ProductionLine,
   ActiveSkuProductionRun,
   ProductionStopLog,
-  SixBigLossCategory,
   ShiftNumber
 } from '../types';
 import {
   getCurrentShift,
+  getShiftPeriodInfo,
   SHIFTS_CONFIG,
   formatIndonesianDate
 } from '../utils/shifts';
 import { SixBigLossesModal } from './SixBigLossesModal';
+import { WhatsAppSblModal } from './WhatsAppSblModal';
+import {
+  HoldingTankSelectionModal,
+  PendingLineSkuAssignment
+} from './HoldingTankSelectionModal';
+import { ProductionLineManagerModal } from './ProductionLineManagerModal';
+import {
+  getAllTanksForWip,
+  getSkuWipsWithMultipleHoldingTanks,
+  checkRunHoldingTankAvailability
+} from '../utils/skuTankHelper';
+import { isWhatsAppEligibleSblCategory } from '../utils/whatsappReport';
 
 interface ProductionTargetPanelProps {
   state: AppState;
@@ -49,32 +58,118 @@ interface ProductionTargetPanelProps {
     skuId: string,
     cartonCount: number,
     operatorName?: string,
-    notes?: string
+    notes?: string,
+    overrideSelectedHoldingTanks?: Record<string, string>,
+    runId?: string,
+    lineId?: string,
+    lineName?: string
   ) => { success: boolean; message: string };
-  onStartSkuProduction?: (skuId: string, operatorName?: string, speedMultiplier?: number) => void;
-  onStartMultipleSkus?: (skuIds: string[], operatorName?: string, speedMultiplier?: number) => void;
+  onStartSkuProduction?: (
+    skuId: string,
+    operatorName?: string,
+    speedMultiplier?: number,
+    selectedHoldingTanks?: Record<string, string>,
+    lineId?: string,
+    plannedCartons?: number,
+    shiftOverride?: ShiftNumber
+  ) => void;
+  onStartMultipleSkus?: (
+    skuIds: string[],
+    operatorName?: string,
+    speedMultiplier?: number,
+    selectedHoldingTanksBySku?: Record<string, Record<string, string>>
+  ) => void;
+  onStartLineBatchRuns?: (
+    assignments: {
+      lineId: string;
+      skuId: string;
+      plannedCartons: number;
+      shift?: ShiftNumber;
+      operatorName?: string;
+      speedMultiplier?: number;
+      selectedHoldingTanks?: Record<string, string>;
+    }[]
+  ) => void;
+  onCompleteLineRun?: (runIdOrLineId: string, notes?: string) => void;
+  onResumeLineRun?: (runIdOrLineId: string) => void;
+  onRecordMaterialShortage?: (runIdOrLineId: string, reasonMessage: string) => void;
+  onUpdateRunHoldingTank?: (skuId: string, wipId: string, tankId: string, runId?: string) => void;
   onStopSkuProduction?: (stopData: Omit<ProductionStopLog, 'id'>) => void;
   onStopAllSkuProduction?: () => void;
-  onSetRunSpeedMultiplier?: (multiplier: number, skuId?: string) => void;
+  onTriggerShiftHandover?: () => void;
+  onSetRunSpeedMultiplier?: (multiplier: number, runIdOrSkuId?: string) => void;
+  onAddProductionLine?: (lineData: Omit<ProductionLine, 'id'>) => void;
+  onUpdateProductionLine?: (lineId: string, updates: Partial<ProductionLine>) => void;
+  onDeleteProductionLine?: (lineId: string) => void;
+  onSetProductionLinesCount?: (count: number) => void;
   showToast?: (msg: string, isError?: boolean) => void;
 }
+
+interface LineDraftPlan {
+  skuId: string;
+  plannedCartons: string;
+}
+
+const DEFAULT_FALLBACK_LINES: ProductionLine[] = [
+  { id: 'line_a', code: 'LINE-A', name: 'Line A', description: 'Jalur Produksi Utama A', isActive: true },
+  { id: 'line_b', code: 'LINE-B', name: 'Line B', description: 'Jalur Produksi B', isActive: true },
+  { id: 'line_c', code: 'LINE-C', name: 'Line C', description: 'Jalur Produksi C', isActive: true },
+  { id: 'line_d', code: 'LINE-D', name: 'Line D', description: 'Jalur Produksi D', isActive: true }
+];
 
 export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   state,
   onSwitchTab,
   onProduceCartons,
   onStartSkuProduction,
-  onStartMultipleSkus,
+  onStartLineBatchRuns,
+  onCompleteLineRun,
+  onResumeLineRun,
+  onRecordMaterialShortage,
+  onUpdateRunHoldingTank,
   onStopSkuProduction,
   onStopAllSkuProduction,
+  onTriggerShiftHandover,
   onSetRunSpeedMultiplier,
+  onAddProductionLine,
+  onUpdateProductionLine,
+  onDeleteProductionLine,
+  onSetProductionLinesCount,
   showToast
 }) => {
-  const todayDateString = new Date().toISOString().slice(0, 10);
-  const currentLiveShift = getCurrentShift();
   const isManagement = state.currentUserRole === 'MANAGEMENT';
+  const isAdmin = state.currentUserRole === 'ADMINISTRATOR' || state.isAdmin;
+  const defaultOperator = state.currentSession?.name || 'Operator Line Produksi';
 
-  // Multi-SKU active runs from state
+  // Live clock ticking every second (Kalender + Jam Aktual + Shift Produk)
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayDateString = now.toISOString().slice(0, 10);
+  const currentLiveShift = getCurrentShift(now);
+  const shiftPeriod = getShiftPeriodInfo(now);
+  const shiftRemHrs = Math.floor(shiftPeriod.remainingSeconds / 3600);
+  const shiftRemMins = Math.floor((shiftPeriod.remainingSeconds % 3600) / 60);
+  const shiftRemSecs = shiftPeriod.remainingSeconds % 60;
+  const shiftCountdownLabel = `${String(shiftRemHrs).padStart(2, '0')}j ${String(shiftRemMins).padStart(2, '0')}m ${String(shiftRemSecs).padStart(2, '0')}d`;
+  const liveClockFormatted = now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const liveDateFormatted = formatIndonesianDate(now);
+
+  // Registered production lines (customizable A, B, C, D, ...)
+  const productionLines: ProductionLine[] = useMemo(() => {
+    const lines = state.master.productionLines;
+    return lines && lines.length > 0 ? lines : DEFAULT_FALLBACK_LINES;
+  }, [state.master.productionLines]);
+
+  // Active production runs across lines
   const activeRuns: ActiveSkuProductionRun[] = useMemo(() => {
     if (state.activeSkuRuns && state.activeSkuRuns.length > 0) {
       return state.activeSkuRuns;
@@ -85,138 +180,306 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
     return [];
   }, [state.activeSkuRuns, state.activeSkuRun]);
 
-  const runningRuns = useMemo(() => {
-    return activeRuns.filter(r => r.isRunning);
+  const runningRuns = useMemo(() => activeRuns.filter(r => r.isRunning), [activeRuns]);
+
+  // Map lineId -> active running run (guarantees 1 line = max 1 active SKU)
+  const runningByLineId = useMemo(() => {
+    const map: Record<string, ActiveSkuProductionRun> = {};
+    runningRuns.forEach((run, index) => {
+      const key = run.lineId || productionLines[index]?.id || 'line_a';
+      if (!map[key]) {
+        map[key] = run;
+      }
+    });
+    return map;
+  }, [runningRuns, productionLines]);
+
+  // Last completed/stopped run per line for standby context
+  const lastFinishedByLineId = useMemo(() => {
+    const map: Record<string, ActiveSkuProductionRun> = {};
+    activeRuns
+      .filter(r => !r.isRunning && r.lineId)
+      .forEach(r => {
+        if (r.lineId && !map[r.lineId]) {
+          map[r.lineId] = r;
+        }
+      });
+    return map;
   }, [activeRuns]);
 
-  const isAnyRunning = runningRuns.length > 0;
+  // Guided Flow Composer State (1. Pilih Line -> 2. Pilih SKU -> 3. Planning Karton/Shift -> 4. Start)
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+  const [draftPlansByLine, setDraftPlansByLine] = useState<Record<string, LineDraftPlan>>({});
+  const [operatorInput, setOperatorInput] = useState<string>(defaultOperator);
+  const [customCartonsInputByRun, setCustomCartonsInputByRun] = useState<Record<string, string>>({});
 
-  // Single SKU selector for standby or quick start
-  const defaultSkuId = useMemo(() => {
-    if (runningRuns[0]?.skuId) return runningRuns[0].skuId;
-    return state.master.skus[0]?.id || '';
-  }, [runningRuns, state.master.skus]);
+  // Modals State
+  const [isLineManagerOpen, setIsLineManagerOpen] = useState(false);
+  const [showStopHistory, setShowStopHistory] = useState(false);
 
-  const [selectedSkuId, setSelectedSkuId] = useState<string>(defaultSkuId);
-  const [operatorInput, setOperatorInput] = useState<string>('Operator Line Produksi');
+  // Pending Holding Tank choices before batch start
+  const [pendingTankModalAssignments, setPendingTankModalAssignments] = useState<
+    | {
+        assignments: {
+          lineId: string;
+          lineName: string;
+          skuId: string;
+          plannedCartons: number;
+          shift: ShiftNumber;
+        }[];
+      }
+    | null
+  >(null);
 
-  // Multi-SKU checkboxes selection state
-  const [selectedMultiSkuIds, setSelectedMultiSkuIds] = useState<string[]>([]);
-  const [showMultiSelectModal, setShowMultiSelectModal] = useState<boolean>(false);
-  const [additionalSkuId, setAdditionalSkuId] = useState<string>('');
+  // Stop/Completion Decision modal (Normal Selesai vs Problem Six Big Losses)
+  const [stopChoiceRun, setStopChoiceRun] = useState<ActiveSkuProductionRun | null>(null);
+  const [normalFinishNotes, setNormalFinishNotes] = useState<string>('');
 
-  // Ad-hoc carton input state per SKU: map of skuId -> string qty
-  const [adHocQtys, setAdHocQtys] = useState<Record<string, string>>({});
-
-  // Stop SKU modal state
-  const [isStopModalOpen, setIsStopModalOpen] = useState<boolean>(false);
-  const [stoppingSku, setStoppingSku] = useState<{
-    id: string;
-    name: string;
-    code?: string;
+  // Six Big Losses Modal target
+  const [sblModalTarget, setSblModalTarget] = useState<{
+    skuId: string;
+    skuName: string;
+    skuCode?: string;
+    lineId?: string;
+    lineName?: string;
     startedAt?: string;
     cartonsProducedTotal?: number;
   } | null>(null);
 
-  // Stop History collapsible drawer
-  const [showStopHistory, setShowStopHistory] = useState<boolean>(false);
+  // WhatsApp SBL Report Modal target
+  const [waModalTarget, setWaModalTarget] = useState<{
+    stopLog: Omit<ProductionStopLog, 'id'> | ProductionStopLog;
+    initialPhone?: string;
+  } | null>(null);
 
-  // View tab for Section 4 Target Metrics: 'ALL' or a specific skuId
-  const [metricViewSkuId, setMetricViewSkuId] = useState<string>('ALL');
+  // Metrics Filter: 'ALL', or lineId / skuId
+  const [metricScope, setMetricScope] = useState<string>('ALL');
 
-  // Six Big Losses records today
-  const stopLogsToday = (state.transactions.productionStops || []).filter(
-    s => s.stoppedAt.includes(todayDateString)
-  );
-  const totalDowntimeMinutes = stopLogsToday.reduce((sum, s) => sum + s.durationMinutes, 0);
-
-  // Helper: toggle SKU selection in multi-select checklist
-  const toggleSkuSelection = (skuId: string) => {
-    setSelectedMultiSkuIds(prev =>
-      prev.includes(skuId) ? prev.filter(id => id !== skuId) : [...prev, skuId]
+  // Auto-prune selectedLineIds if a line started running or was deleted
+  useEffect(() => {
+    setSelectedLineIds(prev =>
+      prev.filter(
+        id =>
+          productionLines.some(l => l.id === id) &&
+          !runningByLineId[id]
+      )
     );
-  };
+  }, [productionLines, runningByLineId]);
 
-  const handleSelectAllSkus = () => {
-    if (selectedMultiSkuIds.length === state.master.skus.length) {
-      setSelectedMultiSkuIds([]);
-    } else {
-      setSelectedMultiSkuIds(state.master.skus.map(s => s.id));
-    }
-  };
-
-  // Launch single SKU
-  const handleStartSingleSku = (skuId: string) => {
-    if (!skuId) return;
+  // Helper to get default planning carton count (8 jam shift) for an SKU
+  const getDefaultShiftPlanForSku = (skuId: string): number => {
     const sku = state.master.skus.find(s => s.id === skuId);
-    if (!sku) return;
-    if (onStartSkuProduction) {
-      onStartSkuProduction(skuId, operatorInput, 1);
-    }
+    return (sku?.targetHour || 500) * 8;
   };
 
-  // Launch multiple selected SKUs
-  const handleStartMultipleSelected = () => {
-    if (selectedMultiSkuIds.length === 0) {
-      if (showToast) showToast('Pilih minimal satu SKU untuk dijalankan', true);
+  // Toggle line selection in Guided Flow Step 1
+  const handleToggleLineSelection = (lineId: string) => {
+    if (isManagement) return;
+    if (runningByLineId[lineId]) {
+      const activeRun = runningByLineId[lineId];
+      showToast?.(
+        `Line sedang aktif memproduksi "${activeRun.skuName}". Tunggu selesai atau hentikan dahulu sebelum mengganti SKU.`,
+        true
+      );
       return;
     }
-    if (onStartMultipleSkus) {
-      onStartMultipleSkus(selectedMultiSkuIds, operatorInput, 1);
-    } else if (onStartSkuProduction) {
-      selectedMultiSkuIds.forEach(id => onStartSkuProduction(id, operatorInput, 1));
-    }
-    setSelectedMultiSkuIds([]);
-    setShowMultiSelectModal(false);
-  };
 
-  // Open stop modal for a specific running SKU
-  const handleOpenStopForSku = (skuId: string) => {
-    const sku = state.master.skus.find(s => s.id === skuId);
-    const run = runningRuns.find(r => r.skuId === skuId);
-    if (!sku) return;
-    setStoppingSku({
-      id: sku.id,
-      name: sku.name,
-      code: sku.code,
-      startedAt: run?.startedAt,
-      cartonsProducedTotal: run?.cartonsProducedTotal || 0
+    setSelectedLineIds(prev => {
+      if (prev.includes(lineId)) {
+        return prev.filter(id => id !== lineId);
+      }
+      // Ensure draft plan exists for this line
+      const fallbackSku = state.master.skus[0];
+      if (fallbackSku && !draftPlansByLine[lineId]) {
+        setDraftPlansByLine(dp => ({
+          ...dp,
+          [lineId]: {
+            skuId: fallbackSku.id,
+            plannedCartons: String(getDefaultShiftPlanForSku(fallbackSku.id))
+          }
+        }));
+      }
+      return [...prev, lineId];
     });
-    setIsStopModalOpen(true);
   };
 
-  // Confirm stop from SixBigLossesModal
-  const handleConfirmStop = (stopData: Omit<ProductionStopLog, 'id'>) => {
-    if (onStopSkuProduction) {
-      onStopSkuProduction(stopData);
+  const standbyLines = useMemo(
+    () => productionLines.filter(l => l.isActive && !runningByLineId[l.id]),
+    [productionLines, runningByLineId]
+  );
+
+  const handleSelectAllStandbyLines = () => {
+    if (standbyLines.length === 0) return;
+    if (selectedLineIds.length === standbyLines.length) {
+      setSelectedLineIds([]);
+      return;
     }
+    const fallbackSku = state.master.skus[0];
+    if (fallbackSku) {
+      setDraftPlansByLine(prev => {
+        const next = { ...prev };
+        standbyLines.forEach(line => {
+          if (!next[line.id]) {
+            next[line.id] = {
+              skuId: fallbackSku.id,
+              plannedCartons: String(getDefaultShiftPlanForSku(fallbackSku.id))
+            };
+          }
+        });
+        return next;
+      });
+    }
+    setSelectedLineIds(standbyLines.map(l => l.id));
   };
 
-  // Execute manual carton production & instant tank reduction for a specific SKU
-  const handleExecuteProductionDeductionForSku = (skuId: string, qty: number, notesText?: string) => {
-    const sku = state.master.skus.find(s => s.id === skuId);
-    if (!sku || !onProduceCartons) return;
+  const handleUpdateDraftSku = (lineId: string, skuId: string) => {
+    setDraftPlansByLine(prev => ({
+      ...prev,
+      [lineId]: {
+        skuId,
+        plannedCartons: String(getDefaultShiftPlanForSku(skuId))
+      }
+    }));
+  };
 
-    const res = onProduceCartons(
-      sku.id,
-      qty,
-      operatorInput,
-      notesText || `Output ad-hoc ${qty} karton ${sku.name} (Shift ${currentLiveShift.shift}) - Isi Tangki Terpotong Real-Time`
+  const handleUpdateDraftPlannedCartons = (lineId: string, value: string) => {
+    setDraftPlansByLine(prev => ({
+      ...prev,
+      [lineId]: {
+        skuId: prev[lineId]?.skuId || state.master.skus[0]?.id || '',
+        plannedCartons: value
+      }
+    }));
+  };
+
+  // Copy first selected line's SKU & Planning to all other selected lines (convenient for parallel same-SKU runs)
+  const handleApplyFirstPlanToAllSelected = () => {
+    if (selectedLineIds.length < 2) return;
+    const firstPlan = draftPlansByLine[selectedLineIds[0]];
+    if (!firstPlan) return;
+    setDraftPlansByLine(prev => {
+      const next = { ...prev };
+      selectedLineIds.forEach(lineId => {
+        next[lineId] = { ...firstPlan };
+      });
+      return next;
+    });
+    showToast?.('SKU dan Planning Karton diterapkan ke semua line terpilih.');
+  };
+
+  // Start flow Step 4: validate, prompt Holding Tank selection if any BOM WIP has >=2 Holding Tanks, else execute
+  const handleInitiateBatchStart = () => {
+    if (selectedLineIds.length === 0) {
+      showToast?.('Pilih minimal 1 Line Produksi terlebih dahulu.', true);
+      return;
+    }
+    if (state.master.skus.length === 0) {
+      showToast?.('Belum ada SKU di Master BOM. Tambahkan SKU terlebih dahulu.', true);
+      return;
+    }
+
+    const builtAssignments: {
+      lineId: string;
+      lineName: string;
+      skuId: string;
+      plannedCartons: number;
+      shift: ShiftNumber;
+    }[] = [];
+
+    for (const lineId of selectedLineIds) {
+      const lineObj = productionLines.find(l => l.id === lineId);
+      const draft = draftPlansByLine[lineId];
+      const skuId = draft?.skuId || state.master.skus[0]?.id || '';
+      const skuObj = state.master.skus.find(s => s.id === skuId);
+      const plannedCartons = parseInt(draft?.plannedCartons || '0', 10);
+
+      if (!lineObj || !skuObj) {
+        showToast?.(`Pastikan SKU untuk ${lineObj?.name || 'Line'} sudah dipilih.`, true);
+        return;
+      }
+      const linkedWips = state.master.skuWips.filter(sw => sw.skuId === skuObj.id);
+      if (linkedWips.length === 0) {
+        showToast?.(
+          `SKU "${skuObj.name}" (${lineObj.name}) belum memiliki relasi WIP di Master BOM.`,
+          true
+        );
+        return;
+      }
+      if (isNaN(plannedCartons) || plannedCartons <= 0) {
+        showToast?.(
+          `Masukkan jumlah planning karton yang valid untuk ${lineObj.name}.`,
+          true
+        );
+        return;
+      }
+
+      builtAssignments.push({
+        lineId: lineObj.id,
+        lineName: lineObj.name,
+        skuId: skuObj.id,
+        plannedCartons,
+        shift: currentLiveShift.shift
+      });
+    }
+
+    // Check if any assignment requires choosing among >= 2 Holding Tanks
+    const needsTankChoice = builtAssignments.some(
+      a => getSkuWipsWithMultipleHoldingTanks(a.skuId, state).length > 0
     );
 
-    if (showToast) {
-      showToast(res.message, !res.success);
+    if (needsTankChoice) {
+      setPendingTankModalAssignments({ assignments: builtAssignments });
+      return;
     }
+
+    executeBatchStart(builtAssignments, {});
   };
 
-  // Get connected WIPs and integrated Holding & Storage tanks for an SKU
+  const executeBatchStart = (
+    assignments: {
+      lineId: string;
+      lineName: string;
+      skuId: string;
+      plannedCartons: number;
+      shift: ShiftNumber;
+    }[],
+    holdingTankSelectionsByLineId: Record<string, Record<string, string>>
+  ) => {
+    if (onStartLineBatchRuns) {
+      onStartLineBatchRuns(
+        assignments.map(a => ({
+          lineId: a.lineId,
+          skuId: a.skuId,
+          plannedCartons: a.plannedCartons,
+          shift: a.shift,
+          operatorName: operatorInput,
+          speedMultiplier: 1,
+          selectedHoldingTanks: holdingTankSelectionsByLineId[a.lineId]
+        }))
+      );
+    } else if (onStartSkuProduction) {
+      assignments.forEach(a =>
+        onStartSkuProduction(
+          a.skuId,
+          operatorInput,
+          1,
+          holdingTankSelectionsByLineId[a.lineId],
+          a.lineId,
+          a.plannedCartons,
+          a.shift
+        )
+      );
+    }
+
+    setSelectedLineIds([]);
+  };
+
+  // Linked WIPs + Holding & Storage tanks per SKU
   const getLinkedWipBreakdown = (skuId: string) => {
     const sws = state.master.skuWips.filter(sw => sw.skuId === skuId);
     return sws.map(sw => {
       const wip = state.master.wips.find(w => w.id === sw.wipId);
-      const integratedTanks = state.master.tanks.filter(
-        t => t.assignedWipId === sw.wipId || t.id === wip?.targetTankId
-      );
+      const integratedTanks = getAllTanksForWip(wip, state.master.tanks);
       return {
         skuWip: sw,
         wip,
@@ -226,757 +489,1253 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
     });
   };
 
-  // Aggregate metrics for Section 4
-  const targetSkuForMetrics = metricViewSkuId === 'ALL'
-    ? null
-    : state.master.skus.find(s => s.id === metricViewSkuId);
+  // Manual Carton Output Deduction scoped to exact Line Run
+  const handleManualCartonDeduction = (run: ActiveSkuProductionRun, qty: number) => {
+    if (!onProduceCartons || qty <= 0) return;
+    const sku = state.master.skus.find(s => s.id === run.skuId);
+    if (!sku) return;
 
-  // Daily target cartons & kg
-  const activeSkusForMetrics = targetSkuForMetrics
-    ? [targetSkuForMetrics]
-    : (runningRuns.length > 0
-        ? state.master.skus.filter(s => runningRuns.some(r => r.skuId === s.id))
-        : state.master.skus);
+    const res = onProduceCartons(
+      sku.id,
+      qty,
+      operatorInput,
+      `Output manual +${qty} ktn [${run.lineName || 'Line'} · ${sku.name}] (Shift ${run.shift || currentLiveShift.shift})`,
+      run.selectedHoldingTanks,
+      run.id,
+      run.lineId,
+      run.lineName
+    );
+    if (!res.success && onRecordMaterialShortage) {
+      const availability = checkRunHoldingTankAvailability(run.skuId, state, run.selectedHoldingTanks);
+      if (!availability.isReady) {
+        onRecordMaterialShortage(run.id || run.lineId || run.skuId, res.message);
+        return;
+      }
+    }
+    showToast?.(res.message, !res.success);
+  };
 
-  const aggregateDailyTargetCartons = activeSkusForMetrics.reduce(
-    (sum, s) => sum + (s.targetHour || 500) * 8 * 3,
-    0
+  // Pending assignments structured for HoldingTankSelectionModal
+  const modalPendingAssignments: PendingLineSkuAssignment[] = useMemo(() => {
+    if (!pendingTankModalAssignments) return [];
+    return pendingTankModalAssignments.assignments.map(a => ({
+      key: a.lineId,
+      lineId: a.lineId,
+      lineName: a.lineName,
+      skuId: a.skuId,
+      plannedCartons: a.plannedCartons
+    }));
+  }, [pendingTankModalAssignments]);
+
+  // Daily stop logs (TPM SBL)
+  const stopLogsToday = (state.transactions.productionStops || []).filter(s =>
+    s.stoppedAt.includes(todayDateString)
   );
-  const aggregateTargetPerShift = Math.round(aggregateDailyTargetCartons / 3);
+  const totalDowntimeMinutes = stopLogsToday.reduce((sum, s) => sum + s.durationMinutes, 0);
 
-  // Carton logs today
-  const actualCartonLogsToday = (state.transactions.cartonProductions || []).filter(cp =>
-    cp.timestamp.includes(todayDateString) &&
-    (targetSkuForMetrics ? cp.skuId === targetSkuForMetrics.id : true)
-  );
+  // Metrics Scope Calculations
+  const metricLineObj = productionLines.find(l => l.id === metricScope);
+  const actualCartonLogsToday = useMemo(() => {
+    return (state.transactions.cartonProductions || []).filter(cp => {
+      if (!cp.timestamp.includes(todayDateString)) return false;
+      if (metricScope === 'ALL') return true;
+      if (metricLineObj) return cp.lineId === metricLineObj.id;
+      return cp.skuId === metricScope;
+    });
+  }, [state.transactions.cartonProductions, todayDateString, metricScope, metricLineObj]);
 
   const finalCartonsToday = actualCartonLogsToday.reduce((sum, cp) => sum + cp.cartonsProduced, 0);
 
-  // Shift breakdown
   const shiftCartons: Record<ShiftNumber, number> = {
     1: actualCartonLogsToday.filter(c => c.shift === 1).reduce((s, c) => s + c.cartonsProduced, 0),
     2: actualCartonLogsToday.filter(c => c.shift === 2).reduce((s, c) => s + c.cartonsProduced, 0),
     3: actualCartonLogsToday.filter(c => c.shift === 3).reduce((s, c) => s + c.cartonsProduced, 0)
   };
 
-  const progressPercent = Math.min(
-    100,
-    Math.round((finalCartonsToday / (aggregateDailyTargetCartons || 1)) * 100)
+  // Daily target based on planned shift targets of active runs or active lines capacity
+  const scopedRunningRuns = useMemo(() => {
+    if (metricScope === 'ALL') return runningRuns;
+    if (metricLineObj) return runningRuns.filter(r => r.lineId === metricLineObj.id);
+    return runningRuns.filter(r => r.skuId === metricScope);
+  }, [runningRuns, metricScope, metricLineObj]);
+
+  const totalActiveShiftPlanned = scopedRunningRuns.reduce(
+    (sum, r) => sum + (r.plannedCartons || (r.targetPerHour || 500) * 8),
+    0
+  );
+  const totalActiveRealized = scopedRunningRuns.reduce(
+    (sum, r) => sum + (r.cartonsProducedTotal || 0),
+    0
   );
 
-  // Non-running SKUs available to start
-  const availableToStartSkus = state.master.skus.filter(
-    s => !runningRuns.some(r => r.skuId === s.id)
-  );
+  const aggregateDailyTargetCartons = useMemo(() => {
+    if (metricLineObj) {
+      const lineRun = runningByLineId[metricLineObj.id];
+      const sku = lineRun ? state.master.skus.find(s => s.id === lineRun.skuId) : state.master.skus[0];
+      return (sku?.targetHour || 500) * 8 * 3;
+    }
+    if (scopedRunningRuns.length > 0) {
+      return scopedRunningRuns.reduce((sum, r) => sum + (r.targetPerHour || 500) * 8 * 3, 0);
+    }
+    const avgHourly =
+      state.master.skus.length > 0
+        ? state.master.skus.reduce((s, x) => s + (x.targetHour || 500), 0) / state.master.skus.length
+        : 500;
+    return Math.round(avgHourly * 8 * 3 * productionLines.length);
+  }, [metricLineObj, runningByLineId, scopedRunningRuns, state.master.skus, productionLines.length]);
+
+  const aggregateTargetPerShift = Math.round(aggregateDailyTargetCartons / 3);
+  const overallProgressPercent =
+    totalActiveShiftPlanned > 0
+      ? Math.min(100, Math.round((totalActiveRealized / totalActiveShiftPlanned) * 100))
+      : Math.min(100, Math.round((finalCartonsToday / (aggregateDailyTargetCartons || 1)) * 100));
 
   return (
-    <div className="bg-white border-2 border-black rounded-3xl p-4 sm:p-6 shadow-xs space-y-5 text-black">
-      {/* 1. Calendar, Shift & Live Operational Cockpit Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b-2 border-black pb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 rounded-2xl bg-black text-white border border-black shadow-xs">
-            <CalendarDays className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-sm sm:text-base text-black">
-                Target & Jadwal Produksi Harian Real-Time
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] bg-black text-white font-mono font-bold border border-black">
-                Sistem 24 Jam (3 Shift)
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-600 text-white font-mono font-bold border border-black">
-                Multi-SKU Ready
-              </span>
-            </div>
-            <p className="text-xs text-black flex items-center space-x-1.5 mt-0.5">
-              <span className="font-bold text-black">{formatIndonesianDate()}</span>
-              <span>•</span>
-              <span className="text-black font-bold">Shift {currentLiveShift.shift} ({currentLiveShift.timeRange})</span>
-              <span>•</span>
-              <span className="text-black">Pengurangan Isi Tangki Otomatis Real-Time</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Live Running Multi-SKU Status Badge */}
-        <div className="flex items-center space-x-2 bg-white px-3.5 py-2 rounded-2xl border-2 border-black shadow-xs">
-          <span className="relative flex h-3 w-3">
-            {isAnyRunning ? (
-              <>
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-              </>
-            ) : (
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-zinc-400" />
-            )}
-          </span>
-          <div className="text-left">
-            <span className="text-[10px] text-black block leading-none font-bold">Status Lini Produksi:</span>
-            <span
-              className={`text-xs font-black leading-tight ${
-                isAnyRunning ? 'text-black underline' : 'text-zinc-600'
-              }`}
-            >
-              {isAnyRunning
-                ? `● ${runningRuns.length} SKU SEDANG BERJALAN AKTIF`
-                : '● STANDBY / SIAP RUN'}
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5 shadow-xl no-print">
+      {/* 1. COCKPIT HEADER: Kalender, Jam Aktual, Shift Produk & Line Produksi */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+              <Factory className="w-5 h-5 text-cyan-400 shrink-0" />
+              <span>Kontrol Produksi SKU Per Line</span>
+            </h2>
+            <span className="text-[11px] font-mono font-semibold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-lg">
+              {runningRuns.length} / {productionLines.length} Line Aktif
             </span>
           </div>
+          <p className="text-xs text-slate-400">
+            1 Line hanya menjalankan 1 SKU hingga selesai/stop. Line berbeda dapat menjalankan SKU yang sama atau berbeda secara bersamaan dengan pemotongan Holding Tank real-time.
+          </p>
+        </div>
+
+        {/* Live Telemetry Strip: Kalender, Jam Aktual, Shift Produk, Atur Line */}
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch gap-2">
+          {/* Kalender */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2.5">
+            <CalendarDays className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div>
+              <span className="text-[10px] text-slate-400 block leading-none">Kalender</span>
+              <span className="text-xs font-semibold text-white whitespace-nowrap">{liveDateFormatted}</span>
+            </div>
+          </div>
+
+          {/* Jam Aktual Live */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2.5">
+            <Clock className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div>
+              <span className="text-[10px] text-slate-400 block leading-none">Jam Aktual</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-emerald-400 tabular-nums">
+                {liveClockFormatted}
+              </span>
+            </div>
+          </div>
+
+          {/* Shift Produk & Hitung Mundur Pergantian Shift */}
+          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2">
+            <div>
+              <span className="text-[10px] text-slate-400 block leading-none">
+                Shift Aktif · Auto Handover ke Shift {shiftPeriod.nextShift} dlm{' '}
+                <strong className="text-cyan-300 font-mono tabular-nums">{shiftCountdownLabel}</strong>
+              </span>
+              <span className="text-xs font-bold text-amber-300 font-mono whitespace-nowrap">
+                {currentLiveShift.name} · {currentLiveShift.timeRange}
+              </span>
+            </div>
+          </div>
+
+          {/* Customize Line Produksi Button (Administrator Only) */}
+          {isAdmin && onAddProductionLine && onUpdateProductionLine && onDeleteProductionLine && onSetProductionLinesCount && (
+            <button
+              type="button"
+              onClick={() => setIsLineManagerOpen(true)}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition active:scale-95"
+            >
+              <Settings2 className="w-4 h-4 text-cyan-400" />
+              <span>Atur Line ({productionLines.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. KOLOM SKU SEDANG DIPROSES (MULTI-SKU REAL-TIME COCKPIT) */}
-      <div className="bg-white border-2 border-black p-4 sm:p-5 rounded-2xl space-y-4 shadow-xs">
-        {/* Section Header with Multi-SKU Controls */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b-2 border-black pb-3">
-          <div>
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center font-bold text-xs border border-black">
-                <Boxes className="w-4 h-4 text-white" />
+      {/* 2. GUIDED PRODUCTION FLOW COMPOSER (Alur 1 -> 2 -> 3 -> 4) */}
+      {!isManagement && (
+        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-4">
+          {/* Flow Step Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-white flex items-center space-x-2">
+                <span>Alur Mulai Produksi</span>
+              </h3>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 mt-1">
+                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-300 font-medium'}>
+                  1. Pilih Line Produksi
+                </span>
+                <span>→</span>
+                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-400'}>
+                  2. Tentukan SKU (bisa sama/berbeda)
+                </span>
+                <span>→</span>
+                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-400'}>
+                  3. Planning Karton/Shift
+                </span>
+                <span>→</span>
+                <span className={selectedLineIds.length > 0 ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                  4. Start Produksi
+                </span>
               </div>
-              <div>
-                <h3 className="font-black text-sm sm:text-base text-black flex items-center space-x-2">
-                  <span>Kolom SKU Sedang Diproses</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black text-white font-bold">
-                    {runningRuns.length} SKU Aktif
-                  </span>
-                </h3>
-                <p className="text-[11px] text-zinc-600 font-medium">
-                  Setiap SKU berjalan secara independen dan memotong holding & storage tank sesuai formula resep BOM masing-masing.
-                </p>
+            </div>
+
+            {/* Active Shift Badge (Auto synced to live shift clock) & Operator Field */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="text-[11px] text-slate-400">Shift Otomatis:</span>
+                <span className="text-xs font-bold text-amber-300 font-mono">
+                  {currentLiveShift.shortLabel} ({currentLiveShift.timeRange})
+                </span>
               </div>
+
+              <input
+                type="text"
+                value={operatorInput}
+                onChange={(e) => setOperatorInput(e.target.value)}
+                placeholder="Nama Operator..."
+                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-44"
+              />
             </div>
           </div>
 
-          {/* Action Toolbar on Header: Multi-select button & Stop All */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-            {!isManagement && (
-              <>
+          {/* Step 1: Select Production Lines */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-300">
+                Langkah 1 — Pilih Line Produksi ({standbyLines.length} Standby dari {productionLines.length} Line):
+              </span>
+              {standbyLines.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => setShowMultiSelectModal(!showMultiSelectModal)}
-                  className="px-3 py-1.5 bg-black hover:bg-zinc-800 text-white rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1.5 transition active:scale-95"
+                  onClick={handleSelectAllStandbyLines}
+                  className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition"
                 >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                  <span>Jalankan Multi-SKU (Pilih Sekaligus)</span>
+                  {selectedLineIds.length === standbyLines.length
+                    ? 'Batalkan Semua Pilihan'
+                    : `Pilih Semua Line Standby (${standbyLines.length})`}
                 </button>
+              )}
+            </div>
 
-                {runningRuns.length > 1 && onStopAllSkuProduction && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+              {productionLines.map(line => {
+                const activeRun = runningByLineId[line.id];
+                const isBusy = Boolean(activeRun);
+                const isSelected = selectedLineIds.includes(line.id);
+
+                return (
+                  <button
+                    key={line.id}
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => handleToggleLineSelection(line.id)}
+                    className={`text-left p-2.5 rounded-xl border transition flex flex-col justify-between min-h-[68px] ${
+                      isBusy
+                        ? 'bg-slate-900/50 border-emerald-500/30 opacity-75 cursor-not-allowed'
+                        : isSelected
+                        ? 'bg-cyan-500/15 border-cyan-400 shadow-sm'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full gap-1">
+                      <span className="font-bold text-xs text-white truncate">{line.name}</span>
+                      {isBusy ? (
+                        <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      ) : isSelected ? (
+                        <span className="w-4 h-4 rounded bg-cyan-500 text-slate-950 flex items-center justify-center shrink-0">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </span>
+                      ) : (
+                        <span className="w-4 h-4 rounded border border-slate-600 shrink-0" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-[10px] mt-1 truncate w-full ${
+                        isBusy
+                          ? 'text-emerald-400 font-medium'
+                          : isSelected
+                          ? 'text-cyan-300 font-medium'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {isBusy ? `Aktif: ${activeRun.skuName}` : 'Standby · Klik pilih'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 2 & 3: Assign SKU & Planning per Selected Line */}
+          {selectedLineIds.length > 0 && (
+            <div className="space-y-3 pt-2 border-t border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-300">
+                  Langkah 2 &amp; 3 — Tentukan SKU &amp; Planning Karton per Shift ({selectedLineIds.length} Line Terpilih):
+                </span>
+                {selectedLineIds.length >= 2 && (
                   <button
                     type="button"
-                    onClick={onStopAllSkuProduction}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1.5 transition active:scale-95"
-                    title="Hentikan semua SKU yang sedang diproses"
+                    onClick={handleApplyFirstPlanToAllSelected}
+                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition"
                   >
-                    <Square className="w-3.5 h-3.5 fill-current text-white" />
-                    <span>Hentikan Semua SKU ({runningRuns.length})</span>
+                    Samakan SKU &amp; Planning ke Semua Line Terpilih
                   </button>
                 )}
-              </>
+              </div>
+
+              <div className="space-y-2.5">
+                {selectedLineIds.map(lineId => {
+                  const lineObj = productionLines.find(l => l.id === lineId);
+                  if (!lineObj) return null;
+                  const draft = draftPlansByLine[lineId] || {
+                    skuId: state.master.skus[0]?.id || '',
+                    plannedCartons: String(getDefaultShiftPlanForSku(state.master.skus[0]?.id || ''))
+                  };
+                  const chosenSku = state.master.skus.find(s => s.id === draft.skuId);
+                  const wips = chosenSku ? getLinkedWipBreakdown(chosenSku.id) : [];
+                  const multiHtCount = chosenSku ? getSkuWipsWithMultipleHoldingTanks(chosenSku.id, state).length : 0;
+                  const fullShiftQty = (chosenSku?.targetHour || 500) * 8;
+                  const halfShiftQty = Math.round(fullShiftQty / 2);
+
+                  return (
+                    <div
+                      key={lineId}
+                      className="bg-slate-900 border border-slate-800 rounded-xl p-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center"
+                    >
+                      {/* Line Label */}
+                      <div className="lg:col-span-2 flex items-center justify-between lg:justify-start gap-2">
+                        <div>
+                          <span className="text-xs font-bold text-white block">{lineObj.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{lineObj.code}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLineSelection(lineId)}
+                          className="lg:hidden text-slate-400 hover:text-rose-400 p-1"
+                          title="Batalkan pilih line"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* SKU Selector (Same SKU across multiple lines IS supported) */}
+                      <div className="lg:col-span-4 space-y-1">
+                        <label className="text-[10px] text-slate-400 block">SKU yang Diproduksi</label>
+                        <select
+                          value={draft.skuId}
+                          onChange={(e) => handleUpdateDraftSku(lineId, e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          {state.master.skus.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.code || 'SKU'}) · {s.targetHour} ktn/jam
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Planning Karton / Shift */}
+                      <div className="lg:col-span-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] text-slate-400">Planning (Ktn / Shift)</label>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateDraftPlannedCartons(lineId, String(halfShiftQty))}
+                              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono px-1"
+                              title="Setengah Shift (4 Jam)"
+                            >
+                              ½ Shift
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateDraftPlannedCartons(lineId, String(fullShiftQty))}
+                              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono px-1"
+                              title="1 Shift Penuh (8 Jam)"
+                            >
+                              1 Shift
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1.5">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={draft.plannedCartons}
+                            onChange={(e) => handleUpdateDraftPlannedCartons(lineId, e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-white tabular-nums focus:outline-none focus:border-cyan-500"
+                          />
+                          <span className="text-[11px] text-slate-400 font-mono">ktn</span>
+                        </div>
+                      </div>
+
+                      {/* BOM & Holding Tank Preview + Remove */}
+                      <div className="lg:col-span-3 flex items-center justify-between gap-2">
+                        <div className="text-[11px] min-w-0">
+                          {wips.length === 0 ? (
+                            <span className="text-rose-400 font-semibold flex items-center space-x-1">
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">BOM WIP belum diset</span>
+                            </span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <span className="text-slate-300 block truncate">
+                                {wips.length} WIP BOM ({wips.map(w => w.wip?.code || 'WIP').join(', ')})
+                              </span>
+                              {multiHtCount > 0 ? (
+                                <span className="text-amber-300 text-[10px] block truncate">
+                                  {multiHtCount} WIP punya 2+ Holding Tank (dipilih saat Start)
+                                </span>
+                              ) : (
+                                <span className="text-emerald-400 text-[10px] block truncate">
+                                  Holding Tank otomatis siap
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLineSelection(lineId)}
+                          className="hidden lg:inline-flex p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition shrink-0"
+                          title="Hapus dari rencana start"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Step 4: Start CTA */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                <span className="text-xs text-slate-400">
+                  Total Planning:{' '}
+                  <strong className="text-white font-mono tabular-nums">
+                    {selectedLineIds
+                      .reduce((sum, id) => sum + (parseInt(draftPlansByLine[id]?.plannedCartons || '0', 10) || 0), 0)
+                      .toLocaleString()}{' '}
+                    karton
+                  </strong>{' '}
+                  pada Shift {currentLiveShift.shift} ({selectedLineIds.length} Line)
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleInitiateBatchStart}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/20 flex items-center justify-center space-x-2 transition active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>
+                    Start Produksi ({selectedLineIds.length} Line)
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. LIVE PRODUCTION LINES GRID (Active Running & Standby Line Cards) */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Monitoring Line Produksi ({productionLines.length} Line)
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Setiap line beroperasi paralel &amp; memotong Holding Tank sesuai formula BOM SKU yang berjalan.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {!isManagement && runningRuns.length > 0 && onTriggerShiftHandover && (
+              <button
+                type="button"
+                onClick={onTriggerShiftHandover}
+                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95"
+                title="Hentikan run shift saat ini & lanjutkan otomatis ke shift berikutnya"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>Pergantian Shift ({runningRuns.length})</span>
+              </button>
             )}
 
-            {/* Riwayat Stop Modal Trigger */}
+            {!isManagement && runningRuns.length > 1 && onStopAllSkuProduction && (
+              <button
+                type="button"
+                onClick={onStopAllSkuProduction}
+                className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+                <span>Hentikan Semua ({runningRuns.length})</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setShowStopHistory(!showStopHistory)}
-              className="px-3 py-1.5 bg-white hover:bg-zinc-100 text-black rounded-xl text-xs font-bold border-2 border-black flex items-center space-x-1.5 transition shadow-xs"
-              title="Lihat Log Stop Produksi Six Big Losses"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
             >
-              <History className="w-3.5 h-3.5 text-black" />
-              <span>Log Stop ({stopLogsToday.length})</span>
+              <History className="w-3.5 h-3.5 text-amber-400" />
+              <span>Log SBL Hari Ini ({stopLogsToday.length})</span>
             </button>
           </div>
         </div>
 
-        {/* Multi-SKU Quick Selection Drawer / Modal */}
-        {showMultiSelectModal && !isManagement && (
-          <div className="bg-zinc-50 border-2 border-black p-4 rounded-xl space-y-3">
-            <div className="flex items-center justify-between border-b border-zinc-300 pb-2">
-              <div className="flex items-center space-x-2">
-                <CheckSquare className="w-4 h-4 text-black" />
-                <h4 className="font-extrabold text-xs sm:text-sm text-black">
-                  Pilih SKU untuk Dijalankan Bersamaan di Lini Produksi
-                </h4>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={handleSelectAllSkus}
-                  className="px-2 py-1 bg-white hover:bg-zinc-100 text-black border border-black rounded text-[11px] font-bold"
-                >
-                  {selectedMultiSkuIds.length === state.master.skus.length ? 'Batal Semua' : 'Pilih Semua SKU'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMultiSelectModal(false)}
-                  className="p-1 text-zinc-500 hover:text-black rounded"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {productionLines.map(line => {
+            const run = runningByLineId[line.id];
+            const lastFinished = !run ? lastFinishedByLineId[line.id] : undefined;
 
-            {/* Checklist of All Master SKUs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {state.master.skus.map(sku => {
-                const isSelected = selectedMultiSkuIds.includes(sku.id);
-                const isCurrentlyRunning = runningRuns.some(r => r.skuId === sku.id);
-                const linkedWips = state.master.skuWips.filter(sw => sw.skuId === sku.id);
+            if (!run) {
+              // STANDBY LINE CARD (including Interrupted by Material Shortage OR SBL Stop with Resume option)
+              const isShortageStop = lastFinished?.completionStatus === 'STOPPED_SHORTAGE';
+              const isSblStop = lastFinished?.completionStatus === 'STOPPED_SBL';
+              const canShowResumeCard = isShortageStop || isSblStop;
 
-                return (
-                  <div
-                    key={sku.id}
-                    onClick={() => {
-                      if (!isCurrentlyRunning) toggleSkuSelection(sku.id);
-                    }}
-                    className={`p-3 rounded-xl border-2 transition cursor-pointer flex items-start space-x-2.5 ${
-                      isCurrentlyRunning
-                        ? 'bg-zinc-100 border-zinc-400 opacity-60 cursor-not-allowed'
-                        : isSelected
-                        ? 'bg-black text-white border-black shadow-xs'
-                        : 'bg-white text-black border-black hover:bg-zinc-100'
-                    }`}
-                  >
-                    <div className="mt-0.5">
-                      {isCurrentlyRunning ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-white" />
-                      ) : (
-                        <SquareIcon className="w-4 h-4 text-black" />
+              const linkedSblLog =
+                isSblStop && lastFinished?.sblStopLogId
+                  ? (state.transactions.productionStops || []).find(
+                      s => s.id === lastFinished.sblStopLogId
+                    )
+                  : undefined;
+
+              const sblEstMinutes = isSblStop
+                ? lastFinished?.sblEstimatedMinutes ??
+                  linkedSblLog?.estimatedRepairMinutes ??
+                  linkedSblLog?.durationMinutes ??
+                  20
+                : 0;
+              const sblStoppedIso =
+                lastFinished?.sblStoppedAt || linkedSblLog?.stoppedAt || lastFinished?.completedAt;
+              const sblStoppedMs = sblStoppedIso ? new Date(sblStoppedIso).getTime() : now.getTime();
+              const sblElapsedSec = Math.max(0, Math.floor((now.getTime() - sblStoppedMs) / 1000));
+              const sblEstSec = Math.max(60, sblEstMinutes * 60);
+              const sblRemainingSec = Math.max(0, sblEstSec - sblElapsedSec);
+              const sblWithinEstimate = sblElapsedSec < sblEstSec;
+              const sblTimerPct = Math.min(100, Math.round((sblElapsedSec / sblEstSec) * 100));
+
+              const formatMmSs = (secs: number) => {
+                const m = Math.floor(secs / 60);
+                const s = secs % 60;
+                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+              };
+
+              const resumeAvailability =
+                canShowResumeCard && lastFinished
+                  ? checkRunHoldingTankAvailability(
+                      lastFinished.skuId,
+                      state,
+                      lastFinished.selectedHoldingTanks
+                    )
+                  : null;
+              const shortageWipBreakdown =
+                isShortageStop && lastFinished ? getLinkedWipBreakdown(lastFinished.skuId) : [];
+              const pausedPlanned =
+                lastFinished?.plannedCartons || (lastFinished?.targetPerHour || 500) * 8;
+              const pausedProduced = lastFinished?.cartonsProducedTotal || 0;
+              const pausedRemaining = Math.max(0, pausedPlanned - pausedProduced);
+
+              return (
+                <div
+                  key={line.id}
+                  className={`rounded-2xl p-4 flex flex-col justify-between gap-3 border ${
+                    isShortageStop
+                      ? 'bg-slate-950/75 border-amber-500/50 shadow-lg'
+                      : isSblStop
+                      ? 'bg-slate-950/75 border-rose-500/45 shadow-lg'
+                      : 'bg-slate-950/50 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-bold text-white">{line.name}</span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                          {line.code}
+                        </span>
+                      </div>
+                      {line.description && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">{line.description}</p>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="font-extrabold text-xs truncate">
-                          {sku.name}
-                        </span>
-                        {sku.isKite && (
-                          <span className={`px-1 py-0.2 rounded text-[9px] font-bold border ${
-                            isSelected ? 'bg-white text-black border-white' : 'bg-black text-white border-black'
-                          }`}>
-                            KITE
+                    {isShortageStop ? (
+                      <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/40 shrink-0">
+                        Stop · Material Shortage
+                      </span>
+                    ) : isSblStop ? (
+                      <span className="text-[11px] font-semibold text-rose-300 bg-rose-500/15 px-2.5 py-1 rounded-lg border border-rose-500/40 shrink-0">
+                        Stop · SBL (Est. {sblEstMinutes} mnt)
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/70">
+                        Standby
+                      </span>
+                    )}
+                  </div>
+
+                  {isShortageStop && lastFinished ? (
+                    <div className="space-y-2.5">
+                      {/* Interrupted Run & Shortage Reason Box */}
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start space-x-2 min-w-0">
+                            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-white truncate">
+                                {lastFinished.skuName} ({lastFinished.skuCode || 'SKU'})
+                              </p>
+                              <p className="text-[11px] text-amber-200 mt-0.5">
+                                Penyebab Stop: {lastFinished.shortageReason || 'WIP di Holding Tank habis / di bawah kebutuhan 1 karton'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[10px] font-mono tabular-nums text-slate-300">
+                          <span>
+                            Tercapai: <strong className="text-white">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
                           </span>
+                          <span>
+                            Sisa Target: <strong className="text-amber-300">{pausedRemaining.toLocaleString()} ktn</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* WIP Holding Tank Status & Alternate Tank Switcher */}
+                      {shortageWipBreakdown.length > 0 && (
+                        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                          <span className="text-[10px] font-semibold text-slate-400 block">
+                            Cek Ketersediaan WIP Holding Tank:
+                          </span>
+                          <div className="space-y-1.5">
+                            {shortageWipBreakdown.map((item, idx) => {
+                              const holdingTanks = item.integratedTanks.filter(t => t.type === 'HOLDING_TANK');
+                              const chosenHtId = item.wip ? lastFinished.selectedHoldingTanks?.[item.wip.id] : undefined;
+                              const activeTank =
+                                (chosenHtId ? item.integratedTanks.find(t => t.id === chosenHtId) : undefined) ||
+                                holdingTanks[0] ||
+                                item.integratedTanks[0];
+                              const tankAvailKg = activeTank ? activeTank.currentLevelKg : 0;
+                              const isEnough = item.kgPerCarton > 0 ? tankAvailKg >= item.kgPerCarton : tankAvailKg > 0;
+                              const canCartons = item.kgPerCarton > 0 ? Math.floor(tankAvailKg / item.kgPerCarton) : 0;
+
+                              return (
+                                <div key={item.skuWip.id || idx} className="flex flex-col gap-1 text-[11px]">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-slate-200 font-medium truncate">
+                                      {item.wip?.name || 'WIP'}
+                                    </span>
+                                    <span className={`font-mono font-bold tabular-nums shrink-0 ${isEnough ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      {activeTank ? `${activeTank.code}: ${tankAvailKg.toFixed(1)} kg (${canCartons} ktn)` : 'Belum ada tangki'}
+                                    </span>
+                                  </div>
+                                  {!isManagement && holdingTanks.length >= 2 && item.wip && (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[10px] text-slate-400 shrink-0">Pindah Tank:</span>
+                                      <select
+                                        value={activeTank?.id || ''}
+                                        onChange={(e) =>
+                                          onUpdateRunHoldingTank &&
+                                          item.wip &&
+                                          onUpdateRunHoldingTank(lastFinished.skuId, item.wip.id, e.target.value, lastFinished.id)
+                                        }
+                                        className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-mono text-white focus:outline-none focus:border-cyan-500"
+                                      >
+                                        {holdingTanks.map(ht => (
+                                          <option key={ht.id} value={ht.id}>
+                                            {ht.code} ({ht.currentLevelKg.toFixed(1)} kg)
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Readiness Banner */}
+                      {resumeAvailability?.isReady ? (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 text-[11px] text-emerald-300">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>
+                              WIP sudah tersedia kembali (±<strong>{resumeAvailability.minPossibleCartons.toLocaleString()}</strong> ktn siap)
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] text-rose-300">
+                            Menunggu pengisian WIP ke Holding Tank ({resumeAvailability?.missingDetails.join(' · ') || 'Stok kosong'})
+                          </span>
+                          {onSwitchTab && (
+                            <button
+                              type="button"
+                              onClick={() => onSwitchTab('tank-monitoring')}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-[10px] font-semibold flex items-center space-x-1 transition shrink-0"
+                            >
+                              <Droplets className="w-3 h-3" />
+                              <span>Isi / Transfer Tangki</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : isSblStop && lastFinished ? (
+                    <div className="space-y-2.5">
+                      {/* Interrupted Run & SBL Repair Estimation Box */}
+                      <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 space-y-1.5">
+                        <div className="flex items-start space-x-2 min-w-0">
+                          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <p className="text-xs font-bold text-white truncate">
+                                {lastFinished.skuName} ({lastFinished.skuCode || 'SKU'})
+                              </p>
+                              <span className="text-[10px] font-mono text-rose-300">
+                                {lastFinished.sblCategoryLabel || linkedSblLog?.categoryLabel || 'Six Big Losses'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-rose-200 mt-0.5">
+                              Kendala: {lastFinished.sblReason || linkedSblLog?.reasonTitle || 'Masalah proses / perbaikan teknis'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-500/20 text-[10px] font-mono tabular-nums text-slate-300">
+                          <span>
+                            Tercapai: <strong className="text-white">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
+                          </span>
+                          <span>
+                            Sisa Target: <strong className="text-cyan-300">{pausedRemaining.toLocaleString()} ktn</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Live Repair Time Countdown vs Estimate */}
+                      <div
+                        className={`rounded-xl p-2.5 border space-y-1.5 ${
+                          sblWithinEstimate
+                            ? 'bg-emerald-500/10 border-emerald-500/30'
+                            : 'bg-amber-500/10 border-amber-500/30'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                          <span
+                            className={`font-bold flex items-center space-x-1.5 ${
+                              sblWithinEstimate ? 'text-emerald-300' : 'text-amber-300'
+                            }`}
+                          >
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              {sblWithinEstimate
+                                ? `Dalam Estimasi (< ${sblEstMinutes} menit)`
+                                : `Melewati Estimasi (${sblEstMinutes} menit)`}
+                            </span>
+                          </span>
+                          <span className="font-mono font-bold text-white tabular-nums">
+                            {formatMmSs(sblElapsedSec)} / {formatMmSs(sblEstSec)}
+                          </span>
+                        </div>
+
+                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              sblWithinEstimate ? 'bg-emerald-500' : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${sblTimerPct}%` }}
+                          />
+                        </div>
+
+                        <p className="text-[10px] text-slate-300 tabular-nums">
+                          {sblWithinEstimate
+                            ? `Sisa waktu estimasi ${formatMmSs(sblRemainingSec)}. Jika perbaikan sudah selesai kurang dari ${sblEstMinutes} menit, klik Start Produksi Kembali untuk melanjutkan target.`
+                            : `Waktu perbaikan telah berjalan ${Math.ceil(sblElapsedSec / 60)} mnt. Jika sudah selesai, klik Start Produksi Kembali untuk melanjutkan.`}
+                        </p>
+                      </div>
+
+                      {!resumeAvailability?.isReady && (
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2 text-[11px] text-rose-300 flex flex-wrap items-center justify-between gap-2">
+                          <span>
+                            Stok WIP Holding Tank belum cukup untuk melanjutkan ({resumeAvailability?.missingDetails.join(' · ') || 'Kosong'})
+                          </span>
+                          {onSwitchTab && (
+                            <button
+                              type="button"
+                              onClick={() => onSwitchTab('tank-monitoring')}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-[10px] font-semibold"
+                            >
+                              Isi Tangki
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : lastFinished ? (
+                    <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5 text-[11px] flex items-center justify-between gap-2">
+                      <span className="text-slate-400 truncate">
+                        Terakhir: <strong className="text-slate-200">{lastFinished.skuName}</strong> ({(lastFinished.cartonsProducedTotal || 0).toLocaleString()} ktn)
+                      </span>
+                      <span
+                        className={`font-semibold shrink-0 ${
+                          lastFinished.completionStatus === 'SHIFT_HANDOVER'
+                            ? 'text-indigo-300'
+                            : 'text-emerald-400'
+                        }`}
+                      >
+                        {lastFinished.completionStatus === 'SHIFT_HANDOVER'
+                          ? `Handover → Shift ${lastFinished.handoverToShift || shiftPeriod.nextShift}`
+                          : 'Selesai Normal'}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      Line tersedia. Pilih line ini pada Alur Mulai Produksi untuk menentukan SKU dan planning karton.
+                    </p>
+                  )}
+
+                  {!isManagement && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {canShowResumeCard && lastFinished && onResumeLineRun && (
+                        <button
+                          type="button"
+                          disabled={!resumeAvailability?.isReady}
+                          onClick={() =>
+                            onResumeLineRun(lastFinished.id || lastFinished.lineId || line.id)
+                          }
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
+                            !resumeAvailability?.isReady
+                              ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                              : isSblStop && !sblWithinEstimate
+                              ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 active:scale-95'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 active:scale-95'
+                          }`}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>
+                            {!resumeAvailability?.isReady
+                              ? 'Start Produksi Kembali (WIP Kosong)'
+                              : isSblStop && sblWithinEstimate
+                              ? `Start Produksi Kembali (< ${sblEstMinutes} mnt)`
+                              : 'Start Produksi Kembali'}
+                          </span>
+                        </button>
+                      )}
+
+                      {isSblStop && linkedSblLog && isWhatsAppEligibleSblCategory(linkedSblLog.category) && (
+                        <button
+                          type="button"
+                          onClick={() => setWaModalTarget({ stopLog: linkedSblLog })}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition flex items-center space-x-1.5"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Kirim WA</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLineSelection(line.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 ${
+                          selectedLineIds.includes(line.id)
+                            ? 'bg-cyan-600 text-white'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                        }`}
+                      >
+                        {selectedLineIds.includes(line.id) ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Terpilih di Planner</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>{canShowResumeCard ? `Ganti SKU (${line.name})` : `Pilih ${line.name}`}</span>
+                          </>
                         )}
-                      </div>
-                      <div className="flex items-center space-x-2 mt-0.5 text-[10px] font-mono opacity-80">
-                        <span>{sku.code || `SKU-${sku.id.slice(-4)}`}</span>
-                        <span>•</span>
-                        <span>{sku.targetHour} ktn/jam</span>
-                      </div>
-                      <span className="text-[10px] block mt-1 opacity-70">
-                        {isCurrentlyRunning
-                          ? '● Sedang Berjalan'
-                          : `${linkedWips.length} Komponen WIP Terhubung`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // RUNNING LINE CARD
+            const sku = state.master.skus.find(s => s.id === run.skuId);
+            const targetPerHour = sku?.targetHour || run.targetPerHour || 500;
+            const speedMult = run.speedMultiplier || 1;
+            const plannedCartons = run.plannedCartons || targetPerHour * 8;
+            const produced = run.cartonsProducedTotal || 0;
+            const pct = plannedCartons > 0 ? Math.min(100, Math.round((produced / plannedCartons) * 100)) : 0;
+            const remaining = Math.max(0, plannedCartons - produced);
+            const linkedWips = sku ? getLinkedWipBreakdown(sku.id) : [];
+            const customQtyVal = customCartonsInputByRun[run.id || line.id] || '200';
+
+            return (
+              <div
+                key={line.id}
+                className="bg-slate-950/75 border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg"
+              >
+                {/* Card Header: Line Name, Running SKU, Speed & Stop/Selesai */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 border-b border-slate-800 pb-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold">
+                        {run.lineName || line.name}
+                      </span>
+                      <span className="text-[11px] font-mono text-emerald-400 font-semibold flex items-center space-x-1">
+                        <Lock className="w-3 h-3" />
+                        <span>1 SKU Aktif · Shift {run.shift || currentLiveShift.shift}</span>
+                      </span>
+                      {run.carriedOverFromShift && (
+                        <span className="text-[10px] font-mono font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 rounded">
+                          Lanjutan Shift {run.carriedOverFromShift} ({(run.previousShiftCartons || 0).toLocaleString()} ktn)
+                        </span>
+                      )}
+                      {sku?.isKite && (
+                        <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                          KITE
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1.5">
+                      <Package className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <h4 className="text-sm sm:text-base font-bold text-white truncate">
+                        {sku?.name || run.skuName}
+                      </h4>
+                      <span className="text-[10px] font-mono text-cyan-300 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded shrink-0">
+                        {sku?.code || run.skuCode || 'SKU'}
                       </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Modal Bottom Action Bar */}
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-300">
-              <span className="text-xs font-bold text-black">
-                {selectedMultiSkuIds.length} SKU Terpilih untuk Dijalankan
-              </span>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowMultiSelectModal(false)}
-                  className="px-3 py-1.5 bg-white text-black border border-black rounded-xl text-xs font-bold hover:bg-zinc-100"
-                >
-                  Tutup
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStartMultipleSelected}
-                  disabled={selectedMultiSkuIds.length === 0}
-                  className="px-4 py-1.5 bg-black hover:bg-zinc-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1.5"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current text-white" />
-                  <span>Jalankan {selectedMultiSkuIds.length} SKU Sekaligus</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2A. ACTIVE RUNNING SKUs LIST (KOLOM SKU SEDANG DIPROSES) */}
-        {runningRuns.length > 0 ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              {runningRuns.map(run => {
-                const sku = state.master.skus.find(s => s.id === run.skuId);
-                const targetPerHour = sku?.targetHour || run.targetPerHour || 500;
-                const speedMult = run.speedMultiplier || 1;
-                const linkedWips = sku ? getLinkedWipBreakdown(sku.id) : [];
-                const adHocQty = adHocQtys[run.skuId] || '200';
-
-                return (
-                  <div
-                    key={run.skuId}
-                    className="bg-white border-2 border-black rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm relative overflow-hidden"
-                  >
-                    {/* Top Row: SKU Badge, Speed Multiplier & Stop Button */}
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b-2 border-black pb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center shrink-0 border-2 border-black shadow-xs">
-                          <Package className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-[10px] font-bold text-black uppercase tracking-wider">
-                              SKU Sedang Diproses:
-                            </span>
-                            {sku?.isKite && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] bg-black text-white font-bold border border-black">
-                                ⭐ KITE Ekspor
-                              </span>
-                            )}
-                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-400 text-[10px] font-extrabold">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>RUNNING REAL-TIME</span>
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2 mt-0.5">
-                            <h4 className="font-black text-black text-base sm:text-lg">
-                              {sku?.name || run.skuName}
-                            </h4>
-                            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white text-black font-extrabold border-2 border-black">
-                              {sku?.code || run.skuCode || `SKU-${run.skuId.slice(-4).toUpperCase()}`}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Speed Multiplier & Individual Stop Button */}
-                      <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
-                        {/* Speed Multiplier */}
-                        <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border-2 border-black shadow-xs">
-                          <span className="text-[10px] text-black px-1 font-mono font-bold">Laju:</span>
-                          {[
-                            { mult: 1, label: '1x' },
-                            { mult: 2, label: '2x' },
-                            { mult: 5, label: '5x' }
-                          ].map(({ mult, label }) => (
-                            <button
-                              key={mult}
-                              type="button"
-                              onClick={() => onSetRunSpeedMultiplier && onSetRunSpeedMultiplier(mult, run.skuId)}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono transition border ${
-                                speedMult === mult
-                                  ? 'bg-black text-white border-black shadow-xs'
-                                  : 'bg-white text-black border-black hover:bg-zinc-100'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* STOP BUTTON (SIX BIG LOSSES) */}
-                        {!isManagement ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenStopForSku(run.skuId)}
-                            className="px-4 py-2 bg-white hover:bg-zinc-100 text-black rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1.5 transition active:scale-95"
-                          >
-                            <Square className="w-4 h-4 fill-current text-black" />
-                            <span>Hentikan SKU Ini (Stop)</span>
-                          </button>
-                        ) : (
-                          <div className="px-3 py-1.5 bg-zinc-100 border-2 border-black rounded-xl text-xs text-black font-extrabold flex items-center space-x-1.5">
-                            <ShieldAlert className="w-3.5 h-3.5 text-black" />
-                            <span>Pantau</span>
-                          </div>
-                        )}
-                      </div>
+                  {/* Speed & Stop Action */}
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                    <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                      {[1, 2, 5].map(mult => (
+                        <button
+                          key={mult}
+                          type="button"
+                          disabled={isManagement}
+                          onClick={() => onSetRunSpeedMultiplier && onSetRunSpeedMultiplier(mult, run.id || line.id)}
+                          className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition ${
+                            speedMult === mult
+                              ? 'bg-cyan-600 text-white'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {mult}x
+                        </button>
+                      ))}
                     </div>
 
-                    {/* Middle Row: Real-time Telemetry Stats Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="bg-white p-3 rounded-xl border-2 border-black shadow-xs">
-                        <span className="text-[10px] text-black block font-mono font-bold">Karton Terproduksi Real-Time:</span>
-                        <div className="flex items-baseline space-x-1.5 mt-0.5">
-                          <span className="text-2xl font-black font-mono text-black">
-                            {(run.cartonsProducedTotal || 0).toLocaleString()}
-                          </span>
-                          <span className="text-[11px] text-black font-mono font-bold">karton</span>
-                          <span className="text-[10px] text-zinc-600 font-mono">
-                            ({((run.cartonsProducedTotal || 0) * (sku?.cartonWeightKg || 12)).toFixed(1)} kg)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-3 rounded-xl border-2 border-black shadow-xs">
-                        <span className="text-[10px] text-black block font-mono font-bold">Laju Konsumsi Tangki:</span>
-                        <div className="flex items-baseline space-x-1 mt-0.5">
-                          <span className="text-xl font-black font-mono text-black">
-                            {((targetPerHour * speedMult) / 3600).toFixed(2)}
-                          </span>
-                          <span className="text-[10px] text-black font-mono font-bold">ktn/dtk</span>
-                          <span className="text-[10px] text-black font-mono">
-                            ({(3600 / (targetPerHour * speedMult)).toFixed(1)}s/ktn • {targetPerHour * speedMult} ktn/j)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-3 rounded-xl border-2 border-black shadow-xs">
-                        <span className="text-[10px] text-black block font-mono font-bold">WIP Terpotong Otomatis:</span>
-                        <div className="text-[11px] font-mono text-black font-extrabold mt-0.5 truncate">
-                          {linkedWips.length > 0 ? (
-                            linkedWips.map((b, idx) => (
-                              <span key={b.skuWip.id}>
-                                {idx > 0 && ' • '}
-                                {b.wip?.code || 'WIP'}: {((run.cartonsProducedTotal || 0) * b.kgPerCarton).toFixed(1)} kg
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-black font-normal">Formula BOM aktif</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Integrated Tanks Strip connected to this SKU */}
-                    <div className="pt-2 border-t-2 border-black">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-extrabold text-black flex items-center space-x-1.5">
-                          <Cylinder className="w-3.5 h-3.5 text-black" />
-                          <span>Tangki Terintegrasi SKU [{sku?.name || run.skuName}] (Berkurang Real-Time):</span>
-                        </span>
-                        <span className="text-[10px] text-black font-mono font-bold">
-                          {linkedWips.length} Komponen WIP Terikat
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {linkedWips.map((item, idx) => {
-                          const primaryTank = item.integratedTanks[0];
-                          const remainingKg = primaryTank ? primaryTank.currentLevelKg : 0;
-                          const kgPerCarton = item.kgPerCarton;
-                          const maxCartons = kgPerCarton > 0 ? Math.floor(remainingKg / kgPerCarton) : 0;
-                          const isCrit = primaryTank && primaryTank.currentLevelKg <= (primaryTank.minAlertKg || primaryTank.capacityKg * 0.2);
-
-                          return (
-                            <div
-                              key={idx}
-                              className="bg-white border-2 border-black p-2.5 rounded-xl flex items-center justify-between text-xs shadow-xs"
-                            >
-                              <div className="truncate mr-2">
-                                <span className="font-extrabold text-black block truncate">
-                                  {item.wip?.name || 'WIP Komponen'}
-                                </span>
-                                <span className="text-[10px] text-zinc-600 font-mono font-bold block">
-                                  {kgPerCarton.toFixed(4)} kg / karton
-                                </span>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                {primaryTank ? (
-                                  <div>
-                                    <span className="font-mono text-black font-extrabold block text-[11px] bg-white px-1.5 py-0.5 rounded border border-black">
-                                      {primaryTank.code} ({primaryTank.type === 'HOLDING_TANK' ? 'HT' : 'ST'}): {primaryTank.currentLevelKg.toFixed(1)} kg
-                                    </span>
-                                    <span className={`text-[10px] font-mono block mt-0.5 font-extrabold ${isCrit ? 'text-rose-600 underline' : 'text-black'}`}>
-                                      Sisa: {maxCartons} ktn
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10px] text-zinc-500 italic">
-                                    Belum ada tangki
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Optional Manual Ad-hoc Input for this SKU */}
                     {!isManagement && (
-                      <div className="pt-2 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-zinc-700 flex items-center space-x-1">
-                          <Plus className="w-3 h-3 text-black" />
-                          <span>Input Tambahan Manual / Ad-hoc:</span>
-                        </span>
-
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteProductionDeductionForSku(run.skuId, 1)}
-                            className="px-2 py-0.5 bg-white hover:bg-zinc-100 text-black border border-black rounded text-[10px] font-bold shadow-xs"
-                          >
-                            +1 ktn
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteProductionDeductionForSku(run.skuId, 10)}
-                            className="px-2 py-0.5 bg-white hover:bg-zinc-100 text-black border border-black rounded text-[10px] font-bold shadow-xs"
-                          >
-                            +10 ktn
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteProductionDeductionForSku(run.skuId, 50)}
-                            className="px-2 py-0.5 bg-white hover:bg-zinc-100 text-black border border-black rounded text-[10px] font-bold shadow-xs"
-                          >
-                            +50 ktn
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteProductionDeductionForSku(run.skuId, 200)}
-                            className="px-2.5 py-0.5 bg-black text-white hover:bg-zinc-800 border border-black rounded text-[10px] font-bold shadow-xs"
-                          >
-                            +200 ktn
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNormalFinishNotes('');
+                          setStopChoiceRun(run);
+                        }}
+                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition active:scale-95"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <span>Selesai / Stop</span>
+                      </button>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            {/* Quick Add Another Non-Running SKU Toolbar */}
-            {!isManagement && availableToStartSkus.length > 0 && (
-              <div className="bg-zinc-50 border-2 border-black p-3 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center space-x-2">
-                  <div className="w-7 h-7 rounded-lg bg-black text-white flex items-center justify-center font-bold text-xs">
-                    <Plus className="w-4 h-4 text-white" />
+                {/* Realisasi vs Planning Progress */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Realisasi vs Planning Shift</span>
+                      <div className="flex items-baseline space-x-1.5">
+                        <span className="text-xl font-bold font-mono text-white tabular-nums">
+                          {produced.toLocaleString()}
+                        </span>
+                        <span className="text-xs font-mono text-slate-400 tabular-nums">
+                          / {plannedCartons.toLocaleString()} ktn
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-mono font-bold text-emerald-400 tabular-nums">{pct}%</span>
+                      <span className="text-[10px] text-slate-400 font-mono block tabular-nums">
+                        Sisa: {remaining.toLocaleString()} ktn
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-extrabold text-xs text-black block">
-                      Jalankan SKU Tambahan Bersamaan:
+
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400 pt-0.5 tabular-nums">
+                    <span>Laju: {((targetPerHour * speedMult) / 3600).toFixed(2)} ktn/dtk ({targetPerHour * speedMult} ktn/j)</span>
+                    <span>Op: {run.operatorName}</span>
+                  </div>
+                </div>
+
+                {/* Holding Tank WIP BOM Depletion Strip */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-slate-300 flex items-center space-x-1.5">
+                      <Cylinder className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Pengurangan WIP Holding Tank (BOM)</span>
                     </span>
-                    <span className="text-[10px] text-zinc-600">
-                      Tersedia {availableToStartSkus.length} SKU lainnya untuk dijalankan secara paralel di lini produksi.
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {linkedWips.length} Komponen WIP
                     </span>
                   </div>
-                </div>
 
-                <div className="flex items-center space-x-2 w-full sm:w-auto">
-                  <select
-                    value={additionalSkuId}
-                    onChange={(e) => setAdditionalSkuId(e.target.value)}
-                    className="bg-white border-2 border-black rounded-xl px-3 py-1.5 text-xs text-black font-extrabold focus:outline-none shadow-xs"
-                  >
-                    <option value="">-- Pilih SKU Tambahan --</option>
-                    {availableToStartSkus.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code || 'SKU'}) - {s.targetHour} ktn/jam
-                      </option>
-                    ))}
-                  </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {linkedWips.map((item, idx) => {
+                      const holdingTanks = item.integratedTanks.filter(t => t.type === 'HOLDING_TANK');
+                      const chosenHtId = item.wip ? run.selectedHoldingTanks?.[item.wip.id] : undefined;
+                      const primaryTank =
+                        (chosenHtId ? item.integratedTanks.find(t => t.id === chosenHtId) : undefined) ||
+                        holdingTanks[0] ||
+                        item.integratedTanks[0];
+                      const remainingKg = primaryTank ? primaryTank.currentLevelKg : 0;
+                      const maxCartons = item.kgPerCarton > 0 ? Math.floor(remainingKg / item.kgPerCarton) : 0;
+                      const isCrit =
+                        primaryTank &&
+                        primaryTank.currentLevelKg <= (primaryTank.minAlertKg || primaryTank.capacityKg * 0.2);
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (additionalSkuId) {
-                        handleStartSingleSku(additionalSkuId);
-                        setAdditionalSkuId('');
-                      }
-                    }}
-                    disabled={!additionalSkuId}
-                    className="px-3.5 py-1.5 bg-black hover:bg-zinc-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1 transition active:scale-95 shrink-0"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current text-white" />
-                    <span>Mulai SKU Ini</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* 2B. STANDBY STATE (0 SKU RUNNING): Interactive Multi-SKU Checklist & Single Selector */
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-zinc-50 border-2 border-black rounded-2xl">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 rounded-xl bg-black text-white border border-black shadow-xs">
-                  <Activity className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h5 className="text-xs sm:text-sm font-extrabold text-black">
-                    Lini Produksi Siap Dijalankan (Standby Mode)
-                  </h5>
-                  <p className="text-[11px] text-zinc-600 mt-0.5">
-                    Pilih satu atau beberapa SKU di bawah ini untuk dijalankan bersamaan. Sistem otomatis memproses pemotongan tangki holding & storage secara real-time.
-                  </p>
-                </div>
-              </div>
+                      return (
+                        <div
+                          key={item.skuWip.id || idx}
+                          className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="font-semibold text-white block truncate">
+                                {item.wip?.name || 'WIP'}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                                {item.kgPerCarton.toFixed(4)} kg/ktn · Terpotong {(produced * item.kgPerCarton).toFixed(1)} kg
+                              </span>
+                            </div>
+                            <div className="text-right shrink-0 font-mono tabular-nums">
+                              {primaryTank ? (
+                                <>
+                                  <span className="text-[11px] font-bold text-cyan-300 block">
+                                    {primaryTank.code}: {primaryTank.currentLevelKg.toFixed(1)} kg
+                                  </span>
+                                  <span className={`text-[10px] font-semibold ${isCrit ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                    Cukup {maxCartons.toLocaleString()} ktn
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-rose-400">Belum ada tangki</span>
+                              )}
+                            </div>
+                          </div>
 
-              {/* Single SKU Quick Start */}
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={selectedSkuId}
-                  onChange={(e) => setSelectedSkuId(e.target.value)}
-                  className="bg-white border-2 border-black rounded-xl px-3 py-2 text-xs text-black font-extrabold focus:outline-none shadow-xs"
-                >
-                  {state.master.skus.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code || 'SKU'}) - {s.targetHour} ktn/jam
-                    </option>
-                  ))}
-                </select>
-
-                {!isManagement && (
-                  <button
-                    type="button"
-                    onClick={() => handleStartSingleSku(selectedSkuId)}
-                    className="px-4 py-2 bg-black hover:bg-zinc-800 text-white rounded-xl text-xs font-extrabold border-2 border-black shadow-xs flex items-center space-x-1.5 transition active:scale-95"
-                  >
-                    <Play className="w-4 h-4 fill-current text-white" />
-                    <span>Mulai Produksi (Start)</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Multi-SKU Selection Grid */}
-            {!isManagement && state.master.skus.length > 1 && (
-              <div className="border-2 border-black rounded-2xl p-4 space-y-3 bg-white">
-                <div className="flex items-center justify-between border-b-2 border-black pb-2">
-                  <span className="font-extrabold text-xs text-black flex items-center space-x-1.5">
-                    <CheckSquare className="w-4 h-4 text-black" />
-                    <span>Centang Multiple SKU untuk Dijalankan Bersamaan ({selectedMultiSkuIds.length} Terpilih):</span>
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllSkus}
-                      className="px-2.5 py-1 bg-white hover:bg-zinc-100 text-black border border-black rounded-lg text-[10px] font-bold transition"
-                    >
-                      {selectedMultiSkuIds.length === state.master.skus.length ? 'Batal Semua' : 'Pilih Semua'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleStartMultipleSelected}
-                      disabled={selectedMultiSkuIds.length === 0}
-                      className="px-3.5 py-1 bg-black hover:bg-zinc-800 disabled:opacity-40 text-white border-2 border-black rounded-xl text-xs font-extrabold transition shadow-xs flex items-center space-x-1"
-                    >
-                      <Play className="w-3 h-3 fill-current text-white" />
-                      <span>Jalankan {selectedMultiSkuIds.length} SKU Bersamaan</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {state.master.skus.map(s => {
-                    const isSelected = selectedMultiSkuIds.includes(s.id);
-                    const linkedWips = state.master.skuWips.filter(sw => sw.skuId === s.id);
-
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => toggleSkuSelection(s.id)}
-                        className={`p-3 rounded-xl border-2 transition cursor-pointer flex items-start space-x-2.5 ${
-                          isSelected
-                            ? 'bg-black text-white border-black shadow-xs'
-                            : 'bg-white text-black border-black hover:bg-zinc-100'
-                        }`}
-                      >
-                        <div className="mt-0.5">
-                          {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-white" />
-                          ) : (
-                            <SquareIcon className="w-4 h-4 text-black" />
+                          {holdingTanks.length >= 2 && item.wip && (
+                            <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-slate-400 shrink-0">Holding Tank:</span>
+                              <select
+                                disabled={isManagement}
+                                value={primaryTank?.id || ''}
+                                onChange={(e) =>
+                                  onUpdateRunHoldingTank &&
+                                  item.wip &&
+                                  onUpdateRunHoldingTank(run.skuId, item.wip.id, e.target.value, run.id)
+                                }
+                                className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-mono text-white focus:outline-none focus:border-cyan-500"
+                              >
+                                {holdingTanks.map(ht => (
+                                  <option key={ht.id} value={ht.id}>
+                                    {ht.code} ({ht.currentLevelKg.toFixed(1)} kg)
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-extrabold text-xs block truncate">
-                            {s.name}
-                          </span>
-                          <div className="flex items-center space-x-1.5 text-[10px] font-mono opacity-80 mt-0.5">
-                            <span>{s.code || 'SKU'}</span>
-                            <span>•</span>
-                            <span>{s.targetHour} ktn/jam</span>
-                            <span>•</span>
-                            <span>{linkedWips.length} WIP</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {/* Manual Output / Quick Deduction Row */}
+                {!isManagement && (
+                  <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 mr-1">Catat Output:</span>
+                      {[1, 10, 50, 200].map(q => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => handleManualCartonDeduction(run, q)}
+                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-mono font-bold transition active:scale-95"
+                        >
+                          +{q}
+                        </button>
+                      ))}
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const qty = parseInt(customQtyVal, 10);
+                        if (!isNaN(qty) && qty > 0) {
+                          handleManualCartonDeduction(run, qty);
+                        } else {
+                          showToast?.('Masukkan angka karton valid.', true);
+                        }
+                      }}
+                      className="flex items-center space-x-1"
+                    >
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={customQtyVal}
+                        onChange={(e) =>
+                          setCustomCartonsInputByRun(prev => ({
+                            ...prev,
+                            [run.id || line.id]: e.target.value
+                          }))
+                        }
+                        className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-white text-center tabular-nums focus:outline-none focus:border-cyan-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-bold transition"
+                      >
+                        +Ktn
+                      </button>
+                    </form>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
 
-      {/* 3. Six Big Losses Stoppage Log Drawer (Collapsible) */}
+      {/* 4. COLLAPSIBLE SIX BIG LOSSES HISTORY TABLE */}
       {showStopHistory && (
-        <div className="bg-white border-2 border-black rounded-2xl p-4 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between border-b-2 border-black pb-2">
+        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
             <div className="flex items-center space-x-2">
-              <ShieldAlert className="w-4 h-4 text-black" />
-              <h4 className="font-extrabold text-xs sm:text-sm text-black">
-                Riwayat Stop Produksi Hari Ini (Standar TPM Six Big Losses)
+              <ShieldAlert className="w-4 h-4 text-rose-400" />
+              <h4 className="font-bold text-xs sm:text-sm text-white">
+                Riwayat Stop Masalah Produksi Hari Ini (TPM Six Big Losses)
               </h4>
             </div>
-            <div className="flex items-center space-x-3 text-xs">
-              <span className="text-black font-bold">Total Downtime:</span>
-              <span className="font-mono font-extrabold text-white bg-black px-2 py-0.5 rounded border border-black">
-                {totalDowntimeMinutes} Menit
-              </span>
+            <div className="text-xs font-mono tabular-nums text-rose-300">
+              Total Downtime: <strong>{totalDowntimeMinutes} Menit</strong>
             </div>
           </div>
 
           <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-left text-xs border border-black">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-black text-white text-[10px] font-bold uppercase">
+                <tr className="bg-slate-900 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-800">
                   <th className="py-2 px-2.5">Waktu Stop</th>
-                  <th className="py-2 px-2.5">SKU Terkena</th>
+                  <th className="py-2 px-2.5">Line</th>
+                  <th className="py-2 px-2.5">SKU</th>
                   <th className="py-2 px-2.5">Shift</th>
-                  <th className="py-2 px-2.5">Kategori Six Big Losses</th>
-                  <th className="py-2 px-2.5">Alasan Terhenti</th>
+                  <th className="py-2 px-2.5">Kategori SBL</th>
+                  <th className="py-2 px-2.5">Alasan Masalah</th>
                   <th className="py-2 px-2.5 text-right">Durasi</th>
                   <th className="py-2 px-2.5">Tindakan / PIC</th>
+                  <th className="py-2 px-2.5 text-center">Laporan WA</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black bg-white text-black">
+              <tbody className="divide-y divide-slate-800/70">
                 {stopLogsToday.length > 0 ? (
                   stopLogsToday
                     .slice()
                     .reverse()
-                    .map(log => (
-                      <tr key={log.id} className="hover:bg-zinc-100 transition">
-                        <td className="py-2 px-2.5 font-mono text-[11px] text-black whitespace-nowrap font-bold">
-                          {new Date(log.stoppedAt).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-2 px-2.5 font-bold text-black">
-                          {log.skuName || '-'}
-                        </td>
-                        <td className="py-2 px-2.5 font-mono font-bold text-black">
-                          Shift {log.shift}
-                        </td>
-                        <td className="py-2 px-2.5">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold border border-black bg-white text-black">
-                            {log.categoryLabel}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2.5 text-black font-bold max-w-xs truncate">
-                          {log.reasonTitle}
-                        </td>
-                        <td className="py-2 px-2.5 text-right font-mono font-black text-black">
-                          {log.durationMinutes} mnt
-                        </td>
-                        <td className="py-2 px-2.5 text-black text-[11px] font-medium">
-                          {log.actionTaken || log.operatorName || '-'}
-                        </td>
-                      </tr>
-                    ))
+                    .map(log => {
+                      const canSendWa = isWhatsAppEligibleSblCategory(log.category);
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-800/30 transition">
+                          <td className="py-2 px-2.5 font-mono text-[11px] text-slate-300 whitespace-nowrap tabular-nums">
+                            {new Date(log.stoppedAt).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="py-2 px-2.5 font-semibold text-cyan-300 whitespace-nowrap">
+                            {log.lineName || '-'}
+                          </td>
+                          <td className="py-2 px-2.5 font-semibold text-white">
+                            {log.skuName || '-'}
+                          </td>
+                          <td className="py-2 px-2.5 font-mono text-slate-300">
+                            Shift {log.shift}
+                          </td>
+                          <td className="py-2 px-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                log.category === 'MATERIAL_SHORTAGE'
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                              }`}
+                            >
+                              {log.categoryLabel}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2.5 text-slate-200 max-w-xs truncate">
+                            {log.reasonTitle}
+                          </td>
+                          <td className="py-2 px-2.5 text-right font-mono font-bold text-rose-300 tabular-nums whitespace-nowrap">
+                            <div>{log.durationMinutes} mnt</div>
+                            {log.resumedAt && log.estimatedRepairMinutes && (
+                              <div className="text-[10px] font-normal text-emerald-400">
+                                Est. {log.estimatedRepairMinutes} mnt → Aktual {log.actualRepairMinutes ?? log.durationMinutes} mnt
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 px-2.5 text-slate-400 text-[11px]">
+                            {log.actionTaken || log.operatorName || '-'}
+                          </td>
+                          <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                            {canSendWa ? (
+                              <button
+                                type="button"
+                                onClick={() => setWaModalTarget({ stopLog: log })}
+                                className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold inline-flex items-center space-x-1 transition"
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                                <span>Kirim WA</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-600">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-4 text-center text-black text-xs font-bold">
-                      Belum ada kejadian stop produksi yang tercatat hari ini. Operasional berjalan lancar!
+                    <td colSpan={9} className="py-4 text-center text-slate-400 text-xs">
+                      Belum ada kejadian stop masalah (SBL) yang tercatat hari ini.
                     </td>
                   </tr>
                 )}
@@ -986,91 +1745,96 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
         </div>
       )}
 
-      {/* 4. Target Metrics Grid: Per Karton, Per Shift, Per Hari (With SKU Filter Tabs) */}
-      <div className="space-y-3">
-        {/* Metric Switcher Tabs */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pb-1">
-          <div className="flex items-center space-x-1.5">
-            <span className="text-[11px] font-bold text-black mr-1">Tinjauan Metrik:</span>
+      {/* 5. METRICS SUMMARY (Scoped by All Lines or Specific Line) */}
+      <div className="space-y-3 pt-1 border-t border-slate-800">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          <span className="text-[11px] font-semibold text-slate-400 mr-1 shrink-0">Ringkasan Metrik:</span>
+          <button
+            type="button"
+            onClick={() => setMetricScope('ALL')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+              metricScope === 'ALL'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            Semua Line
+          </button>
+          {productionLines.map(line => (
             <button
+              key={line.id}
               type="button"
-              onClick={() => setMetricViewSkuId('ALL')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition border ${
-                metricViewSkuId === 'ALL'
-                  ? 'bg-black text-white border-black shadow-xs'
-                  : 'bg-white text-black border-black hover:bg-zinc-100'
+              onClick={() => setMetricScope(line.id)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                metricScope === line.id
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:text-white'
               }`}
             >
-              📊 Semua SKU Tergabung
+              {line.name}{runningByLineId[line.id] ? ` (${runningByLineId[line.id].skuCode || 'Aktif'})` : ''}
             </button>
-            {state.master.skus.map(s => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setMetricViewSkuId(s.id)}
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition border whitespace-nowrap ${
-                  metricViewSkuId === s.id
-                    ? 'bg-black text-white border-black shadow-xs'
-                    : 'bg-white text-black border-black hover:bg-zinc-100'
-                }`}
-              >
-                {runningRuns.some(r => r.skuId === s.id) ? '● ' : ''}{s.name}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {/* Metric 1: Target Per Karton (Realisasi vs Target Harian) */}
-          <div className="bg-white border-2 border-black p-4 rounded-2xl space-y-2.5 shadow-xs text-black">
+          {/* KPI 1: Realisasi vs Planning */}
+          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-black uppercase tracking-wider flex items-center space-x-1.5">
-                <Target className="w-3.5 h-3.5 text-black" />
-                <span>Target Per Karton ({metricViewSkuId === 'ALL' ? 'Semua SKU' : targetSkuForMetrics?.name})</span>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <Target className="w-3.5 h-3.5 text-cyan-400" />
+                <span>
+                  {totalActiveShiftPlanned > 0 ? 'Realisasi Planning Shift' : 'Realisasi Harian'}
+                </span>
               </span>
-              <span className="text-xs font-mono font-extrabold text-black">
-                {progressPercent}%
+              <span className="text-xs font-mono font-bold text-cyan-400 tabular-nums">
+                {overallProgressPercent}%
               </span>
             </div>
 
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-2xl font-black font-mono text-black">
-                  {finalCartonsToday.toLocaleString()}
+                <span className="text-2xl font-bold font-mono text-white tabular-nums">
+                  {(totalActiveShiftPlanned > 0 ? totalActiveRealized : finalCartonsToday).toLocaleString()}
                 </span>
-                <span className="text-xs text-black font-mono ml-1.5 font-bold">
-                  / {aggregateDailyTargetCartons.toLocaleString()} ktn
+                <span className="text-xs text-slate-400 font-mono ml-1.5 tabular-nums">
+                  / {(totalActiveShiftPlanned > 0 ? totalActiveShiftPlanned : aggregateDailyTargetCartons).toLocaleString()} ktn
                 </span>
               </div>
-              <span className="text-[10px] text-white font-bold bg-black px-2 py-0.5 rounded border border-black">
-                {targetSkuForMetrics ? `${targetSkuForMetrics.targetHour} ktn/jam` : `${activeSkusForMetrics.reduce((s, x) => s + x.targetHour, 0)} ktn/jam total`}
+              <span className="text-[10px] font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+                {scopedRunningRuns.length} Line Jalan
               </span>
             </div>
 
-            {/* Progress bar */}
-            <div className="w-full bg-zinc-200 h-2.5 rounded-full overflow-hidden border border-black">
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
               <div
-                className="bg-black h-full rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
+                className="bg-cyan-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${overallProgressPercent}%` }}
               />
             </div>
 
-            <div className="flex justify-between text-[10px] text-black font-mono font-bold">
-              <span>Sisa Kuota: {Math.max(0, aggregateDailyTargetCartons - finalCartonsToday).toLocaleString()} ktn</span>
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono tabular-nums">
               <span>
-                {targetSkuForMetrics
-                  ? `Bobot: ${targetSkuForMetrics.cartonWeightKg.toFixed(2)} kg/ktn`
-                  : `${activeSkusForMetrics.length} SKU`}
+                Sisa Planning:{' '}
+                {Math.max(
+                  0,
+                  (totalActiveShiftPlanned > 0 ? totalActiveShiftPlanned : aggregateDailyTargetCartons) -
+                    (totalActiveShiftPlanned > 0 ? totalActiveRealized : finalCartonsToday)
+                ).toLocaleString()}{' '}
+                ktn
               </span>
+              <span>Total Hari Ini: {finalCartonsToday.toLocaleString()} ktn</span>
             </div>
           </div>
 
-          {/* Metric 2: Target Per Shift (3 Shift Breakdown) */}
-          <div className="bg-white border-2 border-black p-4 rounded-2xl space-y-2 shadow-xs text-black">
+          {/* KPI 2: Breakdown Shift 1 / 2 / 3 */}
+          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl space-y-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-bold text-black uppercase tracking-wider flex items-center space-x-1.5">
-                <Clock className="w-3.5 h-3.5 text-black" />
-                <span>Target Per Shift ({aggregateTargetPerShift.toLocaleString()} ktn/shift)</span>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Output Per Shift</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                Est: {aggregateTargetPerShift.toLocaleString()} ktn/shift
               </span>
             </div>
 
@@ -1084,32 +1848,24 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 return (
                   <div
                     key={sNum}
-                    className={`p-2 rounded-xl text-xs flex items-center justify-between border-2 transition ${
+                    className={`p-2 rounded-xl text-xs flex items-center justify-between border ${
                       isCurrent
-                        ? 'bg-zinc-100 border-black'
-                        : 'bg-white border-black'
+                        ? 'bg-slate-900 border-cyan-500/40'
+                        : 'bg-slate-900/50 border-slate-800'
                     }`}
                   >
                     <div className="flex items-center space-x-2">
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-black text-white border border-black">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        isCurrent ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-300'
+                      }`}>
                         {sInfo.shortLabel}
                       </span>
-                      <span className="text-[10px] text-black font-mono font-bold">{sInfo.timeRange}</span>
-                      {isCurrent && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
-                      )}
+                      <span className="text-[10px] text-slate-400 font-mono">{sInfo.timeRange}</span>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <div className="text-right">
-                        <span className="font-mono font-black text-black">
-                          {shiftRealized.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-zinc-600 font-mono"> ktn</span>
-                      </div>
-                      <span className="text-[10px] font-mono font-bold text-black bg-white px-1.5 py-0.5 rounded border border-black min-w-[36px] text-center">
-                        {shiftPct}%
-                      </span>
+                    <div className="flex items-center space-x-2 font-mono tabular-nums">
+                      <span className="font-bold text-white">{shiftRealized.toLocaleString()} ktn</span>
+                      <span className="text-[10px] text-slate-400 min-w-[32px] text-right">{shiftPct}%</span>
                     </div>
                   </div>
                 );
@@ -1117,75 +1873,236 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
             </div>
           </div>
 
-          {/* Metric 3: Target Harian 24 Jam Penuh */}
-          <div className="bg-white border-2 border-black p-4 rounded-2xl flex flex-col justify-between space-y-3 shadow-xs text-black">
+          {/* KPI 3: Kapasitas 24 Jam & Downtime */}
+          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-bold text-black uppercase tracking-wider flex items-center space-x-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-black" />
-                  <span>Kapasitas Lini 24 Jam</span>
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Kapasitas 24 Jam</span>
                 </span>
-                <span className="text-[10px] font-mono text-black font-bold">
-                  Full Plant Capacity
+                <span className="text-[10px] font-mono text-slate-400">
+                  {productionLines.length} Line
                 </span>
               </div>
 
-              <div className="mt-2">
-                <span className="text-3xl font-black font-mono text-black">
+              <div className="mt-1.5">
+                <span className="text-2xl font-bold font-mono text-white tabular-nums">
                   {aggregateDailyTargetCartons.toLocaleString()}
                 </span>
-                <span className="text-xs text-black font-mono ml-1 font-bold">
-                  Karton / 24 Jam
-                </span>
+                <span className="text-xs text-slate-400 font-mono ml-1.5">ktn / 24 jam</span>
               </div>
             </div>
 
-            <div className="bg-zinc-50 border-2 border-black rounded-xl p-2.5 space-y-1 divide-y divide-black">
-              <div className="flex justify-between text-xs py-1">
-                <span className="text-black font-bold">SKU yang Sedang Berjalan:</span>
-                <span className="font-mono font-extrabold text-black">
-                  {runningRuns.length} dari {state.master.skus.length} SKU
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Line Beroperasi:</span>
+                <span className="font-mono font-bold text-white tabular-nums">
+                  {runningRuns.length} / {productionLines.length} Line
                 </span>
               </div>
-              <div className="flex justify-between text-xs py-1">
-                <span className="text-black font-bold">Jam Efektif Produksi:</span>
-                <span className="font-mono font-black text-black">
-                  24 Jam Penuh (3 Shift × 8 Jam)
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total Downtime SBL:</span>
+                <span className={`font-mono font-bold tabular-nums ${totalDowntimeMinutes > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {totalDowntimeMinutes} Menit
                 </span>
               </div>
             </div>
 
             {onSwitchTab && (
               <button
+                type="button"
                 onClick={() => onSwitchTab('bom-calculator')}
-                className="w-full py-1.5 bg-black hover:bg-zinc-800 text-white rounded-xl text-[11px] font-extrabold transition flex items-center justify-center space-x-1 border-2 border-black shadow-xs"
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[11px] font-semibold transition flex items-center justify-center space-x-1 border border-slate-700"
               >
-                <span className="text-white">Hitung Kebutuhan Bahan di Kalkulator BOM</span>
-                <ChevronRight className="w-3 h-3 text-white" />
+                <span>Kalkulator Kebutuhan Bahan (BOM)</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Six Big Losses Modal (Targeting specific SKU being stopped) */}
-      {isStopModalOpen && stoppingSku && (
+      {/* Modal 1: Production Line Customizer (Administrator Only) */}
+      {isAdmin && onAddProductionLine && onUpdateProductionLine && onDeleteProductionLine && onSetProductionLinesCount && (
+        <ProductionLineManagerModal
+          isOpen={isLineManagerOpen}
+          onClose={() => setIsLineManagerOpen(false)}
+          productionLines={productionLines}
+          runningRuns={runningRuns}
+          onAddLine={onAddProductionLine}
+          onUpdateLine={onUpdateProductionLine}
+          onDeleteLine={onDeleteProductionLine}
+          onSetLineCount={onSetProductionLinesCount}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Modal 2: Per-Line Holding Tank Selection Modal */}
+      <HoldingTankSelectionModal
+        isOpen={Boolean(pendingTankModalAssignments)}
+        onClose={() => setPendingTankModalAssignments(null)}
+        state={state}
+        pendingAssignments={modalPendingAssignments}
+        onConfirmAssignments={(selectionsByLineId) => {
+          if (pendingTankModalAssignments) {
+            executeBatchStart(pendingTankModalAssignments.assignments, selectionsByLineId);
+          }
+          setPendingTankModalAssignments(null);
+        }}
+      />
+
+      {/* Modal 3: Stop / Selesai Produksi Decision Modal (Alur #5) */}
+      {stopChoiceRun && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-100">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/60">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-white">
+                  Hentikan / Selesaikan Produksi
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {stopChoiceRun.lineName || 'Line'} · {stopChoiceRun.skuName} ({(stopChoiceRun.cartonsProducedTotal || 0).toLocaleString()} ktn)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStopChoiceRun(null)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs">
+              {/* Path A: Selesai Produksi Normal */}
+              <div className="bg-slate-950/60 border border-emerald-500/30 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-start space-x-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-white">1. Produksi Selesai (Normal)</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Target batch/planning sudah selesai tanpa kendala. Line kembali berstatus Standby dan siap memilih SKU baru.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={normalFinishNotes}
+                  onChange={(e) => setNormalFinishNotes(e.target.value)}
+                  placeholder="Catatan penyelesaian (opsional)..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCompleteLineRun?.(stopChoiceRun.id || stopChoiceRun.lineId || stopChoiceRun.skuId, normalFinishNotes.trim() || undefined);
+                    setStopChoiceRun(null);
+                  }}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition"
+                >
+                  Selesaikan Produksi (Normal)
+                </button>
+              </div>
+
+              {/* Path B: Stop Karena Material Shortage (WIP Habis) */}
+              {onRecordMaterialShortage && (
+                <div className="bg-slate-950/60 border border-amber-500/30 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-start space-x-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-white">2. Stop Karena Material Shortage (WIP Habis)</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Material WIP di Holding Tank habis atau tidak mencukupi. Mencatat penyebab Material Shortage &amp; membuka tombol Start Produksi Kembali saat WIP tersedia lagi.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = stopChoiceRun;
+                      setStopChoiceRun(null);
+                      onRecordMaterialShortage(
+                        target.id || target.lineId || target.skuId,
+                        'Material Shortage: WIP di Holding Tank habis / tidak mencukupi untuk melanjutkan produksi'
+                      );
+                    }}
+                    className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition"
+                  >
+                    Catat Material Shortage &amp; Pause Line
+                  </button>
+                </div>
+              )}
+
+              {/* Path C: Stop Karena Masalah (Six Big Losses) */}
+              <div className="bg-slate-950/60 border border-rose-500/30 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-start space-x-2.5">
+                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-white">3. Stop Karena Masalah (Six Big Losses / SBL)</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Terjadi kerusakan mesin, setup, atau kendala proses. Mencatat downtime ke Log Six Big Losses sebelum menghentikan line.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = stopChoiceRun;
+                    setStopChoiceRun(null);
+                    setSblModalTarget({
+                      skuId: target.skuId,
+                      skuName: target.skuName,
+                      skuCode: target.skuCode,
+                      lineId: target.lineId,
+                      lineName: target.lineName,
+                      startedAt: target.startedAt,
+                      cartonsProducedTotal: target.cartonsProducedTotal
+                    });
+                  }}
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition"
+                >
+                  Catat Masalah (Six Big Losses) &amp; Stop
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Six Big Losses Modal (when Stop Karena Masalah selected) */}
+      {sblModalTarget && (
         <SixBigLossesModal
-          isOpen={isStopModalOpen}
-          onClose={() => {
-            setIsStopModalOpen(false);
-            setStoppingSku(null);
+          isOpen={Boolean(sblModalTarget)}
+          onClose={() => setSblModalTarget(null)}
+          skuId={sblModalTarget.skuId}
+          skuName={sblModalTarget.skuName}
+          skuCode={sblModalTarget.skuCode}
+          lineId={sblModalTarget.lineId}
+          lineName={sblModalTarget.lineName}
+          startedAt={sblModalTarget.startedAt}
+          cartonsProducedDuringRun={sblModalTarget.cartonsProducedTotal || 0}
+          onConfirmStop={(stopData, options) => {
+            onStopSkuProduction?.(stopData);
+            setSblModalTarget(null);
+            if (options?.sendWhatsApp && isWhatsAppEligibleSblCategory(stopData.category)) {
+              setWaModalTarget({
+                stopLog: stopData,
+                initialPhone: options.whatsappPhone
+              });
+            }
           }}
-          skuId={stoppingSku.id}
-          skuName={stoppingSku.name}
-          skuCode={stoppingSku.code}
-          startedAt={stoppingSku.startedAt}
-          cartonsProducedDuringRun={stoppingSku.cartonsProducedTotal || 0}
-          onConfirmStop={(stopData) => {
-            handleConfirmStop(stopData);
-            setIsStopModalOpen(false);
-            setStoppingSku(null);
-          }}
+          showToast={showToast || (() => {})}
+        />
+      )}
+
+      {/* Modal 5: WhatsApp SBL Report Modal */}
+      {waModalTarget && (
+        <WhatsAppSblModal
+          isOpen={Boolean(waModalTarget)}
+          onClose={() => setWaModalTarget(null)}
+          stopLog={waModalTarget.stopLog}
+          initialPhone={waModalTarget.initialPhone}
           showToast={showToast || (() => {})}
         />
       )}

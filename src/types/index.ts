@@ -87,6 +87,14 @@ export interface ProductionMachine {
   changeoverHistory?: MachineChangeoverRecord[];
 }
 
+export interface ProductionLine {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
 export interface WipTank {
   id: string;
   code: string; // e.g. "HT-01", "ST-WIP-01"
@@ -126,19 +134,25 @@ export type SixBigLossCategory =
   | 'REDUCED_SPEED' // 4. Kecepatan Operasi Berkurang (Speed Loss)
   | 'PROCESS_DEFECTS' // 5. Cacat Proses & Rework (Quality Loss)
   | 'STARTUP_REJECTS' // 6. Penurunan Yield / Kerugian Startup (Quality Loss)
-  | 'OTHER_PLANNED'; // 7. Istirahat / Planned Maintenance Rutin (Planned Loss)
+  | 'MATERIAL_SHORTAGE' // 7. Kekurangan / Habis Material WIP di Holding Tank (Downtime Loss)
+  | 'OTHER_PLANNED'; // 8. Istirahat / Planned Maintenance Rutin (Planned Loss)
 
 export type LossCategoryType = 'DOWNTIME' | 'SPEED' | 'QUALITY' | 'PLANNED';
 
 export interface ProductionStopLog {
   id: string;
+  lineId?: string;
+  lineName?: string;
   skuId: string;
   skuName: string;
   skuCode?: string;
   shift: ShiftNumber;
   startedAt: string; // ISO string saat produksi dimulai
   stoppedAt: string; // ISO string saat distop
-  durationMinutes: number; // Durasi stop dalam menit
+  durationMinutes: number; // Durasi stop dalam menit (terupdate ke aktual saat dilanjutkan)
+  estimatedRepairMinutes?: number; // Estimasi awal waktu perbaikan saat SBL dicatat (menit)
+  actualRepairMinutes?: number; // Durasi aktual perbaikan sampai produksi dilanjutkan (menit)
+  resumedAt?: string; // ISO string saat produksi dilanjutkan kembali
   category: SixBigLossCategory;
   categoryLabel: string;
   lossType: LossCategoryType;
@@ -152,18 +166,36 @@ export interface ProductionStopLog {
 }
 
 export interface ActiveSkuProductionRun {
+  id?: string;
+  lineId?: string;
+  lineName?: string;
   skuId: string;
   skuName: string;
   skuCode?: string;
   shift: ShiftNumber;
+  shiftPeriodKey?: string; // e.g. "2026-11-17-S1" untuk melacak pergantian shift otomatis
+  plannedCartons?: number; // Target planning jumlah karton per SKU per shift
   startedAt: string; // ISO
+  completedAt?: string; // ISO
   isRunning: boolean;
+  completionStatus?: 'RUNNING' | 'COMPLETED' | 'STOPPED_SBL' | 'STOPPED_SHORTAGE' | 'SHIFT_HANDOVER';
+  carriedOverFromShift?: ShiftNumber;
+  previousShiftCartons?: number;
+  handoverToShift?: ShiftNumber;
+  shortageReason?: string;
+  shortageStopLogId?: string;
+  sblStopLogId?: string;
+  sblEstimatedMinutes?: number;
+  sblStoppedAt?: string;
+  sblReason?: string;
+  sblCategoryLabel?: string;
   cartonsProducedTotal: number;
   lastDeductionTime?: string;
   operatorName?: string;
   targetPerHour?: number;
   isAutoSimulating?: boolean;
   speedMultiplier?: number;
+  selectedHoldingTanks?: Record<string, string>; // Map wipId -> selected holdingTankId
 }
 
 
@@ -414,6 +446,8 @@ export interface WipProductionBatch {
 export interface CartonProductionLog {
   id: string;
   timestamp: string;
+  lineId?: string;
+  lineName?: string;
   skuId: string;
   skuName: string;
   skuCode?: string;
@@ -514,7 +548,7 @@ export interface AppState {
   adminPin: string;
   adminGoogleEmails?: string[]; // Daftar email Google yang didaftarkan sebagai Administrator
   currentAdminUser?: AdminGoogleUser | null;
-  currentTab: 'admin-portal' | 'dashboard' | 'tank-monitoring' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports';
+  currentTab: 'admin-portal' | 'dashboard' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports';
   master: {
     materials: Material[];
     wips: WIP[];
@@ -524,6 +558,7 @@ export interface AppState {
     recipes?: WipRecipe[];
     machines: ProductionMachine[];
     tanks: WipTank[];
+    productionLines?: ProductionLine[];
   };
   transactions: {
     requests: MaterialRequest[];
@@ -538,5 +573,11 @@ export interface AppState {
   };
   activeSkuRun?: ActiveSkuProductionRun | null;
   activeSkuRuns?: ActiveSkuProductionRun[];
+  lastShiftHandover?: {
+    fromShift: ShiftNumber;
+    toShift: ShiftNumber;
+    timestamp: string;
+    handedOverCount: number;
+  } | null;
   tank: TankState;
 }

@@ -27,7 +27,8 @@ import {
   History,
   Play,
   Square,
-  Eye
+  Eye,
+  Lock
 } from 'lucide-react';
 import {
   AppState,
@@ -42,6 +43,12 @@ import {
 import { getCurrentShift } from '../../utils/shifts';
 import { InterTankTransferModal } from '../InterTankTransferModal';
 import { SixBigLossesModal } from '../SixBigLossesModal';
+import { HoldingTankSelectionModal } from '../HoldingTankSelectionModal';
+import {
+  getAllTanksForWip,
+  getSkusRequiringHoldingTankChoice,
+  pickDefaultHoldingTankId
+} from '../../utils/skuTankHelper';
 
 interface TankMonitoringViewProps {
   state: AppState;
@@ -49,7 +56,11 @@ interface TankMonitoringViewProps {
     skuId: string,
     cartonCount: number,
     operatorName?: string,
-    notes?: string
+    notes?: string,
+    overrideSelectedHoldingTanks?: Record<string, string>,
+    runId?: string,
+    lineId?: string,
+    lineName?: string
   ) => { success: boolean; message: string };
   onUpdateTankItem: (tankId: string, updates: Partial<WipTank>) => void;
   onTopUpTank: (tankId: string, amountKg: number, notes?: string) => void;
@@ -60,9 +71,18 @@ interface TankMonitoringViewProps {
     notes?: string,
     operatorName?: string
   ) => { success: boolean; message: string };
-  onStartSkuProduction?: (skuId: string, operatorName?: string, speedMultiplier?: number) => void;
+  onStartSkuProduction?: (
+    skuId: string,
+    operatorName?: string,
+    speedMultiplier?: number,
+    selectedHoldingTanks?: Record<string, string>,
+    lineId?: string,
+    plannedCartons?: number,
+    shiftOverride?: ShiftNumber
+  ) => void;
+  onUpdateRunHoldingTank?: (skuId: string, wipId: string, tankId: string, runId?: string) => void;
   onStopSkuProduction?: (stopData: Omit<ProductionStopLog, 'id'>) => void;
-  onSetRunSpeedMultiplier?: (multiplier: number) => void;
+  onSetRunSpeedMultiplier?: (multiplier: number, runIdOrSkuId?: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
 }
@@ -74,6 +94,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   onTopUpTank,
   onTransferTanks,
   onStartSkuProduction,
+  onUpdateRunHoldingTank,
   onStopSkuProduction,
   onSetRunSpeedMultiplier,
   showToast,
@@ -103,14 +124,24 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
   // Six Big Losses stop modal state
   const [isStopModalOpen, setIsStopModalOpen] = useState(false);
+
+  // Per-SKU Holding Tank selection state (used when a WIP has >= 2 Holding Tanks configured)
+  const [selectedHoldingTanksBySku, setSelectedHoldingTanksBySku] = useState<Record<string, Record<string, string>>>({});
+  const [pendingHoldingTankSkuId, setPendingHoldingTankSkuId] = useState<string | null>(null);
+
   const isManagement = state.currentUserRole === 'MANAGEMENT';
-  const isAdmin = state.currentUserRole === 'ADMINISTRATOR';
+  const isAdmin = state.currentUserRole === 'ADMINISTRATOR' || state.isAdmin;
   const currentShift = getCurrentShift();
 
   // Active SKU object
   const activeSku = useMemo(() => {
     return state.master.skus.find(s => s.id === selectedSkuId) || state.master.skus[0];
   }, [state.master.skus, selectedSkuId]);
+
+  const activeRunForSelectedSku = useMemo(() => {
+    const runs = state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : []);
+    return activeSku ? runs.find(r => r.skuId === activeSku.id) : undefined;
+  }, [state.activeSkuRuns, state.activeSkuRun, activeSku]);
 
   // Linked WIPs for active SKU
   const activeSkuWips = useMemo(() => {
@@ -122,20 +153,29 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   const activeSkuTankBreakdown = useMemo(() => {
     return activeSkuWips.map(sw => {
       const wip = state.master.wips.find(w => w.id === sw.wipId);
-      // Find assigned tank
-      let tank = state.master.tanks.find(t => t.id === wip?.targetTankId);
-      if (!tank && wip) {
-        // Fallback: search tank assigned to this wip
-        tank = state.master.tanks.find(t => t.assignedWipId === wip.id);
-      }
+      const allTanks = getAllTanksForWip(wip, state.master.tanks);
+      const holdingTanks = allTanks.filter(t => t.type === 'HOLDING_TANK');
+      const runHtId = wip ? activeRunForSelectedSku?.selectedHoldingTanks?.[wip.id] : undefined;
+      const manualHtId = wip && activeSku ? selectedHoldingTanksBySku[activeSku.id]?.[wip.id] : undefined;
+      const preferredHtId = (activeRunForSelectedSku?.isRunning ? runHtId : undefined) || manualHtId || runHtId;
+
+      const tank =
+        (preferredHtId ? allTanks.find(t => t.id === preferredHtId) : undefined) ||
+        (holdingTanks.length > 0
+          ? holdingTanks.find(t => t.id === pickDefaultHoldingTankId(holdingTanks)) || holdingTanks[0]
+          : undefined) ||
+        allTanks[0];
+
       return {
         skuWip: sw,
         wip,
         tank,
+        allTanks,
+        holdingTanks,
         kgPerCarton: sw.kgWipPerCartonSku
       };
     });
-  }, [activeSkuWips, state.master.wips, state.master.tanks]);
+  }, [activeSkuWips, state.master.wips, state.master.tanks, activeRunForSelectedSku, selectedHoldingTanksBySku, activeSku]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -197,7 +237,23 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
       return;
     }
 
-    const result = onProduceCartons(activeSku.id, qty, operatorName, `Output ${qty} karton via Panel Monitoring Tangki`);
+    const effectiveHtMap: Record<string, string> = {};
+    activeSkuTankBreakdown.forEach(b => {
+      if (b.wip && b.holdingTanks.length >= 2 && b.tank && b.tank.type === 'HOLDING_TANK') {
+        effectiveHtMap[b.wip.id] = b.tank.id;
+      }
+    });
+
+    const result = onProduceCartons(
+      activeSku.id,
+      qty,
+      operatorName,
+      `Output ${qty} karton via Panel Monitoring Tangki`,
+      Object.keys(effectiveHtMap).length > 0 ? effectiveHtMap : undefined,
+      activeRunForSelectedSku?.id,
+      activeRunForSelectedSku?.lineId,
+      activeRunForSelectedSku?.lineName
+    );
     if (result.success) {
       showToast(result.message);
     } else {
@@ -219,6 +275,11 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   // Refill Submit
   const handleRefillSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      showToast('Akses ditolak: Isi Batch WIP hanya dapat dilakukan di Mode Administrator.', true);
+      setActiveRefillTank(null);
+      return;
+    }
     if (!activeRefillTank) return;
     const amount = parseFloat(refillAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -234,6 +295,11 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   // Calibration Submit
   const handleCalibrateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      showToast('Akses ditolak: Kalibrasi isi tangki hanya dapat dilakukan di Mode Administrator.', true);
+      setActiveCalibrateTank(null);
+      return;
+    }
     if (!activeCalibrateTank) return;
     const newLvl = parseFloat(calibratedLevel);
     if (isNaN(newLvl) || newLvl < 0 || newLvl > activeCalibrateTank.capacityKg) {
@@ -470,7 +536,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                     <button
                       key={mult}
                       type="button"
-                      onClick={() => onSetRunSpeedMultiplier && onSetRunSpeedMultiplier(mult)}
+                      onClick={() => onSetRunSpeedMultiplier && onSetRunSpeedMultiplier(mult, currentRunForSelected.id || selectedSkuId)}
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition ${
                         (currentRunForSelected?.speedMultiplier || 1) === mult
                           ? 'bg-emerald-600 text-white'
@@ -508,8 +574,15 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (onStartSkuProduction && selectedSkuId) {
-                      onStartSkuProduction(selectedSkuId, operatorName);
+                    if (selectedSkuId) {
+                      const multiHtReqs = getSkusRequiringHoldingTankChoice([selectedSkuId], state);
+                      if (multiHtReqs.length > 0) {
+                        setPendingHoldingTankSkuId(selectedSkuId);
+                        return;
+                      }
+                      if (onStartSkuProduction) {
+                        onStartSkuProduction(selectedSkuId, operatorName);
+                      }
                     }
                   }}
                   className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-600/30 flex items-center space-x-1.5 transition active:scale-95"
@@ -539,7 +612,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
             {/* Breakdown of linked WIPs and target tanks */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-              {activeSkuTankBreakdown.map(({ skuWip, wip, tank, kgPerCarton }) => {
+              {activeSkuTankBreakdown.map(({ skuWip, wip, tank, holdingTanks, kgPerCarton }) => {
                 const isTankLow = tank ? tank.currentLevelKg < (kgPerCarton * 5) : true;
                 const maxPossibleCartons = tank && kgPerCarton > 0 ? Math.floor(tank.currentLevelKg / kgPerCarton) : 0;
 
@@ -569,6 +642,38 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                           <span className="text-rose-400 font-semibold">Belum Ditautkan</span>
                         )}
                       </div>
+
+                      {holdingTanks.length >= 2 && wip && activeSku && (
+                        <div className="mt-2 pt-1.5 border-t border-slate-800 space-y-1">
+                          <label className="text-[10px] font-semibold text-cyan-300 block">
+                            Pilih Holding Tank ({holdingTanks.length} Opsi Tersedia):
+                          </label>
+                          <select
+                            disabled={isManagement}
+                            value={tank?.id || ''}
+                            onChange={(e) => {
+                              const newTankId = e.target.value;
+                              setSelectedHoldingTanksBySku(prev => ({
+                                ...prev,
+                                [activeSku.id]: {
+                                  ...(prev[activeSku.id] || {}),
+                                  [wip.id]: newTankId
+                                }
+                              }));
+                              if (activeRunForSelectedSku?.isRunning && onUpdateRunHoldingTank) {
+                                onUpdateRunHoldingTank(activeSku.id, wip.id, newTankId, activeRunForSelectedSku.id);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-cyan-500/40 rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-white focus:outline-none focus:border-cyan-400"
+                          >
+                            {holdingTanks.map(ht => (
+                              <option key={ht.id} value={ht.id}>
+                                {ht.code} - {ht.name} ({ht.currentLevelKg.toFixed(1)} kg)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     {tank && (
@@ -934,29 +1039,36 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
               {/* Action buttons footer */}
               {!isManagement ? (
                 <div className="space-y-1.5 mt-4 pt-3 border-t border-slate-200">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        setActiveRefillTank(tank);
-                        setRefillAmount(wip ? wip.batchWeightKg.toString() : '100');
-                      }}
-                      className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
-                    >
-                      <ArrowUpCircle className="w-3.5 h-3.5 text-sky-700" />
-                      <span>+ Isi Batch WIP</span>
-                    </button>
+                  {isAdmin ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          setActiveRefillTank(tank);
+                          setRefillAmount(wip ? wip.batchWeightKg.toString() : '100');
+                        }}
+                        className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
+                      >
+                        <ArrowUpCircle className="w-3.5 h-3.5 text-sky-700" />
+                        <span>+ Isi Batch WIP</span>
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setActiveCalibrateTank(tank);
-                        setCalibratedLevel(tank.currentLevelKg.toString());
-                      }}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
-                    >
-                      <Sliders className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Kalibrasi Level</span>
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => {
+                          setActiveCalibrateTank(tank);
+                          setCalibratedLevel(tank.currentLevelKg.toString());
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Kalibrasi Level</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-medium flex items-center space-x-1.5">
+                      <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+                      <span>Isi Batch WIP & Kalibrasi Isi Tangki hanya tersedia di Mode Administrator</span>
+                    </div>
+                  )}
 
                   {/* Direct Inter-tank transfer button (Rule Baru: Holding Tank ➔ Storage Tank) */}
                   <button
@@ -1097,8 +1209,8 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
         </div>
       </div>
 
-      {/* MODAL: Refill / Transfer Batch WIP to Tank */}
-      {activeRefillTank && (
+      {/* MODAL: Refill / Transfer Batch WIP to Tank (Admin Only) */}
+      {isAdmin && activeRefillTank && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1177,8 +1289,8 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: Kalibrasi Level Tangki */}
-      {activeCalibrateTank && (
+      {/* MODAL: Kalibrasi Level Tangki (Admin Only) */}
+      {isAdmin && activeCalibrateTank && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1195,7 +1307,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-400">
-              Gunakan fitur ini setelah operator melakukan pengukuran fisik (dipstick / level transmitter) pada tangki{' '}
+              Gunakan fitur ini setelah administrator melakukan pengukuran fisik (dipstick / level transmitter) pada tangki{' '}
               <strong className="text-white">{activeCalibrateTank.code}</strong>.
             </p>
 
@@ -1256,6 +1368,26 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           showToast={showToast}
         />
       )}
+
+      {/* Holding Tank Selection Modal when starting SKU with multi-Holding-Tank WIP */}
+      <HoldingTankSelectionModal
+        isOpen={Boolean(pendingHoldingTankSkuId)}
+        onClose={() => setPendingHoldingTankSkuId(null)}
+        state={state}
+        pendingSkuIds={pendingHoldingTankSkuId ? [pendingHoldingTankSkuId] : []}
+        initialSelectionsBySku={selectedHoldingTanksBySku}
+        onConfirmStart={(selectionsBySku) => {
+          if (pendingHoldingTankSkuId && onStartSkuProduction) {
+            const htMap = selectionsBySku[pendingHoldingTankSkuId];
+            setSelectedHoldingTanksBySku(prev => ({
+              ...prev,
+              [pendingHoldingTankSkuId]: htMap || {}
+            }));
+            onStartSkuProduction(pendingHoldingTankSkuId, operatorName, 1, htMap);
+          }
+          setPendingHoldingTankSkuId(null);
+        }}
+      />
 
       {/* Six Big Losses Stop Reason Modal */}
       {isStopModalOpen && activeSku && (

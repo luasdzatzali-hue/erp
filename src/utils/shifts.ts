@@ -83,6 +83,79 @@ export function getCurrentShift(date = new Date()): ShiftInfo {
   }
 }
 
+export function getNextShiftNumber(shift: ShiftNumber): ShiftNumber {
+  if (shift === 1) return 2;
+  if (shift === 2) return 3;
+  return 1;
+}
+
+export function getPreviousShiftNumber(shift: ShiftNumber): ShiftNumber {
+  if (shift === 1) return 3;
+  if (shift === 2) return 1;
+  return 2;
+}
+
+function formatLocalYyyyMmDd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export interface ShiftPeriodInfo {
+  shift: ShiftNumber;
+  operationalDate: string; // YYYY-MM-DD (for 00:00-07:00 belongs to previous day's Shift 3)
+  shiftKey: string; // e.g. "2026-11-17-S1"
+  periodStartIso: string;
+  periodEndIso: string;
+  nextShift: ShiftNumber;
+  remainingSeconds: number;
+}
+
+/**
+ * Compute unique shift period metadata including operational date & exact start/end boundaries:
+ * - Shift 1: 07:01 - 15:00 (same day)
+ * - Shift 2: 15:01 - 23:00 (same day)
+ * - Shift 3: 23:01 - 07:00 (overnight: 00:00-07:00 belongs to prior day's Shift 3)
+ */
+export function getShiftPeriodInfo(date = new Date()): ShiftPeriodInfo {
+  const current = getCurrentShift(date);
+  const totalMinutes = date.getHours() * 60 + date.getMinutes();
+
+  const opDateObj = new Date(date);
+  if (current.shift === 3 && totalMinutes <= 420) {
+    // 00:00 - 07:00 is continuation of yesterday's 23:01 Shift 3
+    opDateObj.setDate(opDateObj.getDate() - 1);
+  }
+  const operationalDate = formatLocalYyyyMmDd(opDateObj);
+
+  const start = new Date(opDateObj);
+  const end = new Date(opDateObj);
+  if (current.shift === 1) {
+    start.setHours(7, 1, 0, 0);
+    end.setHours(15, 0, 59, 999);
+  } else if (current.shift === 2) {
+    start.setHours(15, 1, 0, 0);
+    end.setHours(23, 0, 59, 999);
+  } else {
+    start.setHours(23, 1, 0, 0);
+    end.setDate(end.getDate() + 1);
+    end.setHours(7, 0, 59, 999);
+  }
+
+  const remainingSeconds = Math.max(0, Math.ceil((end.getTime() - date.getTime()) / 1000));
+
+  return {
+    shift: current.shift,
+    operationalDate,
+    shiftKey: `${operationalDate}-S${current.shift}`,
+    periodStartIso: start.toISOString(),
+    periodEndIso: end.toISOString(),
+    nextShift: getNextShiftNumber(current.shift),
+    remainingSeconds
+  };
+}
+
 /**
  * Extract shift from an ISO datetime or timestamp
  */
