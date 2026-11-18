@@ -322,9 +322,42 @@ export const listDriveFiles = async (
   return Array.isArray(data?.files) ? data.files : [];
 };
 
+function getXlsxApi(): any {
+  const mod: any = XLSX as any;
+  if (mod?.read && mod?.utils) return mod;
+  if (mod?.default?.read && mod?.default?.utils) return mod.default;
+  return mod;
+}
+
+const TEXT_EXTENSIONS = ['.csv', '.tsv', '.txt', '.json', '.ndjson'];
+const TEXT_MIMES = [
+  'text/csv',
+  'text/plain',
+  'text/tab-separated-values',
+  'application/json',
+  'text/json'
+];
+
+export function isExplicitTextBomFile(mimeType?: string, fileName?: string): boolean {
+  const mime = (mimeType || '').toLowerCase().trim();
+  const name = (fileName || '').toLowerCase().trim();
+  if (TEXT_EXTENSIONS.some(ext => name.endsWith(ext))) {
+    return true;
+  }
+  return TEXT_MIMES.some(t => mime === t || mime.startsWith(`${t};`));
+}
+
 export function isExcelMimeOrName(mimeType?: string, fileName?: string): boolean {
-  const mime = (mimeType || '').toLowerCase();
-  const name = (fileName || '').toLowerCase();
+  // CRITICAL: On Windows with Microsoft Excel installed, `.csv` files are often
+  // reported by the OS/browser with `file.type === 'application/vnd.ms-excel'`.
+  // Always honor explicit text file extensions first so CSV/TSV/JSON/TXT are never
+  // mangled through binary Excel parsing.
+  if (isExplicitTextBomFile(mimeType, fileName)) {
+    return false;
+  }
+
+  const mime = (mimeType || '').toLowerCase().trim();
+  const name = (fileName || '').toLowerCase().trim();
   return (
     mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     mime === 'application/vnd.ms-excel' ||
@@ -338,22 +371,106 @@ export function isExcelMimeOrName(mimeType?: string, fileName?: string): boolean
   );
 }
 
+function decodeTextBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length === 0) return '';
+
+  // UTF-16 LE BOM (FF FE) - common from Excel "Unicode Text (*.txt)"
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(bytes).replace(/^\uFEFF/, '');
+  }
+  // UTF-16 BE BOM (FE FF)
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(bytes).replace(/^\uFEFF/, '');
+  }
+  // UTF-8 BOM (EF BB BF) or standard UTF-8
+  return new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
+}
+
+function looksLikePlainTextBuffer(buffer: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length === 0) return false;
+  // ZIP magic header (PK\x03\x04) or OLE2 Compound File (.xls) magic (D0 CF 11 E0)
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) return false;
+  if (bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
+    return false;
+  }
+  // Check first 512 bytes for unexpected NUL bytes (unless UTF-16 BOM)
+  if (
+    (bytes[0] === 0xff && bytes[1] === 0xfe) ||
+    (bytes[0] === 0xfe && bytes[1] === 0xff)
+  ) {
+    return true;
+  }
+  const sampleLen = Math.min(bytes.length, 512);
+  let nulCount = 0;
+  for (let i = 0; i < sampleLen; i++) {
+    if (bytes[i] === 0) nulCount++;
+  }
+  return nulCount === 0;
+}
+
+function hasMultipleNonEmptyCellsPerRow(csv: string): boolean {
+  const lines = csv
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && l.replace(/[,;\t]/g, '').trim().length > 0);
+  if (lines.length < 2) return false;
+  return lines.some(ln => ln.split(',').filter(c => c.trim().length > 0).length >= 2);
+}
+
+function cleanExcelCsvOutput(rawCsv: string): string {
+  const cleanedLines = rawCsv
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter(line => {
+      const stripped = line.replace(/[,"'\s]/g, '');
+      return stripped.length > 0;
+    });
+  return cleanedLines.join('\n');
+}
+
 function convertExcelArrayBufferToCsv(buffer: ArrayBuffer): string {
-  const workbook = XLSX.read(buffer, { type: 'array' });
-  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-    throw new DriveApiError('File Excel tidak memiliki sheet/lembar kerja.');
-  }
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
-    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-    if (csv && csv.trim().length > 0) {
-      return csv.replace(/^\uFEFF/, '');
+  const xlsxApi = getXlsxApi();
+  try {
+    const workbook = xlsxApi.read(buffer, { type: 'array' });
+    if (!workbook?.SheetNames || workbook.SheetNames.length === 0) {
+      throw new DriveApiError('File Excel tidak memiliki sheet/lembar kerja.');
     }
-  }
 
-  throw new DriveApiError('Seluruh sheet pada file Excel kosong.');
+    let firstNonEmptyCsv = '';
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+      const rawCsv = xlsxApi.utils.sheet_to_csv(sheet, { blankrows: false });
+      const cleaned = cleanExcelCsvOutput(rawCsv || '');
+      if (cleaned.trim().length > 0) {
+        if (!firstNonEmptyCsv) firstNonEmptyCsv = cleaned;
+        if (hasMultipleNonEmptyCellsPerRow(cleaned)) {
+          return cleaned;
+        }
+      }
+    }
+
+    if (firstNonEmptyCsv) {
+      return firstNonEmptyCsv;
+    }
+    throw new DriveApiError('Seluruh sheet pada file Excel kosong.');
+  } catch (err: any) {
+    // Some Indonesian ERP exports save plain CSV/TSV text with a `.xls` extension
+    if (looksLikePlainTextBuffer(buffer)) {
+      const fallbackText = decodeTextBuffer(buffer).trim();
+      if (fallbackText.length > 0) {
+        return fallbackText;
+      }
+    }
+    if (err instanceof DriveApiError) throw err;
+    throw new DriveApiError(
+      err?.message
+        ? `Gagal membaca file Excel: ${err.message}`
+        : 'Format file Excel tidak dapat dibaca. Pastikan file tidak terkunci password atau rusak.'
+    );
+  }
 }
 
 async function resolveShortcutTarget(
@@ -449,10 +566,39 @@ export const readDriveFileContent = async (
 };
 
 export async function readLocalBomFile(file: File): Promise<string> {
-  if (isExcelMimeOrName(file.type, file.name)) {
-    const buffer = await file.arrayBuffer();
+  if (!file) {
+    throw new Error('Tidak ada file yang dipilih.');
+  }
+  if (file.size === 0) {
+    throw new Error(`File "${file.name}" kosong (0 byte).`);
+  }
+
+  const buffer = await file.arrayBuffer();
+
+  // Check binary Excel / ODS (and ZIP/OLE magic signature in case extension was omitted)
+  if (isExcelMimeOrName(file.type, file.name) || !looksLikePlainTextBuffer(buffer)) {
     return convertExcelArrayBufferToCsv(buffer);
   }
-  const text = await file.text();
-  return text.replace(/^\uFEFF/, '');
+
+  const decoded = decodeTextBuffer(buffer);
+  if (!decoded.trim()) {
+    throw new Error(`File "${file.name}" tidak memiliki isi teks/data.`);
+  }
+
+  // Guard against accidental HTML file disguised as CSV/TXT unless it's an HTML-formatted .xls export
+  const headLower = decoded.trim().slice(0, 200).toLowerCase();
+  const sampleHtmlLower = decoded.slice(0, 8192).toLowerCase();
+  if (
+    (headLower.startsWith('<!doctype html') || headLower.startsWith('<html') || headLower.startsWith('<table')) &&
+    sampleHtmlLower.includes('<table')
+  ) {
+    return convertExcelArrayBufferToCsv(buffer);
+  }
+  if (headLower.startsWith('<!doctype html') || headLower.startsWith('<html')) {
+    throw new Error(
+      `File "${file.name}" berisi halaman HTML dan bukan data tabel BOM (CSV, Excel, atau JSON).`
+    );
+  }
+
+  return decoded;
 }

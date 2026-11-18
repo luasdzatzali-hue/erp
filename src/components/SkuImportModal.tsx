@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   UploadCloud,
@@ -42,6 +42,9 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
   const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [localFileError, setLocalFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Google Drive state
   const [hasDriveToken, setHasDriveToken] = useState(false);
@@ -59,6 +62,8 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
       setFileName('');
       setSelectedDriveFile(null);
       setParseResult(null);
+      setIsReadingFile(false);
+      setLocalFileError(null);
     }
   }, [isOpen]);
 
@@ -76,11 +81,23 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
   const handleFileUpload = async (file: File) => {
     setFileName(file.name);
     setSelectedDriveFile(null);
+    setLocalFileError(null);
+    setFileContent('');
+    setParseResult(null);
+    setIsReadingFile(true);
     try {
       const text = await readLocalBomFile(file);
-      setFileContent(text || '');
+      if (!text || !text.trim()) {
+        throw new Error(`File "${file.name}" kosong atau tidak berisi data SKU.`);
+      }
+      setFileContent(text);
     } catch (err: any) {
-      showToast(err?.message || 'Gagal membaca file lokal', true);
+      const msg = err?.message || 'Gagal membaca file lokal';
+      setLocalFileError(msg);
+      setFileContent('');
+      showToast(msg, true);
+    } finally {
+      setIsReadingFile(false);
     }
   };
 
@@ -206,23 +223,41 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                   <div>
                     <span className="font-semibold text-white">Tarik &amp; lepas file SKU di sini</span>
                     <span className="text-slate-400 text-[11px] block mt-0.5">
-                      Mendukung format .csv, .tsv, .json, atau .txt
+                      Mendukung format .xlsx, .xls, .csv, .tsv, .json, atau .txt
                     </span>
                   </div>
                   <div className="pt-2">
-                    <label className="cursor-pointer px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition inline-block">
-                      <span>Pilih File dari Komputer</span>
-                      <input
-                        type="file"
-                        accept=".csv,.json,.tsv,.txt,.xlsx,.xls"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileUpload(file);
-                        }}
-                      />
-                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.CSV,.tsv,.TSV,.txt,.TXT,.json,.JSON,.xlsx,.XLSX,.xls,.XLS,.xlsm,.ods,text/csv,text/plain,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) handleFileUpload(file);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={isReadingFile}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="cursor-pointer px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition inline-block"
+                    >
+                      <span>{isReadingFile ? 'Membaca file...' : 'Pilih File dari Komputer'}</span>
+                    </button>
                   </div>
+                  {fileName && !localFileError && (
+                    <div className="mt-2 text-xs font-mono text-cyan-300 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-800">
+                      ✓ File terpilih: {fileName}
+                    </div>
+                  )}
+                  {localFileError && (
+                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>{localFileError}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -235,7 +270,11 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                   <div className="flex items-center space-x-2 text-[10px]">
                     <button
                       type="button"
-                      onClick={() => setFileContent(SAMPLE_SKU_CSV_TEMPLATE)}
+                      onClick={() => {
+                        setLocalFileError(null);
+                        setFileName('contoh_sku.csv');
+                        setFileContent(SAMPLE_SKU_CSV_TEMPLATE);
+                      }}
                       className="text-cyan-400 hover:underline"
                     >
                       Muat Contoh CSV
@@ -243,7 +282,11 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                     <span className="text-slate-600">|</span>
                     <button
                       type="button"
-                      onClick={() => setFileContent(SAMPLE_SKU_JSON_TEMPLATE)}
+                      onClick={() => {
+                        setLocalFileError(null);
+                        setFileName('contoh_sku.json');
+                        setFileContent(SAMPLE_SKU_JSON_TEMPLATE);
+                      }}
                       className="text-cyan-400 hover:underline"
                     >
                       Muat Contoh JSON
@@ -253,6 +296,7 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                 <textarea
                   value={fileContent}
                   onChange={(e) => {
+                    setLocalFileError(null);
                     setFileContent(e.target.value);
                     setFileName('input_manual.csv');
                   }}
@@ -296,6 +340,7 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
               searchPlaceholder="Cari file SKU di Google Drive (e.g. Master SKU, Biskuit, KITE)..."
               selectedFileId={selectedDriveFile?.id}
               onFileLoaded={(content, loadedName, file) => {
+                setLocalFileError(null);
                 setSelectedDriveFile(file);
                 setFileName(loadedName);
                 setFileContent(content);

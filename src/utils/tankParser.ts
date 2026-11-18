@@ -61,6 +61,15 @@ export const SAMPLE_TANK_JSON_TEMPLATE = JSON.stringify(
   2
 );
 
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
+
 export function parseTankFile(
   content: string,
   availableWips: WIP[],
@@ -69,7 +78,7 @@ export function parseTankFile(
   const errors: string[] = [];
   const valid: WipTank[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong'] };
   }
@@ -140,15 +149,15 @@ export function parseTankFile(
 
       rawList.forEach((item, idx) => {
         const rowNum = idx + 1;
-        const code = (item.code || item.kode || `TK-${String(idx + 1).padStart(2, '0')}`).trim();
-        const name = (item.name || item.nama || '').trim();
+        const code = (item.code || item.kode || `TK-${String(idx + 1).padStart(2, '0')}`).toString().trim();
+        const name = (item.name || item.nama || '').toString().trim();
 
         if (!name) {
           errors.push(`Baris ${rowNum}: Nama tangki wajib diisi`);
           return;
         }
 
-        const capacity = parseFloat(item.capacityKg || item.capacity || item.kapasitas || '600');
+        const capacity = parseBomNumber(item.capacityKg ?? item.capacity ?? item.kapasitas ?? 600);
         if (isNaN(capacity) || capacity <= 0) {
           errors.push(`Baris ${rowNum} (${name}): Kapasitas tangki harus angka positif`);
           return;
@@ -157,10 +166,10 @@ export function parseTankFile(
         const rawType = String(item.type || item.tipe || '').toUpperCase();
         const type: WipTankType = rawType.includes('STORAGE') ? 'STORAGE_TANK' : 'HOLDING_TANK';
 
-        const currentLevel = parseFloat(item.currentLevelKg || item.level || '0') || 0;
-        const temp = parseFloat(item.temp || item.suhu || '45.0') || 45.0;
+        const currentLevel = parseBomNumber(item.currentLevelKg ?? item.level ?? 0) || 0;
+        const temp = parseBomNumber(item.temp ?? item.suhu ?? 45.0) || 45.0;
         const agitator: 'ON' | 'OFF' = String(item.agitatorStatus || item.agitator || 'ON').toUpperCase() === 'OFF' ? 'OFF' : 'ON';
-        const minAlert = parseFloat(item.minAlertKg || item.minAlert || String(capacity * 0.2)) || capacity * 0.2;
+        const minAlert = parseBomNumber(item.minAlertKg ?? item.minAlert ?? capacity * 0.2) || capacity * 0.2;
 
         let status: WipTankStatus = 'ACTIVE';
         const rawStatus = String(item.status || '').toUpperCase();
@@ -169,12 +178,10 @@ export function parseTankFile(
         else if (rawStatus.includes('MAINT')) status = 'MAINTENANCE';
         else if (rawStatus.includes('EMPTY')) status = 'EMPTY';
 
-        // Resolve single WIP formula
         const assignedWipId =
           item.assignedWipId ||
           resolveWipId(item.wipName || item.wip || item.formula || '');
 
-        // Resolve multi-machines
         const assignedMachineIds = resolveMachineIds(
           item.assignedMachineIds || item.machineCodes || item.machines || item.assignedMachineId
         );
@@ -204,92 +211,138 @@ export function parseTankFile(
   }
 
   // 2. Delimited CSV/TSV Parsing
-  const lines = trimmed.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
   if (lines.length === 0) {
     return { valid: [], errors: ['Tidak ada baris data ditemukan'] };
   }
 
-  const firstLine = lines[0];
-  let delimiter = ',';
-  if (firstLine.includes('\t')) delimiter = '\t';
-  else if ((firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length) delimiter = ';';
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'kode',
+    'code',
+    'nama',
+    'name',
+    'tangki',
+    'tank',
+    'kapasitas',
+    'capacity',
+    'level',
+    'wip',
+    'mesin',
+    'suhu',
+    'temp'
+  ]);
 
-  const isHeader =
-    firstLine.toLowerCase().includes('kode') ||
-    firstLine.toLowerCase().includes('nama') ||
-    firstLine.toLowerCase().includes('tangki') ||
-    firstLine.toLowerCase().includes('tank');
+  let codeIdx = 0;
+  let nameIdx = 1;
+  let typeIdx = 2;
+  let capIdx = 3;
+  let levelIdx = 4;
+  let wipIdx = 5;
+  let machIdx = 6;
+  let tempIdx = 7;
+  let agitatorIdx = 8;
+  let alertIdx = 9;
+  let statusIdx = 10;
+  let notesIdx = 11;
 
-  const dataLines = isHeader ? lines.slice(1) : lines;
+  if (isHeaderDetected) {
+    const rawHeaders = splitDelimitedRow(lines[headerIndex], delimiter).map(normalizeHeaderName);
+    let mCode = -1, mName = -1, mType = -1, mCap = -1, mLevel = -1;
+    let mWip = -1, mMach = -1, mTemp = -1, mAgit = -1, mAlert = -1, mStat = -1, mNotes = -1;
+
+    rawHeaders.forEach((h, idx) => {
+      if (!h) return;
+      if (mCode === -1 && (h.includes('kodetangki') || h === 'kode' || h === 'code')) mCode = idx;
+      else if (mName === -1 && (h.includes('namatangki') || h === 'nama' || h === 'name' || h === 'tangki')) mName = idx;
+      else if (mType === -1 && (h === 'tipe' || h === 'type' || h === 'jenis')) mType = idx;
+      else if (mCap === -1 && (h.includes('kapasitas') || h.includes('capacity'))) mCap = idx;
+      else if (mLevel === -1 && (h.includes('level') || h.includes('isi'))) mLevel = idx;
+      else if (mWip === -1 && (h.includes('wip') || h.includes('formula'))) mWip = idx;
+      else if (mMach === -1 && (h.includes('mesin') || h.includes('machine'))) mMach = idx;
+      else if (mTemp === -1 && (h.includes('suhu') || h.includes('temp'))) mTemp = idx;
+      else if (mAgit === -1 && h.includes('agitator')) mAgit = idx;
+      else if (mAlert === -1 && (h.includes('alert') || h.includes('min'))) mAlert = idx;
+      else if (mStat === -1 && h.includes('status')) mStat = idx;
+      else if (mNotes === -1 && (h.includes('catatan') || h.includes('note') || h.includes('ket'))) mNotes = idx;
+    });
+
+    const hasNoCol = rawHeaders[0] === 'no' || rawHeaders[0] === 'nomor' || rawHeaders[0] === 'num';
+    const offset = hasNoCol ? 1 : 0;
+
+    codeIdx = mCode !== -1 ? mCode : 0 + offset;
+    nameIdx = mName !== -1 ? mName : 1 + offset;
+    typeIdx = mType !== -1 ? mType : 2 + offset;
+    capIdx = mCap !== -1 ? mCap : 3 + offset;
+    levelIdx = mLevel !== -1 ? mLevel : 4 + offset;
+    wipIdx = mWip !== -1 ? mWip : 5 + offset;
+    machIdx = mMach !== -1 ? mMach : 6 + offset;
+    tempIdx = mTemp !== -1 ? mTemp : 7 + offset;
+    agitatorIdx = mAgit !== -1 ? mAgit : 8 + offset;
+    alertIdx = mAlert !== -1 ? mAlert : 9 + offset;
+    statusIdx = mStat !== -1 ? mStat : 10 + offset;
+    notesIdx = mNotes !== -1 ? mNotes : 11 + offset;
+  }
+
+  const startRow = isHeaderDetected ? headerIndex + 1 : 0;
+  const dataLines = lines.slice(startRow);
+
+  if (dataLines.length === 0) {
+    return { valid: [], errors: ['File hanya berisi header dan belum memiliki baris data tangki'] };
+  }
 
   dataLines.forEach((line, idx) => {
-    const rowNum = idx + (isHeader ? 2 : 1);
-    const cols: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === delimiter && !inQuotes) {
-        cols.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    cols.push(current.trim());
+    const rowNum = startRow + idx + 1;
+    const cols = splitDelimitedRow(line, delimiter);
 
     if (cols.length < 2) {
       errors.push(`Baris ${rowNum}: Format kolom tidak sesuai`);
       return;
     }
 
-    const code = cols[0].replace(/^["']|["']$/g, '').trim() || `TK-${String(idx + 1).padStart(2, '0')}`;
-    const name = cols[1].replace(/^["']|["']$/g, '').trim();
+    const code = (cols[codeIdx] || '').trim() || `TK-${String(idx + 1).padStart(2, '0')}`;
+    const name = (cols[nameIdx] || '').trim();
 
     if (!name) {
       errors.push(`Baris ${rowNum}: Nama tangki kosong`);
       return;
     }
 
-    const rawType = cols[2] ? cols[2].replace(/^["']|["']$/g, '').toUpperCase() : '';
+    const rawType = cols[typeIdx] ? cols[typeIdx].toUpperCase() : '';
     const type: WipTankType = rawType.includes('STORAGE') ? 'STORAGE_TANK' : 'HOLDING_TANK';
 
-    const capStr = cols[3] ? cols[3].replace(/[^0-9.]/g, '') : '';
-    const capacity = parseFloat(capStr || '600');
+    const rawCapCell = cols[capIdx] || '';
+    const capacity = rawCapCell.trim() ? parseBomNumber(rawCapCell) : 600;
     if (isNaN(capacity) || capacity <= 0) {
-      errors.push(`Baris ${rowNum} (${name}): Kapasitas "${cols[3]}" tidak valid`);
+      errors.push(`Baris ${rowNum} (${name}): Kapasitas "${rawCapCell}" tidak valid`);
       return;
     }
 
-    const levelStr = cols[4] ? cols[4].replace(/[^0-9.]/g, '') : '';
-    const currentLevel = parseFloat(levelStr || '0') || 0;
+    const rawLevelCell = cols[levelIdx] || '';
+    const currentLevel = (rawLevelCell.trim() ? parseBomNumber(rawLevelCell) : 0) || 0;
 
-    const rawWip = cols[5] ? cols[5].replace(/^["']|["']$/g, '').trim() : '';
+    const rawWip = cols[wipIdx] ? cols[wipIdx].trim() : '';
     const assignedWipId = resolveWipId(rawWip);
 
-    const rawMachines = cols[6] ? cols[6].replace(/^["']|["']$/g, '').trim() : '';
+    const rawMachines = cols[machIdx] ? cols[machIdx].trim() : '';
     const assignedMachineIds = resolveMachineIds(rawMachines);
 
-    const tempStr = cols[7] ? cols[7].replace(/[^0-9.]/g, '') : '';
-    const temp = parseFloat(tempStr || '45.0') || 45.0;
+    const rawTempCell = cols[tempIdx] || '';
+    const temp = (rawTempCell.trim() ? parseBomNumber(rawTempCell) : 45.0) || 45.0;
 
-    const rawAgitator = cols[8] ? cols[8].replace(/^["']|["']$/g, '').toUpperCase() : 'ON';
+    const rawAgitator = cols[agitatorIdx] ? cols[agitatorIdx].toUpperCase() : 'ON';
     const agitatorStatus: 'ON' | 'OFF' = rawAgitator === 'OFF' ? 'OFF' : 'ON';
 
-    const alertStr = cols[9] ? cols[9].replace(/[^0-9.]/g, '') : '';
-    const minAlert = parseFloat(alertStr || String(capacity * 0.2)) || capacity * 0.2;
+    const rawAlertCell = cols[alertIdx] || '';
+    const minAlert = (rawAlertCell.trim() ? parseBomNumber(rawAlertCell) : capacity * 0.2) || capacity * 0.2;
 
-    const rawStatus = cols[10] ? cols[10].replace(/^["']|["']$/g, '').toUpperCase() : 'ACTIVE';
+    const rawStatus = cols[statusIdx] ? cols[statusIdx].toUpperCase() : 'ACTIVE';
     let status: WipTankStatus = 'ACTIVE';
     if (rawStatus.includes('STANDBY')) status = 'STANDBY';
     else if (rawStatus.includes('CLEAN')) status = 'CLEANING';
     else if (rawStatus.includes('MAINT')) status = 'MAINTENANCE';
     else if (rawStatus.includes('EMPTY')) status = 'EMPTY';
 
-    const notes = cols[11] ? cols[11].replace(/^["']|["']$/g, '').trim() : '';
+    const notes = cols[notesIdx] ? cols[notesIdx].trim() : '';
 
     valid.push({
       id: `tank_imp_${Date.now()}_${idx}`,

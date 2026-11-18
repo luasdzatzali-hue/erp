@@ -74,11 +74,20 @@ export const SAMPLE_JSON_TEMPLATE = JSON.stringify(
   2
 );
 
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
+
 export function parseMaterialFile(content: string): ParseResult {
   const errors: string[] = [];
   const valid: Material[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong'] };
   }
@@ -106,103 +115,162 @@ export function parseMaterialFile(content: string): ParseResult {
 
       rawList.forEach((item, idx) => {
         const rowNum = idx + 1;
-        if (!item.name || typeof item.name !== 'string') {
+        const rawName = item.name || item.nama || item.namaMaterial || item.nama_material || '';
+        if (!rawName || typeof rawName !== 'string') {
           errors.push(`Baris ${rowNum}: Nama material wajib diisi`);
           return;
         }
 
-        const weight = parseFloat(item.weightKg || item.weight || item.berat || '0');
+        const weight = parseBomNumber(
+          item.weightKg ?? item.weight ?? item.berat ?? item.beratStandar ?? item.berat_kg
+        );
         if (isNaN(weight) || weight <= 0) {
-          errors.push(`Baris ${rowNum} (${item.name}): Berat standar harus berupa angka positif`);
+          errors.push(`Baris ${rowNum} (${rawName}): Berat standar harus berupa angka positif`);
           return;
         }
 
         let type: MaterialType = 'bubuk';
-        const rawType = (item.type || item.tipe || '').toLowerCase();
+        const rawType = String(item.type || item.tipe || item.jenis || '').toLowerCase();
         if (rawType.includes('liquid') || rawType.includes('cair')) type = 'liquid';
         else if (rawType.includes('padat') || rawType.includes('solid')) type = 'padat';
         else type = 'bubuk';
 
         let source: MaterialSource = 'GDRM';
-        const rawSource = (item.source || item.sumber || '').toUpperCase();
+        const rawSource = String(item.source || item.sumber || '').toUpperCase();
         if (rawSource.includes('FORMULASI') || rawSource.includes('CUSTOM')) source = 'Formulasi';
         else source = 'GDRM';
 
+        const minAlertRaw = parseBomNumber(item.minStockAlert ?? item.minAlert ?? item.min_alert);
+        const minStockAlert = !isNaN(minAlertRaw) && minAlertRaw >= 0 ? minAlertRaw : 50;
+
         valid.push({
           id: item.id || `mat_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
-          name: item.name.trim(),
-          code: item.code ? String(item.code).trim() : `MAT-${String(idx + 1).padStart(3, '0')}`,
+          name: rawName.trim(),
+          code: item.code || item.kode ? String(item.code || item.kode).trim() : `MAT-${String(idx + 1).padStart(3, '0')}`,
           type,
           source,
-          packaging: item.packaging ? String(item.packaging).trim() : `${weight.toFixed(4)} kg`,
+          packaging: item.packaging || item.kemasan ? String(item.packaging || item.kemasan).trim() : `${weight.toFixed(4)} kg`,
           weightKg: weight,
-          minStockAlert: parseFloat(item.minStockAlert || item.minAlert || '50') || 50
+          minStockAlert
         });
       });
 
       return { valid, errors };
-    } catch (e: any) {
+    } catch {
       // If JSON parse failed, fall through to CSV
     }
   }
 
   // Parse as CSV / Delimited text
-  const lines = trimmed.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
   if (lines.length === 0) {
     return { valid: [], errors: ['Tidak ada baris data ditemukan'] };
   }
 
-  // Detect delimiter: comma, semicolon, or tab
-  const firstLine = lines[0];
-  let delimiter = ',';
-  if (firstLine.includes('\t')) delimiter = '\t';
-  else if ((firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length) delimiter = ';';
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'nama',
+    'material',
+    'name',
+    'kode',
+    'code',
+    'tipe',
+    'type',
+    'sumber',
+    'source',
+    'kemasan',
+    'packaging',
+    'berat',
+    'weight'
+  ]);
 
-  // Check if first line is header
-  const isHeader =
-    firstLine.toLowerCase().includes('nama') ||
-    firstLine.toLowerCase().includes('material') ||
-    firstLine.toLowerCase().includes('name');
+  let nameIdx = 0;
+  let codeIdx = 1;
+  let typeIdx = 2;
+  let sourceIdx = 3;
+  let pkgIdx = 4;
+  let weightIdx = 5;
+  let alertIdx = 6;
 
-  const dataLines = isHeader ? lines.slice(1) : lines;
+  if (isHeaderDetected) {
+    const rawHeaders = splitDelimitedRow(lines[headerIndex], delimiter).map(normalizeHeaderName);
+    let mName = -1;
+    let mCode = -1;
+    let mType = -1;
+    let mSource = -1;
+    let mPkg = -1;
+    let mWeight = -1;
+    let mAlert = -1;
+
+    rawHeaders.forEach((h, idx) => {
+      if (!h) return;
+      if (
+        mName === -1 &&
+        (h.includes('namamaterial') || h === 'nama' || h === 'name' || h === 'material' || h === 'namabahan' || h === 'bahan')
+      ) {
+        mName = idx;
+      } else if (mCode === -1 && (h.includes('kodematerial') || h === 'kode' || h === 'code' || h === 'sku' || h === 'partno')) {
+        mCode = idx;
+      } else if (mType === -1 && (h === 'tipe' || h === 'type' || h.includes('jenismaterial') || h === 'jenis' || h === 'kategori')) {
+        mType = idx;
+      } else if (mSource === -1 && (h.includes('sumber') || h.includes('source') || h === 'asal')) {
+        mSource = idx;
+      } else if (mPkg === -1 && (h.includes('kemasan') || h.includes('pack') || h === 'satuan')) {
+        mPkg = idx;
+      } else if (mWeight === -1 && (h.includes('berat') || h.includes('weight') || h.includes('bobot') || h === 'kg')) {
+        mWeight = idx;
+      } else if (mAlert === -1 && (h.includes('alert') || h.includes('min'))) {
+        mAlert = idx;
+      }
+    });
+
+    // Account for an optional leading "No" column if positional fallbacks are needed
+    const hasNoCol = rawHeaders[0] === 'no' || rawHeaders[0] === 'nomor' || rawHeaders[0] === 'num';
+    const offset = hasNoCol ? 1 : 0;
+
+    if (mName !== -1) nameIdx = mName;
+    else nameIdx = 0 + offset;
+    if (mCode !== -1) codeIdx = mCode;
+    else codeIdx = 1 + offset;
+    if (mType !== -1) typeIdx = mType;
+    else typeIdx = 2 + offset;
+    if (mSource !== -1) sourceIdx = mSource;
+    else sourceIdx = 3 + offset;
+    if (mPkg !== -1) pkgIdx = mPkg;
+    else pkgIdx = 4 + offset;
+    if (mWeight !== -1) weightIdx = mWeight;
+    else weightIdx = 5 + offset;
+    if (mAlert !== -1) alertIdx = mAlert;
+    else alertIdx = 6 + offset;
+  }
+
+  const startRow = isHeaderDetected ? headerIndex + 1 : 0;
+  const dataLines = lines.slice(startRow);
+
+  if (dataLines.length === 0) {
+    return { valid: [], errors: ['File hanya berisi header dan belum memiliki baris data material'] };
+  }
 
   dataLines.forEach((line, idx) => {
-    const rowNum = idx + (isHeader ? 2 : 1);
-    // Simple CSV splitter handling quoted cells
-    const cols: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === delimiter && !inQuotes) {
-        cols.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    cols.push(current.trim());
+    const rowNum = startRow + idx + 1;
+    const cols = splitDelimitedRow(line, delimiter);
 
     if (cols.length < 2) {
-      errors.push(`Baris ${rowNum}: Format kolom tidak sesuai`);
+      errors.push(`Baris ${rowNum}: Format kolom tidak sesuai (ditemukan ${cols.length} kolom)`);
       return;
     }
 
-    const name = cols[0].replace(/^["']|["']$/g, '').trim();
+    const name = (cols[nameIdx] || '').trim();
     if (!name) {
       errors.push(`Baris ${rowNum}: Nama material kosong`);
       return;
     }
 
-    const code = cols[1] ? cols[1].replace(/^["']|["']$/g, '').trim() : `MAT-${String(idx + 1).padStart(3, '0')}`;
-    const rawType = cols[2] ? cols[2].replace(/^["']|["']$/g, '').toLowerCase() : 'bubuk';
-    const rawSource = cols[3] ? cols[3].replace(/^["']|["']$/g, '').toUpperCase() : 'GDRM';
-    const packaging = cols[4] ? cols[4].replace(/^["']|["']$/g, '').trim() : '';
-    const weightStr = cols[5] ? cols[5].replace(/[^0-9.]/g, '') : '';
-    const alertStr = cols[6] ? cols[6].replace(/[^0-9.]/g, '') : '';
+    const code = cols[codeIdx] ? cols[codeIdx].trim() : `MAT-${String(idx + 1).padStart(3, '0')}`;
+    const rawType = cols[typeIdx] ? cols[typeIdx].toLowerCase() : 'bubuk';
+    const rawSource = cols[sourceIdx] ? cols[sourceIdx].toUpperCase() : 'GDRM';
+    const packaging = cols[pkgIdx] ? cols[pkgIdx].trim() : '';
+    const rawWeightCell = cols[weightIdx] || '';
+    const rawAlertCell = cols[alertIdx] || '';
 
     let type: MaterialType = 'bubuk';
     if (rawType.includes('liquid') || rawType.includes('cair')) type = 'liquid';
@@ -211,18 +279,19 @@ export function parseMaterialFile(content: string): ParseResult {
     let source: MaterialSource = 'GDRM';
     if (rawSource.includes('FORMULASI') || rawSource.includes('CUSTOM')) source = 'Formulasi';
 
-    const weight = parseFloat(weightStr || '25');
+    const weight = rawWeightCell.trim() ? parseBomNumber(rawWeightCell) : 25;
     if (isNaN(weight) || weight <= 0) {
-      errors.push(`Baris ${rowNum} (${name}): Berat standar "${cols[5]}" tidak valid`);
+      errors.push(`Baris ${rowNum} (${name}): Berat standar "${rawWeightCell}" tidak valid`);
       return;
     }
 
-    const minAlert = parseFloat(alertStr || '50') || 50;
+    const parsedAlert = rawAlertCell.trim() ? parseBomNumber(rawAlertCell) : 50;
+    const minAlert = !isNaN(parsedAlert) && parsedAlert >= 0 ? parsedAlert : 50;
 
     valid.push({
       id: `mat_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
       name,
-      code,
+      code: code || `MAT-${String(idx + 1).padStart(3, '0')}`,
       type,
       source,
       packaging: packaging || `${weight.toFixed(4)} kg`,

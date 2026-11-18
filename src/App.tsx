@@ -1271,53 +1271,51 @@ export default function App() {
 
   // Import SKUs (Internal Storage & Google Drive Batch Loader)
   const handleImportSkus = (newSkus: SKU[], mode: 'replace' | 'append') => {
-    setState(prev => {
-      let finalSkus: SKU[] = [];
+    let finalSkus: SKU[] = [];
 
-      if (mode === 'replace') {
-        const map = new Map<string, SKU>();
-        newSkus.forEach((s, idx) => {
-          const key = (s.code || s.name).trim().toLowerCase();
+    if (mode === 'replace') {
+      const map = new Map<string, SKU>();
+      newSkus.forEach((s, idx) => {
+        const key = (s.code || s.name).trim().toLowerCase();
+        const id = s.id || `sku_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+        map.set(key, { ...s, id });
+      });
+      finalSkus = Array.from(map.values());
+    } else {
+      const map = new Map<string, SKU>();
+      state.master.skus.forEach(s => {
+        const key = (s.code || s.name).trim().toLowerCase();
+        map.set(key, s);
+      });
+      newSkus.forEach((s, idx) => {
+        const key = (s.code || s.name).trim().toLowerCase();
+        const existing = map.get(key);
+        if (existing) {
+          map.set(key, { ...existing, ...s, id: existing.id });
+        } else {
           const id = s.id || `sku_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
           map.set(key, { ...s, id });
-        });
-        finalSkus = Array.from(map.values());
-      } else {
-        // Append mode: merge based on SKU code / name
-        const map = new Map<string, SKU>();
-        prev.master.skus.forEach(s => {
-          const key = (s.code || s.name).trim().toLowerCase();
-          map.set(key, s);
-        });
-        newSkus.forEach((s, idx) => {
-          const key = (s.code || s.name).trim().toLowerCase();
-          const existing = map.get(key);
-          if (existing) {
-            map.set(key, { ...existing, ...s, id: existing.id });
-          } else {
-            const id = s.id || `sku_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
-            map.set(key, { ...s, id });
-          }
-        });
-        finalSkus = Array.from(map.values());
-      }
-
-      const kiteCount = finalSkus.filter(s => s.isKite).length;
-      const domCount = finalSkus.filter(s => !s.isKite).length;
-      showToast(
-        mode === 'replace'
-          ? `Berhasil mengganti seluruh master SKU (${finalSkus.length} SKU: ${domCount} Domestik, ${kiteCount} KITE Ekspor)`
-          : `Berhasil mengimpor & memperbarui master SKU (${newSkus.length} SKU diproses: total ${domCount} Domestik, ${kiteCount} KITE Ekspor)`
-      );
-
-      return {
-        ...prev,
-        master: {
-          ...prev.master,
-          skus: finalSkus
         }
-      };
-    });
+      });
+      finalSkus = Array.from(map.values());
+    }
+
+    const kiteCount = finalSkus.filter(s => s.isKite).length;
+    const domCount = finalSkus.filter(s => !s.isKite).length;
+
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        skus: finalSkus
+      }
+    }));
+
+    showToast(
+      mode === 'replace'
+        ? `Berhasil mengganti seluruh master SKU (${finalSkus.length} SKU: ${domCount} Domestik, ${kiteCount} KITE Ekspor)`
+        : `Berhasil mengimpor & memperbarui master SKU (${newSkus.length} SKU diproses: total ${domCount} Domestik, ${kiteCount} KITE Ekspor)`
+    );
   };
 
   // Add SkuWip link
@@ -1349,52 +1347,50 @@ export default function App() {
 
   // Import SkuWip links (Local File & Google Drive Batch Loader)
   const handleImportSkuWips = (newSkuWips: SkuWip[], mode: 'replace' | 'append') => {
-    setState(prev => {
-      let finalSkuWips: SkuWip[] = [];
+    let finalSkuWips: SkuWip[] = [];
 
-      if (mode === 'replace') {
-        const map = new Map<string, SkuWip>();
-        newSkuWips.forEach((sw, idx) => {
-          const key = `${sw.skuId}__${sw.wipId}`;
+    if (mode === 'replace') {
+      const map = new Map<string, SkuWip>();
+      newSkuWips.forEach((sw, idx) => {
+        const key = `${sw.skuId}__${sw.wipId}`;
+        const id = sw.id || `sw_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+        map.set(key, { ...sw, id });
+      });
+      finalSkuWips = Array.from(map.values());
+    } else {
+      const map = new Map<string, SkuWip>();
+      state.master.skuWips.forEach(sw => {
+        map.set(`${sw.skuId}__${sw.wipId}`, sw);
+      });
+      newSkuWips.forEach((sw, idx) => {
+        const key = `${sw.skuId}__${sw.wipId}`;
+        const existing = map.get(key);
+        if (existing) {
+          map.set(key, {
+            ...existing,
+            kgWipPerCartonSku: sw.kgWipPerCartonSku
+          });
+        } else {
           const id = sw.id || `sw_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
           map.set(key, { ...sw, id });
-        });
-        finalSkuWips = Array.from(map.values());
-      } else {
-        const map = new Map<string, SkuWip>();
-        prev.master.skuWips.forEach(sw => {
-          map.set(`${sw.skuId}__${sw.wipId}`, sw);
-        });
-        newSkuWips.forEach((sw, idx) => {
-          const key = `${sw.skuId}__${sw.wipId}`;
-          const existing = map.get(key);
-          if (existing) {
-            map.set(key, {
-              ...existing,
-              kgWipPerCartonSku: sw.kgWipPerCartonSku
-            });
-          } else {
-            const id = sw.id || `sw_imp_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
-            map.set(key, { ...sw, id });
-          }
-        });
-        finalSkuWips = Array.from(map.values());
-      }
-
-      showToast(
-        mode === 'replace'
-          ? `Berhasil mengganti seluruh relasi WIP per karton SKU (${finalSkuWips.length} relasi)`
-          : `Berhasil mengimpor & memperbarui ${newSkuWips.length} relasi WIP per karton SKU (Total: ${finalSkuWips.length})`
-      );
-
-      return {
-        ...prev,
-        master: {
-          ...prev.master,
-          skuWips: finalSkuWips
         }
-      };
-    });
+      });
+      finalSkuWips = Array.from(map.values());
+    }
+
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        skuWips: finalSkuWips
+      }
+    }));
+
+    showToast(
+      mode === 'replace'
+        ? `Berhasil mengganti seluruh relasi WIP per karton SKU (${finalSkuWips.length} relasi)`
+        : `Berhasil mengimpor & memperbarui ${newSkuWips.length} relasi WIP per karton SKU (Total: ${finalSkuWips.length})`
+    );
   };
 
   // Add WipMat link
@@ -4209,7 +4205,7 @@ export default function App() {
 
         {/* Global Toast Notification */}
         <div
-          className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 transform transition-all duration-300 pointer-events-none ${
+          className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] transform transition-all duration-300 pointer-events-none ${
             toast.visible ? 'translate-y-0 opacity-100' : '-translate-y-12 opacity-0'
           }`}
         >
@@ -4607,7 +4603,7 @@ export default function App() {
 
       {/* Global Toast Notification */}
       <div
-        className={`fixed top-14 left-1/2 -translate-x-1/2 z-50 transform transition-all duration-300 pointer-events-none ${
+        className={`fixed top-14 left-1/2 -translate-x-1/2 z-[100] transform transition-all duration-300 pointer-events-none ${
           toast.visible ? 'translate-y-0 opacity-100' : '-translate-y-12 opacity-0'
         }`}
       >

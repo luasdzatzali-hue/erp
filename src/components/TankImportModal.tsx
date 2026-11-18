@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   UploadCloud,
@@ -44,6 +44,9 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
   const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [localFileError, setLocalFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [hasDriveToken, setHasDriveToken] = useState(false);
   const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFileItem | null>(null);
@@ -58,6 +61,8 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
       setFileName('');
       setSelectedDriveFile(null);
       setParseResult(null);
+      setIsReadingFile(false);
+      setLocalFileError(null);
     }
   }, [isOpen]);
 
@@ -73,11 +78,23 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
   const handleLocalFileUpload = async (file: File) => {
     setFileName(file.name);
     setSelectedDriveFile(null);
+    setLocalFileError(null);
+    setFileContent('');
+    setParseResult(null);
+    setIsReadingFile(true);
     try {
       const text = await readLocalBomFile(file);
-      setFileContent(text || '');
+      if (!text || !text.trim()) {
+        throw new Error(`File "${file.name}" kosong atau tidak berisi data tangki.`);
+      }
+      setFileContent(text);
     } catch (err: any) {
-      showToast(err?.message || 'Gagal membaca file lokal', true);
+      const msg = err?.message || 'Gagal membaca file lokal';
+      setLocalFileError(msg);
+      setFileContent('');
+      showToast(msg, true);
+    } finally {
+      setIsReadingFile(false);
     }
   };
 
@@ -223,28 +240,42 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-white">
-                      Tarik dan letakkan file CSV atau JSON tangki WIP di sini
+                      Tarik dan letakkan file Excel (.xlsx/.xls), CSV, atau JSON tangki WIP di sini
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
                       Mendukung alokasi 1 formula WIP dan multi-mesin pengisi (contoh: "MX-01, CK-01")
                     </p>
                   </div>
-                  <label className="cursor-pointer inline-flex items-center space-x-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium rounded-xl shadow-md shadow-cyan-600/20 transition active:scale-95">
-                    <span>Pilih File dari Komputer</span>
-                    <input
-                      type="file"
-                      accept=".csv,.json,.tsv,.txt,.xlsx,.xls"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          handleLocalFileUpload(e.target.files[0]);
-                        }
-                      }}
-                    />
-                  </label>
-                  {fileName && (
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.CSV,.tsv,.TSV,.txt,.TXT,.json,.JSON,.xlsx,.XLSX,.xls,.XLS,.xlsm,.ods,text/csv,text/plain,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) {
+                        handleLocalFileUpload(file);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={isReadingFile}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="cursor-pointer inline-flex items-center space-x-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 text-white text-xs font-medium rounded-xl shadow-md shadow-cyan-600/20 transition active:scale-95"
+                  >
+                    <span>{isReadingFile ? 'Membaca file...' : 'Pilih File dari Komputer'}</span>
+                  </button>
+                  {fileName && !localFileError && (
                     <div className="mt-2 text-xs font-mono text-cyan-300 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-800">
                       File terpilih: {fileName}
+                    </div>
+                  )}
+                  {localFileError && (
+                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>{localFileError}</span>
                     </div>
                   )}
                 </div>
@@ -260,6 +291,7 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
                     rows={4}
                     value={fileContent}
                     onChange={(e) => {
+                      setLocalFileError(null);
                       setFileName('Manual Paste Input');
                       setFileContent(e.target.value);
                     }}
@@ -277,6 +309,7 @@ export const TankImportModal: React.FC<TankImportModalProps> = ({
               searchPlaceholder="Cari file daftar tangki di Google Drive..."
               selectedFileId={selectedDriveFile?.id}
               onFileLoaded={(content, loadedName, file) => {
+                setLocalFileError(null);
                 setSelectedDriveFile(file);
                 setFileName(loadedName);
                 setFileContent(content);

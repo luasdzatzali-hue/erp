@@ -72,6 +72,15 @@ export const SAMPLE_RECIPE_JSON_TEMPLATE = JSON.stringify(
   2
 );
 
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
+
 export function parseRecipeFile(
   content: string,
   availableWips: WIP[],
@@ -80,7 +89,7 @@ export function parseRecipeFile(
   const errors: string[] = [];
   const valid: WipRecipe[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong'] };
   }
@@ -99,6 +108,8 @@ export function parseRecipeFile(
         rawList = parsed.master.recipes;
       } else if (parsed.data?.recipes && Array.isArray(parsed.data.recipes)) {
         rawList = parsed.data.recipes;
+      } else if (Array.isArray(parsed.data)) {
+        rawList = parsed.data;
       } else {
         errors.push('Format JSON tidak dikenali: tidak menemukan array resep');
       }
@@ -118,9 +129,10 @@ export function parseRecipeFile(
         );
 
         if (!targetWip && availableWips.length > 0) {
-          // Fuzzy match on WIP name
           const searchStr = (r.wip || r.wipName || '').toString().toLowerCase();
-          targetWip = availableWips.find(w => w.name.toLowerCase().includes(searchStr));
+          if (searchStr) {
+            targetWip = availableWips.find(w => w.name.toLowerCase().includes(searchStr));
+          }
         }
 
         const resolvedWipId = targetWip?.id || availableWips[0]?.id || `wip_auto_${idx}`;
@@ -132,7 +144,6 @@ export function parseRecipeFile(
           const matQueryCode = (it.materialCode || it.code || '').toString().trim().toLowerCase();
           const matQueryName = (it.materialName || it.name || '').toString().trim().toLowerCase();
 
-          // Match material in database
           let matMatch = availableMaterials.find(
             m =>
               (m.code && m.code.toLowerCase() === matQueryCode) ||
@@ -151,8 +162,8 @@ export function parseRecipeFile(
             it.materialType || it.type || matMatch?.type || 'bubuk'
           ).toString().toLowerCase() as MaterialType;
 
-          const amountVal = parseFloat(it.amount || it.qty || it.takaran) || 0;
-          const unitVal: 'kg' | 'gr' = (it.unit || it.satuan || 'kg').toString().toLowerCase() === 'gr' ? 'gr' : 'kg';
+          const amountVal = parseBomNumber(it.amount ?? it.qty ?? it.takaran) || 0;
+          const unitVal: 'kg' | 'gr' = (it.unit || it.satuan || 'kg').toString().toLowerCase().includes('gr') ? 'gr' : 'kg';
           const amountInKg = unitVal === 'gr' ? amountVal / 1000 : amountVal;
 
           if (amountVal > 0) {
@@ -193,55 +204,40 @@ export function parseRecipeFile(
   }
 
   // 2. ATTEMPT CSV / TSV PARSING
-  const lines = trimmed
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !l.startsWith('#'));
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
 
   if (lines.length < 2) {
-    errors.push('File CSV harus memiliki minimal 1 baris header dan 1 baris data');
+    errors.push('File CSV/Excel harus memiliki minimal 1 baris header dan 1 baris data');
     return { valid, errors };
   }
 
-  // Detect delimiter: comma, semicolon, or tab
-  const firstLine = lines[0];
-  let delimiter = ',';
-  if (firstLine.includes('\t')) delimiter = '\t';
-  else if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';';
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'kodere',
+    'recipecode',
+    'namare',
+    'recipename',
+    'wip',
+    'material',
+    'bahan',
+    'takaran',
+    'amount',
+    'qty',
+    'satuan'
+  ]);
 
-  // Helper to split CSV row taking quotes into account
-  const splitCsvRow = (row: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < row.length; i++) {
-      const char = row[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === delimiter && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const header = splitCsvRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const headerRowIdx = isHeaderDetected ? headerIndex : 0;
+  const header = splitDelimitedRow(lines[headerRowIdx], delimiter).map(normalizeHeaderName);
 
   // Locate column indices
-  const colRecipeCode = header.findIndex(h => h.includes('kodere') || h.includes('recipecode') || h === 'code');
-  const colRecipeName = header.findIndex(h => h.includes('namare') || h.includes('recipename') || h === 'name');
+  const colRecipeCode = header.findIndex(h => h.includes('kodere') || h.includes('recipecode') || h === 'code' || h === 'kode');
+  const colRecipeName = header.findIndex(h => h.includes('namare') || h.includes('recipename') || h === 'name' || h === 'nama');
   const colWip = header.findIndex(h => h.includes('targetwip') || h.includes('wip') || h.includes('namawip'));
-  const colMatCode = header.findIndex(h => h.includes('kodemat') || h.includes('materialcode'));
-  const colMatName = header.findIndex(h => h.includes('namamat') || h.includes('materialname') || h === 'material');
-  const colMatType = header.findIndex(h => h.includes('jenismat') || h.includes('jenismaterial') || h === 'type' || h === 'jenis');
-  const colAmount = header.findIndex(h => h.includes('takaran') || h.includes('amount') || h.includes('qty') || h.includes('berat'));
+  const colMatCode = header.findIndex(h => h.includes('kodemat') || h.includes('materialcode') || h.includes('kodebahan'));
+  const colMatName = header.findIndex(h => h.includes('namamat') || h.includes('materialname') || h === 'material' || h.includes('namabahan') || h === 'bahan');
+  const colMatType = header.findIndex(h => h.includes('jenismat') || h.includes('jenismaterial') || h === 'type' || h === 'jenis' || h === 'tipe');
+  const colAmount = header.findIndex(h => h.includes('takaran') || h.includes('amount') || h.includes('qty') || h.includes('berat') || h === 'kg');
   const colUnit = header.findIndex(h => h.includes('satuan') || h.includes('unit'));
-  const colDefault = header.findIndex(h => h.includes('resepuk') || h.includes('utama') || h.includes('default') || h.includes('isdefault'));
+  const colDefault = header.findIndex(h => h.includes('reseputama') || h.includes('utama') || h.includes('default') || h.includes('isdefault'));
   const colDesc = header.findIndex(h => h.includes('ket') || h.includes('catatan') || h.includes('desc') || h.includes('note'));
 
   // Map to group items by recipe code
@@ -262,8 +258,8 @@ export function parseRecipeFile(
 
   const recipeMap = new Map<string, GroupedRecipe>();
 
-  for (let i = 1; i < lines.length; i++) {
-    const row = splitCsvRow(lines[i]);
+  for (let i = headerRowIdx + 1; i < lines.length; i++) {
+    const row = splitDelimitedRow(lines[i], delimiter);
     if (row.length === 0 || row.every(cell => !cell)) continue;
 
     const rCode = (colRecipeCode >= 0 && row[colRecipeCode] ? row[colRecipeCode] : `REC-${recipeMap.size + 1}`).trim().toUpperCase();
@@ -276,7 +272,8 @@ export function parseRecipeFile(
     const mCode = colMatCode >= 0 && row[colMatCode] ? row[colMatCode].trim() : undefined;
     const mName = colMatName >= 0 && row[colMatName] ? row[colMatName].trim() : undefined;
     const mType = colMatType >= 0 && row[colMatType] ? row[colMatType].trim().toLowerCase() : undefined;
-    const amountVal = colAmount >= 0 && row[colAmount] ? parseFloat(row[colAmount].replace(',', '.')) : 0;
+    const parsedAmount = colAmount >= 0 && row[colAmount] ? parseBomNumber(row[colAmount]) : 0;
+    const amountVal = isNaN(parsedAmount) ? 0 : parsedAmount;
     const unitVal: 'kg' | 'gr' = colUnit >= 0 && row[colUnit]?.toLowerCase().includes('gr') ? 'gr' : 'kg';
 
     if (!recipeMap.has(rCode)) {

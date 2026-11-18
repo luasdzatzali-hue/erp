@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   UploadCloud,
@@ -46,6 +46,9 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
   const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [localFileError, setLocalFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Google Drive state
   const [hasDriveToken, setHasDriveToken] = useState(false);
@@ -63,6 +66,8 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
       setFileName('');
       setSelectedDriveFile(null);
       setParseResult(null);
+      setIsReadingFile(false);
+      setLocalFileError(null);
     }
   }, [isOpen]);
 
@@ -80,11 +85,23 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
   const handleFileUpload = async (file: File) => {
     setFileName(file.name);
     setSelectedDriveFile(null);
+    setLocalFileError(null);
+    setFileContent('');
+    setParseResult(null);
+    setIsReadingFile(true);
     try {
       const text = await readLocalBomFile(file);
-      setFileContent(text || '');
+      if (!text || !text.trim()) {
+        throw new Error(`File "${file.name}" kosong atau tidak berisi data resep.`);
+      }
+      setFileContent(text);
     } catch (err: any) {
-      showToast(err?.message || 'Gagal membaca file lokal', true);
+      const msg = err?.message || 'Gagal membaca file lokal';
+      setLocalFileError(msg);
+      setFileContent('');
+      showToast(msg, true);
+    } finally {
+      setIsReadingFile(false);
     }
   };
 
@@ -202,29 +219,43 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
                   <UploadCloud className="w-6 h-6" />
                 </div>
                 <h3 className="font-bold text-white text-sm mb-1">
-                  Tarik &amp; Lepaskan File Resep (.csv atau .json)
+                  Tarik &amp; Lepaskan File Resep (.xlsx, .xls, .csv, atau .json)
                 </h3>
                 <p className="text-slate-400 text-[11px] mb-3">
                   Atau klik tombol telusuri untuk memilih file dari komputer Anda
                 </p>
-                <label className="inline-flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold cursor-pointer transition shadow-md shadow-cyan-600/20">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.CSV,.tsv,.TSV,.txt,.TXT,.json,.JSON,.xlsx,.XLSX,.xls,.XLS,.xlsm,.ods,text/csv,text/plain,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) {
+                      handleFileUpload(file);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={isReadingFile}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 text-white rounded-xl font-bold cursor-pointer transition shadow-md shadow-cyan-600/20"
+                >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>Pilih File Resep</span>
-                  <input
-                    type="file"
-                    accept=".csv,.json,.txt,.tsv,.xlsx,.xls"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleFileUpload(e.target.files[0]);
-                      }
-                    }}
-                  />
-                </label>
-                {fileName && (
+                  <span>{isReadingFile ? 'Membaca file...' : 'Pilih File dari Komputer'}</span>
+                </button>
+                {fileName && !localFileError && (
                   <p className="mt-3 text-cyan-300 font-mono font-bold">
                     ✓ File dipilih: {fileName}
                   </p>
+                )}
+                {localFileError && (
+                  <div className="mt-3 mx-auto max-w-lg text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{localFileError}</span>
+                  </div>
                 )}
               </div>
 
@@ -262,6 +293,7 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
                   rows={4}
                   value={fileContent}
                   onChange={(e) => {
+                    setLocalFileError(null);
                     setFileContent(e.target.value);
                     setFileName('Data Tempel Manual');
                   }}
@@ -279,6 +311,7 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
               searchPlaceholder="Cari file resep di Google Drive (tekan Enter)..."
               selectedFileId={selectedDriveFile?.id}
               onFileLoaded={(content, loadedName, file) => {
+                setLocalFileError(null);
                 setSelectedDriveFile(file);
                 setFileName(loadedName);
                 setFileContent(content);

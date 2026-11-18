@@ -49,12 +49,21 @@ export const SAMPLE_SKU_JSON_TEMPLATE = JSON.stringify(
   2
 );
 
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
+
 export function parseSkuFile(content: string): SkuParseResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const valid: SKU[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong atau tidak memiliki data'], warnings: [] };
   }
@@ -63,7 +72,20 @@ export function parseSkuFile(content: string): SkuParseResult {
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed);
-      const rawList: any[] = Array.isArray(parsed) ? parsed : (parsed.skus || parsed.data || [parsed]);
+      let rawList: any[] = [];
+      if (Array.isArray(parsed)) {
+        rawList = parsed;
+      } else if (Array.isArray(parsed.skus)) {
+        rawList = parsed.skus;
+      } else if (Array.isArray(parsed.master?.skus)) {
+        rawList = parsed.master.skus;
+      } else if (Array.isArray(parsed.data?.skus)) {
+        rawList = parsed.data.skus;
+      } else if (Array.isArray(parsed.data)) {
+        rawList = parsed.data;
+      } else {
+        rawList = [parsed];
+      }
 
       rawList.forEach((item, idx) => {
         const rowNum = idx + 1;
@@ -76,8 +98,8 @@ export function parseSkuFile(content: string): SkuParseResult {
         const rawKite = item.isKite !== undefined ? item.isKite : (item.is_kite !== undefined ? item.is_kite : (item.kategori || item.category || item.jenis || ''));
         const isKite = parseIsKite(rawKite, name);
 
-        const targetHour = parseFloat(item.targetHour || item.target_hour || item.target_jam || item.target || 450);
-        const cartonWeightKg = parseFloat(item.cartonWeightKg || item.carton_weight_kg || item.berat_karton_kg || item.berat_karton || item.weight || item.beratKg || 0);
+        const targetHour = parseBomNumber(item.targetHour ?? item.target_hour ?? item.target_jam ?? item.target ?? 450);
+        const cartonWeightKg = parseBomNumber(item.cartonWeightKg ?? item.carton_weight_kg ?? item.berat_karton_kg ?? item.berat_karton ?? item.weight ?? item.beratKg ?? 0);
 
         if (isNaN(cartonWeightKg) || cartonWeightKg <= 0) {
           errors.push(`Baris JSON #${rowNum} ("${name}"): Berat karton (kg) harus berupa angka positif valid`);
@@ -108,25 +130,32 @@ export function parseSkuFile(content: string): SkuParseResult {
   }
 
   // 2. CSV / TSV / Delimited text parsing
-  const lines = trimmed.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
   if (lines.length < 2) {
     return {
       valid: [],
-      errors: ['File CSV harus memiliki minimal 1 baris header dan 1 baris data'],
+      errors: ['File CSV/Excel harus memiliki minimal 1 baris header dan 1 baris data'],
       warnings: []
     };
   }
 
-  // Detect delimiter: comma, semicolon, or tab
-  const headerLine = lines[0];
-  let delimiter = ',';
-  if (headerLine.includes('\t')) {
-    delimiter = '\t';
-  } else if (headerLine.includes(';') && (headerLine.match(/;/g) || []).length > (headerLine.match(/,/g) || []).length) {
-    delimiter = ';';
-  }
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'namasku',
+    'nama',
+    'name',
+    'produk',
+    'kodesku',
+    'kode',
+    'code',
+    'kite',
+    'kategori',
+    'target',
+    'berat',
+    'weight'
+  ]);
 
-  const rawHeaders = splitDelimitedLine(headerLine, delimiter).map(h => h.trim().toLowerCase());
+  const headerRowIdx = isHeaderDetected ? headerIndex : 0;
+  const rawHeaders = splitDelimitedRow(lines[headerRowIdx], delimiter).map(normalizeHeaderName);
 
   // Find column indices
   let nameIdx = -1;
@@ -135,11 +164,11 @@ export function parseSkuFile(content: string): SkuParseResult {
   let targetIdx = -1;
   let weightIdx = -1;
 
-  rawHeaders.forEach((h, idx) => {
-    const clean = h.replace(/[^a-z0-9]/g, '');
+  rawHeaders.forEach((clean, idx) => {
+    if (!clean) return;
     if (clean.includes('namasku') || clean === 'nama' || clean === 'name' || clean === 'namaproduk' || clean === 'produk') {
       if (nameIdx === -1) nameIdx = idx;
-    } else if (clean.includes('kodesku') || clean === 'kode' || clean === 'code' || clean === 'sku' || clean === 'sku_code') {
+    } else if (clean.includes('kodesku') || clean === 'kode' || clean === 'code' || clean === 'sku' || clean === 'skucode') {
       if (codeIdx === -1) codeIdx = idx;
     } else if (clean.includes('kite') || clean.includes('kategori') || clean.includes('category') || clean.includes('market') || clean.includes('jenis') || clean.includes('tipe') || clean.includes('status')) {
       if (kiteIdx === -1) kiteIdx = idx;
@@ -150,16 +179,19 @@ export function parseSkuFile(content: string): SkuParseResult {
     }
   });
 
-  // Fallbacks if header labels are completely custom
-  if (nameIdx === -1) nameIdx = 0;
-  if (codeIdx === -1 && rawHeaders.length > 1) codeIdx = 1;
-  if (kiteIdx === -1 && rawHeaders.length > 2) kiteIdx = 2;
-  if (targetIdx === -1 && rawHeaders.length > 3) targetIdx = 3;
-  if (weightIdx === -1 && rawHeaders.length > 4) weightIdx = 4;
+  // Account for optional leading "No" column
+  const hasNoCol = rawHeaders[0] === 'no' || rawHeaders[0] === 'nomor' || rawHeaders[0] === 'num';
+  const offset = hasNoCol ? 1 : 0;
 
-  for (let i = 1; i < lines.length; i++) {
+  if (nameIdx === -1) nameIdx = 0 + offset;
+  if (codeIdx === -1 && rawHeaders.length > 1 + offset) codeIdx = 1 + offset;
+  if (kiteIdx === -1 && rawHeaders.length > 2 + offset) kiteIdx = 2 + offset;
+  if (targetIdx === -1 && rawHeaders.length > 3 + offset) targetIdx = 3 + offset;
+  if (weightIdx === -1 && rawHeaders.length > 4 + offset) weightIdx = 4 + offset;
+
+  for (let i = headerRowIdx + 1; i < lines.length; i++) {
     const rowNum = i + 1;
-    const cols = splitDelimitedLine(lines[i], delimiter);
+    const cols = splitDelimitedRow(lines[i], delimiter);
     if (cols.length === 0 || cols.every(c => !c.trim())) continue;
 
     const name = (cols[nameIdx] || '').trim();
@@ -172,11 +204,11 @@ export function parseSkuFile(content: string): SkuParseResult {
     const rawKite = kiteIdx >= 0 ? (cols[kiteIdx] || '').trim() : '';
     const isKite = parseIsKite(rawKite, name);
 
-    let targetHour = targetIdx >= 0 ? parseFloat(cols[targetIdx]?.replace(',', '.') || '450') : 450;
+    let targetHour = targetIdx >= 0 && cols[targetIdx]?.trim() ? parseBomNumber(cols[targetIdx]) : 450;
     if (isNaN(targetHour) || targetHour <= 0) targetHour = 450;
 
-    const rawWeight = weightIdx >= 0 ? cols[weightIdx]?.replace(',', '.') || '' : '';
-    const cartonWeightKg = parseFloat(rawWeight);
+    const rawWeight = weightIdx >= 0 ? cols[weightIdx] || '' : '';
+    const cartonWeightKg = parseBomNumber(rawWeight);
 
     if (isNaN(cartonWeightKg) || cartonWeightKg <= 0) {
       errors.push(`Baris #${rowNum} ("${name}"): Berat karton (kg) "${cols[weightIdx] || ''}" tidak valid atau <= 0`);
@@ -217,24 +249,4 @@ function parseIsKite(val: any, skuName: string): boolean {
     return true;
   }
   return false;
-}
-
-function splitDelimitedLine(line: string, delimiter: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let insideQuote = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      insideQuote = !insideQuote;
-    } else if (char === delimiter && !insideQuote) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-  return result.map(col => col.replace(/^"(.*)"$/, '$1').trim());
 }

@@ -55,11 +55,20 @@ export const SAMPLE_MACHINE_JSON_TEMPLATE = JSON.stringify(
   2
 );
 
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
+
 export function parseMachineFile(content: string): MachineParseResult {
   const errors: string[] = [];
   const valid: ProductionMachine[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong'] };
   }
@@ -87,15 +96,15 @@ export function parseMachineFile(content: string): MachineParseResult {
 
       rawList.forEach((item, idx) => {
         const rowNum = idx + 1;
-        const code = (item.code || item.kode || `MCH-${String(idx + 1).padStart(2, '0')}`).trim();
-        const name = (item.name || item.nama || '').trim();
+        const code = (item.code || item.kode || `MCH-${String(idx + 1).padStart(2, '0')}`).toString().trim();
+        const name = (item.name || item.nama || '').toString().trim();
 
         if (!name) {
           errors.push(`Baris ${rowNum}: Nama mesin wajib diisi`);
           return;
         }
 
-        const capacity = parseFloat(item.capacityKgPerHour || item.capacity || item.kapasitas || '500');
+        const capacity = parseBomNumber(item.capacityKgPerHour ?? item.capacity ?? item.kapasitas ?? 500);
         if (isNaN(capacity) || capacity <= 0) {
           errors.push(`Baris ${rowNum} (${name}): Kapasitas mesin harus berupa angka positif`);
           return;
@@ -126,67 +135,99 @@ export function parseMachineFile(content: string): MachineParseResult {
   }
 
   // Parse as CSV / Delimited text
-  const lines = trimmed.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
   if (lines.length === 0) {
     return { valid: [], errors: ['Tidak ada baris data ditemukan'] };
   }
 
-  // Detect delimiter: comma, semicolon, or tab
-  const firstLine = lines[0];
-  let delimiter = ',';
-  if (firstLine.includes('\t')) delimiter = '\t';
-  else if ((firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length) delimiter = ';';
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'kode',
+    'code',
+    'nama',
+    'name',
+    'mesin',
+    'machine',
+    'jalur',
+    'line',
+    'kapasitas',
+    'capacity',
+    'status'
+  ]);
 
-  // Check if first line is header
-  const isHeader =
-    firstLine.toLowerCase().includes('kode') ||
-    firstLine.toLowerCase().includes('nama') ||
-    firstLine.toLowerCase().includes('mesin') ||
-    firstLine.toLowerCase().includes('machine');
+  let codeIdx = 0;
+  let nameIdx = 1;
+  let lineIdx = 2;
+  let capIdx = 3;
+  let statusIdx = 4;
+  let opIdx = 5;
+  let notesIdx = 6;
 
-  const dataLines = isHeader ? lines.slice(1) : lines;
+  if (isHeaderDetected) {
+    const rawHeaders = splitDelimitedRow(lines[headerIndex], delimiter).map(normalizeHeaderName);
+    let mCode = -1;
+    let mName = -1;
+    let mLine = -1;
+    let mCap = -1;
+    let mStatus = -1;
+    let mOp = -1;
+    let mNotes = -1;
+
+    rawHeaders.forEach((h, idx) => {
+      if (!h) return;
+      if (mCode === -1 && (h.includes('kodemesin') || h === 'kode' || h === 'code')) mCode = idx;
+      else if (mName === -1 && (h.includes('namamesin') || h === 'nama' || h === 'name' || h === 'mesin')) mName = idx;
+      else if (mLine === -1 && (h.includes('jalur') || h.includes('line'))) mLine = idx;
+      else if (mCap === -1 && (h.includes('kapasitas') || h.includes('capacity'))) mCap = idx;
+      else if (mStatus === -1 && h.includes('status')) mStatus = idx;
+      else if (mOp === -1 && h.includes('operator')) mOp = idx;
+      else if (mNotes === -1 && (h.includes('catatan') || h.includes('note') || h.includes('ket'))) mNotes = idx;
+    });
+
+    const hasNoCol = rawHeaders[0] === 'no' || rawHeaders[0] === 'nomor' || rawHeaders[0] === 'num';
+    const offset = hasNoCol ? 1 : 0;
+
+    codeIdx = mCode !== -1 ? mCode : 0 + offset;
+    nameIdx = mName !== -1 ? mName : 1 + offset;
+    lineIdx = mLine !== -1 ? mLine : 2 + offset;
+    capIdx = mCap !== -1 ? mCap : 3 + offset;
+    statusIdx = mStatus !== -1 ? mStatus : 4 + offset;
+    opIdx = mOp !== -1 ? mOp : 5 + offset;
+    notesIdx = mNotes !== -1 ? mNotes : 6 + offset;
+  }
+
+  const startRow = isHeaderDetected ? headerIndex + 1 : 0;
+  const dataLines = lines.slice(startRow);
+
+  if (dataLines.length === 0) {
+    return { valid: [], errors: ['File hanya berisi header dan belum memiliki baris data mesin'] };
+  }
 
   dataLines.forEach((line, idx) => {
-    const rowNum = idx + (isHeader ? 2 : 1);
-    const cols: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === delimiter && !inQuotes) {
-        cols.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    cols.push(current.trim());
+    const rowNum = startRow + idx + 1;
+    const cols = splitDelimitedRow(line, delimiter);
 
     if (cols.length < 2) {
       errors.push(`Baris ${rowNum}: Format kolom tidak sesuai`);
       return;
     }
 
-    const code = cols[0].replace(/^["']|["']$/g, '').trim() || `MCH-${String(idx + 1).padStart(2, '0')}`;
-    const name = cols[1].replace(/^["']|["']$/g, '').trim();
+    const code = (cols[codeIdx] || '').trim() || `MCH-${String(idx + 1).padStart(2, '0')}`;
+    const name = (cols[nameIdx] || '').trim();
 
     if (!name) {
       errors.push(`Baris ${rowNum}: Nama mesin kosong`);
       return;
     }
 
-    const lineName = cols[2] ? cols[2].replace(/^["']|["']$/g, '').trim() : 'Line 1 (Produksi)';
-    const capStr = cols[3] ? cols[3].replace(/[^0-9.]/g, '') : '';
-    const rawStatus = cols[4] ? cols[4].replace(/^["']|["']$/g, '').toUpperCase() : 'OPERATIONAL';
-    const operator = cols[5] ? cols[5].replace(/^["']|["']$/g, '').trim() : '';
-    const notes = cols[6] ? cols[6].replace(/^["']|["']$/g, '').trim() : '';
+    const lineName = cols[lineIdx] ? cols[lineIdx].trim() : 'Line 1 (Produksi)';
+    const rawCapCell = cols[capIdx] || '';
+    const rawStatus = cols[statusIdx] ? cols[statusIdx].toUpperCase() : 'OPERATIONAL';
+    const operator = cols[opIdx] ? cols[opIdx].trim() : '';
+    const notes = cols[notesIdx] ? cols[notesIdx].trim() : '';
 
-    const capacity = parseFloat(capStr || '500');
+    const capacity = rawCapCell.trim() ? parseBomNumber(rawCapCell) : 500;
     if (isNaN(capacity) || capacity <= 0) {
-      errors.push(`Baris ${rowNum} (${name}): Kapasitas mesin "${cols[3]}" tidak valid`);
+      errors.push(`Baris ${rowNum} (${name}): Kapasitas mesin "${rawCapCell}" tidak valid`);
       return;
     }
 

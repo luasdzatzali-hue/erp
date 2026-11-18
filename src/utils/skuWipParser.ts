@@ -93,17 +93,14 @@ export function buildSkuWipJsonTemplate(skus: SKU[], wips: WIP[]): string {
   return SAMPLE_SKU_WIP_JSON_TEMPLATE;
 }
 
-function parseNumericValue(raw: unknown): number {
-  if (typeof raw === 'number') return raw;
-  if (raw === null || raw === undefined) return NaN;
-  const str = raw.toString().trim();
-  if (!str) return NaN;
-  // Normalize comma decimal if there is no dot, otherwise strip thousand separators
-  const normalized = str.includes(',') && !str.includes('.')
-    ? str.replace(',', '.')
-    : str.replace(/,/g, '');
-  return parseFloat(normalized);
-}
+import {
+  findHeaderRowIndex,
+  normalizeHeaderName,
+  parseBomNumber,
+  prepareDelimitedLines,
+  splitDelimitedRow,
+  stripUtf8Bom
+} from './bomCsvHelper';
 
 function resolveSku(
   availableSkus: SKU[],
@@ -182,7 +179,7 @@ export function parseSkuWipFile(
   const warnings: string[] = [];
   const valid: ParsedSkuWipRow[] = [];
 
-  const trimmed = content.trim();
+  const trimmed = stripUtf8Bom(content).trim();
   if (!trimmed) {
     return { valid: [], errors: ['Konten file kosong'], warnings: [] };
   }
@@ -281,7 +278,7 @@ export function parseSkuWipFile(
         const wipCodeQ = (item.wipCode || item.kodeWip || item.codeWip || '').toString();
         const wipNameQ = (item.wipName || item.namaWip || item.wip || '').toString();
 
-        const kgVal = parseNumericValue(
+        const kgVal = parseBomNumber(
           item.kgWipPerCartonSku ??
           item.kgPerCarton ??
           item.kgPerKarton ??
@@ -305,51 +302,30 @@ export function parseSkuWipFile(
   }
 
   // 2. CSV / TSV PARSING
-  const lines = trimmed
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !l.startsWith('#'));
+  const { lines, delimiter } = prepareDelimitedLines(trimmed);
 
   if (lines.length < 2) {
     return {
       valid: [],
-      errors: ['File CSV harus memiliki minimal 1 baris header dan 1 baris data'],
+      errors: ['File CSV/Excel harus memiliki minimal 1 baris header dan 1 baris data'],
       warnings: []
     };
   }
 
-  const firstLine = lines[0];
-  let delimiter = ',';
-  if (firstLine.includes('\t')) delimiter = '\t';
-  else if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';';
+  const { headerIndex, isHeaderDetected } = findHeaderRowIndex(lines, delimiter, [
+    'sku',
+    'kodesku',
+    'namasku',
+    'wip',
+    'kodewip',
+    'namawip',
+    'kebutuhan',
+    'kgwip',
+    'takaran'
+  ]);
 
-  const splitCsvRow = (row: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < row.length; i++) {
-      const char = row[i];
-      if (char === '"') {
-        if (inQuotes && row[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === delimiter && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const rawHeader = splitCsvRow(lines[0]);
-  const header = rawHeader.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const headerRowIdx = isHeaderDetected ? headerIndex : 0;
+  const header = splitDelimitedRow(lines[headerRowIdx], delimiter).map(normalizeHeaderName);
 
   const colSkuCode = header.findIndex(
     h => h === 'kodesku' || h === 'skucode' || h === 'codesku'
@@ -378,8 +354,8 @@ export function parseSkuWipFile(
   const use3ColFallback =
     colSkuCode === -1 && colSkuName === -1 && colWipCode === -1 && colWipName === -1 && header.length >= 3;
 
-  for (let i = 1; i < lines.length; i++) {
-    const row = splitCsvRow(lines[i]);
+  for (let i = headerRowIdx + 1; i < lines.length; i++) {
+    const row = splitDelimitedRow(lines[i], delimiter);
     if (row.length === 0 || row.every(c => !c)) continue;
 
     let skuCodeQ = '';
@@ -391,13 +367,13 @@ export function parseSkuWipFile(
     if (use3ColFallback) {
       skuNameQ = row[0] || '';
       wipNameQ = row[1] || '';
-      kgVal = parseNumericValue(row[2]);
+      kgVal = parseBomNumber(row[2]);
     } else {
       skuCodeQ = colSkuCode >= 0 ? row[colSkuCode] || '' : '';
       skuNameQ = colSkuName >= 0 ? row[colSkuName] || '' : '';
       wipCodeQ = colWipCode >= 0 ? row[colWipCode] || '' : '';
       wipNameQ = colWipName >= 0 ? row[colWipName] || '' : '';
-      kgVal = colKg >= 0 ? parseNumericValue(row[colKg]) : NaN;
+      kgVal = colKg >= 0 ? parseBomNumber(row[colKg]) : NaN;
     }
 
     pushEntry(`Baris ${i + 1}`, '', skuCodeQ, skuNameQ, '', wipCodeQ, wipNameQ, kgVal, i);

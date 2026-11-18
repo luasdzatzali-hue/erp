@@ -1138,7 +1138,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!state.isAdmin) {
+                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
                     return;
@@ -1705,7 +1705,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!state.isAdmin) {
+                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data SKU', true);
                     return;
@@ -3192,7 +3192,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (!state.isAdmin) {
+                if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                   onOpenAdminModal();
                   showToast('Otorisasi Administrator diperlukan untuk impor data mesin', true);
                   return;
@@ -3359,7 +3359,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!state.isAdmin) {
+                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data mesin', true);
                     return;
@@ -3626,7 +3626,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (!state.isAdmin) {
+                if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                   onOpenAdminModal();
                   showToast('Otorisasi Administrator diperlukan untuk impor data tangki WIP', true);
                   return;
@@ -3899,7 +3899,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!state.isAdmin) {
+                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data tangki WIP', true);
                     return;
