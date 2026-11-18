@@ -21,10 +21,16 @@ import {
   Layers,
   Sparkles,
   Clock,
-  Lock
+  Lock,
+  QrCode,
+  Tag,
+  X
 } from 'lucide-react';
 import { AppState, MaterialReceipt, StorageLocation, ZakReceiptBreakdown, ShiftNumber } from '../../types';
 import { getCurrentShift } from '../../utils/shifts';
+import { MaterialQrScannerModal } from '../MaterialQrScannerModal';
+import { MaterialQrLabelModal } from '../MaterialQrLabelModal';
+import { ParsedMaterialQrResult } from '../../utils/materialQr';
 
 interface PenerimaanViewProps {
   state: AppState;
@@ -70,6 +76,22 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
     }
   ]);
   const [expandedReceiptId, setExpandedReceiptId] = useState<string | null>(null);
+
+  // QR Scanner & Label Generator State
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isQrLabelOpen, setIsQrLabelOpen] = useState(false);
+  const [lastQrScanInfo, setLastQrScanInfo] = useState<{
+    materialName: string;
+    materialCode?: string;
+    matchedRequestNumber?: string;
+    lotNumber?: string;
+    qtyKg?: number;
+  } | null>(null);
+  const pendingQrOverrideRef = React.useRef<{
+    lotNumber?: string;
+    qtyKg?: number;
+    location?: StorageLocation;
+  } | null>(null);
 
   // Material Object
   const selectedMatObj = state.master.materials.find(m => m.id === selectedMatId);
@@ -124,6 +146,14 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             notes: 'Kelompok 1 (Utuh Standar)'
           }
         ]);
+
+        if (pendingQrOverrideRef.current) {
+          const ov = pendingQrOverrideRef.current;
+          if (ov.location) setLocation(ov.location);
+          if (ov.lotNumber) setBatchLotNumber(ov.lotNumber);
+          if (typeof ov.qtyKg === 'number' && ov.qtyKg > 0) setReceivedQty(ov.qtyKg.toFixed(4));
+          pendingQrOverrideRef.current = null;
+        }
       }
     } else if (selectedMatId) {
       const mat = state.master.materials.find(m => m.id === selectedMatId);
@@ -142,6 +172,13 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             }
           ]);
         }
+      }
+      if (pendingQrOverrideRef.current) {
+        const ov = pendingQrOverrideRef.current;
+        if (ov.location) setLocation(ov.location);
+        if (ov.lotNumber) setBatchLotNumber(ov.lotNumber);
+        if (typeof ov.qtyKg === 'number' && ov.qtyKg > 0) setReceivedQty(ov.qtyKg.toFixed(4));
+        pendingQrOverrideRef.current = null;
       }
     }
   }, [selectedReqId, selectedMatId, state.transactions.requests, state.master.materials, location]);
@@ -365,6 +402,58 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
   const pendingRequests = state.transactions.requests.filter(r => r.status !== 'Received');
 
+  const handleQrScanMatched = (result: ParsedMaterialQrResult) => {
+    const mat = result.matchedMaterial;
+    if (!mat) return;
+
+    const matchingPendingReq = pendingRequests.find(r => r.materialId === mat.id);
+
+    pendingQrOverrideRef.current = {
+      lotNumber: result.lotNumber,
+      qtyKg: result.qtyKg,
+      location: result.location,
+    };
+
+    if (matchingPendingReq) {
+      setSelectedReqId(matchingPendingReq.id);
+    } else {
+      setSelectedReqId('');
+      setSelectedMatId(mat.id);
+      setRequestedQty(0);
+      if (result.location) {
+        setLocation(result.location);
+      } else if (mat.type === 'liquid') {
+        setLocation('STORAGE_TANK');
+        setIsZakCorrection(false);
+      } else if (mat.source === 'GDRM') {
+        setLocation('CK');
+      } else {
+        setLocation('WINEROTO');
+      }
+    }
+
+    if (result.lotNumber) {
+      setBatchLotNumber(result.lotNumber);
+    }
+    if (typeof result.qtyKg === 'number' && result.qtyKg > 0 && !isZakCorrection) {
+      setReceivedQty(result.qtyKg.toFixed(4));
+    }
+
+    setLastQrScanInfo({
+      materialName: mat.name,
+      materialCode: mat.code,
+      matchedRequestNumber: matchingPendingReq?.requestNumber,
+      lotNumber: result.lotNumber,
+      qtyKg: result.qtyKg,
+    });
+
+    showToast(
+      `QR teridentifikasi: ${mat.code ? `[${mat.code}] ` : ''}${mat.name}${
+        matchingPendingReq ? ` (Tertaut ke ${matchingPendingReq.requestNumber})` : ''
+      }`
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       {/* SOP Rule Banner: Pengiriman di Shift 1 dan Shift 2 */}
@@ -403,22 +492,39 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
       {/* Penerimaan Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 border-b border-slate-800 pb-3">
           <h3 className="font-bold text-sm text-white flex items-center space-x-2">
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
               <Truck className="w-4 h-4" />
             </div>
             <span>Pencatatan Kedatangan & Penerimaan Fisik Material</span>
           </h3>
-          <div className="flex items-center space-x-3 text-[11px] text-slate-400">
-            <span>
-              Pending Request: <strong className="text-amber-400">{pendingRequests.length}</strong>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <button
+              type="button"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm shadow-cyan-600/20 transition whitespace-nowrap shrink-0 active:scale-95"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan QR Material</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsQrLabelOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+              title="Buat & unduh stiker QR Code untuk kemasan material"
+            >
+              <Tag className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Label QR</span>
+            </button>
+            <span className="whitespace-nowrap">
+              Pending Request: <strong className="text-amber-400 tabular-nums">{pendingRequests.length}</strong>
             </span>
             {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && selectedMatId && (
               <button
                 type="button"
                 onClick={() => onOpenStockAdjustment(selectedMatId)}
-                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold"
+                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold whitespace-nowrap"
                 title="Sesuaikan Saldo Awal Material Ini"
               >
                 (Adjust Saldo Awal)
@@ -426,6 +532,37 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             )}
           </div>
         </div>
+
+        {lastQrScanInfo && (
+          <div className="mb-3 p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <QrCode className="w-4 h-4 text-cyan-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-white truncate">
+                  Hasil Scan QR: {lastQrScanInfo.materialCode ? `[${lastQrScanInfo.materialCode}] ` : ''}
+                  {lastQrScanInfo.materialName}
+                </p>
+                <p className="text-[11px] text-cyan-300/90 font-mono truncate">
+                  {[
+                    lastQrScanInfo.matchedRequestNumber ? `Dokumen: ${lastQrScanInfo.matchedRequestNumber}` : 'Kedatangan Langsung',
+                    lastQrScanInfo.lotNumber ? `Lot: ${lastQrScanInfo.lotNumber}` : null,
+                    lastQrScanInfo.qtyKg ? `Qty: ${lastQrScanInfo.qtyKg.toFixed(2)} kg` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLastQrScanInfo(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+              aria-label="Tutup info scan QR"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {/* Shift Pengiriman Selector (Shift 1 & Shift 2 allowed, Shift 3 locked per SOP) */}
@@ -1075,6 +1212,27 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modals: Camera QR Scanner & Material QR Label Generator */}
+      <MaterialQrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        materials={state.master.materials}
+        title="Scan QR Material Kedatangan"
+        subtitle="Pindai QR pada kemasan bahan baku untuk otomatis mengisi material, nomor lot, dan dokumen permintaan terkait."
+        onScanMatched={handleQrScanMatched}
+        onOpenLabelGenerator={() => {
+          setIsQrScannerOpen(false);
+          setIsQrLabelOpen(true);
+        }}
+      />
+
+      <MaterialQrLabelModal
+        isOpen={isQrLabelOpen}
+        onClose={() => setIsQrLabelOpen(false)}
+        materials={state.master.materials}
+        initialMaterialId={selectedMatId}
+      />
     </div>
   );
 };

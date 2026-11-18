@@ -22,7 +22,10 @@ import {
   Calendar,
   FileText,
   Sparkles,
-  Database
+  Database,
+  QrCode,
+  Tag,
+  X
 } from 'lucide-react';
 import {
   AppState,
@@ -37,6 +40,9 @@ import { calculateStockBalances, getMaterialPalletInventory, calculateFifoPallet
 import { calculateUsageBreakdown } from '../../utils/reportBreakdown';
 import { getCurrentShift, SHIFTS_CONFIG, ShiftNumber, formatIndonesianDate } from '../../utils/shifts';
 import { ChevronDown, ChevronUp, RefreshCw, PackageCheck } from 'lucide-react';
+import { MaterialQrScannerModal } from '../MaterialQrScannerModal';
+import { MaterialQrLabelModal } from '../MaterialQrLabelModal';
+import { ParsedMaterialQrResult } from '../../utils/materialQr';
 
 interface PemakaianViewProps {
   state: AppState;
@@ -87,6 +93,29 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   const [configuredMaterials, setConfiguredMaterials] = useState<WipBatchMaterialItem[]>([]);
   // Track which material has its FIFO pallet drawer open
   const [expandedPalletMatId, setExpandedPalletMatId] = useState<string | null>(null);
+
+  // QR Scanner & Material Verification (Poka-Yoke) State
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isQrLabelOpen, setIsQrLabelOpen] = useState(false);
+  const [verifiedMaterialsMap, setVerifiedMaterialsMap] = useState<
+    Record<string, { verifiedAt: string; scannedLot?: string }>
+  >({});
+  const [qrScanFeedback, setQrScanFeedback] = useState<{
+    type: 'success' | 'warning' | 'error';
+    title: string;
+    detail?: string;
+  } | null>(null);
+  const [suggestedWipsFromScan, setSuggestedWipsFromScan] = useState<{
+    materialId: string;
+    materialName: string;
+    materialCode?: string;
+    lotNumber?: string;
+    wips: Array<{ id: string; code: string; name: string }>;
+  } | null>(null);
+  const pendingAutoVerifyRef = React.useRef<{
+    materialId: string;
+    lotNumber?: string;
+  } | null>(null);
 
   const stockBalances = calculateStockBalances(state);
 
@@ -253,6 +282,20 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
         };
       });
       setConfiguredMaterials(populatedItems);
+    }
+
+    // Reset verified materials on WIP/Recipe change, then apply any queued scan verification
+    if (pendingAutoVerifyRef.current) {
+      const pending = pendingAutoVerifyRef.current;
+      setVerifiedMaterialsMap({
+        [pending.materialId]: {
+          verifiedAt: new Date().toLocaleTimeString('id-ID'),
+          scannedLot: pending.lotNumber,
+        },
+      });
+      pendingAutoVerifyRef.current = null;
+    } else {
+      setVerifiedMaterialsMap({});
     }
   }, [wipId, selectedRecipeId, state.master.recipes, state.master.wipMats, state.master.materials, state.transactions.receipts, state.transactions.usages]);
 
@@ -430,7 +473,116 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
     });
 
     setNotes('');
+    setVerifiedMaterialsMap({});
+    setQrScanFeedback(null);
+    setSuggestedWipsFromScan(null);
   };
+
+  // Handle camera QR scan for material identification & Poka-Yoke verification during production recording
+  const handleQrScanMatched = (result: ParsedMaterialQrResult) => {
+    const mat = result.matchedMaterial;
+    if (!mat) return;
+
+    const codeLabel = mat.code ? `[${mat.code}] ` : '';
+
+    // Case 1: WIP is selected and BOM rows are loaded -> verify material belongs to recipe
+    if (wipId && configuredMaterials.length > 0) {
+      const matchedRow = configuredMaterials.find((item) => item.materialId === mat.id);
+      if (matchedRow) {
+        setVerifiedMaterialsMap((prev) => ({
+          ...prev,
+          [mat.id]: {
+            verifiedAt: new Date().toLocaleTimeString('id-ID'),
+            scannedLot: result.lotNumber,
+          },
+        }));
+
+        if (result.location && result.location !== matchedRow.sourceLocation) {
+          handleLocationChange(mat.id, result.location);
+        }
+
+        const detailText = [
+          `Takaran Resep: ${matchedRow.requiredKg.toFixed(4)} kg`,
+          `Lokasi: ${result.location || matchedRow.sourceLocation}`,
+          result.lotNumber ? `Lot: ${result.lotNumber}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+        setQrScanFeedback({
+          type: 'success',
+          title: `Sesuai Resep WIP: ${codeLabel}${mat.name}`,
+          detail: detailText,
+        });
+        showToast(`QR terverifikasi untuk batch: ${codeLabel}${mat.name}`);
+      } else {
+        setQrScanFeedback({
+          type: 'warning',
+          title: `Peringatan Poka-Yoke: ${codeLabel}${mat.name} Tidak Ada di Resep`,
+          detail: `Material ini bukan komponen dari WIP "${selectedWipObj?.name || '-'}". Periksa kembali kemasan bahan baku sebelum penuangan.`,
+        });
+        showToast(
+          `Peringatan: ${codeLabel}${mat.name} tidak terdaftar pada resep WIP aktif!`,
+          true
+        );
+      }
+      return;
+    }
+
+    // Case 2: No WIP selected yet -> find WIPs whose BOM/Recipes use this material
+    const matchingWipIds = new Set<string>();
+    (state.master.recipes || []).forEach((rec) => {
+      if (rec.items?.some((it) => it.materialId === mat.id)) {
+        matchingWipIds.add(rec.wipId);
+      }
+    });
+    state.master.wipMats.forEach((wm) => {
+      if (wm.materialId === mat.id) {
+        matchingWipIds.add(wm.wipId);
+      }
+    });
+
+    const candidateWips = availableWips.filter((w) => matchingWipIds.has(w.id));
+
+    if (candidateWips.length === 1) {
+      const target = candidateWips[0];
+      pendingAutoVerifyRef.current = {
+        materialId: mat.id,
+        lotNumber: result.lotNumber,
+      };
+      setWipId(target.id);
+      setSuggestedWipsFromScan(null);
+      setQrScanFeedback({
+        type: 'success',
+        title: `WIP Teridentifikasi: ${target.name}`,
+        detail: `${codeLabel}${mat.name} dimuat & diverifikasi otomatis untuk batch ${target.code}.`,
+      });
+      showToast(`Material ${codeLabel}${mat.name} teridentifikasi -> Memuat WIP ${target.name}`);
+    } else if (candidateWips.length > 1) {
+      setSuggestedWipsFromScan({
+        materialId: mat.id,
+        materialName: mat.name,
+        materialCode: mat.code,
+        lotNumber: result.lotNumber,
+        wips: candidateWips.map((w) => ({ id: w.id, code: w.code, name: w.name })),
+      });
+      setQrScanFeedback({
+        type: 'success',
+        title: `Material Teridentifikasi: ${codeLabel}${mat.name}`,
+        detail: `Ditemukan di ${candidateWips.length} formula WIP. Pilih WIP target pada daftar yang muncul.`,
+      });
+      showToast(`${codeLabel}${mat.name} cocok dengan ${candidateWips.length} WIP. Silakan pilih target WIP.`);
+    } else {
+      setQrScanFeedback({
+        type: 'warning',
+        title: `${codeLabel}${mat.name} Belum Terhubung ke Resep WIP`,
+        detail: 'Material ditemukan di database, namun belum ada BOM WIP yang memakai bahan baku ini.',
+      });
+      showToast(`Material ${codeLabel}${mat.name} ditemukan, namun belum tertaut ke resep WIP.`, true);
+    }
+  };
+
+  const verifiedCountInBom = configuredMaterials.filter((m) => Boolean(verifiedMaterialsMap[m.materialId])).length;
 
   // Total weight of BOM formula for 1 batch
   const totalBOMKg = configuredMaterials.reduce((acc, curr) => acc + curr.actualUsedKg, 0);
@@ -713,12 +865,70 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsQrScannerOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm shadow-cyan-600/20 transition whitespace-nowrap shrink-0 active:scale-95"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Scan QR Bahan</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsQrLabelOpen(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+                title="Buat & unduh label QR untuk kemasan bahan baku"
+              >
+                <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Label QR</span>
+              </button>
               <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-purple-950/60 border border-purple-500/30 text-purple-300">
                 Aturan MES: 1 Batch Aktif / Mesin Produksi
               </span>
             </div>
           </div>
+
+          {suggestedWipsFromScan && (
+            <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <QrCode className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <p className="font-semibold text-white truncate">
+                    Material Terpindai: {suggestedWipsFromScan.materialCode ? `[${suggestedWipsFromScan.materialCode}] ` : ''}
+                    {suggestedWipsFromScan.materialName} · Pilih Target WIP:
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSuggestedWipsFromScan(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+                  aria-label="Tutup saran WIP"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {suggestedWipsFromScan.wips.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => {
+                      pendingAutoVerifyRef.current = {
+                        materialId: suggestedWipsFromScan.materialId,
+                        lotNumber: suggestedWipsFromScan.lotNumber,
+                      };
+                      setWipId(w.id);
+                      setSuggestedWipsFromScan(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 text-white border border-slate-700 hover:border-cyan-400 text-xs font-semibold transition whitespace-nowrap shrink-0"
+                  >
+                    [{w.code}] {w.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleStartBatchSubmit} className="space-y-4 text-xs">
             {/* Header Form Row: SKU, WIP Selection, Recipe Selection, Machine Selection, Target Tank Selection, Fixed Batch Count */}
@@ -1160,14 +1370,31 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-slate-400">Bobot Formulasi: </span>
-                    <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
-                      {totalBOMKg.toFixed(4)} kg
-                    </span>
-                    <span className="text-[10px] text-slate-500 ml-1">
-                      / Target: {selectedWipObj.batchWeightKg.toFixed(4)} kg
-                    </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {configuredMaterials.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-slate-300 tabular-nums">
+                          Verifikasi QR: <strong className={verifiedCountInBom === configuredMaterials.length ? 'text-emerald-400' : 'text-cyan-400'}>{verifiedCountInBom}/{configuredMaterials.length}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsQrScannerOpen(true)}
+                          className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>Scan Verifikasi</span>
+                        </button>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400">Bobot Formulasi: </span>
+                      <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
+                        {totalBOMKg.toFixed(4)} kg
+                      </span>
+                      <span className="text-[10px] text-slate-500 ml-1">
+                        / Target: {selectedWipObj.batchWeightKg.toFixed(4)} kg
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1208,16 +1435,23 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                           const hasPallets = availablePallets.length > 0;
                           const isExpanded = expandedPalletMatId === item.materialId;
                           const totalAllocatedBags = (item.palletAllocations || []).reduce((sum, a) => sum + a.bagsUsed, 0);
+                          const qrVerification = verifiedMaterialsMap[item.materialId];
 
                           return (
                             <React.Fragment key={item.materialId}>
-                              <tr className={`hover:bg-slate-900/50 transition ${isExpanded ? 'bg-slate-900/90' : ''}`}>
+                              <tr className={`hover:bg-slate-900/50 transition ${isExpanded ? 'bg-slate-900/90' : qrVerification ? 'bg-emerald-950/15' : ''}`}>
                                 <td className="py-2.5 px-3 font-medium text-white">
-                                  <div className="flex items-center space-x-1.5">
+                                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                                     <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-800 text-cyan-400 border border-slate-700">
                                       {item.materialCode}
                                     </span>
                                     <span>{item.materialName}</span>
+                                    {qrVerification && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span>QR Terverifikasi{qrVerification.scannedLot ? ` · Lot ${qrVerification.scannedLot}` : ''}</span>
+                                      </span>
+                                    )}
                                   </div>
                                   {hasPallets && (
                                     <div className="mt-1 flex items-center space-x-1.5">
@@ -2356,6 +2590,33 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modals: Camera QR Scanner (Continuous Poka-Yoke Verification) & Label Generator */}
+      <MaterialQrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        materials={state.master.materials}
+        title={wipId ? `Scan QR Bahan Baku (${selectedWipObj?.code || 'WIP'})` : 'Scan QR Bahan Baku Produksi'}
+        subtitle={
+          wipId
+            ? 'Pindai QR pada kemasan bahan baku untuk memverifikasi kesesuaian resep WIP & lokasi FIFO.'
+            : 'Pindai QR bahan baku untuk mengidentifikasi material dan mencari formula WIP terkait.'
+        }
+        allowContinuous={Boolean(wipId)}
+        lastFeedback={qrScanFeedback}
+        onScanMatched={handleQrScanMatched}
+        onOpenLabelGenerator={() => {
+          setIsQrScannerOpen(false);
+          setIsQrLabelOpen(true);
+        }}
+      />
+
+      <MaterialQrLabelModal
+        isOpen={isQrLabelOpen}
+        onClose={() => setIsQrLabelOpen(false)}
+        materials={state.master.materials}
+        initialMaterialId={configuredMaterials[0]?.materialId}
+      />
     </div>
   );
 };

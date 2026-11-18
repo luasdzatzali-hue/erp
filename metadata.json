@@ -1,6 +1,6 @@
 {
   "name": "ProdTrack - Material & Production Management System",
   "description": "Industrial material tracking, hierarchical BOM calculation, warehouse stock balance (CK, WINEROTO, Liquid Tank), and production MES.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
