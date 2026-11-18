@@ -1,0 +1,400 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function userEmailLower() {
+      return request.auth.token.email is string ? request.auth.token.email.lower() : '';
+    }
+
+    function isBootstrappedEmailAdmin() {
+      return isVerified() && userEmailLower() == 'luasdzatzali@gmail.com';
+    }
+
+    function isRegisteredAdminDoc() {
+      return isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isBootstrappedEmailAdmin() || isRegisteredAdminDoc();
+    }
+
+    function accessConfigPath(workspaceId) {
+      return /databases/$(database)/documents/workspaces/$(workspaceId)/config/access;
+    }
+
+    function hasAccessConfig(workspaceId) {
+      return exists(accessConfigPath(workspaceId));
+    }
+
+    function accessData(workspaceId) {
+      return get(accessConfigPath(workspaceId)).data;
+    }
+
+    function isWorkspaceAdmin(workspaceId) {
+      return isAdmin() || (
+        isVerified() &&
+        hasAccessConfig(workspaceId) &&
+        userEmailLower() in accessData(workspaceId).adminEmails
+      );
+    }
+
+    function isWorkspaceOperator(workspaceId) {
+      return isVerified() &&
+        hasAccessConfig(workspaceId) &&
+        userEmailLower() in accessData(workspaceId).operatorEmails;
+    }
+
+    function isWorkspaceManagement(workspaceId) {
+      return isVerified() &&
+        hasAccessConfig(workspaceId) &&
+        userEmailLower() in accessData(workspaceId).managementEmails;
+    }
+
+    function isWorkspaceAuthorized(workspaceId) {
+      return isWorkspaceAdmin(workspaceId) ||
+        isWorkspaceOperator(workspaceId) ||
+        isWorkspaceManagement(workspaceId);
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidSystemBootstrap(data) {
+      return data.keys().hasAll(['isInitialized', 'ownerUid', 'factoryName', 'initializedAt', 'updatedAt']) &&
+        data.keys().hasOnly(['isInitialized', 'ownerUid', 'factoryName', 'initializedAt', 'updatedAt']) &&
+        data.isInitialized is bool &&
+        data.isInitialized == true &&
+        isValidId(data.ownerUid) &&
+        data.factoryName is string && data.factoryName.size() >= 1 && data.factoryName.size() <= 120 &&
+        data.initializedAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'factoryName', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'factoryName', 'role', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.factoryName is string && data.factoryName.size() >= 1 && data.factoryName.size() <= 120 &&
+        data.role in ['SUPER_ADMIN', 'ADMIN'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspaceAccessConfig(data) {
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'adminEmails', 'operatorEmails', 'managementEmails', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'adminEmails', 'operatorEmails', 'managementEmails', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.ownerUid) &&
+        data.adminEmails is list && data.adminEmails.size() <= 30 && (data.adminEmails.size() == 0 || data.adminEmails[0] is string) &&
+        data.operatorEmails is list && data.operatorEmails.size() <= 100 && (data.operatorEmails.size() == 0 || data.operatorEmails[0] is string) &&
+        data.managementEmails is list && data.managementEmails.size() <= 50 && (data.managementEmails.size() == 0 || data.managementEmails[0] is string) &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    function isValidWorkspaceSecrets(data) {
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'adminPin', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'adminPin', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.ownerUid) &&
+        data.adminPin is string && data.adminPin.size() >= 4 && data.adminPin.size() <= 16 &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    function isValidWorkspaceMeta(data) {
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'factoryName', 'adminGoogleEmails', 'registeredOperators', 'registeredManagement', 'theme', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'factoryName', 'adminGoogleEmails', 'registeredOperators', 'registeredManagement', 'theme', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.ownerUid) &&
+        data.factoryName is string && data.factoryName.size() >= 1 && data.factoryName.size() <= 120 &&
+        data.adminGoogleEmails is list && data.adminGoogleEmails.size() <= 30 && (data.adminGoogleEmails.size() == 0 || data.adminGoogleEmails[0] is string) &&
+        data.registeredOperators is list && data.registeredOperators.size() <= 200 && (data.registeredOperators.size() == 0 || data.registeredOperators[0] is map) &&
+        data.registeredManagement is list && data.registeredManagement.size() <= 100 && (data.registeredManagement.size() == 0 || data.registeredManagement[0] is map) &&
+        data.theme is string && data.theme.size() >= 1 && data.theme.size() <= 20 &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    function isValidWorkspaceMasterData(data) {
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'materials', 'wips', 'skus', 'skuWips', 'wipMats', 'recipes', 'machines', 'tanks', 'productionLines', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'materials', 'wips', 'skus', 'skuWips', 'wipMats', 'recipes', 'machines', 'tanks', 'productionLines', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.ownerUid) &&
+        data.materials is list && data.materials.size() <= 1000 && (data.materials.size() == 0 || data.materials[0] is map) &&
+        data.wips is list && data.wips.size() <= 500 && (data.wips.size() == 0 || data.wips[0] is map) &&
+        data.skus is list && data.skus.size() <= 500 && (data.skus.size() == 0 || data.skus[0] is map) &&
+        data.skuWips is list && data.skuWips.size() <= 2000 && (data.skuWips.size() == 0 || data.skuWips[0] is map) &&
+        data.wipMats is list && data.wipMats.size() <= 2000 && (data.wipMats.size() == 0 || data.wipMats[0] is map) &&
+        data.recipes is list && data.recipes.size() <= 1000 && (data.recipes.size() == 0 || data.recipes[0] is map) &&
+        data.machines is list && data.machines.size() <= 300 && (data.machines.size() == 0 || data.machines[0] is map) &&
+        data.tanks is list && data.tanks.size() <= 200 && (data.tanks.size() == 0 || data.tanks[0] is map) &&
+        data.productionLines is list && data.productionLines.size() <= 100 && (data.productionLines.size() == 0 || data.productionLines[0] is map) &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    function isValidWorkspaceOperationsData(data) {
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.ownerUid) &&
+        data.requests is list && data.requests.size() <= 1000 && (data.requests.size() == 0 || data.requests[0] is map) &&
+        data.receipts is list && data.receipts.size() <= 1000 && (data.receipts.size() == 0 || data.receipts[0] is map) &&
+        data.usages is list && data.usages.size() <= 1500 && (data.usages.size() == 0 || data.usages[0] is map) &&
+        data.wipBatches is list && data.wipBatches.size() <= 1000 && (data.wipBatches.size() == 0 || data.wipBatches[0] is map) &&
+        data.cartonProductions is list && data.cartonProductions.size() <= 1500 && (data.cartonProductions.size() == 0 || data.cartonProductions[0] is map) &&
+        data.tankLogs is list && data.tankLogs.size() <= 1500 && (data.tankLogs.size() == 0 || data.tankLogs[0] is map) &&
+        data.changeovers is list && data.changeovers.size() <= 500 && (data.changeovers.size() == 0 || data.changeovers[0] is map) &&
+        data.productionStops is list && data.productionStops.size() <= 1000 && (data.productionStops.size() == 0 || data.productionStops[0] is map) &&
+        data.stockAdjustments is list && data.stockAdjustments.size() <= 500 && (data.stockAdjustments.size() == 0 || data.stockAdjustments[0] is map) &&
+        data.activeSkuRuns is list && data.activeSkuRuns.size() <= 100 && (data.activeSkuRuns.size() == 0 || data.activeSkuRuns[0] is map) &&
+        data.tank is map &&
+        (!('lastShiftHandover' in data) || data.lastShiftHandover == null || data.lastShiftHandover is map) &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    // 4. Connection Health Check (No PII, Read-Only Get)
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // 5. System Bootstrap Status (Non-PII, Single-Create Atomic First-Time Setup)
+    match /system/bootstrap {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isVerified() &&
+        isValidSystemBootstrap(incoming()) &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().initializedAt == request.time &&
+        incoming().updatedAt == request.time &&
+        !exists(/databases/$(database)/documents/system/bootstrap) &&
+        existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow update: if isVerified() &&
+        isValidSystemBootstrap(incoming()) &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().initializedAt == existing().initializedAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['factoryName', 'updatedAt']) &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    // 6. Administrator Profiles (Strict PII Isolation)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isVerified() && (request.auth.uid == adminId || isAdmin());
+      allow list: if false;
+      allow create: if isValidId(adminId) &&
+        isVerified() &&
+        isValidAdminProfile(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            adminId == request.auth.uid &&
+            incoming().role == 'SUPER_ADMIN' &&
+            !exists(/databases/$(database)/documents/system/bootstrap) &&
+            existsAfter(/databases/$(database)/documents/system/bootstrap) &&
+            getAfter(/databases/$(database)/documents/system/bootstrap).data.ownerUid == request.auth.uid
+          )
+        );
+      allow update: if isValidId(adminId) &&
+        isVerified() &&
+        isValidAdminProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            request.auth.uid == adminId &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'factoryName', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(adminId) && isAdmin() && adminId != request.auth.uid;
+    }
+
+    // 7. Workspace Configuration & Data (Strict RBAC per Tier)
+    match /workspaces/{workspaceId} {
+      allow read, write: if false;
+
+      match /config/access {
+        allow get: if isValidId(workspaceId) && isWorkspaceAdmin(workspaceId);
+        allow list: if false;
+        allow create: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceAccessConfig(incoming()) &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (
+              incoming().ownerUid == request.auth.uid &&
+              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+            )
+          );
+        allow update: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceAccessConfig(incoming()) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['adminEmails', 'operatorEmails', 'managementEmails', 'updatedAt', 'updatedByUid']) &&
+          isWorkspaceAdmin(workspaceId);
+        allow delete: if false;
+      }
+
+      match /config/secrets {
+        allow get: if isValidId(workspaceId) && isWorkspaceAdmin(workspaceId);
+        allow list: if false;
+        allow create: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceSecrets(incoming()) &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (
+              incoming().ownerUid == request.auth.uid &&
+              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+            )
+          );
+        allow update: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceSecrets(incoming()) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['adminPin', 'updatedAt', 'updatedByUid']) &&
+          isWorkspaceAdmin(workspaceId);
+        allow delete: if false;
+      }
+
+      match /config/meta {
+        allow get: if isValidId(workspaceId) && isWorkspaceAuthorized(workspaceId);
+        allow list: if false;
+        allow create: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceMeta(incoming()) &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (
+              incoming().ownerUid == request.auth.uid &&
+              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+            )
+          );
+        allow update: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceMeta(incoming()) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['factoryName', 'adminGoogleEmails', 'registeredOperators', 'registeredManagement', 'theme', 'updatedAt', 'updatedByUid'])
+          );
+        allow delete: if false;
+      }
+
+      match /data/master {
+        allow get: if isValidId(workspaceId) && isWorkspaceAuthorized(workspaceId);
+        allow list: if false;
+        allow create: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceMasterData(incoming()) &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (
+              incoming().ownerUid == request.auth.uid &&
+              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+            )
+          );
+        allow update: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceMasterData(incoming()) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['materials', 'wips', 'skus', 'skuWips', 'wipMats', 'recipes', 'machines', 'tanks', 'productionLines', 'updatedAt', 'updatedByUid']) &&
+          isWorkspaceAdmin(workspaceId);
+        allow delete: if false;
+      }
+
+      match /data/operations {
+        allow get: if isValidId(workspaceId) && isWorkspaceAuthorized(workspaceId);
+        allow list: if false;
+        allow create: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceOperationsData(incoming()) &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (
+              incoming().ownerUid == request.auth.uid &&
+              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+            )
+          );
+        allow update: if isValidId(workspaceId) &&
+          isVerified() &&
+          isValidWorkspaceOperationsData(incoming()) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'updatedAt', 'updatedByUid']) &&
+          (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
+        allow delete: if false;
+      }
+    }
+  }
+}

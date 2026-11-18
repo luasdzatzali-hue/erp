@@ -511,6 +511,7 @@ export interface RegisteredOperator {
   id: string;
   name: string;
   nik: string; // Nomor Induk Karyawan
+  email?: string; // Opsional: Email Google operator untuk akses lintas perangkat
   assignedLine: string;
   assignedShift: 1 | 2 | 3;
   status: 'ACTIVE' | 'INACTIVE';
@@ -539,6 +540,8 @@ export interface CurrentUserSession {
 
 export interface AppState {
   theme?: 'midnight' | 'daylight' | 'light' | 'dark'; // 'midnight' (Gelap Industrial) or 'daylight' (Putih/Cerah Terang Pabrik)
+  factoryName?: string; // Nama pabrik yang didaftarkan oleh Administrator pertama
+  cloudOwnerUid?: string; // UID Administrator utama pemilik workspace di Firestore
   isAuthenticated: boolean; // false initially so users land on the Sign In page
   isAdmin: boolean;
   currentUserRole: UserRole; // 'ADMINISTRATOR' | 'OPERATOR' | 'MANAGEMENT'

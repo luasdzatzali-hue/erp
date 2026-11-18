@@ -53,6 +53,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   // Form states for Operator
   const [opName, setOpName] = useState('');
   const [opNik, setOpNik] = useState('');
+  const [opEmail, setOpEmail] = useState('');
   const [opLine, setOpLine] = useState('Line 1 (Biskuit Domestik)');
   const [opShift, setOpShift] = useState<1 | 2 | 3>(1);
   const [opNotes, setOpNotes] = useState('');
@@ -108,6 +109,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     onAddOperator({
       name: opName,
       nik: opNik,
+      email: opEmail.trim() ? opEmail.trim().toLowerCase() : undefined,
       assignedLine: opLine,
       assignedShift: opShift,
       status: 'ACTIVE',
@@ -115,6 +117,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     });
     setOpName('');
     setOpNik('');
+    setOpEmail('');
     setOpNotes('');
     showToast(`Operator ${opName} (${opNik}) berhasil didaftarkan`);
   };
@@ -298,7 +301,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     </select>
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-medium">Email Google Operator (Opsional - Akses Cloud):</label>
+                    <input
+                      type="email"
+                      value={opEmail}
+                      onChange={(e) => setOpEmail(e.target.value)}
+                      placeholder="e.g. ahmad.fauzi@gmail.com"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-slate-400 mb-1 font-medium">Catatan / Sertifikasi Mesin (Opsional):</label>
                     <input
                       type="text"
@@ -358,7 +372,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400">
-                            {op.assignedLine} • <strong>Shift {op.assignedShift}</strong> {op.notes ? `• ${op.notes}` : ''}
+                            {op.assignedLine} • <strong>Shift {op.assignedShift}</strong> {op.email ? `• ✉️ ${op.email}` : ''} {op.notes ? `• ${op.notes}` : ''}
                           </p>
                         </div>
 

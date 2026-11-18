@@ -1,0 +1,414 @@
+{
+  "entities": {
+    "SystemBootstrap": {
+      "title": "SystemBootstrap",
+      "description": "Status inisialisasi pabrik dan pendaftaran akun administrator pertama (bebas PII)",
+      "type": "object",
+      "properties": {
+        "isInitialized": {
+          "type": "boolean",
+          "description": "Apakah akun administrator pertama sudah didaftarkan"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID administrator utama pemilik workspace pabrik"
+        },
+        "factoryName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama pabrik atau fasilitas produksi"
+        },
+        "initializedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp saat registrasi admin pertama"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan terakhir"
+        }
+      },
+      "required": ["isInitialized", "ownerUid", "factoryName", "initializedAt", "updatedAt"]
+    },
+    "AdminProfile": {
+      "title": "AdminProfile",
+      "description": "Profil administrator terautentikasi Google dengan hak penuh atas BOM, lini produksi, dan manajemen pengguna",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID administrator"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160,
+          "description": "Email Google administrator"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama lengkap administrator"
+        },
+        "factoryName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama pabrik yang dikelola"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["SUPER_ADMIN", "ADMIN"],
+          "description": "Peran otoritas administrator"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan akun admin"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan profil"
+        }
+      },
+      "required": ["uid", "email", "displayName", "factoryName", "role", "createdAt", "updatedAt"]
+    },
+    "WorkspaceAccessConfig": {
+      "title": "WorkspaceAccessConfig",
+      "description": "Daftar otorisasi email berbatas untuk Admin, Operator, dan Management pada workspace",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik utama"
+        },
+        "adminEmails": {
+          "type": "array",
+          "description": "Daftar email admin terdaftar (maks 30)"
+        },
+        "operatorEmails": {
+          "type": "array",
+          "description": "Daftar email operator aktif terdaftar (maks 100)"
+        },
+        "managementEmails": {
+          "type": "array",
+          "description": "Daftar email management dengan izin melihat aktif (maks 50)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan akses"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID admin pengubah"
+        }
+      },
+      "required": ["workspaceId", "ownerUid", "adminEmails", "operatorEmails", "managementEmails", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceSecrets": {
+      "title": "WorkspaceSecrets",
+      "description": "Kredensial PIN internal Administrator untuk otorisasi cepat lantai produksi (khusus Admin)",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik utama"
+        },
+        "adminPin": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 16,
+          "description": "PIN Administrator lokal pabrik"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan PIN"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID admin pengubah"
+        }
+      },
+      "required": ["workspaceId", "ownerUid", "adminPin", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceMeta": {
+      "title": "WorkspaceMeta",
+      "description": "Konfigurasi profil pabrik, daftar operator, daftar management, dan preferensi antarmuka",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik utama"
+        },
+        "factoryName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama pabrik"
+        },
+        "adminGoogleEmails": {
+          "type": "array",
+          "description": "Daftar email Google admin"
+        },
+        "registeredOperators": {
+          "type": "array",
+          "description": "Daftar operator produksi terdaftar"
+        },
+        "registeredManagement": {
+          "type": "array",
+          "description": "Daftar pengguna management dan hak aksesnya"
+        },
+        "theme": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20,
+          "description": "Tema UI aplikasi"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pengubah"
+        }
+      },
+      "required": ["workspaceId", "ownerUid", "factoryName", "adminGoogleEmails", "registeredOperators", "registeredManagement", "theme", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceMasterData": {
+      "title": "WorkspaceMasterData",
+      "description": "Data Master BOM lengkap: Material, WIP, SKU, SkuWip, WipMaterial, Resep, Mesin, Tangki, dan Line Produksi",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik utama"
+        },
+        "materials": {
+          "type": "array",
+          "description": "Daftar Master Bahan Baku"
+        },
+        "wips": {
+          "type": "array",
+          "description": "Daftar Master WIP"
+        },
+        "skus": {
+          "type": "array",
+          "description": "Daftar Master SKU Produk Jadi"
+        },
+        "skuWips": {
+          "type": "array",
+          "description": "Relasi BOM SKU ke WIP"
+        },
+        "wipMats": {
+          "type": "array",
+          "description": "Relasi BOM WIP ke Bahan Baku"
+        },
+        "recipes": {
+          "type": "array",
+          "description": "Daftar Resep WIP"
+        },
+        "machines": {
+          "type": "array",
+          "description": "Daftar Mesin Produksi"
+        },
+        "tanks": {
+          "type": "array",
+          "description": "Daftar Tangki Holding & Storage"
+        },
+        "productionLines": {
+          "type": "array",
+          "description": "Daftar Line Produksi"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan master"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID admin pengubah"
+        }
+      },
+      "required": ["workspaceId", "ownerUid", "materials", "wips", "skus", "skuWips", "wipMats", "recipes", "machines", "tanks", "productionLines", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceOperationsData": {
+      "title": "WorkspaceOperationsData",
+      "description": "Data transaksi produksi, stok, batch WIP, perpindahan tangki, changeover, SBL, dan line berjalan",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik utama"
+        },
+        "requests": {
+          "type": "array",
+          "description": "Permintaan material"
+        },
+        "receipts": {
+          "type": "array",
+          "description": "Penerimaan material"
+        },
+        "usages": {
+          "type": "array",
+          "description": "Pemakaian material"
+        },
+        "wipBatches": {
+          "type": "array",
+          "description": "Batch produksi WIP"
+        },
+        "cartonProductions": {
+          "type": "array",
+          "description": "Log produksi karton SKU"
+        },
+        "tankLogs": {
+          "type": "array",
+          "description": "Log aliran tangki"
+        },
+        "changeovers": {
+          "type": "array",
+          "description": "Log changeover"
+        },
+        "productionStops": {
+          "type": "array",
+          "description": "Log stop produksi Six Big Losses"
+        },
+        "stockAdjustments": {
+          "type": "array",
+          "description": "Log penyesuaian stok awal"
+        },
+        "activeSkuRuns": {
+          "type": "array",
+          "description": "Daftar proses produksi line aktif"
+        },
+        "tank": {
+          "type": "object",
+          "description": "Status tangki utama"
+        },
+        "lastShiftHandover": {
+          "type": "object",
+          "description": "Informasi serah terima shift terakhir"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan operasional"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pengguna pengubah"
+        }
+      },
+      "required": ["workspaceId", "ownerUid", "requests", "receipts", "usages", "wipBatches", "cartonProductions", "tankLogs", "changeovers", "productionStops", "stockAdjustments", "activeSkuRuns", "tank", "updatedAt", "updatedByUid"]
+    }
+  },
+  "firestore": {
+    "/system/bootstrap": {
+      "schema": { "$ref": "#/entities/SystemBootstrap" },
+      "description": "Status inisialisasi awal sistem apakah admin pertama sudah terdaftar"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminProfile" },
+      "description": "Akun administrator terdaftar dengan otoritas penuh"
+    },
+    "/workspaces/{workspaceId}/config/access": {
+      "schema": { "$ref": "#/entities/WorkspaceAccessConfig" },
+      "description": "Allowlist email peran pada workspace pabrik"
+    },
+    "/workspaces/{workspaceId}/config/secrets": {
+      "schema": { "$ref": "#/entities/WorkspaceSecrets" },
+      "description": "PIN administrator terproteksi khusus admin"
+    },
+    "/workspaces/{workspaceId}/config/meta": {
+      "schema": { "$ref": "#/entities/WorkspaceMeta" },
+      "description": "Metadata pabrik dan daftar operator/management terdaftar"
+    },
+    "/workspaces/{workspaceId}/data/master": {
+      "schema": { "$ref": "#/entities/WorkspaceMasterData" },
+      "description": "Master BOM, SKU, WIP, Resep, Mesin, Tangki, dan Line Produksi"
+    },
+    "/workspaces/{workspaceId}/data/operations": {
+      "schema": { "$ref": "#/entities/WorkspaceOperationsData" },
+      "description": "Log transaksi harian produksi dan status operasional berjalan"
+    }
+  }
+}

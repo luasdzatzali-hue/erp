@@ -35,8 +35,20 @@ import {
   loadStoredState,
   saveStateToStorage,
   getSampleState,
+  getCleanBlankState,
   DEFAULT_STATE
 } from './utils/storage';
+import {
+  checkFirstTimeSetup,
+  loadCloudWorkspaceForUser,
+  registerFirstAdministrator,
+  saveWorkspaceSectionsToCloud,
+  signInWithGoogleAuth,
+  signOutGoogleAuth,
+  subscribeAuthState,
+  subscribeToWorkspaceCloud
+} from './utils/firebaseSync';
+import type { User } from 'firebase/auth';
 import { getMaterialCompositeKey } from './utils/materialParser';
 import { getCurrentShift, getShiftPeriodInfo, getNextShiftNumber } from './utils/shifts';
 import { getAllTanksForWip, checkRunHoldingTankAvailability } from './utils/skuTankHelper';
@@ -100,13 +112,300 @@ export default function App() {
     }, 3000);
   }, []);
 
-  // Save state with lightweight debounce & unload flush to prevent excessive synchronous writes
+  // Cloud Setup & Cross-Device Firestore Sync State
+  const [setupStatus, setSetupStatus] = useState<'checking' | 'needs_setup' | 'ready' | 'error'>('checking');
+  const [cloudFactoryName, setCloudFactoryName] = useState<string | undefined>(undefined);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [cloudAuthRole, setCloudAuthRole] = useState<UserRole | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+
+  const isApplyingRemoteRef = useRef(false);
+  const cloudInitializedSnapshotsRef = useRef<{
+    meta: string;
+    secrets: string;
+    master: string;
+    operations: string;
+  } | null>(null);
+
+  const serializeMeta = (s: AppState) =>
+    JSON.stringify({
+      factoryName: s.factoryName || '',
+      theme: s.theme || 'midnight',
+      adminGoogleEmails: s.adminGoogleEmails || [],
+      registeredOperators: s.registeredOperators || [],
+      registeredManagement: s.registeredManagement || []
+    });
+
+  const serializeSecrets = (s: AppState) => JSON.stringify({ adminPin: s.adminPin || '' });
+  const serializeMaster = (s: AppState) => JSON.stringify(s.master);
+  const serializeOperations = (s: AppState) =>
+    JSON.stringify({
+      transactions: s.transactions,
+      activeSkuRuns: s.activeSkuRuns || [],
+      tank: s.tank,
+      lastShiftHandover: s.lastShiftHandover ?? null
+    });
+
+  const refreshCloudSnapshotsBaseline = useCallback((s: AppState) => {
+    cloudInitializedSnapshotsRef.current = {
+      meta: serializeMeta(s),
+      secrets: serializeSecrets(s),
+      master: serializeMaster(s),
+      operations: serializeOperations(s)
+    };
+  }, []);
+
+  const runSetupCheck = useCallback(async () => {
+    setSetupStatus('checking');
+    try {
+      const boot = await checkFirstTimeSetup();
+      if (!boot.isInitialized) {
+        setSetupStatus('needs_setup');
+        setCloudFactoryName(undefined);
+        // Ensure first-time Admin Setup Wizard always blocks bypassing into app
+        setState(prev => (prev.isAuthenticated ? { ...prev, isAuthenticated: false } : prev));
+      } else {
+        setSetupStatus('ready');
+        setCloudFactoryName(boot.factoryName);
+      }
+    } catch (err) {
+      console.error('Failed to verify setup status:', err);
+      setSetupStatus('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    runSetupCheck();
+  }, [runSetupCheck]);
+
+  // Listen to Firebase Auth state changes
+  useEffect(() => {
+    const unsub = subscribeAuthState(user => {
+      setFirebaseUser(user);
+      if (!user) {
+        setCloudAuthRole(null);
+        cloudInitializedSnapshotsRef.current = null;
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Hydrate workspace from Cloud Firestore once setupStatus is ready and Firebase user is authenticated
+  useEffect(() => {
+    if (setupStatus !== 'ready' || !firebaseUser) return;
+    let isCancelled = false;
+
+    const syncFromCloud = async () => {
+      setIsSyncingCloud(true);
+      try {
+        const loaded = await loadCloudWorkspaceForUser(firebaseUser);
+        if (isCancelled) return;
+        if (loaded) {
+          setCloudAuthRole(loaded.cloudRole);
+          setCloudFactoryName(loaded.factoryName);
+          isApplyingRemoteRef.current = true;
+          setState(prev => {
+            const next: AppState = {
+              ...prev,
+              ...loaded.statePatch
+            };
+            refreshCloudSnapshotsBaseline(next);
+            return next;
+          });
+          setTimeout(() => {
+            isApplyingRemoteRef.current = false;
+          }, 150);
+        } else {
+          setCloudAuthRole(null);
+        }
+      } catch (err) {
+        console.error('Cloud hydration error:', err);
+      } finally {
+        if (!isCancelled) setIsSyncingCloud(false);
+      }
+    };
+
+    syncFromCloud();
+    return () => {
+      isCancelled = true;
+    };
+  }, [setupStatus, firebaseUser, refreshCloudSnapshotsBaseline]);
+
+  // Attach real-time Firestore listeners for multi-device collaboration
+  useEffect(() => {
+    if (setupStatus !== 'ready' || !firebaseUser || !cloudAuthRole) return;
+    const unsub = subscribeToWorkspaceCloud(
+      cloudAuthRole,
+      patch => {
+        isApplyingRemoteRef.current = true;
+        setState(prev => {
+          const next: AppState = {
+            ...prev,
+            ...patch
+          };
+          refreshCloudSnapshotsBaseline(next);
+          return next;
+        });
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 150);
+      },
+      err => {
+        console.error('Realtime sync warning:', err);
+      }
+    );
+    return () => unsub();
+  }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
+
+  // First-Time Administrator Setup Wizard completion handler
+  const handleCompleteFirstAdminSetup = async (data: {
+    user: User;
+    factoryName: string;
+    adminName: string;
+    adminPin: string;
+    initMode: 'template' | 'blank';
+  }) => {
+    const baseState = data.initMode === 'template' ? getSampleState() : getCleanBlankState();
+    const registeredState = await registerFirstAdministrator({
+      user: data.user,
+      displayName: data.adminName,
+      factoryName: data.factoryName,
+      adminPin: data.adminPin,
+      initialState: baseState
+    });
+
+    isApplyingRemoteRef.current = true;
+    setState(registeredState);
+    refreshCloudSnapshotsBaseline(registeredState);
+    setCloudFactoryName(data.factoryName);
+    setCloudAuthRole('ADMINISTRATOR');
+    setSetupStatus('ready');
+    setTimeout(() => {
+      isApplyingRemoteRef.current = false;
+    }, 200);
+    showToast(`Administrator ${data.adminName} & Workspace "${data.factoryName}" berhasil disimpan ke Cloud!`);
+  };
+
+  // Sign in via Google & load Cloud Workspace (Admin / Operator / Management)
+  const handleGoogleCloudLogin = async (intendedRole?: UserRole) => {
+    const user = await signInWithGoogleAuth();
+    if (!user) return;
+
+    setIsSyncingCloud(true);
+    try {
+      const loaded = await loadCloudWorkspaceForUser(user);
+      if (!loaded) {
+        showToast(
+          `Akun Google (${user.email}) belum terdaftar sebagai Administrator, Operator, atau Management pada pabrik ini.`,
+          true
+        );
+        return;
+      }
+
+      if (intendedRole === 'ADMINISTRATOR' && loaded.cloudRole !== 'ADMINISTRATOR') {
+        showToast(
+          `Akun (${user.email}) tidak memiliki hak Administrator. Silakan masuk sesuai peran Anda (${loaded.cloudRole}).`,
+          true
+        );
+        return;
+      }
+
+      if (intendedRole === 'OPERATOR' && loaded.cloudRole === 'MANAGEMENT') {
+        showToast(
+          `Akun (${user.email}) terdaftar sebagai Management (Read-Only), bukan Operator.`,
+          true
+        );
+        return;
+      }
+
+      const effectiveRole: UserRole = intendedRole || loaded.cloudRole;
+
+      setCloudAuthRole(loaded.cloudRole);
+      setCloudFactoryName(loaded.factoryName);
+      isApplyingRemoteRef.current = true;
+      setState(prev => {
+        const next: AppState = {
+          ...prev,
+          ...loaded.statePatch
+        };
+        refreshCloudSnapshotsBaseline(next);
+        return next;
+      });
+      setTimeout(() => {
+        isApplyingRemoteRef.current = false;
+      }, 200);
+
+      handleLoginSuccess(effectiveRole, {
+        id: loaded.matchedProfileId || user.uid,
+        name: loaded.matchedProfileName || user.displayName || user.email || 'User',
+        email: user.email || undefined,
+        subtitle: loaded.matchedProfileSubtitle || `${effectiveRole} • ${loaded.factoryName}`
+      });
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  const handleFirebaseSignOut = async () => {
+    await signOutGoogleAuth();
+    setCloudAuthRole(null);
+    cloudInitializedSnapshotsRef.current = null;
+    setState(prev => ({
+      ...prev,
+      isAuthenticated: false,
+      currentAdminUser: null
+    }));
+    showToast('Sesi akun Google telah diputus dari perangkat ini.');
+  };
+
+  // Save state to localStorage + sync modified sections to Cloud Firestore
   useEffect(() => {
     const timer = setTimeout(() => {
       saveStateToStorage(state);
-    }, 350);
+
+      if (
+        isApplyingRemoteRef.current ||
+        setupStatus !== 'ready' ||
+        !firebaseUser ||
+        !cloudAuthRole ||
+        !state.cloudOwnerUid ||
+        !cloudInitializedSnapshotsRef.current
+      ) {
+        return;
+      }
+
+      const prevSnaps = cloudInitializedSnapshotsRef.current;
+      const curMeta = serializeMeta(state);
+      const curSecrets = serializeSecrets(state);
+      const curMaster = serializeMaster(state);
+      const curOps = serializeOperations(state);
+
+      const sectionsToSave = {
+        meta: curMeta !== prevSnaps.meta,
+        secrets: curSecrets !== prevSnaps.secrets,
+        master: curMaster !== prevSnaps.master,
+        operations: curOps !== prevSnaps.operations
+      };
+
+      if (
+        sectionsToSave.meta ||
+        sectionsToSave.secrets ||
+        sectionsToSave.master ||
+        sectionsToSave.operations
+      ) {
+        cloudInitializedSnapshotsRef.current = {
+          meta: curMeta,
+          secrets: curSecrets,
+          master: curMaster,
+          operations: curOps
+        };
+        saveWorkspaceSectionsToCloud(sectionsToSave, state, cloudAuthRole).catch(err => {
+          console.error('Cloud sync save error:', err);
+        });
+      }
+    }, 450);
     return () => clearTimeout(timer);
-  }, [state]);
+  }, [state, setupStatus, firebaseUser, cloudAuthRole]);
 
   useEffect(() => {
     const flushState = () => {
@@ -233,6 +532,14 @@ export default function App() {
     role: UserRole,
     sessionData?: { id: string; name: string; subtitle?: string; email?: string }
   ) => {
+    if (cloudAuthRole && cloudAuthRole !== 'ADMINISTRATOR' && role === 'ADMINISTRATOR') {
+      showToast('Akses ditolak: Akun Google Cloud Anda bukan Administrator.', true);
+      return;
+    }
+    if (cloudAuthRole === 'MANAGEMENT' && role === 'OPERATOR') {
+      showToast('Akses ditolak: Akun Management hanya memiliki izin melihat (Read-Only).', true);
+      return;
+    }
     setState(prev => {
       const isNewAdmin = role === 'ADMINISTRATOR';
       let nextTab = prev.currentTab;
@@ -403,15 +710,24 @@ export default function App() {
   // Full Reset to empty
   // 1. Reset All Data
   const handleResetAll = () => {
-    setState({
+    setState(prev => ({
       ...DEFAULT_STATE,
-      isAdmin: state.isAdmin,
-      adminPin: state.adminPin,
+      factoryName: prev.factoryName,
+      cloudOwnerUid: prev.cloudOwnerUid,
+      isAuthenticated: prev.isAuthenticated,
+      isAdmin: prev.isAdmin,
+      currentUserRole: prev.currentUserRole,
+      currentSession: prev.currentSession,
+      adminPin: prev.adminPin,
+      adminGoogleEmails: prev.adminGoogleEmails,
+      currentAdminUser: prev.currentAdminUser,
+      registeredOperators: prev.registeredOperators,
+      registeredManagement: prev.registeredManagement,
       tank: {
         ...DEFAULT_STATE.tank,
         level: 0.0
       }
-    });
+    }));
     showToast('Kategori 1: Semua data sistem (Master & Transaksi) berhasil di-reset bersih');
   };
 
@@ -425,8 +741,10 @@ export default function App() {
         skus: [],
         skuWips: [],
         wipMats: [],
+        recipes: [],
         machines: [],
-        tanks: []
+        tanks: [],
+        productionLines: prev.master.productionLines || []
       }
     }));
     showToast('Kategori 2: Master Data (Material, WIP, SKU, Mesin, Tangki & BOM) berhasil di-reset');
@@ -476,11 +794,20 @@ export default function App() {
   // Load sample dataset
   const handleLoadSampleData = () => {
     const sample = getSampleState();
-    setState({
+    setState(prev => ({
       ...sample,
-      isAdmin: state.isAdmin,
-      adminPin: state.adminPin
-    });
+      factoryName: prev.factoryName || sample.factoryName,
+      cloudOwnerUid: prev.cloudOwnerUid,
+      isAuthenticated: prev.isAuthenticated,
+      isAdmin: prev.isAdmin,
+      currentUserRole: prev.currentUserRole,
+      currentSession: prev.currentSession,
+      adminPin: prev.adminPin,
+      adminGoogleEmails: prev.adminGoogleEmails?.length ? prev.adminGoogleEmails : sample.adminGoogleEmails,
+      currentAdminUser: prev.currentAdminUser,
+      registeredOperators: prev.registeredOperators?.length ? prev.registeredOperators : sample.registeredOperators,
+      registeredManagement: prev.registeredManagement?.length ? prev.registeredManagement : sample.registeredManagement
+    }));
     showToast('Data contoh industri berhasil dimuat ke sistem');
   };
 
@@ -3713,14 +4040,23 @@ export default function App() {
     reports: 'Laporan Saldo Stock Aktual Shift (PDF Landscape)'
   };
 
-  // 1. TAMPILAN AWAL: PORTAL SIGN IN (PILIH JENIS PENGGUNA)
-  if (!state.isAuthenticated) {
+  // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
+  if (!state.isAuthenticated || setupStatus !== 'ready') {
     return (
       <div className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-sans">
         <AuthPortalView
           state={state}
           theme={state.theme === 'daylight' || state.theme === 'light' ? 'daylight' : 'midnight'}
           onToggleTheme={handleToggleTheme}
+          setupStatus={setupStatus}
+          cloudFactoryName={cloudFactoryName}
+          firebaseUser={firebaseUser}
+          cloudAuthRole={cloudAuthRole}
+          isSyncingCloud={isSyncingCloud}
+          onRetryCheckSetup={runSetupCheck}
+          onCompleteFirstAdminSetup={handleCompleteFirstAdminSetup}
+          onGoogleCloudLogin={handleGoogleCloudLogin}
+          onFirebaseSignOut={handleFirebaseSignOut}
           onLoginSuccess={handleLoginSuccess}
           showToast={showToast}
         />

@@ -924,6 +924,59 @@ export function getSampleState(): AppState {
   };
 }
 
+export function getCleanBlankState(): AppState {
+  return {
+    theme: 'midnight',
+    isAuthenticated: false,
+    isAdmin: true,
+    currentUserRole: 'ADMINISTRATOR',
+    currentSession: {
+      role: 'ADMINISTRATOR',
+      id: 'admin_root',
+      name: 'Administrator',
+      subtitle: 'Super Administrator'
+    },
+    registeredOperators: [],
+    registeredManagement: [],
+    adminPin: '12345678',
+    adminGoogleEmails: [],
+    currentAdminUser: null,
+    currentTab: 'admin-portal',
+    master: {
+      materials: [],
+      wips: [],
+      skus: [],
+      skuWips: [],
+      wipMats: [],
+      recipes: [],
+      machines: [],
+      tanks: [],
+      productionLines: SAMPLE_PRODUCTION_LINES
+    },
+    transactions: {
+      requests: [],
+      receipts: [],
+      usages: [],
+      wipBatches: [],
+      cartonProductions: [],
+      tankLogs: [],
+      changeovers: [],
+      productionStops: [],
+      stockAdjustments: []
+    },
+    activeSkuRun: null,
+    activeSkuRuns: [],
+    tank: {
+      level: 0,
+      maxCapacity: 1000.0,
+      temp: 48.0,
+      minTempTarget: 45.0,
+      maxTempTarget: 55.0,
+      isSimulationActive: false
+    }
+  };
+}
+
 export function loadStoredState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1129,7 +1182,7 @@ export function loadStoredState(): AppState {
   } catch (err) {
     console.error('Failed to load state from localStorage:', err);
   }
-  return getSampleState();
+  return { ...getCleanBlankState(), isAuthenticated: false };
 }
 
 function cleanupLegacyStorageKeys(): void {
