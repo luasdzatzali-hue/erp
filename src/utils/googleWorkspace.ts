@@ -73,6 +73,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       throw new Error('Jendela popup login diblokir oleh browser. Harap izinkan popup di pengaturan browser Anda.');
     }
 
+    if (errorCode === 'auth/unauthorized-domain') {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'domain ini';
+      throw new Error(`Domain "${host}" belum ditambahkan di Firebase Console → Authentication → Authorized domains.`);
+    }
+
     if (errorCode === 'auth/network-request-failed') {
       console.warn('Google Sign-In gagal: masalah jaringan.');
       throw new Error('Koneksi internet bermasalah saat login dengan Google. Silakan periksa jaringan Anda.');
@@ -87,6 +92,10 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
 export const getAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
+};
+
+export const clearWorkspaceDriveToken = () => {
+  cachedAccessToken = null;
 };
 
 export const googleLogout = async () => {

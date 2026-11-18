@@ -39,12 +39,17 @@ import {
   DEFAULT_STATE
 } from './utils/storage';
 import {
+  auth,
+  AuthErrorDetail,
   checkFirstTimeSetup,
-  loadCloudWorkspaceForUser,
+  consumeGoogleRedirectResult,
+  formatGoogleAuthError,
+  loadCloudWorkspaceDetailed,
   registerFirstAdministrator,
   saveWorkspaceSectionsToCloud,
-  signInWithGoogleAuth,
+  signInWithGooglePopup,
   signOutGoogleAuth,
+  startGoogleRedirectSignIn,
   subscribeAuthState,
   subscribeToWorkspaceCloud
 } from './utils/firebaseSync';
@@ -118,8 +123,11 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [cloudAuthRole, setCloudAuthRole] = useState<UserRole | null>(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+  const [authErrorBanner, setAuthErrorBanner] = useState<AuthErrorDetail | null>(null);
 
   const isApplyingRemoteRef = useRef(false);
+  const manualGoogleLoginInFlightRef = useRef(false);
+  const cloudUnsubRef = useRef<(() => void) | null>(null);
   const cloudInitializedSnapshotsRef = useRef<{
     meta: string;
     secrets: string;
@@ -155,6 +163,121 @@ export default function App() {
     };
   }, []);
 
+  // Sign In Success from AuthPortalView
+  const handleLoginSuccess = useCallback(
+    (
+      role: UserRole,
+      sessionData: { id: string; name: string; subtitle?: string; email?: string }
+    ) => {
+      setAuthErrorBanner(null);
+      setState(prev => {
+        const isNewAdmin = role === 'ADMINISTRATOR';
+        const initialTab: AppState['currentTab'] =
+          role === 'ADMINISTRATOR'
+            ? 'admin-portal'
+            : role === 'OPERATOR'
+            ? 'pemakaian'
+            : 'dashboard';
+
+        const fallbackEmail = sessionData.email || auth.currentUser?.email || '';
+        const restoredAdminUser =
+          isNewAdmin && !prev.currentAdminUser && fallbackEmail
+            ? {
+                email: fallbackEmail.toLowerCase().trim(),
+                displayName: sessionData.name,
+                photoURL: auth.currentUser?.photoURL || undefined,
+                registeredAt: new Date().toISOString(),
+                role: (prev.cloudOwnerUid === auth.currentUser?.uid ||
+                  fallbackEmail.toLowerCase().trim() === 'luasdzatzali@gmail.com'
+                  ? 'SUPER_ADMIN'
+                  : 'ADMIN') as 'SUPER_ADMIN' | 'ADMIN'
+              }
+            : prev.currentAdminUser;
+
+        return {
+          ...prev,
+          isAuthenticated: true,
+          currentUserRole: role,
+          isAdmin: isNewAdmin,
+          currentAdminUser: restoredAdminUser,
+          currentTab: initialTab,
+          currentSession: {
+            role,
+            id: sessionData.id,
+            name: sessionData.name,
+            subtitle: sessionData.subtitle,
+            email: sessionData.email
+          }
+        };
+      });
+      showToast(`Selamat datang, ${sessionData.name} (${role})`);
+    },
+    [showToast]
+  );
+
+  const applyCloudWorkspaceEntry = useCallback(
+    async (user: User, intendedRole?: UserRole): Promise<boolean> => {
+      const outcome = await loadCloudWorkspaceDetailed(user);
+      if (outcome.status === 'workspace_missing') {
+        const msg = 'Data workspace pabrik belum ditemukan di Cloud Firestore.';
+        setAuthErrorBanner({ message: msg });
+        showToast(msg, true);
+        return false;
+      }
+
+      if (outcome.status === 'not_authorized') {
+        const factoryLabel = outcome.factoryName ? ` (${outcome.factoryName})` : '';
+        const msg = `Akun Google (${outcome.email}) belum terdaftar sebagai Administrator, Operator, atau Management pada pabrik${factoryLabel}. Gunakan "Ganti Akun Google" untuk login dengan email Administrator yang terdaftar.`;
+        setAuthErrorBanner({ message: msg });
+        showToast(msg, true);
+        return false;
+      }
+
+      const loaded = outcome.workspace;
+
+      if (intendedRole === 'ADMINISTRATOR' && loaded.cloudRole !== 'ADMINISTRATOR') {
+        const msg = `Akun Google (${user.email}) saat ini memiliki peran ${loaded.cloudRole}, bukan Administrator. Klik "Ganti Akun Google" untuk masuk dengan email Administrator terdaftar.`;
+        setAuthErrorBanner({ message: msg });
+        showToast(msg, true);
+        return false;
+      }
+
+      if (intendedRole === 'OPERATOR' && loaded.cloudRole === 'MANAGEMENT') {
+        const msg = `Akun (${user.email}) terdaftar sebagai Management (Read-Only), bukan Operator.`;
+        setAuthErrorBanner({ message: msg });
+        showToast(msg, true);
+        return false;
+      }
+
+      const effectiveRole: UserRole = intendedRole || loaded.cloudRole;
+
+      setAuthErrorBanner(null);
+      setCloudAuthRole(loaded.cloudRole);
+      setCloudFactoryName(loaded.factoryName);
+      isApplyingRemoteRef.current = true;
+      setState(prev => {
+        const next: AppState = {
+          ...prev,
+          ...loaded.statePatch
+        };
+        refreshCloudSnapshotsBaseline(next);
+        return next;
+      });
+      setTimeout(() => {
+        isApplyingRemoteRef.current = false;
+      }, 200);
+
+      handleLoginSuccess(effectiveRole, {
+        id: loaded.matchedProfileId || user.uid,
+        name: loaded.matchedProfileName || user.displayName || user.email || 'User',
+        email: user.email || undefined,
+        subtitle: loaded.matchedProfileSubtitle || `${effectiveRole} • ${loaded.factoryName}`
+      });
+      return true;
+    },
+    [handleLoginSuccess, refreshCloudSnapshotsBaseline, showToast]
+  );
+
   const runSetupCheck = useCallback(async () => {
     setSetupStatus('checking');
     try {
@@ -175,14 +298,52 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    runSetupCheck();
-  }, [runSetupCheck]);
+    let cancelled = false;
+    const init = async () => {
+      // Check redirect login result first (in case user returned from Google signInWithRedirect)
+      const redirectResult = await consumeGoogleRedirectResult();
+      if (cancelled) return;
+
+      if (redirectResult.errorDetail) {
+        setAuthErrorBanner(redirectResult.errorDetail);
+        showToast(redirectResult.errorDetail.message, true);
+      }
+
+      if (redirectResult.user) {
+        setFirebaseUser(redirectResult.user);
+      }
+
+      await runSetupCheck();
+      if (cancelled) return;
+
+      if (redirectResult.user && redirectResult.intendedRole && redirectResult.intendedRole !== 'SETUP') {
+        manualGoogleLoginInFlightRef.current = true;
+        setIsSyncingCloud(true);
+        try {
+          await applyCloudWorkspaceEntry(redirectResult.user, redirectResult.intendedRole);
+        } catch (err: any) {
+          const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
+          setAuthErrorBanner(detail);
+          showToast(detail.message, true);
+        } finally {
+          manualGoogleLoginInFlightRef.current = false;
+          if (!cancelled) setIsSyncingCloud(false);
+        }
+      }
+    };
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [runSetupCheck, applyCloudWorkspaceEntry, showToast]);
 
   // Listen to Firebase Auth state changes
   useEffect(() => {
     const unsub = subscribeAuthState(user => {
       setFirebaseUser(user);
       if (!user) {
+        cloudUnsubRef.current?.();
+        cloudUnsubRef.current = null;
         setCloudAuthRole(null);
         cloudInitializedSnapshotsRef.current = null;
       }
@@ -193,14 +354,16 @@ export default function App() {
   // Hydrate workspace from Cloud Firestore once setupStatus is ready and Firebase user is authenticated
   useEffect(() => {
     if (setupStatus !== 'ready' || !firebaseUser) return;
+    if (manualGoogleLoginInFlightRef.current) return;
     let isCancelled = false;
 
     const syncFromCloud = async () => {
       setIsSyncingCloud(true);
       try {
-        const loaded = await loadCloudWorkspaceForUser(firebaseUser);
-        if (isCancelled) return;
-        if (loaded) {
+        const outcome = await loadCloudWorkspaceDetailed(firebaseUser);
+        if (isCancelled || manualGoogleLoginInFlightRef.current) return;
+        if (outcome.status === 'ok') {
+          const loaded = outcome.workspace;
           setCloudAuthRole(loaded.cloudRole);
           setCloudFactoryName(loaded.factoryName);
           isApplyingRemoteRef.current = true;
@@ -254,7 +417,13 @@ export default function App() {
         console.error('Realtime sync warning:', err);
       }
     );
-    return () => unsub();
+    cloudUnsubRef.current = unsub;
+    return () => {
+      unsub();
+      if (cloudUnsubRef.current === unsub) {
+        cloudUnsubRef.current = null;
+      }
+    };
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
 
   // First-Time Administrator Setup Wizard completion handler
@@ -274,6 +443,7 @@ export default function App() {
       initialState: baseState
     });
 
+    setAuthErrorBanner(null);
     isApplyingRemoteRef.current = true;
     setState(registeredState);
     refreshCloudSnapshotsBaseline(registeredState);
@@ -287,74 +457,72 @@ export default function App() {
   };
 
   // Sign in via Google & load Cloud Workspace (Admin / Operator / Management)
-  const handleGoogleCloudLogin = async (intendedRole?: UserRole) => {
-    const user = await signInWithGoogleAuth();
-    if (!user) return;
+  const handleGoogleCloudLogin = async (
+    intendedRole?: UserRole,
+    options?: { forceAccountSelect?: boolean; useRedirect?: boolean }
+  ) => {
+    setAuthErrorBanner(null);
 
+    if (options?.useRedirect) {
+      try {
+        await startGoogleRedirectSignIn(intendedRole);
+      } catch (err: any) {
+        const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
+        setAuthErrorBanner(detail);
+        showToast(detail.message, true);
+      }
+      return;
+    }
+
+    const activeUser = auth.currentUser || firebaseUser;
+    if (activeUser && !options?.forceAccountSelect) {
+      setIsSyncingCloud(true);
+      try {
+        await applyCloudWorkspaceEntry(activeUser, intendedRole);
+        return;
+      } catch (err: any) {
+        const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
+        setAuthErrorBanner(detail);
+        showToast(detail.message, true);
+        return;
+      } finally {
+        setIsSyncingCloud(false);
+      }
+    }
+
+    manualGoogleLoginInFlightRef.current = true;
     setIsSyncingCloud(true);
     try {
-      const loaded = await loadCloudWorkspaceForUser(user);
-      if (!loaded) {
-        showToast(
-          `Akun Google (${user.email}) belum terdaftar sebagai Administrator, Operator, atau Management pada pabrik ini.`,
-          true
-        );
+      const outcome = await signInWithGooglePopup(true);
+      if (outcome.status !== 'success') {
+        setAuthErrorBanner(outcome.error);
+        showToast(outcome.error.message, true);
         return;
       }
-
-      if (intendedRole === 'ADMINISTRATOR' && loaded.cloudRole !== 'ADMINISTRATOR') {
-        showToast(
-          `Akun (${user.email}) tidak memiliki hak Administrator. Silakan masuk sesuai peran Anda (${loaded.cloudRole}).`,
-          true
-        );
-        return;
-      }
-
-      if (intendedRole === 'OPERATOR' && loaded.cloudRole === 'MANAGEMENT') {
-        showToast(
-          `Akun (${user.email}) terdaftar sebagai Management (Read-Only), bukan Operator.`,
-          true
-        );
-        return;
-      }
-
-      const effectiveRole: UserRole = intendedRole || loaded.cloudRole;
-
-      setCloudAuthRole(loaded.cloudRole);
-      setCloudFactoryName(loaded.factoryName);
-      isApplyingRemoteRef.current = true;
-      setState(prev => {
-        const next: AppState = {
-          ...prev,
-          ...loaded.statePatch
-        };
-        refreshCloudSnapshotsBaseline(next);
-        return next;
-      });
-      setTimeout(() => {
-        isApplyingRemoteRef.current = false;
-      }, 200);
-
-      handleLoginSuccess(effectiveRole, {
-        id: loaded.matchedProfileId || user.uid,
-        name: loaded.matchedProfileName || user.displayName || user.email || 'User',
-        email: user.email || undefined,
-        subtitle: loaded.matchedProfileSubtitle || `${effectiveRole} • ${loaded.factoryName}`
-      });
+      setFirebaseUser(outcome.user);
+      await applyCloudWorkspaceEntry(outcome.user, intendedRole);
+    } catch (err: any) {
+      const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
+      setAuthErrorBanner(detail);
+      showToast(detail.message, true);
     } finally {
+      manualGoogleLoginInFlightRef.current = false;
       setIsSyncingCloud(false);
     }
   };
 
   const handleFirebaseSignOut = async () => {
-    await signOutGoogleAuth();
+    cloudUnsubRef.current?.();
+    cloudUnsubRef.current = null;
     setCloudAuthRole(null);
+    setAuthErrorBanner(null);
     cloudInitializedSnapshotsRef.current = null;
     setState(prev => ({
       ...prev,
       isAuthenticated: false,
       currentAdminUser: null
     }));
+    await signOutGoogleAuth();
     showToast('Sesi akun Google telah diputus dari perangkat ini.');
   };
 
@@ -484,38 +652,6 @@ export default function App() {
       return;
     }
     setState(prev => ({ ...prev, currentTab: tab }));
-  };
-
-  // Sign In Success from AuthPortalView
-  const handleLoginSuccess = (
-    role: UserRole,
-    sessionData: { id: string; name: string; subtitle?: string; email?: string }
-  ) => {
-    setState(prev => {
-      const isNewAdmin = role === 'ADMINISTRATOR';
-      const initialTab: AppState['currentTab'] =
-        role === 'ADMINISTRATOR'
-          ? 'admin-portal'
-          : role === 'OPERATOR'
-          ? 'pemakaian'
-          : 'dashboard';
-
-      return {
-        ...prev,
-        isAuthenticated: true,
-        currentUserRole: role,
-        isAdmin: isNewAdmin,
-        currentTab: initialTab,
-        currentSession: {
-          role,
-          id: sessionData.id,
-          name: sessionData.name,
-          subtitle: sessionData.subtitle,
-          email: sessionData.email
-        }
-      };
-    });
-    showToast(`Selamat datang, ${sessionData.name} (${role})`);
   };
 
   // Sign Out back to AuthPortalView
@@ -698,7 +834,11 @@ export default function App() {
 
   const handleRemoveAdminEmail = (email: string) => {
     const cleanEmail = email.toLowerCase().trim();
-    if (cleanEmail === 'luasdzatzali@gmail.com') return; // Protect super admin
+    const activeEmail = (firebaseUser?.email || '').toLowerCase().trim();
+    if (cleanEmail === 'luasdzatzali@gmail.com' || (activeEmail && cleanEmail === activeEmail)) {
+      showToast('Email Administrator utama / aktif tidak dapat dihapus.', true);
+      return;
+    }
     setState(prev => ({
       ...prev,
       adminGoogleEmails: (prev.adminGoogleEmails || ['luasdzatzali@gmail.com']).filter(
@@ -4053,6 +4193,8 @@ export default function App() {
           firebaseUser={firebaseUser}
           cloudAuthRole={cloudAuthRole}
           isSyncingCloud={isSyncingCloud}
+          authError={authErrorBanner}
+          onClearAuthError={() => setAuthErrorBanner(null)}
           onRetryCheckSetup={runSetupCheck}
           onCompleteFirstAdminSetup={handleCompleteFirstAdminSetup}
           onGoogleCloudLogin={handleGoogleCloudLogin}

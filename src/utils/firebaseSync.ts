@@ -3,6 +3,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   User
@@ -16,7 +18,10 @@ import {
   writeBatch,
   onSnapshot,
   serverTimestamp,
-  Unsubscribe
+  Unsubscribe,
+  DocumentReference,
+  DocumentData,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { AppState, UserRole } from '../types';
@@ -27,11 +32,17 @@ export const auth = getAuth(app);
 
 const WORKSPACE_ID = 'main';
 const BOOTSTRAP_EMAIL = 'luasdzatzali@gmail.com';
+const PENDING_REDIRECT_ROLE_KEY = 'prodtrack_pending_google_role_v1';
 
-const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('email');
-googleProvider.addScope('profile');
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+function createGoogleProvider(forceAccountSelect = true): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  if (forceAccountSelect) {
+    provider.setCustomParameters({ prompt: 'select_account' });
+  }
+  return provider;
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -95,6 +106,31 @@ async function testConnection() {
   }
 }
 testConnection();
+
+function isOfflineOrTransientError(error: any): boolean {
+  const code = String(error?.code || '').toLowerCase();
+  const msg = String(error?.message || '').toLowerCase();
+  return (
+    code === 'unavailable' ||
+    code === 'deadline-exceeded' ||
+    msg.includes('offline') ||
+    msg.includes('failed to get document because the client is offline') ||
+    msg.includes('network')
+  );
+}
+
+async function getDocServerWithFallback(
+  ref: DocumentReference<DocumentData>
+): Promise<DocumentSnapshot<DocumentData>> {
+  try {
+    return await getDocFromServer(ref);
+  } catch (err: any) {
+    if (isOfflineOrTransientError(err)) {
+      return await getDoc(ref);
+    }
+    throw err;
+  }
+}
 
 // Recursively remove undefined fields (Firestore rejects undefined values)
 export function stripUndefinedDeep<T>(value: T): T {
@@ -180,26 +216,157 @@ export function buildAccessEmailLists(state: AppState, primaryAdminEmail?: strin
   };
 }
 
-export async function signInWithGoogleAuth(): Promise<User | null> {
+export interface AuthErrorDetail {
+  message: string;
+  code?: string;
+  domain?: string;
+  showRedirectOption?: boolean;
+}
+
+export function formatGoogleAuthError(error: any): AuthErrorDetail {
+  const code = String(error?.code || '');
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  if (code === 'auth/unauthorized-domain') {
+    return {
+      code,
+      domain: hostname,
+      message: `Domain "${hostname || 'vercel.app'}" belum terdaftar di Firebase Authorized Domains. Tambahkan domain ini di Firebase Console → Authentication → Settings → Authorized domains agar login Google di Vercel diizinkan.`
+    };
+  }
+  if (code === 'auth/popup-blocked') {
+    return {
+      code,
+      showRedirectOption: true,
+      message: 'Popup login Google diblokir oleh browser. Izinkan popup di browser atau gunakan tombol "Login Google via Redirect" di bawah.'
+    };
+  }
+  if (
+    code === 'auth/popup-closed-by-user' ||
+    code === 'auth/cancelled-popup-request' ||
+    code === 'auth/user-cancelled'
+  ) {
+    return {
+      code,
+      showRedirectOption: true,
+      message: 'Jendela popup Google ditutup sebelum proses login selesai. Jika browser menutup popup otomatis, gunakan tombol "Login Google via Redirect" di bawah.'
+    };
+  }
+  if (
+    code === 'auth/operation-not-supported-in-this-environment' ||
+    code === 'auth/web-storage-unsupported'
+  ) {
+    return {
+      code,
+      showRedirectOption: true,
+      message: 'Browser membatasi penyimpanan popup lintas domain. Gunakan tombol "Login Google via Redirect" di bawah.'
+    };
+  }
+  if (code === 'auth/network-request-failed') {
+    return {
+      code,
+      message: 'Koneksi internet bermasalah saat menghubungi Google Sign-In. Periksa koneksi Anda lalu coba lagi.'
+    };
+  }
+  return {
+    code: code || undefined,
+    showRedirectOption: true,
+    message: error?.message || 'Gagal autentikasi akun Google.'
+  };
+}
+
+export type GoogleSignInPopupResult =
+  | { status: 'success'; user: User }
+  | { status: 'cancelled'; error: AuthErrorDetail }
+  | { status: 'popup_blocked'; error: AuthErrorDetail };
+
+export async function signInWithGooglePopup(forceAccountSelect = true): Promise<GoogleSignInPopupResult> {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const provider = createGoogleProvider(forceAccountSelect);
+    const result = await signInWithPopup(auth, provider);
+    return { status: 'success', user: result.user };
   } catch (error: any) {
-    const code = error?.code || '';
+    const code = String(error?.code || '');
     if (
       code === 'auth/popup-closed-by-user' ||
       code === 'auth/cancelled-popup-request' ||
       code === 'auth/user-cancelled'
     ) {
-      return null;
+      return { status: 'cancelled', error: formatGoogleAuthError(error) };
     }
     if (code === 'auth/popup-blocked') {
-      throw new Error('Popup login Google diblokir oleh browser. Izinkan popup lalu coba lagi.');
+      return { status: 'popup_blocked', error: formatGoogleAuthError(error) };
     }
-    if (code === 'auth/network-request-failed') {
-      throw new Error('Koneksi internet bermasalah saat menghubungi Google Sign-In.');
+    const detail = formatGoogleAuthError(error);
+    const err = new Error(detail.message) as Error & { authDetail?: AuthErrorDetail };
+    err.authDetail = detail;
+    throw err;
+  }
+}
+
+export async function signInWithGoogleAuth(forceAccountSelect = true): Promise<User | null> {
+  const outcome = await signInWithGooglePopup(forceAccountSelect);
+  if (outcome.status === 'success') {
+    return outcome.user;
+  }
+  const err = new Error(outcome.error.message) as Error & { authDetail?: AuthErrorDetail };
+  err.authDetail = outcome.error;
+  throw err;
+}
+
+export async function startGoogleRedirectSignIn(intendedRole?: UserRole | 'SETUP'): Promise<void> {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      if (intendedRole) {
+        window.sessionStorage.setItem(PENDING_REDIRECT_ROLE_KEY, intendedRole);
+      } else {
+        window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
+      }
     }
-    throw new Error(error?.message || 'Gagal autentikasi akun Google.');
+    const provider = createGoogleProvider(true);
+    await signInWithRedirect(auth, provider);
+  } catch (error: any) {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
+    }
+    const detail = formatGoogleAuthError(error);
+    const err = new Error(detail.message) as Error & { authDetail?: AuthErrorDetail };
+    err.authDetail = detail;
+    throw err;
+  }
+}
+
+export async function consumeGoogleRedirectResult(): Promise<{
+  user: User | null;
+  intendedRole?: UserRole | 'SETUP';
+  errorDetail?: AuthErrorDetail;
+}> {
+  let pendingRole: UserRole | 'SETUP' | undefined;
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    const raw = window.sessionStorage.getItem(PENDING_REDIRECT_ROLE_KEY);
+    if (raw === 'ADMINISTRATOR' || raw === 'OPERATOR' || raw === 'MANAGEMENT' || raw === 'SETUP') {
+      pendingRole = raw;
+    }
+  }
+
+  try {
+    const res = await getRedirectResult(auth);
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
+    }
+    if (res?.user) {
+      return { user: res.user, intendedRole: pendingRole };
+    }
+    return { user: null, intendedRole: pendingRole };
+  } catch (error: any) {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
+    }
+    return {
+      user: null,
+      intendedRole: pendingRole,
+      errorDetail: formatGoogleAuthError(error)
+    };
   }
 }
 
@@ -220,7 +387,7 @@ export interface BootstrapStatus {
 export async function checkFirstTimeSetup(): Promise<BootstrapStatus> {
   const path = 'system/bootstrap';
   try {
-    const snap = await getDocFromServer(doc(db, 'system', 'bootstrap'));
+    const snap = await getDocServerWithFallback(doc(db, 'system', 'bootstrap'));
     if (!snap.exists()) {
       return { isInitialized: false };
     }
@@ -231,21 +398,7 @@ export async function checkFirstTimeSetup(): Promise<BootstrapStatus> {
       ownerUid: data?.ownerUid
     };
   } catch (error: any) {
-    // Fallback to cached getDoc if server unreachable
-    try {
-      const cached = await getDoc(doc(db, 'system', 'bootstrap'));
-      if (cached.exists()) {
-        const data = cached.data();
-        return {
-          isInitialized: Boolean(data?.isInitialized),
-          factoryName: data?.factoryName,
-          ownerUid: data?.ownerUid
-        };
-      }
-      return { isInitialized: false };
-    } catch {
-      handleFirestoreError(error, OperationType.GET, path);
-    }
+    handleFirestoreError(error, OperationType.GET, path);
   }
 }
 
@@ -381,15 +534,22 @@ export interface LoadedCloudWorkspace {
   statePatch: Partial<AppState>;
 }
 
-export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloudWorkspace | null> {
+export type LoadCloudWorkspaceOutcome =
+  | { status: 'ok'; workspace: LoadedCloudWorkspace }
+  | { status: 'not_authorized'; email: string; factoryName?: string }
+  | { status: 'workspace_missing' };
+
+export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudWorkspaceOutcome> {
   const email = (user.email || '').toLowerCase().trim();
   const uid = user.uid;
-  if (!uid || !email) return null;
+  if (!uid || !email) {
+    return { status: 'not_authorized', email: email || '(tidak ada email)' };
+  }
 
   // 1. Check if UID has a registered admin doc (avoid throwing on non-admin permission check)
   let isAdminUser = email === BOOTSTRAP_EMAIL;
   try {
-    const adminSnap = await getDocFromServer(doc(db, 'admins', uid));
+    const adminSnap = await getDocServerWithFallback(doc(db, 'admins', uid));
     if (adminSnap.exists()) {
       isAdminUser = true;
     }
@@ -401,35 +561,33 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
   const metaPath = `workspaces/${WORKSPACE_ID}/config/meta`;
   let metaSnap;
   try {
-    metaSnap = await getDocFromServer(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'));
+    metaSnap = await getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'));
   } catch (error: any) {
     const msg = String(error?.message || '');
     if (msg.includes('Missing or insufficient permissions') || error?.code === 'permission-denied') {
-      // User is not authorized in this workspace
-      return null;
+      return { status: 'not_authorized', email };
     }
     handleFirestoreError(error, OperationType.GET, metaPath);
   }
 
   if (!metaSnap || !metaSnap.exists()) {
-    return null;
+    return { status: 'workspace_missing' };
   }
 
   const meta = metaSnap.data();
   const adminEmailsList: string[] = (meta.adminGoogleEmails || []).map((e: string) => e.toLowerCase().trim());
-  if (adminEmailsList.includes(email)) {
+  if (adminEmailsList.includes(email) || meta.ownerUid === uid) {
     isAdminUser = true;
   }
 
   const masterPath = `workspaces/${WORKSPACE_ID}/data/master`;
-  const opsPath = `workspaces/${WORKSPACE_ID}/data/operations`;
 
   let masterSnap;
   let opsSnap;
   try {
     [masterSnap, opsSnap] = await Promise.all([
-      getDocFromServer(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master')),
-      getDocFromServer(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'))
+      getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master')),
+      getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'))
     ]);
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, masterPath);
@@ -438,7 +596,7 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
   let secretPin: string | undefined;
   if (isAdminUser) {
     try {
-      const secSnap = await getDocFromServer(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'));
+      const secSnap = await getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'));
       if (secSnap.exists()) {
         secretPin = secSnap.data()?.adminPin;
       }
@@ -455,7 +613,7 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
           email,
           displayName: user.displayName || email.split('@')[0],
           factoryName: meta.factoryName || 'Pabrik ProdTrack',
-          role: email === BOOTSTRAP_EMAIL ? 'SUPER_ADMIN' : 'ADMIN',
+          role: email === BOOTSTRAP_EMAIL || meta.ownerUid === uid ? 'SUPER_ADMIN' : 'ADMIN',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -499,20 +657,46 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
         matchedProfileName = matchedMgt.name;
         matchedProfileSubtitle = `${matchedMgt.title} (${matchedMgt.department})`;
       } else {
-        return null;
+        return {
+          status: 'not_authorized',
+          email,
+          factoryName: meta.factoryName || undefined
+        };
       }
     }
   }
 
   const activeRuns = Array.isArray(opsData.activeSkuRuns) ? opsData.activeSkuRuns : [];
 
+  const mergedAdminEmails = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(meta.adminGoogleEmails) ? meta.adminGoogleEmails : []),
+        ...(isAdminUser ? [email] : [])
+      ]
+        .map((e: string) => e.toLowerCase().trim())
+        .filter(Boolean)
+    )
+  );
+
   const statePatch: Partial<AppState> = {
     factoryName: meta.factoryName || 'Pabrik ProdTrack',
     cloudOwnerUid: meta.ownerUid,
     theme: meta.theme || 'midnight',
-    adminGoogleEmails: meta.adminGoogleEmails || [],
+    adminGoogleEmails: mergedAdminEmails,
     registeredOperators: operators,
     registeredManagement: managements,
+    ...(isAdminUser
+      ? {
+          currentAdminUser: {
+            email,
+            displayName: matchedProfileName,
+            photoURL: user.photoURL || undefined,
+            registeredAt: new Date().toISOString(),
+            role: email === BOOTSTRAP_EMAIL || meta.ownerUid === uid ? 'SUPER_ADMIN' : 'ADMIN'
+          }
+        }
+      : {}),
     ...(secretPin ? { adminPin: secretPin } : {}),
     master: {
       materials: masterData.materials || [],
@@ -543,14 +727,22 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
   };
 
   return {
-    cloudRole,
-    factoryName: meta.factoryName || 'Pabrik ProdTrack',
-    ownerUid: meta.ownerUid,
-    matchedProfileName,
-    matchedProfileId,
-    matchedProfileSubtitle,
-    statePatch
+    status: 'ok',
+    workspace: {
+      cloudRole,
+      factoryName: meta.factoryName || 'Pabrik ProdTrack',
+      ownerUid: meta.ownerUid,
+      matchedProfileName,
+      matchedProfileId,
+      matchedProfileSubtitle,
+      statePatch
+    }
   };
+}
+
+export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloudWorkspace | null> {
+  const outcome = await loadCloudWorkspaceDetailed(user);
+  return outcome.status === 'ok' ? outcome.workspace : null;
 }
 
 export function subscribeToWorkspaceCloud(
@@ -561,12 +753,19 @@ export function subscribeToWorkspaceCloud(
   if (!auth.currentUser) return () => {};
 
   const unsubs: Unsubscribe[] = [];
+  let isDisposed = false;
+
+  const handleSnapshotError = (err: Error, path: string) => {
+    if (isDisposed || !auth.currentUser) return;
+    if (onError) onError(err);
+    handleFirestoreError(err, OperationType.GET, path);
+  };
 
   unsubs.push(
     onSnapshot(
       doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'),
       snap => {
-        if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+        if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
         onRemoteUpdate({
           factoryName: d.factoryName,
@@ -577,10 +776,7 @@ export function subscribeToWorkspaceCloud(
           registeredManagement: d.registeredManagement || []
         });
       },
-      err => {
-        if (onError) onError(err);
-        handleFirestoreError(err, OperationType.GET, `workspaces/${WORKSPACE_ID}/config/meta`);
-      }
+      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/config/meta`)
     )
   );
 
@@ -588,7 +784,7 @@ export function subscribeToWorkspaceCloud(
     onSnapshot(
       doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'),
       snap => {
-        if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+        if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
         onRemoteUpdate({
           master: {
@@ -604,10 +800,7 @@ export function subscribeToWorkspaceCloud(
           }
         });
       },
-      err => {
-        if (onError) onError(err);
-        handleFirestoreError(err, OperationType.GET, `workspaces/${WORKSPACE_ID}/data/master`);
-      }
+      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/master`)
     )
   );
 
@@ -615,7 +808,7 @@ export function subscribeToWorkspaceCloud(
     onSnapshot(
       doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'),
       snap => {
-        if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+        if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
         const activeRuns = Array.isArray(d.activeSkuRuns) ? d.activeSkuRuns : [];
         onRemoteUpdate({
@@ -636,10 +829,7 @@ export function subscribeToWorkspaceCloud(
           ...(d.tank ? { tank: d.tank } : {})
         });
       },
-      err => {
-        if (onError) onError(err);
-        handleFirestoreError(err, OperationType.GET, `workspaces/${WORKSPACE_ID}/data/operations`);
-      }
+      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/operations`)
     )
   );
 
@@ -648,20 +838,21 @@ export function subscribeToWorkspaceCloud(
       onSnapshot(
         doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'),
         snap => {
-          if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+          if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
           const d = snap.data();
           if (d.adminPin) {
             onRemoteUpdate({ adminPin: d.adminPin });
           }
         },
         err => {
-          if (onError) onError(err);
+          if (!isDisposed && auth.currentUser && onError) onError(err);
         }
       )
     );
   }
 
   return () => {
+    isDisposed = true;
     unsubs.forEach(u => u());
   };
 }
@@ -688,13 +879,15 @@ export async function saveWorkspaceSectionsToCloud(
   const canWriteOperations = cloudRole === 'ADMINISTRATOR' || cloudRole === 'OPERATOR';
 
   if (sections.meta && canWriteAdminSections) {
-    const accessLists = buildAccessEmailLists(state);
+    const keepOwnerEmail = ownerUid === uid ? user.email || undefined : undefined;
+    const accessLists = buildAccessEmailLists(state, keepOwnerEmail);
+    const mergedMetaAdminEmails = accessLists.adminEmails;
     const batch = writeBatch(db);
     batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'), {
       workspaceId: WORKSPACE_ID,
       ownerUid,
       factoryName: (state.factoryName || 'Pabrik ProdTrack').slice(0, 120),
-      adminGoogleEmails: (state.adminGoogleEmails || []).slice(0, 30),
+      adminGoogleEmails: mergedMetaAdminEmails,
       registeredOperators: stripUndefinedDeep((state.registeredOperators || []).slice(0, 200)),
       registeredManagement: stripUndefinedDeep((state.registeredManagement || []).slice(0, 100)),
       theme: state.theme || 'midnight',

@@ -20,11 +20,19 @@ import {
   LogOut,
   Factory,
   Database,
-  Lock
+  Lock,
+  Copy,
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { AppState, UserRole } from '../../types';
 import { getCurrentShift, ShiftNumber } from '../../utils/shifts';
-import { signInWithGoogleAuth } from '../../utils/firebaseSync';
+import {
+  AuthErrorDetail,
+  formatGoogleAuthError,
+  signInWithGoogleAuth,
+  startGoogleRedirectSignIn
+} from '../../utils/firebaseSync';
 
 interface AuthPortalViewProps {
   state: AppState;
@@ -35,6 +43,8 @@ interface AuthPortalViewProps {
   firebaseUser: User | null;
   cloudAuthRole?: UserRole | null;
   isSyncingCloud: boolean;
+  authError?: AuthErrorDetail | null;
+  onClearAuthError?: () => void;
   onRetryCheckSetup: () => void;
   onCompleteFirstAdminSetup: (data: {
     user: User;
@@ -43,7 +53,10 @@ interface AuthPortalViewProps {
     adminPin: string;
     initMode: 'template' | 'blank';
   }) => Promise<void>;
-  onGoogleCloudLogin: (intendedRole?: UserRole) => Promise<void>;
+  onGoogleCloudLogin: (
+    intendedRole?: UserRole,
+    options?: { forceAccountSelect?: boolean; useRedirect?: boolean }
+  ) => Promise<void>;
   onFirebaseSignOut: () => Promise<void>;
   onLoginSuccess: (
     role: UserRole,
@@ -61,6 +74,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   firebaseUser,
   cloudAuthRole,
   isSyncingCloud,
+  authError,
+  onClearAuthError,
   onRetryCheckSetup,
   onCompleteFirstAdminSetup,
   onGoogleCloudLogin,
@@ -73,6 +88,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   const [showPin, setShowPin] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [pinError, setPinError] = useState('');
+  const [setupAuthError, setSetupAuthError] = useState<AuthErrorDetail | null>(null);
 
   // First-time Admin Setup Wizard state
   const [setupUser, setSetupUser] = useState<User | null>(firebaseUser);
@@ -134,16 +150,23 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   const isWorkspaceSyncedOnDevice = Boolean(firebaseUser && state.cloudOwnerUid);
 
   // Setup Wizard: Step 1 Connect Google Account
-  const handleConnectGoogleForSetup = async () => {
+  const handleConnectGoogleForSetup = async (useRedirect = false) => {
+    setSetupAuthError(null);
     try {
       setIsGoogleLoading(true);
-      const user = await signInWithGoogleAuth();
+      if (useRedirect) {
+        await startGoogleRedirectSignIn('SETUP');
+        return;
+      }
+      const user = await signInWithGoogleAuth(true);
       if (!user) return;
       setSetupUser(user);
       setSetupAdminName(prev => prev.trim() || user.displayName || user.email?.split('@')[0] || 'Administrator');
       showToast(`Akun Google terhubung: ${user.email}`);
     } catch (err: any) {
-      showToast(err.message || 'Gagal menghubungkan akun Google', true);
+      const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
+      setSetupAuthError(detail);
+      showToast(detail.message || 'Gagal menghubungkan akun Google', true);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -211,15 +234,100 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   };
 
   // Google Cloud sign in for Admin / Operator / Management
-  const handleGoogleCloudSignIn = async (intendedRole?: UserRole) => {
+  const handleGoogleCloudSignIn = async (
+    intendedRole?: UserRole,
+    options?: { forceAccountSelect?: boolean; useRedirect?: boolean }
+  ) => {
     try {
       setIsGoogleLoading(true);
-      await onGoogleCloudLogin(intendedRole);
+      await onGoogleCloudLogin(intendedRole, options);
     } catch (err: any) {
       showToast(err?.message || 'Gagal masuk via Google Cloud', true);
     } finally {
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleCopyHostname = async (domain: string) => {
+    try {
+      await navigator.clipboard.writeText(domain);
+      showToast(`Domain "${domain}" disalin ke clipboard`);
+    } catch {
+      showToast(`Salin manual domain: ${domain}`);
+    }
+  };
+
+  const renderAuthErrorBanner = (
+    detail: AuthErrorDetail | null | undefined,
+    onDismiss?: () => void,
+    redirectRole?: UserRole | 'SETUP'
+  ) => {
+    if (!detail) return null;
+    return (
+      <div className="max-w-2xl mx-auto w-full bg-rose-950/60 border border-rose-500/50 rounded-2xl p-3.5 text-xs text-rose-100 space-y-2.5 shadow-lg">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="font-bold text-rose-200">
+                Autentikasi Google Memerlukan Tindakan
+                {detail.code ? ` (${detail.code})` : ''}
+              </div>
+              <p className="text-[11px] text-rose-100/90 leading-relaxed">{detail.message}</p>
+            </div>
+          </div>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="p-1 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/50 transition shrink-0"
+              title="Tutup pesan"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {detail.domain && (
+          <div className="bg-slate-950/80 border border-rose-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <div className="text-[10px] text-slate-400 uppercase font-mono">
+                Tambahkan Domain Ini di Firebase Authorized Domains:
+              </div>
+              <div className="text-xs font-mono font-bold text-amber-300">{detail.domain}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopyHostname(detail.domain!)}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-semibold flex items-center space-x-1 transition"
+            >
+              <Copy className="w-3 h-3" />
+              <span>Salin Domain</span>
+            </button>
+          </div>
+        )}
+
+        {detail.showRedirectOption && redirectRole && (
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              disabled={isGoogleLoading || isSyncingCloud}
+              onClick={() => {
+                if (redirectRole === 'SETUP') {
+                  handleConnectGoogleForSetup(true);
+                } else {
+                  handleGoogleCloudSignIn(redirectRole, { useRedirect: true });
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center space-x-1.5 transition disabled:opacity-50"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Login Google via Redirect (Alternatif Tanpa Popup)</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Operator login handler
@@ -442,7 +550,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={handleConnectGoogleForSetup}
+                      onClick={() => handleConnectGoogleForSetup(false)}
                       disabled={isGoogleLoading}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition"
                     >
@@ -450,24 +558,39 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleConnectGoogleForSetup}
-                    disabled={isGoogleLoading}
-                    className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-lg shadow-cyan-600/20 transition active:scale-95 disabled:opacity-50"
-                  >
-                    {isGoogleLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <KeyRound className="w-4 h-4" />
-                    )}
-                    <span>
-                      {isGoogleLoading
-                        ? 'Menghubungkan Akun Google...'
-                        : 'Hubungkan Akun Google Administrator'}
-                    </span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleConnectGoogleForSetup(false)}
+                      disabled={isGoogleLoading}
+                      className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-lg shadow-cyan-600/20 transition active:scale-95 disabled:opacity-50"
+                    >
+                      {isGoogleLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <KeyRound className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isGoogleLoading
+                          ? 'Menghubungkan Akun Google...'
+                          : 'Hubungkan Akun Google Administrator'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleConnectGoogleForSetup(true)}
+                      disabled={isGoogleLoading}
+                      className="w-full py-1.5 text-[11px] text-cyan-300 hover:text-cyan-200 underline transition disabled:opacity-50"
+                    >
+                      Popup terblokir? Hubungkan via Redirect
+                    </button>
+                  </div>
                 )}
+
+                {renderAuthErrorBanner(setupAuthError || authError, () => {
+                  setSetupAuthError(null);
+                  onClearAuthError?.();
+                }, 'SETUP')}
               </div>
 
               {/* Step 2: Factory & Security Profile */}
@@ -654,6 +777,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
               </p>
             </div>
 
+            {renderAuthErrorBanner(authError, onClearAuthError, selectedRole)}
+
             {/* Role Selector Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
               {/* CARD 1: ADMINISTRATOR */}
@@ -692,26 +817,88 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   </div>
 
                   {selectedRole === 'ADMINISTRATOR' ? (
-                    <div className="pt-2 space-y-2.5">
-                      <button
-                        type="button"
-                        onClick={() => handleGoogleCloudSignIn('ADMINISTRATOR')}
-                        disabled={isGoogleLoading || isSyncingCloud}
-                        className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-95"
-                      >
-                        {isGoogleLoading || isSyncingCloud ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <KeyRound className="w-4 h-4" />
-                        )}
-                        <span>
-                          {isGoogleLoading || isSyncingCloud
-                            ? 'Memuat Data Cloud...'
-                            : isWorkspaceSyncedOnDevice
-                            ? 'Masuk dengan Google Admin'
-                            : 'Login Google Admin & Muat Data Cloud'}
-                        </span>
-                      </button>
+                    <div className="pt-2 space-y-2.5" onClick={e => e.stopPropagation()}>
+                      {isWorkspaceSyncedOnDevice && cloudAuthRole === 'ADMINISTRATOR' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleGoogleCloudSignIn('ADMINISTRATOR')}
+                            disabled={isGoogleLoading || isSyncingCloud}
+                            className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-95"
+                          >
+                            {isGoogleLoading || isSyncingCloud ? (
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            )}
+                            <span className="truncate">
+                              {isGoogleLoading || isSyncingCloud
+                                ? 'Memuat Data Cloud...'
+                                : `Masuk Kembali (${firebaseUser?.email || 'Admin'})`}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleGoogleCloudSignIn('ADMINISTRATOR', { forceAccountSelect: true })
+                            }
+                            disabled={isGoogleLoading || isSyncingCloud}
+                            className="w-full py-1.5 px-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-medium transition disabled:opacity-50"
+                          >
+                            Ganti Akun Google Admin Lain
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {firebaseUser && (
+                            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300">
+                              Terhubung sebagai{' '}
+                              <span className="font-mono text-amber-300 font-semibold">
+                                {firebaseUser.email}
+                              </span>
+                              {cloudAuthRole
+                                ? ` (${cloudAuthRole}). Klik tombol di bawah untuk ganti ke akun Admin.`
+                                : ' (belum terdaftar sebagai Admin).'}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleGoogleCloudSignIn('ADMINISTRATOR', {
+                                forceAccountSelect: Boolean(firebaseUser)
+                              })
+                            }
+                            disabled={isGoogleLoading || isSyncingCloud}
+                            className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-95"
+                          >
+                            {isGoogleLoading || isSyncingCloud ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <KeyRound className="w-4 h-4" />
+                            )}
+                            <span>
+                              {isGoogleLoading || isSyncingCloud
+                                ? 'Memuat Data Cloud...'
+                                : firebaseUser
+                                ? 'Ganti / Login Google Admin'
+                                : 'Login Google Admin & Muat Data Cloud'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleGoogleCloudSignIn('ADMINISTRATOR', { useRedirect: true })
+                            }
+                            disabled={isGoogleLoading || isSyncingCloud}
+                            className="w-full py-1 text-[11px] text-amber-300/90 hover:text-amber-200 underline transition disabled:opacity-50"
+                          >
+                            Popup gagal? Login via Redirect (Vercel/Mobile)
+                          </button>
+                        </>
+                      )}
 
                       {isWorkspaceSyncedOnDevice && cloudAuthRole === 'ADMINISTRATOR' && (
                         <form onSubmit={handleAdminPinSubmit} className="pt-2 border-t border-slate-800 space-y-2">
@@ -854,18 +1041,36 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                         )}
                       </form>
                     ) : (
-                      <div className="pt-2 space-y-2.5">
+                      <div className="pt-2 space-y-2" onClick={e => e.stopPropagation()}>
                         <p className="text-[11px] text-slate-300 bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
                           Login dengan email Google Operator yang telah didaftarkan oleh Admin (atau login Admin untuk menghubungkan terminal produksi ini).
                         </p>
                         <button
                           type="button"
-                          onClick={() => handleGoogleCloudSignIn('OPERATOR')}
+                          onClick={() =>
+                            handleGoogleCloudSignIn('OPERATOR', {
+                              forceAccountSelect: Boolean(firebaseUser)
+                            })
+                          }
                           disabled={isGoogleLoading || isSyncingCloud}
                           className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 disabled:opacity-50"
                         >
                           <KeyRound className="w-4 h-4" />
-                          <span>Masuk Google &amp; Sinkronkan Cloud</span>
+                          <span>
+                            {firebaseUser
+                              ? 'Ganti / Masuk Google Operator'
+                              : 'Masuk Google & Sinkronkan Cloud'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleGoogleCloudSignIn('OPERATOR', { useRedirect: true })
+                          }
+                          disabled={isGoogleLoading || isSyncingCloud}
+                          className="w-full py-1 text-[11px] text-cyan-300/90 hover:text-cyan-200 underline transition disabled:opacity-50"
+                        >
+                          Popup gagal? Login via Redirect
                         </button>
                       </div>
                     )
@@ -914,7 +1119,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   </div>
 
                   {selectedRole === 'MANAGEMENT' ? (
-                    isWorkspaceSyncedOnDevice ? (
+                    isWorkspaceSyncedOnDevice && Boolean(cloudAuthRole) ? (
                       <form onSubmit={handleManagementSubmit} className="pt-2 space-y-2.5">
                         {state.registeredManagement.length > 0 ? (
                           <>
@@ -968,18 +1173,36 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                         )}
                       </form>
                     ) : (
-                      <div className="pt-2 space-y-2.5">
+                      <div className="pt-2 space-y-2" onClick={e => e.stopPropagation()}>
                         <p className="text-[11px] text-slate-300 bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
                           Masuk menggunakan akun Google email Management Anda yang sudah diberi izin melihat oleh Administrator.
                         </p>
                         <button
                           type="button"
-                          onClick={() => handleGoogleCloudSignIn('MANAGEMENT')}
+                          onClick={() =>
+                            handleGoogleCloudSignIn('MANAGEMENT', {
+                              forceAccountSelect: Boolean(firebaseUser)
+                            })
+                          }
                           disabled={isGoogleLoading || isSyncingCloud}
                           className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 disabled:opacity-50"
                         >
                           <KeyRound className="w-4 h-4" />
-                          <span>Masuk Google Management (Cloud)</span>
+                          <span>
+                            {firebaseUser
+                              ? 'Ganti / Masuk Google Management'
+                              : 'Masuk Google Management (Cloud)'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleGoogleCloudSignIn('MANAGEMENT', { useRedirect: true })
+                          }
+                          disabled={isGoogleLoading || isSyncingCloud}
+                          className="w-full py-1 text-[11px] text-indigo-300/90 hover:text-indigo-200 underline transition disabled:opacity-50"
+                        >
+                          Popup gagal? Login via Redirect
                         </button>
                       </div>
                     )

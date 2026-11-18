@@ -17,7 +17,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { AdminGoogleUser } from '../types';
-import { googleSignIn, googleLogout } from '../utils/googleWorkspace';
+import { googleSignIn, clearWorkspaceDriveToken } from '../utils/googleWorkspace';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -337,7 +337,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {/* Logout Button */}
             <button
               onClick={() => {
-                googleLogout();
+                clearWorkspaceDriveToken();
                 onLogout();
                 onClose();
                 showToast('Berhasil keluar dari mode Administrator');
