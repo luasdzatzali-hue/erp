@@ -309,22 +309,37 @@ export default function App() {
         showToast(redirectResult.errorDetail.message, true);
       }
 
+      const hasPendingRoleRedirect = Boolean(
+        redirectResult.user &&
+          !redirectResult.isDriveConnectRedirect &&
+          redirectResult.intendedRole &&
+          redirectResult.intendedRole !== 'SETUP'
+      );
+
+      if (hasPendingRoleRedirect) {
+        manualGoogleLoginInFlightRef.current = true;
+      }
+
       if (redirectResult.user) {
         setFirebaseUser(redirectResult.user);
       }
 
       await runSetupCheck();
-      if (cancelled) return;
+      if (cancelled) {
+        if (hasPendingRoleRedirect) {
+          manualGoogleLoginInFlightRef.current = false;
+        }
+        return;
+      }
 
       if (redirectResult.isDriveConnectRedirect && redirectResult.user) {
         showToast(
           `Google Drive terhubung (${redirectResult.user.email}). Buka kembali Master BOM → Import untuk memilih dokumen.`
         );
-      } else if (redirectResult.user && redirectResult.intendedRole && redirectResult.intendedRole !== 'SETUP') {
-        manualGoogleLoginInFlightRef.current = true;
+      } else if (hasPendingRoleRedirect && redirectResult.user) {
         setIsSyncingCloud(true);
         try {
-          await applyCloudWorkspaceEntry(redirectResult.user, redirectResult.intendedRole);
+          await applyCloudWorkspaceEntry(redirectResult.user, redirectResult.intendedRole as UserRole);
         } catch (err: any) {
           const detail = (err as any)?.authDetail || formatGoogleAuthError(err);
           setAuthErrorBanner(detail);
@@ -640,6 +655,38 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Handle URL hash navigation for opening modules in new tabs (#tab=...)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#tab=')) {
+        const tab = hash.replace('#tab=', '') as AppState['currentTab'];
+        const validTabs: AppState['currentTab'][] = [
+          'admin-portal',
+          'dashboard',
+          'tank-monitoring',
+          'shift-summary',
+          'permintaan',
+          'penerimaan',
+          'pemakaian',
+          'master',
+          'bom-calculator',
+          'reports'
+        ];
+        if (validTabs.includes(tab)) {
+          if (tab === 'reports') {
+            setIsPdfReportModalOpen(true);
+          } else {
+            setState(prev => ({ ...prev, currentTab: tab }));
+          }
+        }
+      }
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   // Switch tabs with role-based access control
   const handleSwitchTab = (tab: AppState['currentTab']) => {
     if (tab === 'reports') {
@@ -656,6 +703,7 @@ export default function App() {
       return;
     }
     setState(prev => ({ ...prev, currentTab: tab }));
+    window.location.hash = `tab=${tab}`;
   };
 
   // Sign Out back to AuthPortalView

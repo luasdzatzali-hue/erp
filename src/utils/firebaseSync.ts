@@ -118,9 +118,12 @@ function isOfflineOrTransientError(error: any): boolean {
   return (
     code === 'unavailable' ||
     code === 'deadline-exceeded' ||
+    code === 'aborted' ||
     msg.includes('offline') ||
     msg.includes('failed to get document because the client is offline') ||
-    msg.includes('network')
+    msg.includes('network') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('timeout')
   );
 }
 
@@ -131,7 +134,15 @@ async function getDocServerWithFallback(
     return await getDocFromServer(ref);
   } catch (err: any) {
     if (isOfflineOrTransientError(err)) {
-      return await getDoc(ref);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      try {
+        return await getDocFromServer(ref);
+      } catch (retryErr: any) {
+        if (isOfflineOrTransientError(retryErr)) {
+          return await getDoc(ref);
+        }
+        throw retryErr;
+      }
     }
     throw err;
   }
@@ -357,13 +368,14 @@ export async function consumeGoogleRedirectResult(): Promise<{
   const isDriveRedirect = consumePendingDriveRedirectFlag();
 
   try {
+    await auth.authStateReady();
     const res = await getRedirectResult(auth);
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
     }
     if (res?.user) {
       const credential = GoogleAuthProvider.credentialFromResult(res);
-      if (credential?.accessToken) {
+      if (isDriveRedirect && credential?.accessToken) {
         setWorkspaceDriveToken(credential.accessToken, res.user.email || null);
       }
       return {
