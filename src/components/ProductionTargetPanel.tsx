@@ -29,7 +29,8 @@ import {
   ProductionLine,
   ActiveSkuProductionRun,
   ProductionStopLog,
-  ShiftNumber
+  ShiftNumber,
+  ChangeoverType
 } from '../types';
 import {
   getCurrentShift,
@@ -102,6 +103,16 @@ interface ProductionTargetPanelProps {
   onUpdateProductionLine?: (lineId: string, updates: Partial<ProductionLine>) => void;
   onDeleteProductionLine?: (lineId: string) => void;
   onSetProductionLinesCount?: (count: number) => void;
+  onChangeSku?: (
+    lineId: string,
+    newSkuId: string,
+    changeoverData: {
+      changeoverType: ChangeoverType;
+      estimatedMinutes: number;
+      operatorName: string;
+      notes?: string;
+    }
+  ) => void;
   showToast?: (msg: string, isError?: boolean) => void;
 }
 

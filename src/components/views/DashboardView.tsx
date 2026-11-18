@@ -33,7 +33,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { AppState, StorageLocation, ProductionLine, ProductionStopLog } from '../../types';
+import { AppState, StorageLocation, ProductionLine, ProductionStopLog, ChangeoverType } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
 import { calculateMaterialStockBreakdown } from '../../utils/reportBreakdown';
 import { getCurrentShift, formatIndonesianDate, ShiftNumber } from '../../utils/shifts';
@@ -93,6 +93,16 @@ interface DashboardViewProps {
   onDeleteProductionLine?: (lineId: string) => void;
   onSetProductionLinesCount?: (count: number) => void;
   onOpenPdfModal?: () => void;
+  onChangeSku?: (
+    lineId: string,
+    newSkuId: string,
+    changeoverData: {
+      changeoverType: ChangeoverType;
+      estimatedMinutes: number;
+      operatorName: string;
+      notes?: string;
+    }
+  ) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -118,6 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onDeleteProductionLine,
   onSetProductionLinesCount,
   onOpenPdfModal,
+  onChangeSku,
   showToast
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -553,6 +564,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onUpdateProductionLine={onUpdateProductionLine}
         onDeleteProductionLine={onDeleteProductionLine}
         onSetProductionLinesCount={onSetProductionLinesCount}
+        onChangeSku={onChangeSku}
         showToast={showToast}
       />
 

@@ -2494,6 +2494,99 @@ export default function App() {
     handleStartLineBatchRuns(assignments);
   };
 
+  // Handle SKU Changeover on a production line
+  const handleSkuChangeover = (
+    lineId: string,
+    newSkuId: string,
+    changeoverData: {
+      changeoverType: ChangeoverType;
+      estimatedMinutes: number;
+      operatorName: string;
+      notes?: string;
+    }
+  ) => {
+    const currentState = stateRef.current;
+    const targetLine = (currentState.master.productionLines || []).find(l => l.id === lineId);
+    const targetSku = currentState.master.skus.find(s => s.id === newSkuId);
+    if (!targetSku) return;
+
+    const completedAt = new Date().toISOString();
+    const startedAt = completedAt;
+    const currentPeriod = getShiftPeriodInfo();
+
+    setState(prev => {
+      const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+      const updatedRuns = prevRuns.map(r => {
+        if (r.lineId === lineId && r.isRunning) {
+          return {
+            ...r,
+            isRunning: false,
+            completionStatus: 'COMPLETED' as const,
+            completedAt
+          };
+        }
+        return r;
+      });
+
+      const newRun: ActiveSkuProductionRun = {
+        id: `run_${lineId}_${Date.now()}_co`,
+        lineId,
+        lineName: targetLine?.name || 'Line Produksi',
+        skuId: newSkuId,
+        skuName: targetSku.name,
+        skuCode: targetSku.code,
+        shift: currentPeriod.shift,
+        shiftPeriodKey: currentPeriod.shiftKey,
+        startedAt,
+        isRunning: true,
+        completionStatus: 'RUNNING',
+        cartonsProducedTotal: 0,
+        plannedCartons: (targetSku.targetHour || 500) * 8,
+        operatorName: changeoverData.operatorName,
+        targetPerHour: targetSku.targetHour,
+        speedMultiplier: 1
+      };
+
+      const newChangeoverRecord: MachineChangeoverRecord = {
+        id: `co_${Date.now()}`,
+        machineId: lineId,
+        machineCode: targetLine?.code || lineId,
+        machineName: targetLine?.name || 'Line',
+        timestamp: completedAt,
+        startedAt,
+        status: 'COMPLETED',
+        fromWipId: '',
+        fromWipName: '',
+        toWipId: newSkuId,
+        toWipName: targetSku.name,
+        changeoverType: changeoverData.changeoverType,
+        durationMinutes: changeoverData.estimatedMinutes,
+        operatorName: changeoverData.operatorName,
+        completedAt,
+        checklist: {
+          lineClearanceDone: true,
+          cleaningSanitationDone: true,
+          toolingMouldSwapped: changeoverData.changeoverType === 'MOULD_TOOLING',
+          parameterConfigured: true,
+          qcSwabClearanceDone: true
+        },
+        notes: `Changeover SKU ke ${targetSku.name} (${changeoverData.changeoverType}). ${changeoverData.notes || ''}`
+      };
+
+      return {
+        ...prev,
+        activeSkuRuns: [newRun, ...updatedRuns],
+        activeSkuRun: newRun,
+        transactions: {
+          ...prev.transactions,
+          changeovers: [newChangeoverRecord, ...(prev.transactions.changeovers || [])]
+        }
+      };
+    });
+
+    showToast(`Changeover SKU ke "${targetSku.name}" pada ${targetLine?.name || lineId} berhasil dilakukan.`);
+  };
+
   // Switch active Holding Tank for a WIP during an ongoing line production run
   const handleUpdateRunHoldingTank = (skuId: string, wipId: string, tankId: string, runId?: string) => {
     const currentState = stateRef.current;
@@ -3818,6 +3911,7 @@ export default function App() {
               onDeleteProductionLine={handleDeleteProductionLine}
               onSetProductionLinesCount={handleSetProductionLinesCount}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
+              onChangeSku={handleSkuChangeover}
               showToast={showToast}
             />
           )}
