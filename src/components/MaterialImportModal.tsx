@@ -4,16 +4,9 @@ import {
   UploadCloud,
   FileSpreadsheet,
   FileCode,
-  Download,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
-  Search,
-  HardDrive,
-  Database,
-  ArrowRight,
-  Loader2,
-  ExternalLink
+  HardDrive
 } from 'lucide-react';
 import { Material } from '../types';
 import {
@@ -22,13 +15,8 @@ import {
   SAMPLE_JSON_TEMPLATE,
   ParseResult
 } from '../utils/materialParser';
-import {
-  googleSignIn,
-  listDriveFiles,
-  readDriveFileContent,
-  DriveFileItem,
-  getAccessToken
-} from '../utils/googleWorkspace';
+import { DriveFileItem, getAccessToken, readLocalBomFile } from '../utils/googleWorkspace';
+import { GoogleDriveFileBrowser } from './GoogleDriveFileBrowser';
 
 interface MaterialImportModalProps {
   isOpen: boolean;
@@ -54,25 +42,16 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   // Google Drive state
-  const [driveToken, setDriveToken] = useState<string | null>(null);
-  const [driveUserEmail, setDriveUserEmail] = useState<string | null>(null);
-  const [driveFiles, setDriveFiles] = useState<DriveFileItem[]>([]);
-  const [isDriveLoading, setIsDriveLoading] = useState(false);
-  const [driveSearch, setDriveSearch] = useState('');
+  const [hasDriveToken, setHasDriveToken] = useState(false);
   const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFileItem | null>(null);
 
   // Parse result preview
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // On open, check if token is already in memory
   useEffect(() => {
     if (isOpen) {
-      getAccessToken().then(tok => {
-        if (tok) {
-          setDriveToken(tok);
-        }
-      });
+      getAccessToken().then(tok => setHasDriveToken(Boolean(tok)));
     } else {
       // Reset temporary states
       setFileContent('');
@@ -92,79 +71,15 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
     }
   }, [fileContent]);
 
-  // Fetch Drive files when token is present and Drive tab is active
-  const fetchDriveFiles = async (token: string, search?: string) => {
-    setIsDriveLoading(true);
-    try {
-      const files = await listDriveFiles(token, search);
-      // Filter to relevant files: spreadsheets, csv, json, text
-      const relevant = files.filter(f => {
-        const mime = f.mimeType.toLowerCase();
-        const name = f.name.toLowerCase();
-        return (
-          mime.includes('spreadsheet') ||
-          mime.includes('csv') ||
-          mime.includes('json') ||
-          mime.includes('text') ||
-          mime.includes('octet-stream') ||
-          name.endsWith('.csv') ||
-          name.endsWith('.json') ||
-          name.endsWith('.tsv') ||
-          name.endsWith('.txt')
-        );
-      });
-      setDriveFiles(relevant.length > 0 ? relevant : files);
-    } catch (err: any) {
-      showToast(err.message || 'Gagal memuat daftar file Google Drive', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleConnectGoogleDrive = async () => {
-    try {
-      setIsDriveLoading(true);
-      const res = await googleSignIn();
-      if (res) {
-        setDriveToken(res.accessToken);
-        setDriveUserEmail(res.user.email);
-        showToast(`Google Drive terhubung: ${res.user.email}`);
-        await fetchDriveFiles(res.accessToken);
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Gagal login ke Google Drive', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleSelectDriveFile = async (file: DriveFileItem) => {
-    if (!driveToken) return;
-    try {
-      setIsProcessing(true);
-      setSelectedDriveFile(file);
-      setFileName(file.name);
-      const content = await readDriveFileContent(driveToken, file.id, file.mimeType);
-      setFileContent(content);
-      showToast(`File "${file.name}" berhasil dimuat dari Google Drive`);
-    } catch (err: any) {
-      showToast(`Gagal membaca file dari Drive: ${err.message}`, true);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleLocalFileUpload = (file: File) => {
+  const handleLocalFileUpload = async (file: File) => {
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
+    setSelectedDriveFile(null);
+    try {
+      const text = await readLocalBomFile(file);
       setFileContent(text || '');
-    };
-    reader.onerror = () => {
-      showToast('Gagal membaca file lokal', true);
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal membaca file lokal', true);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -251,12 +166,7 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
               <span>1. Storage Internal (File Upload)</span>
             </button>
             <button
-              onClick={() => {
-                setActiveSource('DRIVE');
-                if (driveToken && driveFiles.length === 0) {
-                  fetchDriveFiles(driveToken);
-                }
-              }}
+              onClick={() => setActiveSource('DRIVE')}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                 activeSource === 'DRIVE'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
@@ -272,6 +182,9 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
                 <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
               </svg>
               <span>2. Google Drive Cloud</span>
+              {hasDriveToken && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              )}
             </button>
           </div>
 
@@ -330,7 +243,7 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
                     <span>Pilih File dari Komputer</span>
                     <input
                       type="file"
-                      accept=".csv,.json,.tsv,.txt"
+                      accept=".csv,.json,.tsv,.txt,.xlsx,.xls"
                       className="hidden"
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
@@ -370,183 +283,19 @@ export const MaterialImportModal: React.FC<MaterialImportModalProps> = ({
 
           {/* Tab 2: Google Drive */}
           {activeSource === 'DRIVE' && (
-            <div className="space-y-3">
-              {!driveToken ? (
-                <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 text-center space-y-4">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                    <svg className="w-8 h-8" viewBox="0 0 87.3 78" fill="currentColor">
-                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
-                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.25z" fill="#00832d"/>
-                      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-white text-sm">Hubungkan ke Akun Google Drive</h4>
-                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                      Akses file database material (CSV, JSON, atau Google Spreadsheet) yang tersimpan di Google Drive Anda secara aman dengan otorisasi resmi Google OAuth.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleConnectGoogleDrive}
-                    disabled={isDriveLoading}
-                    className="inline-flex items-center space-x-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/25 transition active:scale-95 disabled:opacity-50"
-                  >
-                    {isDriveLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <svg className="w-4 h-4" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                      </svg>
-                    )}
-                    <span>Masuk dengan Google & Buka Drive</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Google Drive Status & Controls */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-blue-950/20 border border-blue-900/40 rounded-xl">
-                    <div className="flex items-center space-x-2 text-xs">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-slate-300">
-                        Google Drive Terhubung: <strong className="text-white">{driveUserEmail || 'Akun Google'}</strong>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => fetchDriveFiles(driveToken, driveSearch)}
-                        disabled={isDriveLoading}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center space-x-1"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isDriveLoading ? 'animate-spin' : ''}`} />
-                        <span>Segarkan</span>
-                      </button>
-                      <button
-                        onClick={handleConnectGoogleDrive}
-                        className="px-2.5 py-1.5 bg-blue-900/40 hover:bg-blue-800/40 text-blue-300 rounded-lg text-xs"
-                      >
-                        Ganti Akun
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Drive Search Bar */}
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={driveSearch}
-                      onChange={(e) => {
-                        setDriveSearch(e.target.value);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          fetchDriveFiles(driveToken, driveSearch);
-                        }
-                      }}
-                      placeholder="Cari nama file material di Google Drive..."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-20 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                    />
-                    <button
-                      onClick={() => fetchDriveFiles(driveToken, driveSearch)}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium rounded-lg"
-                    >
-                      Cari
-                    </button>
-                  </div>
-
-                  {/* Drive Files List */}
-                  <div className="border border-slate-800 rounded-xl bg-slate-900/60 overflow-hidden">
-                    <div className="p-2 border-b border-slate-800 text-[11px] font-semibold text-slate-400 flex justify-between">
-                      <span>Daftar File di Google Drive ({driveFiles.length})</span>
-                      <span>Klik untuk memuat isi</span>
-                    </div>
-
-                    <div className="max-h-52 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
-                      {isDriveLoading ? (
-                        <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center space-x-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                          <span>Mengambil daftar file dari Google Drive...</span>
-                        </div>
-                      ) : driveFiles.length === 0 ? (
-                        <div className="p-8 text-center text-xs text-slate-400 space-y-2.5">
-                          <p className="text-slate-400">Tidak ada file yang cocok ditemukan di Google Drive atau akses dibatasi browser.</p>
-                          <button
-                            type="button"
-                            onClick={() => setActiveSource('STORAGE')}
-                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-medium transition"
-                          >
-                            <HardDrive className="w-3.5 h-3.5" />
-                            <span>Gunakan Unggah File Lokal (CSV / JSON)</span>
-                          </button>
-                        </div>
-                      ) : (
-                        driveFiles.map((file) => {
-                          const isSelected = selectedDriveFile?.id === file.id;
-                          const isSheet = file.mimeType.includes('spreadsheet');
-                          return (
-                            <div
-                              key={file.id}
-                              onClick={() => handleSelectDriveFile(file)}
-                              className={`p-2.5 flex items-center justify-between cursor-pointer transition ${
-                                isSelected
-                                  ? 'bg-cyan-950/40 border-l-4 border-cyan-400'
-                                  : 'hover:bg-slate-800/60'
-                              }`}
-                            >
-                              <div className="flex items-center space-x-2.5 truncate mr-2">
-                                <div className="p-1.5 bg-slate-800 rounded-lg shrink-0">
-                                  {isSheet ? (
-                                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                                  ) : file.name.endsWith('.json') ? (
-                                    <FileCode className="w-4 h-4 text-amber-400" />
-                                  ) : (
-                                    <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
-                                  )}
-                                </div>
-                                <div className="truncate">
-                                  <div className="text-xs font-semibold text-white truncate flex items-center space-x-1.5">
-                                    <span>{file.name}</span>
-                                    {isSheet && (
-                                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded font-normal">
-                                        Google Sheets
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 flex items-center space-x-2">
-                                    {file.modifiedTime && (
-                                      <span>Diubah: {new Date(file.modifiedTime).toLocaleDateString('id-ID')}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium shrink-0 flex items-center space-x-1 ${
-                                  isSelected
-                                    ? 'bg-cyan-500 text-slate-950 font-bold'
-                                    : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
-                                }`}
-                              >
-                                <span>{isSelected ? 'Terpilih' : 'Muat File'}</span>
-                                <ArrowRight className="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <GoogleDriveFileBrowser
+              description="Akses file database material (Google Spreadsheet, Excel .xlsx, CSV, atau JSON) yang tersimpan di Google Drive Anda."
+              searchPlaceholder="Cari nama file material di Google Drive..."
+              selectedFileId={selectedDriveFile?.id}
+              onFileLoaded={(content, loadedName, file) => {
+                setSelectedDriveFile(file);
+                setFileName(loadedName);
+                setFileContent(content);
+              }}
+              onSwitchToLocal={() => setActiveSource('STORAGE')}
+              onConnectionChange={setHasDriveToken}
+              showToast={showToast}
+            />
           )}
 
           {/* Validation & Preview Section */}

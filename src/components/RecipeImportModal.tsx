@@ -3,18 +3,11 @@ import {
   X,
   UploadCloud,
   FileSpreadsheet,
-  FileCode,
   Download,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
-  Search,
   HardDrive,
   BookOpen,
-  ArrowRight,
-  Loader2,
-  ExternalLink,
-  Layers,
   Sparkles
 } from 'lucide-react';
 import { WipRecipe, WIP, Material } from '../types';
@@ -24,13 +17,8 @@ import {
   SAMPLE_RECIPE_JSON_TEMPLATE,
   RecipeParseResult
 } from '../utils/recipeParser';
-import {
-  googleSignIn,
-  listDriveFiles,
-  readDriveFileContent,
-  DriveFileItem,
-  getAccessToken
-} from '../utils/googleWorkspace';
+import { DriveFileItem, getAccessToken, readLocalBomFile } from '../utils/googleWorkspace';
+import { GoogleDriveFileBrowser } from './GoogleDriveFileBrowser';
 
 interface RecipeImportModalProps {
   isOpen: boolean;
@@ -60,23 +48,16 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   // Google Drive state
-  const [driveToken, setDriveToken] = useState<string | null>(null);
-  const [driveUserEmail, setDriveUserEmail] = useState<string | null>(null);
-  const [driveFiles, setDriveFiles] = useState<DriveFileItem[]>([]);
-  const [isDriveLoading, setIsDriveLoading] = useState(false);
-  const [driveSearch, setDriveSearch] = useState('');
+  const [hasDriveToken, setHasDriveToken] = useState(false);
   const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFileItem | null>(null);
 
   // Parse result preview
   const [parseResult, setParseResult] = useState<RecipeParseResult | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // On open, check if token is already in memory
   useEffect(() => {
     if (isOpen) {
-      getAccessToken().then(tok => {
-        if (tok) setDriveToken(tok);
-      });
+      getAccessToken().then(tok => setHasDriveToken(Boolean(tok)));
     } else {
       setFileContent('');
       setFileName('');
@@ -95,63 +76,16 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
     }
   }, [fileContent, availableWips, availableMaterials]);
 
-  // Fetch Drive files when token is present and Drive tab is active
-  const fetchDriveFiles = async (token: string, search?: string) => {
-    setIsDriveLoading(true);
-    try {
-      const files = await listDriveFiles(token, search);
-      setDriveFiles(files);
-    } catch (err: any) {
-      showToast(err.message || 'Gagal mengambil file dari Google Drive', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleConnectDrive = async () => {
-    setIsDriveLoading(true);
-    try {
-      const auth = await googleSignIn();
-      if (auth) {
-        setDriveToken(auth.accessToken);
-        if (auth.user?.email) {
-          setDriveUserEmail(auth.user.email);
-        }
-        showToast(`Terhubung ke Google Drive: ${auth.user?.email || 'Akun Google'}`);
-        await fetchDriveFiles(auth.accessToken);
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Koneksi ke Google Drive dibatalkan', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleSelectDriveFile = async (file: DriveFileItem) => {
-    if (!driveToken) return;
-    setSelectedDriveFile(file);
-    setIsProcessing(true);
-    try {
-      const content = await readDriveFileContent(driveToken, file.id, file.mimeType);
-      setFileContent(content);
-      setFileName(file.name);
-      showToast(`File "${file.name}" berhasil dimuat dari Google Drive`);
-    } catch (err: any) {
-      showToast(err.message || 'Gagal membaca isi file dari Google Drive', true);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   // Local file upload handlers
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
+    setSelectedDriveFile(null);
+    try {
+      const text = await readLocalBomFile(file);
       setFileContent(text || '');
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal membaca file lokal', true);
+    }
   };
 
   const handleDownloadTemplate = (format: 'csv' | 'json') => {
@@ -233,7 +167,7 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
           >
             <UploadCloud className="w-4 h-4" />
             <span>2. Google Drive / Spreadsheet</span>
-            {driveToken && (
+            {hasDriveToken && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </button>
@@ -278,7 +212,7 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
                   <span>Pilih File Resep</span>
                   <input
                     type="file"
-                    accept=".csv,.json,.txt,.tsv"
+                    accept=".csv,.json,.txt,.tsv,.xlsx,.xls"
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
@@ -340,128 +274,19 @@ export const RecipeImportModal: React.FC<RecipeImportModalProps> = ({
 
           {/* TAB 2: GOOGLE DRIVE IMPORT */}
           {activeSource === 'DRIVE' && (
-            <div className="space-y-4">
-              {!driveToken ? (
-                <div className="p-8 text-center bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-                    <UploadCloud className="w-7 h-7" />
-                  </div>
-                  <h3 className="font-bold text-white text-base">Hubungkan ke Google Drive</h3>
-                  <p className="text-slate-400 max-w-md mx-auto text-xs leading-relaxed">
-                    Akses file spreadsheet, CSV, atau JSON resep formulasi yang tersimpan di Google Drive atau Shared Drive perusahaan Anda secara langsung.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleConnectDrive}
-                    disabled={isDriveLoading}
-                    className="inline-flex items-center space-x-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold shadow-xs transition active:scale-95"
-                  >
-                    {isDriveLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <UploadCloud className="w-4 h-4" />
-                    )}
-                    <span>Masuk dengan Google Drive</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Account Bar & Refresh */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                      <span className="text-slate-300 font-medium">Terhubung:</span>
-                      <strong className="text-white font-mono">{driveUserEmail || 'Google Drive User'}</strong>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => fetchDriveFiles(driveToken, driveSearch)}
-                        disabled={isDriveLoading}
-                        className="flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isDriveLoading ? 'animate-spin' : ''}`} />
-                        <span>Segarkan</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleConnectDrive}
-                        className="text-xs text-cyan-400 hover:underline px-2 py-1"
-                      >
-                        Ganti Akun
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Drive File Search */}
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={driveSearch}
-                      onChange={(e) => setDriveSearch(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          fetchDriveFiles(driveToken, driveSearch);
-                        }
-                      }}
-                      placeholder="Cari file resep di Google Drive (tekan Enter)..."
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white focus:outline-none focus:border-cyan-500 text-xs"
-                    />
-                  </div>
-
-                  {/* File List */}
-                  {isDriveLoading ? (
-                    <div className="p-8 text-center text-slate-400">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-400" />
-                      <span>Mengambil daftar file dari Google Drive...</span>
-                    </div>
-                  ) : driveFiles.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto no-scrollbar">
-                      {driveFiles.map((file) => {
-                        const isSelected = selectedDriveFile?.id === file.id;
-                        return (
-                          <div
-                            key={file.id}
-                            onClick={() => handleSelectDriveFile(file)}
-                            className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                              isSelected
-                                ? 'bg-cyan-500/10 border-cyan-500/50 text-white shadow-md'
-                                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3 truncate mr-2">
-                              <FileSpreadsheet className="w-4 h-4 text-cyan-400 shrink-0" />
-                              <div className="truncate">
-                                <span className="font-semibold block truncate">{file.name}</span>
-                                <span className="text-[10px] text-slate-500 font-mono">
-                                  {file.mimeType.includes('spreadsheet') ? 'Google Spreadsheet' : 'File Dokumen / CSV'}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition shrink-0 ${
-                                isSelected
-                                  ? 'bg-cyan-500 text-slate-950 font-bold'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                              }`}
-                            >
-                              {isSelected ? 'Terpilih' : 'Pilih File'}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center text-slate-500 bg-slate-950/40 rounded-xl border border-slate-800">
-                      Tidak ada file spreadsheet atau CSV yang ditemukan di Google Drive.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <GoogleDriveFileBrowser
+              description="Akses file Google Spreadsheet, Excel (.xlsx), CSV, atau JSON resep formulasi yang tersimpan di Google Drive atau Shared Drive perusahaan Anda."
+              searchPlaceholder="Cari file resep di Google Drive (tekan Enter)..."
+              selectedFileId={selectedDriveFile?.id}
+              onFileLoaded={(content, loadedName, file) => {
+                setSelectedDriveFile(file);
+                setFileName(loadedName);
+                setFileContent(content);
+              }}
+              onSwitchToLocal={() => setActiveSource('STORAGE')}
+              onConnectionChange={setHasDriveToken}
+              showToast={showToast}
+            />
           )}
 
           {/* PARSE PREVIEW & VALIDATION RESULTS */}

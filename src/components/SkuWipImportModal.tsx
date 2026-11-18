@@ -4,14 +4,10 @@ import {
   UploadCloud,
   FileSpreadsheet,
   FileCode,
-  Download,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
-  Search,
   HardDrive,
   GitBranch,
-  Loader2,
   Check
 } from 'lucide-react';
 import { SKU, WIP, SkuWip } from '../types';
@@ -23,13 +19,8 @@ import {
   SAMPLE_SKU_WIP_JSON_TEMPLATE,
   SkuWipParseResult
 } from '../utils/skuWipParser';
-import {
-  googleSignIn,
-  listDriveFiles,
-  readDriveFileContent,
-  DriveFileItem,
-  getAccessToken
-} from '../utils/googleWorkspace';
+import { DriveFileItem, getAccessToken, readLocalBomFile } from '../utils/googleWorkspace';
+import { GoogleDriveFileBrowser } from './GoogleDriveFileBrowser';
 
 interface SkuWipImportModalProps {
   isOpen: boolean;
@@ -59,22 +50,15 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   // Google Drive state
-  const [driveToken, setDriveToken] = useState<string | null>(null);
-  const [driveUserEmail, setDriveUserEmail] = useState<string | null>(null);
-  const [driveFiles, setDriveFiles] = useState<DriveFileItem[]>([]);
-  const [isDriveLoading, setIsDriveLoading] = useState(false);
-  const [driveSearch, setDriveSearch] = useState('');
+  const [hasDriveToken, setHasDriveToken] = useState(false);
   const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFileItem | null>(null);
 
   // Parse result preview
   const [parseResult, setParseResult] = useState<SkuWipParseResult | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      getAccessToken().then(tok => {
-        if (tok) setDriveToken(tok);
-      });
+      getAccessToken().then(tok => setHasDriveToken(Boolean(tok)));
     } else {
       setFileContent('');
       setFileName('');
@@ -92,61 +76,15 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
     }
   }, [fileContent, availableSkus, availableWips]);
 
-  const fetchDriveFiles = async (token: string, search?: string) => {
-    setIsDriveLoading(true);
-    try {
-      const files = await listDriveFiles(token, search);
-      setDriveFiles(files);
-    } catch (err: any) {
-      showToast(err.message || 'Gagal mengambil file dari Google Drive', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleConnectDrive = async () => {
-    setIsDriveLoading(true);
-    try {
-      const auth = await googleSignIn();
-      if (auth) {
-        setDriveToken(auth.accessToken);
-        if (auth.user?.email) {
-          setDriveUserEmail(auth.user.email);
-        }
-        showToast(`Terhubung ke Google Drive: ${auth.user?.email || 'Akun Google'}`);
-        await fetchDriveFiles(auth.accessToken);
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Koneksi ke Google Drive dibatalkan', true);
-    } finally {
-      setIsDriveLoading(false);
-    }
-  };
-
-  const handleSelectDriveFile = async (file: DriveFileItem) => {
-    if (!driveToken) return;
-    setSelectedDriveFile(file);
-    setIsProcessing(true);
-    try {
-      const content = await readDriveFileContent(driveToken, file.id, file.mimeType);
-      setFileContent(content);
-      setFileName(file.name);
-      showToast(`File "${file.name}" berhasil dimuat dari Google Drive`);
-    } catch (err: any) {
-      showToast(err.message || 'Gagal membaca isi file dari Google Drive', true);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
+    setSelectedDriveFile(null);
+    try {
+      const text = await readLocalBomFile(file);
       setFileContent(text || '');
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal membaca file lokal', true);
+    }
   };
 
   const handleDownloadTemplate = (format: 'csv' | 'json') => {
@@ -249,7 +187,7 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
           >
             <UploadCloud className="w-4 h-4" />
             <span>2. Google Drive / Spreadsheet</span>
-            {driveToken && (
+            {hasDriveToken && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </button>
@@ -296,7 +234,7 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
                       <span>Pilih File dari Komputer</span>
                       <input
                         type="file"
-                        accept=".csv,.json,.tsv,.txt"
+                        accept=".csv,.json,.tsv,.txt,.xlsx,.xls"
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -378,147 +316,19 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
 
           {/* TAB 2: GOOGLE DRIVE / SPREADSHEET */}
           {activeSource === 'DRIVE' && (
-            <div className="space-y-4">
-              {!driveToken ? (
-                <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 space-y-3">
-                  <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-2xl w-fit mx-auto">
-                    <UploadCloud className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-white">Hubungkan ke Akun Google Drive Anda</h3>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-                      Pilih file Google Spreadsheet, CSV, atau JSON konfigurasi WIP per karton SKU dari Google Drive Anda.
-                    </p>
-                  </div>
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleConnectDrive}
-                      disabled={isDriveLoading}
-                      className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-cyan-600/30 transition flex items-center space-x-2 mx-auto active:scale-95 disabled:opacity-50"
-                    >
-                      {isDriveLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Menghubungkan ke Google...</span>
-                        </>
-                      ) : (
-                        <>
-                          <UploadCloud className="w-4 h-4" />
-                          <span>Masuk dengan Google Drive</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-slate-800 gap-2">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-slate-300 font-medium">
-                        Terhubung: <strong className="text-white">{driveUserEmail || 'Akun Google Drive'}</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => fetchDriveFiles(driveToken, driveSearch)}
-                        disabled={isDriveLoading}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isDriveLoading ? 'animate-spin' : ''}`} />
-                        <span>Segarkan</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDriveToken(null);
-                          setDriveFiles([]);
-                          showToast('Terputus dari Google Drive');
-                        }}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-rose-950 text-rose-300 rounded-lg text-xs font-semibold transition"
-                      >
-                        Keluar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={driveSearch}
-                      onChange={(e) => {
-                        setDriveSearch(e.target.value);
-                        fetchDriveFiles(driveToken, e.target.value);
-                      }}
-                      placeholder="Cari file konfigurasi WIP-SKU di Google Drive..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 text-xs"
-                    />
-                  </div>
-
-                  <div className="border border-slate-800 rounded-xl overflow-hidden max-h-56 overflow-y-auto no-scrollbar bg-slate-950/40 divide-y divide-slate-800/80">
-                    {isDriveLoading ? (
-                      <div className="p-8 text-center text-slate-400 space-y-2">
-                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-cyan-400" />
-                        <p>Memuat daftar file dari Google Drive...</p>
-                      </div>
-                    ) : driveFiles.length > 0 ? (
-                      driveFiles.map((file) => {
-                        const isSelected = selectedDriveFile?.id === file.id;
-                        const isSpreadsheet = file.mimeType.includes('spreadsheet') || file.name.endsWith('.xlsx');
-                        const isCsv = file.name.endsWith('.csv');
-
-                        return (
-                          <div
-                            key={file.id}
-                            onClick={() => handleSelectDriveFile(file)}
-                            className={`p-3 flex items-center justify-between cursor-pointer transition ${
-                              isSelected
-                                ? 'bg-cyan-950/50 border-l-4 border-cyan-400'
-                                : 'hover:bg-slate-850'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3 truncate mr-2">
-                              <div className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 shrink-0">
-                                {isSpreadsheet ? (
-                                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                                ) : isCsv ? (
-                                  <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
-                                ) : (
-                                  <FileCode className="w-4 h-4 text-amber-400" />
-                                )}
-                              </div>
-                              <div className="truncate">
-                                <span className="font-semibold text-white block truncate">{file.name}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  Diperbarui: {new Date(file.modifiedTime || Date.now()).toLocaleDateString('id-ID')}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition ${
-                                isSelected
-                                  ? 'bg-cyan-500 text-slate-950 font-bold'
-                                  : 'bg-slate-800 text-slate-300 hover:bg-cyan-600 hover:text-white'
-                              }`}
-                            >
-                              {isSelected ? '✓ Terpilih' : 'Muat File'}
-                            </button>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="p-8 text-center text-slate-500 text-xs">
-                        <p>Tidak ditemukan file spreadsheet atau CSV di akun Google Drive Anda.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <GoogleDriveFileBrowser
+              description="Pilih file Google Spreadsheet, Excel (.xlsx), CSV, atau JSON konfigurasi WIP per karton SKU dari Google Drive Anda."
+              searchPlaceholder="Cari file konfigurasi WIP-SKU di Google Drive..."
+              selectedFileId={selectedDriveFile?.id}
+              onFileLoaded={(content, loadedName, file) => {
+                setSelectedDriveFile(file);
+                setFileName(loadedName);
+                setFileContent(content);
+              }}
+              onSwitchToLocal={() => setActiveSource('STORAGE')}
+              onConnectionChange={setHasDriveToken}
+              showToast={showToast}
+            />
           )}
 
           {/* PARSE RESULT PREVIEW TABLE */}
@@ -659,7 +469,7 @@ export const SkuWipImportModal: React.FC<SkuWipImportModalProps> = ({
           <button
             type="button"
             onClick={handleConfirmImport}
-            disabled={!parseResult || validCount === 0 || isProcessing}
+            disabled={!parseResult || validCount === 0}
             className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center space-x-2 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Check className="w-4 h-4" />

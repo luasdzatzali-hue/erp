@@ -316,7 +316,11 @@ export default function App() {
       await runSetupCheck();
       if (cancelled) return;
 
-      if (redirectResult.user && redirectResult.intendedRole && redirectResult.intendedRole !== 'SETUP') {
+      if (redirectResult.isDriveConnectRedirect && redirectResult.user) {
+        showToast(
+          `Google Drive terhubung (${redirectResult.user.email}). Buka kembali Master BOM → Import untuk memilih dokumen.`
+        );
+      } else if (redirectResult.user && redirectResult.intendedRole && redirectResult.intendedRole !== 'SETUP') {
         manualGoogleLoginInFlightRef.current = true;
         setIsSyncingCloud(true);
         try {

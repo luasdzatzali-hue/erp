@@ -2,14 +2,16 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   onAuthStateChanged,
   User,
   signOut
 } from 'firebase/auth';
+import * as XLSX from 'xlsx';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App singleton
+// Reuse existing Firebase App singleton (per Firebase & Workspace integration guidelines)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
@@ -19,12 +21,67 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile'
 ];
 
-const provider = new GoogleAuthProvider();
-SCOPES.forEach(scope => provider.addScope(scope));
+const PENDING_DRIVE_REDIRECT_KEY = 'prodtrack_pending_drive_oauth_v1';
 
-// Flags & in-memory token cache (Do NOT store in localStorage per security guidelines)
+function createDriveOAuthProvider(forceAccountSelect = true): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  SCOPES.forEach(scope => provider.addScope(scope));
+  provider.setCustomParameters({
+    prompt: forceAccountSelect ? 'select_account consent' : 'consent',
+    include_granted_scopes: 'true'
+  });
+  return provider;
+}
+
+export class DriveApiError extends Error {
+  isAuthError: boolean;
+  isPopupBlocked: boolean;
+  status?: number;
+
+  constructor(
+    message: string,
+    options?: { isAuthError?: boolean; isPopupBlocked?: boolean; status?: number }
+  ) {
+    super(message);
+    this.name = 'DriveApiError';
+    this.isAuthError = Boolean(options?.isAuthError);
+    this.isPopupBlocked = Boolean(options?.isPopupBlocked);
+    this.status = options?.status;
+  }
+}
+
+export function isDriveAuthError(err: unknown): boolean {
+  return Boolean((err as any)?.isAuthError);
+}
+
+export function isDrivePopupBlockedError(err: unknown): boolean {
+  return Boolean((err as any)?.isPopupBlocked);
+}
+
+// In-memory token & user email cache (NEVER persist OAuth access tokens to Web Storage)
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
+let cachedDriveEmail: string | null = null;
+
+export const setWorkspaceDriveToken = (token: string | null, email?: string | null) => {
+  cachedAccessToken = token;
+  if (email !== undefined) {
+    cachedDriveEmail = email;
+  }
+};
+
+export const getDriveUserEmail = (): string | null => {
+  return cachedDriveEmail || auth.currentUser?.email || null;
+};
+
+export const consumePendingDriveRedirectFlag = (): boolean => {
+  if (typeof window === 'undefined' || !window.sessionStorage) return false;
+  const flag = window.sessionStorage.getItem(PENDING_DRIVE_REDIRECT_KEY) === '1';
+  if (flag) {
+    window.sessionStorage.removeItem(PENDING_DRIVE_REDIRECT_KEY);
+  }
+  return flag;
+};
 
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
@@ -35,58 +92,99 @@ export const initAuth = (
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else if (!isSigningIn) {
-        // Token might not be directly available on page refresh without popup
         if (onAuthFailure) onAuthFailure();
       }
     } else {
       cachedAccessToken = null;
+      cachedDriveEmail = null;
       if (onAuthFailure) onAuthFailure();
     }
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (
+  forceAccountSelect = true
+): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
+    const provider = createDriveOAuthProvider(forceAccountSelect);
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      throw new Error('Gagal mendapatkan token akses dari Google OAuth');
+      throw new DriveApiError(
+        'Gagal mendapatkan token akses Google Drive. Silakan coba masuk kembali dan pastikan Anda menyetujui izin akses Google Drive.',
+        { isAuthError: true }
+      );
     }
 
     cachedAccessToken = credential.accessToken;
+    cachedDriveEmail = result.user.email || cachedDriveEmail;
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
-    const errorCode = error?.code || '';
-    // Gracefully handle user cancellation / closed popup without logging console.error
+    const errorCode = String(error?.code || '');
+
     if (
       errorCode === 'auth/popup-closed-by-user' ||
       errorCode === 'auth/cancelled-popup-request' ||
       errorCode === 'auth/user-cancelled'
     ) {
-      // User closed the popup window voluntarily, no error or warning needed
       return null;
     }
 
-    if (errorCode === 'auth/popup-blocked') {
-      console.warn('Google Sign-In popup diblokir oleh browser.');
-      throw new Error('Jendela popup login diblokir oleh browser. Harap izinkan popup di pengaturan browser Anda.');
+    if (
+      errorCode === 'auth/popup-blocked' ||
+      errorCode === 'auth/operation-not-supported-in-this-environment' ||
+      errorCode === 'auth/web-storage-unsupported'
+    ) {
+      throw new DriveApiError(
+        'Popup login Google Drive diblokir atau dibatasi oleh browser. Izinkan popup atau gunakan tombol "Hubungkan via Redirect" di bawah.',
+        { isPopupBlocked: true }
+      );
     }
 
     if (errorCode === 'auth/unauthorized-domain') {
       const host = typeof window !== 'undefined' ? window.location.hostname : 'domain ini';
-      throw new Error(`Domain "${host}" belum ditambahkan di Firebase Console → Authentication → Authorized domains.`);
+      throw new DriveApiError(
+        `Domain "${host}" belum terdaftar di Firebase Console → Authentication → Settings → Authorized domains.`
+      );
     }
 
     if (errorCode === 'auth/network-request-failed') {
-      console.warn('Google Sign-In gagal: masalah jaringan.');
-      throw new Error('Koneksi internet bermasalah saat login dengan Google. Silakan periksa jaringan Anda.');
+      throw new DriveApiError(
+        'Koneksi internet bermasalah saat menghubungi Google OAuth. Periksa koneksi Anda lalu coba lagi.'
+      );
     }
 
-    console.warn('Google Sign-In notice:', error?.message || error);
-    throw error;
+    if (error instanceof DriveApiError) {
+      throw error;
+    }
+
+    console.warn('Google Drive Sign-In notice:', error?.message || error);
+    throw new DriveApiError(error?.message || 'Gagal menghubungkan akun Google Drive');
   } finally {
     isSigningIn = false;
+  }
+};
+
+export const googleSignInRedirect = async (): Promise<void> => {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(PENDING_DRIVE_REDIRECT_KEY, '1');
+    }
+    const provider = createDriveOAuthProvider(true);
+    await signInWithRedirect(auth, provider);
+  } catch (error: any) {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(PENDING_DRIVE_REDIRECT_KEY);
+    }
+    const errorCode = String(error?.code || '');
+    if (errorCode === 'auth/unauthorized-domain') {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'domain ini';
+      throw new DriveApiError(
+        `Domain "${host}" belum terdaftar di Firebase Console → Authentication → Settings → Authorized domains.`
+      );
+    }
+    throw new DriveApiError(error?.message || 'Gagal memulai redirect Google Drive OAuth');
   }
 };
 
@@ -96,11 +194,12 @@ export const getAccessToken = async (): Promise<string | null> => {
 
 export const clearWorkspaceDriveToken = () => {
   cachedAccessToken = null;
+  cachedDriveEmail = null;
 };
 
 export const googleLogout = async () => {
   await signOut(auth);
-  cachedAccessToken = null;
+  clearWorkspaceDriveToken();
 };
 
 // Google Drive API Helpers
@@ -113,101 +212,247 @@ export interface DriveFileItem {
   iconLink?: string;
 }
 
+function parseDriveApiErrorPayload(rawText: string, status: number): DriveApiError {
+  let errJson: any = null;
+  try {
+    errJson = JSON.parse(rawText);
+  } catch {
+    errJson = null;
+  }
+
+  const googleMsg = errJson?.error?.message || '';
+  const reason = errJson?.error?.errors?.[0]?.reason || '';
+  const statusStr = String(errJson?.error?.status || '');
+
+  if (status === 401 || statusStr === 'UNAUTHENTICATED') {
+    clearWorkspaceDriveToken();
+    return new DriveApiError(
+      'Sesi Google Drive telah berakhir (Token kedaluwarsa). Silakan klik "Masuk dengan Google Drive" untuk menghubungkan ulang.',
+      { isAuthError: true, status }
+    );
+  }
+
+  if (
+    status === 403 &&
+    (reason === 'insufficientPermissions' ||
+      reason === 'insufficientScopes' ||
+      googleMsg.toLowerCase().includes('insufficient') ||
+      googleMsg.toLowerCase().includes('scope'))
+  ) {
+    clearWorkspaceDriveToken();
+    return new DriveApiError(
+      'Izin akses Google Drive (drive.readonly) belum disetujui. Silakan hubungkan ulang akun Google Anda dan centang kotak izin baca Google Drive.',
+      { isAuthError: true, status }
+    );
+  }
+
+  if (status === 403 && (reason === 'accessNotConfigured' || googleMsg.includes('API has not been used'))) {
+    return new DriveApiError(
+      'Google Drive API belum diaktifkan di Google Cloud Project aplikasi ini. Hubungi administrator sistem atau gunakan unggah file lokal sementara.',
+      { status }
+    );
+  }
+
+  if (status === 404) {
+    return new DriveApiError(
+      'File tidak ditemukan atau akses ke file tersebut telah dihapus dari Google Drive.',
+      { status }
+    );
+  }
+
+  return new DriveApiError(
+    googleMsg
+      ? `Google Drive Error (${status}): ${googleMsg}`
+      : `HTTP ${status}: Gagal berkomunikasi dengan Google Drive`,
+    { status }
+  );
+}
+
 export const listDriveFiles = async (
   token: string,
   searchQuery?: string
 ): Promise<DriveFileItem[]> => {
-  try {
-    let q = "trashed = false";
-    if (searchQuery && searchQuery.trim()) {
-      const cleanQ = searchQuery.replace(/'/g, "\\'");
-      q += ` and name contains '${cleanQ}'`;
-    }
-
-    const fields = 'files(id,name,mimeType,size,modifiedTime,iconLink)';
-    const queryParams = `q=${encodeURIComponent(
-      q
-    )}&orderBy=modifiedTime desc&pageSize=50&fields=${encodeURIComponent(fields)}`;
-
-    // Try proxy route first to avoid browser CORS/iframe restrictions, then fallback to direct
-    let res: Response | null = null;
-    try {
-      res = await fetch(`/api/google-drive/files?${queryParams}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-    } catch {
-      // If local proxy failed, attempt direct Google API endpoint
-      try {
-        res = await fetch(`https://www.googleapis.com/drive/v3/files?${queryParams}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-      } catch (directErr: any) {
-        throw new Error(
-          'Tidak dapat terhubung ke Google Drive (pembatasan CORS / jaringan browser). Silakan gunakan tab Unggah File Lokal untuk mengimpor CSV atau JSON.'
-        );
-      }
-    }
-
-    if (!res || !res.ok) {
-      const errJson = await res?.json().catch(() => ({}));
-      const errMsg = errJson?.error?.message || `HTTP ${res?.status || '500'}: Gagal mengambil daftar file dari Google Drive`;
-      throw new Error(errMsg);
-    }
-
-    const data = await res.json();
-    return data.files || [];
-  } catch (err: any) {
-    console.warn('listDriveFiles error:', err);
-    throw err;
+  if (!token) {
+    throw new DriveApiError('Token Google Drive tidak tersedia. Silakan login ulang.', { isAuthError: true });
   }
+
+  let q = "trashed = false and mimeType != 'application/vnd.google-apps.folder'";
+  if (searchQuery && searchQuery.trim()) {
+    const cleanQ = searchQuery.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    q += ` and name contains '${cleanQ}'`;
+  }
+
+  const fields = 'files(id,name,mimeType,size,modifiedTime,iconLink)';
+  const params = new URLSearchParams({
+    q,
+    orderBy: 'modifiedTime desc',
+    pageSize: '60',
+    fields,
+    includeItemsFromAllDrives: 'true',
+    supportsAllDrives: 'true'
+  });
+
+  // Always call Google Drive v3 directly (supports browser CORS with OAuth Bearer token, works identically in dev & deployed Vercel)
+  let res: Response;
+  try {
+    res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+  } catch {
+    throw new DriveApiError(
+      'Tidak dapat menghubungi Google Drive API. Periksa koneksi internet atau ekstensi pemblokir iklan di browser Anda.'
+    );
+  }
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseDriveApiErrorPayload(errText, res.status);
+  }
+
+  if (contentType.includes('text/html')) {
+    throw new DriveApiError(
+      'Respons tidak valid dari server (menerima HTML alih-alih data Google Drive JSON).'
+    );
+  }
+
+  const data = await res.json();
+  return Array.isArray(data?.files) ? data.files : [];
 };
+
+export function isExcelMimeOrName(mimeType?: string, fileName?: string): boolean {
+  const mime = (mimeType || '').toLowerCase();
+  const name = (fileName || '').toLowerCase();
+  return (
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mime === 'application/vnd.ms-excel' ||
+    mime === 'application/vnd.ms-excel.sheet.macroenabled.12' ||
+    mime === 'application/vnd.oasis.opendocument.spreadsheet' ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    name.endsWith('.xlsm') ||
+    name.endsWith('.xlsb') ||
+    name.endsWith('.ods')
+  );
+}
+
+function convertExcelArrayBufferToCsv(buffer: ArrayBuffer): string {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new DriveApiError('File Excel tidak memiliki sheet/lembar kerja.');
+  }
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+    if (csv && csv.trim().length > 0) {
+      return csv.replace(/^\uFEFF/, '');
+    }
+  }
+
+  throw new DriveApiError('Seluruh sheet pada file Excel kosong.');
+}
+
+async function resolveShortcutTarget(
+  token: string,
+  fileId: string
+): Promise<{ id: string; mimeType?: string } | null> {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=shortcutDetails(targetId,targetMimeType)&supportsAllDrives=true`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  const targetId = data?.shortcutDetails?.targetId;
+  const targetMimeType = data?.shortcutDetails?.targetMimeType;
+  return targetId ? { id: targetId, mimeType: targetMimeType } : null;
+}
 
 export const readDriveFileContent = async (
   token: string,
   fileId: string,
-  mimeType?: string
+  mimeType?: string,
+  fileName?: string
 ): Promise<string> => {
-  try {
-    const isSpreadsheet = mimeType === 'application/vnd.google-apps.spreadsheet';
-    const subPath = isSpreadsheet ? `${fileId}/export?mimeType=text/csv` : `${fileId}?alt=media`;
-
-    let res: Response | null = null;
-    try {
-      res = await fetch(`/api/google-drive/files/${subPath}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-    } catch {
-      try {
-        const directUrl = isSpreadsheet
-          ? `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`
-          : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-        res = await fetch(directUrl, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-      } catch (directErr: any) {
-        throw new Error(
-          'Gagal mengunduh isi file dari Google Drive (pembatasan jaringan browser). Silakan unggah file secara langsung dari tab Penyimpanan Lokal.'
-        );
-      }
-    }
-
-    if (!res || !res.ok) {
-      const errText = await res?.text().catch(() => '');
-      throw new Error(`HTTP ${res?.status || '500'}: Gagal mengunduh isi file dari Google Drive (${errText})`);
-    }
-
-    const content = await res.text();
-    return content;
-  } catch (err: any) {
-    console.warn('readDriveFileContent error:', err);
-    throw err;
+  if (!token) {
+    throw new DriveApiError('Token Google Drive tidak tersedia. Silakan login ulang.', { isAuthError: true });
   }
+
+  const mime = (mimeType || '').toLowerCase();
+
+  // Resolve Google Drive shortcut to its target document
+  if (mime === 'application/vnd.google-apps.shortcut') {
+    const target = await resolveShortcutTarget(token, fileId);
+    if (!target) {
+      throw new DriveApiError('Shortcut Google Drive tidak dapat dibuka atau file aslinya tidak dapat diakses.');
+    }
+    return readDriveFileContent(token, target.id, target.mimeType, fileName);
+  }
+
+  const isGoogleSpreadsheet = mime === 'application/vnd.google-apps.spreadsheet';
+  const isGoogleDoc = mime === 'application/vnd.google-apps.document';
+  const isOtherGoogleApp =
+    mime.startsWith('application/vnd.google-apps.') && !isGoogleSpreadsheet && !isGoogleDoc;
+
+  if (isOtherGoogleApp) {
+    throw new DriveApiError(
+      'Format dokumen Google Workspace ini tidak didukung untuk impor BOM. Gunakan Google Spreadsheet, Google Docs, Excel (.xlsx/.xls), CSV, atau JSON.'
+    );
+  }
+
+  const isExcel = !isGoogleSpreadsheet && !isGoogleDoc && isExcelMimeOrName(mime, fileName);
+
+  const directUrl = isGoogleSpreadsheet
+    ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/csv`
+    : isGoogleDoc
+      ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/plain`
+      : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
+
+  let res: Response;
+  try {
+    res = await fetch(directUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+  } catch {
+    throw new DriveApiError(
+      'Gagal mengunduh isi file dari Google Drive. Periksa koneksi internet Anda atau coba unggah file lokal.'
+    );
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseDriveApiErrorPayload(errText, res.status);
+  }
+
+  if (isExcel) {
+    const buffer = await res.arrayBuffer();
+    return convertExcelArrayBufferToCsv(buffer);
+  }
+
+  const rawText = await res.text();
+  const cleanText = rawText.replace(/^\uFEFF/, '');
+  const trimmedLower = cleanText.trim().slice(0, 200).toLowerCase();
+  if (trimmedLower.startsWith('<!doctype html') || trimmedLower.startsWith('<html')) {
+    throw new DriveApiError(
+      'File yang diunduh berupa halaman HTML dan bukan data BOM (CSV/JSON/Spreadsheet).'
+    );
+  }
+
+  return cleanText;
 };
+
+export async function readLocalBomFile(file: File): Promise<string> {
+  if (isExcelMimeOrName(file.type, file.name)) {
+    const buffer = await file.arrayBuffer();
+    return convertExcelArrayBufferToCsv(buffer);
+  }
+  const text = await file.text();
+  return text.replace(/^\uFEFF/, '');
+}

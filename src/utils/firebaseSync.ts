@@ -25,6 +25,11 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { AppState, UserRole } from '../types';
+import {
+  clearWorkspaceDriveToken,
+  consumePendingDriveRedirectFlag,
+  setWorkspaceDriveToken
+} from './googleWorkspace';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -339,6 +344,7 @@ export async function startGoogleRedirectSignIn(intendedRole?: UserRole | 'SETUP
 export async function consumeGoogleRedirectResult(): Promise<{
   user: User | null;
   intendedRole?: UserRole | 'SETUP';
+  isDriveConnectRedirect?: boolean;
   errorDetail?: AuthErrorDetail;
 }> {
   let pendingRole: UserRole | 'SETUP' | undefined;
@@ -348,6 +354,7 @@ export async function consumeGoogleRedirectResult(): Promise<{
       pendingRole = raw;
     }
   }
+  const isDriveRedirect = consumePendingDriveRedirectFlag();
 
   try {
     const res = await getRedirectResult(auth);
@@ -355,9 +362,17 @@ export async function consumeGoogleRedirectResult(): Promise<{
       window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
     }
     if (res?.user) {
-      return { user: res.user, intendedRole: pendingRole };
+      const credential = GoogleAuthProvider.credentialFromResult(res);
+      if (credential?.accessToken) {
+        setWorkspaceDriveToken(credential.accessToken, res.user.email || null);
+      }
+      return {
+        user: res.user,
+        intendedRole: pendingRole,
+        isDriveConnectRedirect: isDriveRedirect
+      };
     }
-    return { user: null, intendedRole: pendingRole };
+    return { user: null, intendedRole: pendingRole, isDriveConnectRedirect: isDriveRedirect };
   } catch (error: any) {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
@@ -365,12 +380,14 @@ export async function consumeGoogleRedirectResult(): Promise<{
     return {
       user: null,
       intendedRole: pendingRole,
+      isDriveConnectRedirect: isDriveRedirect,
       errorDetail: formatGoogleAuthError(error)
     };
   }
 }
 
 export async function signOutGoogleAuth(): Promise<void> {
+  clearWorkspaceDriveToken();
   await signOut(auth);
 }
 
