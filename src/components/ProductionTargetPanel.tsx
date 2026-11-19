@@ -22,7 +22,8 @@ import {
   RotateCcw,
   Droplets,
   ArrowRightLeft,
-  MessageCircle
+  MessageCircle,
+  Radio
 } from 'lucide-react';
 import {
   AppState,
@@ -51,9 +52,11 @@ import {
   checkRunHoldingTankAvailability
 } from '../utils/skuTankHelper';
 import { isWhatsAppEligibleSblCategory } from '../utils/whatsappReport';
+import { DashboardLineStatusSnapshot } from '../utils/firebaseSync';
 
 interface ProductionTargetPanelProps {
   state: AppState;
+  liveLineStatus?: DashboardLineStatusSnapshot | null;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
   onProduceCartons?: (
     skuId: string,
@@ -130,6 +133,7 @@ const DEFAULT_FALLBACK_LINES: ProductionLine[] = [
 
 export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   state,
+  liveLineStatus,
   onSwitchTab,
   onProduceCartons,
   onStartSkuProduction,
@@ -174,14 +178,19 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   });
   const liveDateFormatted = formatIndonesianDate(now);
 
-  // Registered production lines (customizable A, B, C, D, ...)
+  // Registered production lines synchronized in real time across devices
   const productionLines: ProductionLine[] = useMemo(() => {
+    const liveLines = liveLineStatus?.productionLines;
+    if (liveLines && liveLines.length > 0) return liveLines;
     const lines = state.master.productionLines;
     return lines && lines.length > 0 ? lines : DEFAULT_FALLBACK_LINES;
-  }, [state.master.productionLines]);
+  }, [liveLineStatus?.productionLines, state.master.productionLines]);
 
-  // Active production runs across lines
+  // Active production runs synchronized in real time across devices
   const activeRuns: ActiveSkuProductionRun[] = useMemo(() => {
+    if (liveLineStatus && Array.isArray(liveLineStatus.activeSkuRuns)) {
+      return liveLineStatus.activeSkuRuns;
+    }
     if (state.activeSkuRuns && state.activeSkuRuns.length > 0) {
       return state.activeSkuRuns;
     }
@@ -189,9 +198,21 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       return [state.activeSkuRun];
     }
     return [];
-  }, [state.activeSkuRuns, state.activeSkuRun]);
+  }, [liveLineStatus, state.activeSkuRuns, state.activeSkuRun]);
 
   const runningRuns = useMemo(() => activeRuns.filter(r => r.isRunning), [activeRuns]);
+
+  const liveLineSyncTimeLabel = useMemo(() => {
+    if (!liveLineStatus?.lastUpdatedAtIso) return null;
+    const parsed = new Date(liveLineStatus.lastUpdatedAtIso);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  }, [liveLineStatus?.lastUpdatedAtIso]);
 
   // Map lineId -> active running run (guarantees 1 line = max 1 active SKU)
   const runningByLineId = useMemo(() => {
@@ -612,7 +633,16 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               <span>Kontrol Produksi SKU Per Line</span>
             </h2>
             <span className="text-[11px] font-mono font-semibold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-lg">
-              {runningRuns.length} / {productionLines.length} Line Aktif
+              {runningRuns.length} / {productionLines.length} Line Aktif · {standbyLines.length} Standby
+            </span>
+            <span
+              className="text-[11px] font-mono font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg inline-flex items-center space-x-1.5"
+              title="Status ketersediaan line dan progres SKU disinkronkan real-time ke seluruh perangkat"
+            >
+              <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+              <span>
+                Live Sync{liveLineSyncTimeLabel ? ` · ${liveLineSyncTimeLabel}` : ''}
+              </span>
             </span>
           </div>
           <p className="text-xs text-slate-400">

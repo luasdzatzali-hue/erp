@@ -90,6 +90,40 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   const [pinError, setPinError] = useState('');
   const [setupAuthError, setSetupAuthError] = useState<AuthErrorDetail | null>(null);
 
+  // Rate limiting & lockout protection state
+  const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number>(0);
+  const [lockoutRemainingSecs, setLockoutRemainingSecs] = useState<number>(0);
+
+  useEffect(() => {
+    if (lockoutUntil <= Date.now()) {
+      setLockoutRemainingSecs(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      const rem = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (rem <= 0) {
+        setLockoutUntil(0);
+        setLockoutRemainingSecs(0);
+        clearInterval(timer);
+      } else {
+        setLockoutRemainingSecs(rem);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutUntil]);
+
+  const validatePasswordStrength = (pwd: string): { isValid: boolean; message?: string } => {
+    if (pwd.length < 8) {
+      return { isValid: false, message: 'Password/PIN keamanan minimal harus 8 karakter.' };
+    }
+    const leakedList = ['password123', '12345678', 'admin123', 'qwerty123', '123456', 'password'];
+    if (leakedList.includes(pwd.toLowerCase())) {
+      return { isValid: false, message: 'Password/PIN ini terdeteksi dalam daftar password umum yang pernah bocor. Gunakan kombinasi yang lebih aman.' };
+    }
+    return { isValid: true };
+  };
+
   // First-time Admin Setup Wizard state
   const [setupUser, setSetupUser] = useState<User | null>(firebaseUser);
   const [setupFactoryName, setSetupFactoryName] = useState('PT Pabrik Manufaktur Nusantara');
@@ -187,8 +221,9 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       showToast('Harap isi Nama Lengkap Administrator.', true);
       return;
     }
-    if (setupPin.length < 4 || setupPin.length > 16) {
-      showToast('PIN Keamanan Administrator harus 4 - 16 karakter.', true);
+    const pwdCheck = validatePasswordStrength(setupPin);
+    if (!pwdCheck.isValid) {
+      showToast(pwdCheck.message || 'Password/PIN keamanan tidak memenuhi standar.', true);
       return;
     }
     if (setupPin !== setupPinConfirm) {
@@ -215,11 +250,16 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   // Admin PIN login (only allowed when device has already synced the workspace from Cloud)
   const handleAdminPinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutRemainingSecs > 0) {
+      showToast(`Terlalu banyak percobaan gagal. Harap tunggu ${lockoutRemainingSecs} detik sebelum mencoba kembali.`, true);
+      return;
+    }
     if (!isWorkspaceSyncedOnDevice) {
       showToast('Silakan masuk dengan Akun Google Admin terlebih dahulu untuk menyinkronkan data Cloud ke perangkat ini.', true);
       return;
     }
     if (adminPinInput === state.adminPin) {
+      setFailedLoginAttempts(0);
       onLoginSuccess('ADMINISTRATOR', {
         id: firebaseUser?.uid || 'admin_root',
         name: state.currentAdminUser?.displayName || firebaseUser?.displayName || 'Administrator MES & BOM',
@@ -228,8 +268,18 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       });
       showToast('Berhasil masuk sebagai Administrator (Akses Penuh MRP & WMS)');
     } else {
-      setPinError('PIN Administrator tidak cocok. Silakan coba lagi.');
-      showToast('PIN Administrator salah', true);
+      const nextFail = failedLoginAttempts + 1;
+      setFailedLoginAttempts(nextFail);
+      if (nextFail >= 5) {
+        const lockoutTime = Date.now() + 60000;
+        setLockoutUntil(lockoutTime);
+        setLockoutRemainingSecs(60);
+        setPinError('Terlalu banyak percobaan salah. Akun dikunci sementara selama 60 detik.');
+        showToast('Keamanan Aktif: Login diblokir sementara selama 60 detik akibat percobaan gagal berulang.', true);
+      } else {
+        setPinError('Kredensial atau PIN tidak valid. Silakan coba lagi.');
+        showToast('Email atau PIN salah', true);
+      }
     }
   };
 

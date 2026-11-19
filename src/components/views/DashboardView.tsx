@@ -37,6 +37,7 @@ import { AppState, StorageLocation, ProductionLine, ProductionStopLog, Changeove
 import { calculateStockBalances } from '../../utils/storage';
 import { calculateMaterialStockBreakdown } from '../../utils/reportBreakdown';
 import { getCurrentShift, formatIndonesianDate, ShiftNumber } from '../../utils/shifts';
+import { DashboardLineStatusSnapshot } from '../../utils/firebaseSync';
 import { ProductionTargetPanel } from '../ProductionTargetPanel';
 
 interface DashboardViewProps {
@@ -103,11 +104,13 @@ interface DashboardViewProps {
       notes?: string;
     }
   ) => void;
+  liveLineStatus?: DashboardLineStatusSnapshot | null;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   state,
+  liveLineStatus,
   onOpenTankModal,
   onSwitchTab,
   onTransferStock,
@@ -547,6 +550,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Production Target Panel: 24 Jam Penuh (3 Shift × 8 Jam Kerja) & Line Produksi */}
       <ProductionTargetPanel
         state={state}
+        liveLineStatus={liveLineStatus}
         onSwitchTab={onSwitchTab}
         onProduceCartons={onProduceCartons}
         onStartSkuProduction={onStartSkuProduction}

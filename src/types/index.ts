@@ -538,6 +538,16 @@ export interface CurrentUserSession {
   subtitle?: string;
 }
 
+export interface SecurityAuditLog {
+  id: string;
+  timestamp: string;
+  eventType: 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'SIGNUP_ADMIN' | 'REGISTER_OPERATOR' | 'PASSWORD_CHANGE' | 'BOM_CONFIG_UPDATE';
+  userEmail: string;
+  role: UserRole;
+  ipOrDevice?: string;
+  notes?: string;
+}
+
 export interface AppState {
   theme?: 'midnight' | 'daylight' | 'light' | 'dark'; // 'midnight' (Gelap Industrial) or 'daylight' (Putih/Cerah Terang Pabrik)
   factoryName?: string; // Nama pabrik yang didaftarkan oleh Administrator pertama
@@ -583,4 +593,5 @@ export interface AppState {
     handedOverCount: number;
   } | null;
   tank: TankState;
+  securityLogs?: SecurityAuditLog[];
 }

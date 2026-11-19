@@ -42,15 +42,20 @@ import {
   auth,
   AuthErrorDetail,
   checkFirstTimeSetup,
+  computeDashboardLineDigest,
+  computeLineAvailabilitySignature,
   consumeGoogleRedirectResult,
+  DashboardLineStatusSnapshot,
   formatGoogleAuthError,
   loadCloudWorkspaceDetailed,
+  publishDashboardLineStatusBroadcast,
   registerFirstAdministrator,
   saveWorkspaceSectionsToCloud,
   signInWithGooglePopup,
   signOutGoogleAuth,
   startGoogleRedirectSignIn,
   subscribeAuthState,
+  subscribeToDashboardLineStatus,
   subscribeToWorkspaceCloud
 } from './utils/firebaseSync';
 import type { User } from 'firebase/auth';
@@ -124,15 +129,31 @@ export default function App() {
   const [cloudAuthRole, setCloudAuthRole] = useState<UserRole | null>(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [authErrorBanner, setAuthErrorBanner] = useState<AuthErrorDetail | null>(null);
+  const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
+    useState<DashboardLineStatusSnapshot | null>(null);
 
   const isApplyingRemoteRef = useRef(false);
   const manualGoogleLoginInFlightRef = useRef(false);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
+  const lineStatusUnsubRef = useRef<(() => void) | null>(null);
+  const cloudWriteTimersRef = useRef<{
+    debounceTimer: ReturnType<typeof setTimeout> | null;
+    maxWaitTimer: ReturnType<typeof setTimeout> | null;
+  }>({ debounceTimer: null, maxWaitTimer: null });
+  const pendingCloudSectionsRef = useRef<{
+    meta: boolean;
+    secrets: boolean;
+    master: boolean;
+    operations: boolean;
+  }>({ meta: false, secrets: false, master: false, operations: false });
   const cloudInitializedSnapshotsRef = useRef<{
     meta: string;
     secrets: string;
     master: string;
     operations: string;
+    lineAvailSig: string;
+    criticalOpsSig: string;
+    lineDigest: string;
   } | null>(null);
 
   const serializeMeta = (s: AppState) =>
@@ -150,16 +171,49 @@ export default function App() {
     JSON.stringify({
       transactions: s.transactions,
       activeSkuRuns: s.activeSkuRuns || [],
-      tank: s.tank,
+      tank: s.tank.isSimulationActive ? { ...s.tank, temp: 0 } : s.tank,
       lastShiftHandover: s.lastShiftHandover ?? null
     });
 
+  // Structural/critical operations excluding high-frequency Auto [ simulation counter ticks
+  const serializeCriticalOperations = (s: AppState) =>
+    JSON.stringify({
+      requests: s.transactions.requests,
+      receipts: s.transactions.receipts,
+      usages: s.transactions.usages,
+      wipBatches: s.transactions.wipBatches,
+      changeovers: s.transactions.changeovers,
+      productionStops: s.transactions.productionStops,
+      stockAdjustments: s.transactions.stockAdjustments,
+      manualCartonsCount: (s.transactions.cartonProductions || []).filter(
+        cp => !cp.notes?.startsWith('Auto [')
+      ).length,
+      manualTankLogsCount: (s.transactions.tankLogs || []).filter(
+        tl => !tl.notes?.startsWith('Auto [')
+      ).length,
+      tankStatic: {
+        maxCapacity: s.tank.maxCapacity,
+        minTempTarget: s.tank.minTempTarget,
+        maxTempTarget: s.tank.maxTempTarget,
+        isSimulationActive: s.tank.isSimulationActive,
+        temp: s.tank.isSimulationActive ? 0 : s.tank.temp
+      },
+      lastShiftHandover: s.lastShiftHandover ?? null
+    });
+
+  const getActiveRunsArray = (s: AppState) =>
+    s.activeSkuRuns || (s.activeSkuRun ? [s.activeSkuRun] : []);
+
   const refreshCloudSnapshotsBaseline = useCallback((s: AppState) => {
+    const runs = s.activeSkuRuns || (s.activeSkuRun ? [s.activeSkuRun] : []);
     cloudInitializedSnapshotsRef.current = {
       meta: serializeMeta(s),
       secrets: serializeSecrets(s),
       master: serializeMaster(s),
-      operations: serializeOperations(s)
+      operations: serializeOperations(s),
+      lineAvailSig: computeLineAvailabilitySignature(s.master.productionLines || [], runs),
+      criticalOpsSig: serializeCriticalOperations(s),
+      lineDigest: computeDashboardLineDigest(s.master.productionLines || [], runs)
     };
   }, []);
 
@@ -363,6 +417,17 @@ export default function App() {
       if (!user) {
         cloudUnsubRef.current?.();
         cloudUnsubRef.current = null;
+        lineStatusUnsubRef.current?.();
+        lineStatusUnsubRef.current = null;
+        if (cloudWriteTimersRef.current.debounceTimer) {
+          clearTimeout(cloudWriteTimersRef.current.debounceTimer);
+          cloudWriteTimersRef.current.debounceTimer = null;
+        }
+        if (cloudWriteTimersRef.current.maxWaitTimer) {
+          clearTimeout(cloudWriteTimersRef.current.maxWaitTimer);
+          cloudWriteTimersRef.current.maxWaitTimer = null;
+        }
+        setLiveDashboardLineStatus(null);
         setCloudAuthRole(null);
         cloudInitializedSnapshotsRef.current = null;
       }
@@ -413,7 +478,7 @@ export default function App() {
     };
   }, [setupStatus, firebaseUser, refreshCloudSnapshotsBaseline]);
 
-  // Attach real-time Firestore listeners for multi-device collaboration
+  // Attach debounced/batched real-time Firestore listeners for multi-device collaboration
   useEffect(() => {
     if (setupStatus !== 'ready' || !firebaseUser || !cloudAuthRole) return;
     const unsub = subscribeToWorkspaceCloud(
@@ -430,10 +495,15 @@ export default function App() {
         });
         setTimeout(() => {
           isApplyingRemoteRef.current = false;
-        }, 150);
+        }, 180);
       },
       err => {
         console.error('Realtime sync warning:', err);
+      },
+      {
+        debounceMs: 350,
+        maxWaitMs: 1200,
+        criticalDebounceMs: 60
       }
     );
     cloudUnsubRef.current = unsub;
@@ -441,6 +511,63 @@ export default function App() {
       unsub();
       if (cloudUnsubRef.current === unsub) {
         cloudUnsubRef.current = null;
+      }
+    };
+  }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
+
+  // Dedicated real-time listener specifically for DashboardView production line availability & SKU run progress
+  useEffect(() => {
+    if (setupStatus !== 'ready' || !firebaseUser || !cloudAuthRole) return;
+    const unsubLines = subscribeToDashboardLineStatus(
+      snapshot => {
+        setLiveDashboardLineStatus(snapshot);
+        // Ensure AppState activeSkuRuns & productionLines stay synchronized cleanly on remote changes
+        isApplyingRemoteRef.current = true;
+        setState(prev => {
+          const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+          const currentDigest = computeDashboardLineDigest(
+            prev.master.productionLines || [],
+            prevRuns
+          );
+          const nextLines =
+            snapshot.productionLines && snapshot.productionLines.length > 0
+              ? snapshot.productionLines
+              : prev.master.productionLines;
+          const nextRuns =
+            snapshot.activeSkuRuns !== undefined ? snapshot.activeSkuRuns : prevRuns;
+          const nextDigest = computeDashboardLineDigest(nextLines, nextRuns);
+          if (currentDigest === nextDigest) {
+            return prev;
+          }
+          const next: AppState = {
+            ...prev,
+            master: {
+              ...prev.master,
+              productionLines: nextLines
+            },
+            activeSkuRuns: nextRuns,
+            activeSkuRun:
+              snapshot.activeSkuRun !== undefined
+                ? snapshot.activeSkuRun
+                : nextRuns.find(r => r.isRunning) || nextRuns[0] || null
+          };
+          refreshCloudSnapshotsBaseline(next);
+          return next;
+        });
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 180);
+      },
+      err => {
+        console.error('Dashboard line status realtime warning:', err);
+      },
+      { debounceMs: 60, maxWaitMs: 350 }
+    );
+    lineStatusUnsubRef.current = unsubLines;
+    return () => {
+      unsubLines();
+      if (lineStatusUnsubRef.current === unsubLines) {
+        lineStatusUnsubRef.current = null;
       }
     };
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
@@ -531,8 +658,12 @@ export default function App() {
   };
 
   const handleFirebaseSignOut = async () => {
+    await flushPendingCloudWrites();
     cloudUnsubRef.current?.();
     cloudUnsubRef.current = null;
+    lineStatusUnsubRef.current?.();
+    lineStatusUnsubRef.current = null;
+    setLiveDashboardLineStatus(null);
     setCloudAuthRole(null);
     setAuthErrorBanner(null);
     cloudInitializedSnapshotsRef.current = null;
@@ -545,66 +676,170 @@ export default function App() {
     showToast('Sesi akun Google telah diputus dari perangkat ini.');
   };
 
-  // Save state to localStorage + sync modified sections to Cloud Firestore
+  // Flush any queued batched Firestore writes cleanly
+  const flushPendingCloudWrites = useCallback(async () => {
+    const timers = cloudWriteTimersRef.current;
+    if (timers.debounceTimer) {
+      clearTimeout(timers.debounceTimer);
+      timers.debounceTimer = null;
+    }
+    if (timers.maxWaitTimer) {
+      clearTimeout(timers.maxWaitTimer);
+      timers.maxWaitTimer = null;
+    }
+
+    const pending = pendingCloudSectionsRef.current;
+    const sectionsToSave = { ...pending };
+    pendingCloudSectionsRef.current = {
+      meta: false,
+      secrets: false,
+      master: false,
+      operations: false
+    };
+
+    if (
+      !sectionsToSave.meta &&
+      !sectionsToSave.secrets &&
+      !sectionsToSave.master &&
+      !sectionsToSave.operations
+    ) {
+      return;
+    }
+
+    const latestState = stateRef.current;
+    if (
+      setupStatus !== 'ready' ||
+      !firebaseUser ||
+      !cloudAuthRole ||
+      !latestState.cloudOwnerUid
+    ) {
+      return;
+    }
+
+    refreshCloudSnapshotsBaseline(latestState);
+    try {
+      await saveWorkspaceSectionsToCloud(sectionsToSave, latestState, cloudAuthRole);
+    } catch (err) {
+      console.error('Cloud sync save error:', err);
+    }
+  }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
+
+  // Save state to localStorage + two-tier debounced/batched Cloud Firestore sync + BroadcastChannel line broadcast
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const localSaveTimer = setTimeout(() => {
       saveStateToStorage(state);
+    }, 200);
 
-      if (
-        isApplyingRemoteRef.current ||
-        setupStatus !== 'ready' ||
-        !firebaseUser ||
-        !cloudAuthRole ||
-        !state.cloudOwnerUid ||
-        !cloudInitializedSnapshotsRef.current
-      ) {
-        return;
-      }
+    const activeRunsNow = getActiveRunsArray(state);
+    const currentLineDigest = computeDashboardLineDigest(
+      state.master.productionLines || [],
+      activeRunsNow
+    );
 
-      const prevSnaps = cloudInitializedSnapshotsRef.current;
-      const curMeta = serializeMeta(state);
-      const curSecrets = serializeSecrets(state);
-      const curMaster = serializeMaster(state);
-      const curOps = serializeOperations(state);
-
-      const sectionsToSave = {
-        meta: curMeta !== prevSnaps.meta,
-        secrets: curSecrets !== prevSnaps.secrets,
-        master: curMaster !== prevSnaps.master,
-        operations: curOps !== prevSnaps.operations
+    // Sync local line status & broadcast instantaneously to other tabs on the same browser
+    if (
+      !isApplyingRemoteRef.current &&
+      cloudInitializedSnapshotsRef.current &&
+      currentLineDigest !== cloudInitializedSnapshotsRef.current.lineDigest
+    ) {
+      cloudInitializedSnapshotsRef.current.lineDigest = currentLineDigest;
+      const localSnapshot: DashboardLineStatusSnapshot = {
+        productionLines: state.master.productionLines || [],
+        activeSkuRuns: activeRunsNow,
+        activeSkuRun: activeRunsNow.find(r => r.isRunning) || activeRunsNow[0] || null,
+        lastUpdatedAtIso: new Date().toISOString(),
+        source: 'local',
+        updatedByUid: firebaseUser?.uid
       };
+      setLiveDashboardLineStatus(localSnapshot);
+      publishDashboardLineStatusBroadcast({
+        productionLines: localSnapshot.productionLines || [],
+        activeSkuRuns: localSnapshot.activeSkuRuns || [],
+        updatedByUid: firebaseUser?.uid
+      });
+    }
 
-      if (
-        sectionsToSave.meta ||
-        sectionsToSave.secrets ||
-        sectionsToSave.master ||
-        sectionsToSave.operations
-      ) {
-        cloudInitializedSnapshotsRef.current = {
-          meta: curMeta,
-          secrets: curSecrets,
-          master: curMaster,
-          operations: curOps
-        };
-        saveWorkspaceSectionsToCloud(sectionsToSave, state, cloudAuthRole).catch(err => {
-          console.error('Cloud sync save error:', err);
-        });
-      }
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [state, setupStatus, firebaseUser, cloudAuthRole]);
+    if (
+      isApplyingRemoteRef.current ||
+      setupStatus !== 'ready' ||
+      !firebaseUser ||
+      !cloudAuthRole ||
+      !state.cloudOwnerUid ||
+      !cloudInitializedSnapshotsRef.current
+    ) {
+      return () => clearTimeout(localSaveTimer);
+    }
+
+    const prevSnaps = cloudInitializedSnapshotsRef.current;
+    const curMeta = serializeMeta(state);
+    const curSecrets = serializeSecrets(state);
+    const curMaster = serializeMaster(state);
+    const curOps = serializeOperations(state);
+    const curLineAvailSig = computeLineAvailabilitySignature(
+      state.master.productionLines || [],
+      activeRunsNow
+    );
+    const curCriticalOpsSig = serializeCriticalOperations(state);
+
+    const metaChanged = curMeta !== prevSnaps.meta;
+    const secretsChanged = curSecrets !== prevSnaps.secrets;
+    const masterChanged = curMaster !== prevSnaps.master;
+    const opsChanged = curOps !== prevSnaps.operations;
+
+    if (!metaChanged && !secretsChanged && !masterChanged && !opsChanged) {
+      return () => clearTimeout(localSaveTimer);
+    }
+
+    if (metaChanged) pendingCloudSectionsRef.current.meta = true;
+    if (secretsChanged) pendingCloudSectionsRef.current.secrets = true;
+    if (masterChanged) pendingCloudSectionsRef.current.master = true;
+    if (opsChanged) pendingCloudSectionsRef.current.operations = true;
+
+    const isCriticalChange =
+      metaChanged ||
+      secretsChanged ||
+      curLineAvailSig !== prevSnaps.lineAvailSig ||
+      curCriticalOpsSig !== prevSnaps.criticalOpsSig;
+
+    // Critical/discrete edits flush rapidly (~450ms); high-frequency simulation ticks batch every 2.5s–3.5s
+    const writeDebounceMs = isCriticalChange ? 450 : 2500;
+    const writeMaxWaitMs = isCriticalChange ? 900 : 3500;
+
+    if (cloudWriteTimersRef.current.debounceTimer) {
+      clearTimeout(cloudWriteTimersRef.current.debounceTimer);
+    }
+    cloudWriteTimersRef.current.debounceTimer = setTimeout(() => {
+      flushPendingCloudWrites();
+    }, writeDebounceMs);
+
+    if (!cloudWriteTimersRef.current.maxWaitTimer) {
+      cloudWriteTimersRef.current.maxWaitTimer = setTimeout(() => {
+        flushPendingCloudWrites();
+      }, writeMaxWaitMs);
+    }
+
+    return () => clearTimeout(localSaveTimer);
+  }, [state, setupStatus, firebaseUser, cloudAuthRole, flushPendingCloudWrites]);
 
   useEffect(() => {
     const flushState = () => {
       saveStateToStorage(stateRef.current);
+      void flushPendingCloudWrites();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        flushState();
+      }
     };
     window.addEventListener('beforeunload', flushState);
     window.addEventListener('pagehide', flushState);
+    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       window.removeEventListener('beforeunload', flushState);
       window.removeEventListener('pagehide', flushState);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, []);
+  }, [flushPendingCloudWrites]);
 
   // Sync theme with HTML document element (Midnight vs Daylight)
   useEffect(() => {
@@ -4417,6 +4652,7 @@ export default function App() {
           {state.currentTab === 'dashboard' && (
             <DashboardView
               state={state}
+              liveLineStatus={liveDashboardLineStatus}
               onOpenTankModal={() => setIsTankModalOpen(true)}
               onSwitchTab={handleSwitchTab}
               onTransferStock={handleTransferStock}

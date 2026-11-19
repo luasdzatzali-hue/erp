@@ -24,7 +24,7 @@ import {
   DocumentSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { AppState, UserRole } from '../types';
+import { ActiveSkuProductionRun, AppState, ProductionLine, UserRole } from '../types';
 import {
   clearWorkspaceDriveToken,
   consumePendingDriveRedirectFlag,
@@ -774,15 +774,357 @@ export async function loadCloudWorkspaceForUser(user: User): Promise<LoadedCloud
   return outcome.status === 'ok' ? outcome.workspace : null;
 }
 
-export function subscribeToWorkspaceCloud(
-  cloudRole: UserRole,
-  onRemoteUpdate: (patch: Partial<AppState>) => void,
-  onError?: (err: Error) => void
+export type WorkspaceCloudSection = 'meta' | 'master' | 'operations' | 'secrets';
+
+export interface WorkspaceCloudSyncMeta {
+  batchedEvents: number;
+  sections: WorkspaceCloudSection[];
+  hasCriticalLineChange: boolean;
+  syncedAtIso: string;
+}
+
+export interface WorkspaceSubscribeOptions {
+  debounceMs?: number;
+  maxWaitMs?: number;
+  criticalDebounceMs?: number;
+  onBatchApplied?: (meta: WorkspaceCloudSyncMeta) => void;
+}
+
+export interface DashboardLineStatusSnapshot {
+  productionLines?: ProductionLine[];
+  activeSkuRuns?: ActiveSkuProductionRun[];
+  activeSkuRun?: ActiveSkuProductionRun | null;
+  lastUpdatedAtIso: string;
+  source: 'firestore' | 'broadcast' | 'local';
+  updatedByUid?: string;
+}
+
+const LINE_SYNC_CHANNEL_NAME = 'prodtrack_dashboard_line_sync_v1';
+
+export function computeLineAvailabilitySignature(
+  lines: ProductionLine[] = [],
+  activeRuns: ActiveSkuProductionRun[] = []
+): string {
+  return JSON.stringify({
+    lines: lines.map(l => [l.id, l.code, l.name, l.isActive]),
+    runs: activeRuns.map(r => [
+      r.id || '',
+      r.lineId || '',
+      r.lineName || '',
+      r.skuId,
+      r.isRunning,
+      r.completionStatus || '',
+      r.plannedCartons || 0,
+      r.speedMultiplier || 1,
+      r.shift,
+      r.selectedHoldingTanks || null
+    ])
+  });
+}
+
+export function computeDashboardLineDigest(
+  lines: ProductionLine[] = [],
+  activeRuns: ActiveSkuProductionRun[] = []
+): string {
+  return JSON.stringify({
+    lines: lines.map(l => [l.id, l.code, l.name, l.description || '', l.isActive]),
+    runs: activeRuns.map(r => [
+      r.id || '',
+      r.lineId || '',
+      r.lineName || '',
+      r.skuId,
+      r.skuName,
+      r.skuCode || '',
+      r.isRunning,
+      r.completionStatus || '',
+      r.cartonsProducedTotal || 0,
+      r.plannedCartons || 0,
+      r.speedMultiplier || 1,
+      r.shift,
+      r.startedAt,
+      r.completedAt || '',
+      r.lastDeductionTime || '',
+      r.operatorName || '',
+      r.shortageReason || '',
+      r.sblReason || '',
+      r.sblEstimatedMinutes || 0,
+      r.sblStoppedAt || '',
+      r.selectedHoldingTanks || null
+    ])
+  });
+}
+
+function extractIsoFromFirestoreTimestamp(ts: unknown): string {
+  if (ts && typeof ts === 'object' && 'toDate' in (ts as Record<string, unknown>)) {
+    try {
+      return ((ts as { toDate: () => Date }).toDate()).toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  if (typeof ts === 'string' && ts) return ts;
+  return new Date().toISOString();
+}
+
+export function publishDashboardLineStatusBroadcast(params: {
+  productionLines: ProductionLine[];
+  activeSkuRuns: ActiveSkuProductionRun[];
+  updatedByUid?: string;
+}): void {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
+  try {
+    const channel = new BroadcastChannel(LINE_SYNC_CHANNEL_NAME);
+    const activeRuns = params.activeSkuRuns || [];
+    const payload: DashboardLineStatusSnapshot = {
+      productionLines: params.productionLines || [],
+      activeSkuRuns: activeRuns,
+      activeSkuRun: activeRuns.find(r => r.isRunning) || activeRuns[0] || null,
+      lastUpdatedAtIso: new Date().toISOString(),
+      source: 'broadcast',
+      updatedByUid: params.updatedByUid
+    };
+    channel.postMessage(payload);
+    channel.close();
+  } catch {
+    // Ignore environments where BroadcastChannel is restricted
+  }
+}
+
+export function subscribeToDashboardLineStatus(
+  onLineStatusUpdate: (snapshot: DashboardLineStatusSnapshot) => void,
+  onError?: (err: Error) => void,
+  options?: { debounceMs?: number; maxWaitMs?: number }
 ): () => void {
   if (!auth.currentUser) return () => {};
 
+  const coalesceMs = options?.debounceMs ?? 60;
+  const maxWaitMs = options?.maxWaitMs ?? 350;
+
   const unsubs: Unsubscribe[] = [];
   let isDisposed = false;
+  let latestLines: ProductionLine[] | undefined;
+  let latestRuns: ActiveSkuProductionRun[] | undefined;
+  let latestUpdatedIso = new Date().toISOString();
+  let latestUpdatedByUid: string | undefined;
+  let lastEmittedDigest = '';
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingSource: 'firestore' | 'broadcast' = 'firestore';
+
+  const clearTimers = () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    if (maxWaitTimer) {
+      clearTimeout(maxWaitTimer);
+      maxWaitTimer = null;
+    }
+  };
+
+  const flushLineUpdate = () => {
+    clearTimers();
+    if (isDisposed || (latestLines === undefined && latestRuns === undefined)) return;
+    const digest = computeDashboardLineDigest(latestLines || [], latestRuns || []);
+    if (digest === lastEmittedDigest) return;
+    lastEmittedDigest = digest;
+
+    onLineStatusUpdate({
+      productionLines: latestLines,
+      activeSkuRuns: latestRuns,
+      activeSkuRun: latestRuns
+        ? latestRuns.find(r => r.isRunning) || latestRuns[0] || null
+        : undefined,
+      lastUpdatedAtIso: latestUpdatedIso,
+      source: pendingSource,
+      updatedByUid: latestUpdatedByUid
+    });
+  };
+
+  const scheduleFlush = (source: 'firestore' | 'broadcast', immediate = false) => {
+    if (isDisposed) return;
+    pendingSource = source;
+    if (immediate) {
+      flushLineUpdate();
+      return;
+    }
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(flushLineUpdate, coalesceMs);
+    if (!maxWaitTimer) {
+      maxWaitTimer = setTimeout(flushLineUpdate, maxWaitMs);
+    }
+  };
+
+  const handleSnapshotError = (err: Error, path: string) => {
+    if (isDisposed || !auth.currentUser) return;
+    if (onError) onError(err);
+    handleFirestoreError(err, OperationType.GET, path);
+  };
+
+  unsubs.push(
+    onSnapshot(
+      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'),
+      snap => {
+        if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
+        const d = snap.data();
+        const incomingLines = Array.isArray(d.productionLines) ? (d.productionLines as ProductionLine[]) : [];
+        latestLines = incomingLines;
+        latestUpdatedIso = extractIsoFromFirestoreTimestamp(d.updatedAt);
+        latestUpdatedByUid = typeof d.updatedByUid === 'string' ? d.updatedByUid : undefined;
+        scheduleFlush('firestore');
+      },
+      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/master`)
+    )
+  );
+
+  unsubs.push(
+    onSnapshot(
+      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'),
+      snap => {
+        if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
+        const d = snap.data();
+        const incomingRuns = Array.isArray(d.activeSkuRuns)
+          ? (d.activeSkuRuns as ActiveSkuProductionRun[])
+          : [];
+        latestRuns = incomingRuns;
+        latestUpdatedIso = extractIsoFromFirestoreTimestamp(d.updatedAt);
+        latestUpdatedByUid = typeof d.updatedByUid === 'string' ? d.updatedByUid : undefined;
+        scheduleFlush('firestore');
+      },
+      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/operations`)
+    )
+  );
+
+  let channel: BroadcastChannel | null = null;
+  if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+    try {
+      channel = new BroadcastChannel(LINE_SYNC_CHANNEL_NAME);
+      channel.onmessage = (event: MessageEvent<DashboardLineStatusSnapshot>) => {
+        if (isDisposed || !event?.data) return;
+        const incoming = event.data;
+        if (Array.isArray(incoming.productionLines)) {
+          latestLines = incoming.productionLines;
+        }
+        if (Array.isArray(incoming.activeSkuRuns)) {
+          latestRuns = incoming.activeSkuRuns;
+        }
+        latestUpdatedIso = incoming.lastUpdatedAtIso || new Date().toISOString();
+        latestUpdatedByUid = incoming.updatedByUid;
+        scheduleFlush('broadcast', true);
+      };
+    } catch {
+      channel = null;
+    }
+  }
+
+  return () => {
+    isDisposed = true;
+    clearTimers();
+    unsubs.forEach(u => u());
+    if (channel) {
+      try {
+        channel.close();
+      } catch {
+        // ignore
+      }
+    }
+  };
+}
+
+export function subscribeToWorkspaceCloud(
+  cloudRole: UserRole,
+  onRemoteUpdate: (patch: Partial<AppState>) => void,
+  onError?: (err: Error) => void,
+  options?: WorkspaceSubscribeOptions
+): () => void {
+  if (!auth.currentUser) return () => {};
+
+  const debounceMs = options?.debounceMs ?? 350;
+  const maxWaitMs = options?.maxWaitMs ?? 1200;
+  const criticalDebounceMs = options?.criticalDebounceMs ?? 60;
+
+  const unsubs: Unsubscribe[] = [];
+  let isDisposed = false;
+
+  let pendingPatch: Partial<AppState> = {};
+  const pendingSections = new Set<WorkspaceCloudSection>();
+  let pendingEventCount = 0;
+  let pendingCriticalLineChange = false;
+
+  const lastSectionJson: Partial<Record<WorkspaceCloudSection, string>> = {};
+  let lastKnownLines: ProductionLine[] = [];
+  let lastKnownRuns: ActiveSkuProductionRun[] = [];
+  let lastLineAvailSig = '';
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearTimers = () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    if (maxWaitTimer) {
+      clearTimeout(maxWaitTimer);
+      maxWaitTimer = null;
+    }
+  };
+
+  const flushBatch = () => {
+    clearTimers();
+    if (isDisposed || pendingSections.size === 0) return;
+
+    const patchToApply = pendingPatch;
+    const appliedSections = Array.from(pendingSections);
+    const appliedCount = pendingEventCount;
+    const hadCriticalLineChange = pendingCriticalLineChange;
+
+    pendingPatch = {};
+    pendingSections.clear();
+    pendingEventCount = 0;
+    pendingCriticalLineChange = false;
+
+    onRemoteUpdate(patchToApply);
+    options?.onBatchApplied?.({
+      batchedEvents: appliedCount,
+      sections: appliedSections,
+      hasCriticalLineChange: hadCriticalLineChange,
+      syncedAtIso: new Date().toISOString()
+    });
+  };
+
+  const enqueueSectionPatch = (
+    section: WorkspaceCloudSection,
+    patch: Partial<AppState>,
+    fingerprintJson: string,
+    isCriticalLineChange = false
+  ) => {
+    if (isDisposed) return;
+    if (lastSectionJson[section] === fingerprintJson) {
+      return;
+    }
+    lastSectionJson[section] = fingerprintJson;
+
+    pendingPatch = {
+      ...pendingPatch,
+      ...patch
+    };
+    pendingSections.add(section);
+    pendingEventCount += 1;
+    if (isCriticalLineChange) {
+      pendingCriticalLineChange = true;
+    }
+
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    const targetWait = pendingCriticalLineChange ? criticalDebounceMs : debounceMs;
+    debounceTimer = setTimeout(flushBatch, targetWait);
+
+    if (!maxWaitTimer) {
+      maxWaitTimer = setTimeout(flushBatch, maxWaitMs);
+    }
+  };
 
   const handleSnapshotError = (err: Error, path: string) => {
     if (isDisposed || !auth.currentUser) return;
@@ -796,14 +1138,15 @@ export function subscribeToWorkspaceCloud(
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
-        onRemoteUpdate({
+        const metaPatch: Partial<AppState> = {
           factoryName: d.factoryName,
           cloudOwnerUid: d.ownerUid,
           theme: d.theme,
           adminGoogleEmails: d.adminGoogleEmails || [],
           registeredOperators: d.registeredOperators || [],
           registeredManagement: d.registeredManagement || []
-        });
+        };
+        enqueueSectionPatch('meta', metaPatch, JSON.stringify(metaPatch));
       },
       err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/config/meta`)
     )
@@ -815,7 +1158,15 @@ export function subscribeToWorkspaceCloud(
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
-        onRemoteUpdate({
+        const incomingLines = (d.productionLines || []) as ProductionLine[];
+        lastKnownLines = incomingLines;
+
+        const nextLineAvailSig = computeLineAvailabilitySignature(lastKnownLines, lastKnownRuns);
+        const isCriticalLineChange =
+          lastLineAvailSig !== '' && nextLineAvailSig !== lastLineAvailSig;
+        lastLineAvailSig = nextLineAvailSig;
+
+        const masterPatch: Partial<AppState> = {
           master: {
             materials: d.materials || [],
             wips: d.wips || [],
@@ -825,9 +1176,10 @@ export function subscribeToWorkspaceCloud(
             recipes: d.recipes || [],
             machines: d.machines || [],
             tanks: d.tanks || [],
-            productionLines: d.productionLines || []
+            productionLines: incomingLines
           }
-        });
+        };
+        enqueueSectionPatch('master', masterPatch, JSON.stringify(masterPatch), isCriticalLineChange);
       },
       err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/master`)
     )
@@ -839,8 +1191,17 @@ export function subscribeToWorkspaceCloud(
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
-        const activeRuns = Array.isArray(d.activeSkuRuns) ? d.activeSkuRuns : [];
-        onRemoteUpdate({
+        const activeRuns = Array.isArray(d.activeSkuRuns)
+          ? (d.activeSkuRuns as ActiveSkuProductionRun[])
+          : [];
+        lastKnownRuns = activeRuns;
+
+        const nextLineAvailSig = computeLineAvailabilitySignature(lastKnownLines, lastKnownRuns);
+        const isCriticalLineChange =
+          lastLineAvailSig !== '' && nextLineAvailSig !== lastLineAvailSig;
+        lastLineAvailSig = nextLineAvailSig;
+
+        const opsPatch: Partial<AppState> = {
           transactions: {
             requests: d.requests || [],
             receipts: d.receipts || [],
@@ -856,7 +1217,8 @@ export function subscribeToWorkspaceCloud(
           activeSkuRun: activeRuns[0] || null,
           lastShiftHandover: d.lastShiftHandover ?? null,
           ...(d.tank ? { tank: d.tank } : {})
-        });
+        };
+        enqueueSectionPatch('operations', opsPatch, JSON.stringify(opsPatch), isCriticalLineChange);
       },
       err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/operations`)
     )
@@ -870,7 +1232,8 @@ export function subscribeToWorkspaceCloud(
           if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
           const d = snap.data();
           if (d.adminPin) {
-            onRemoteUpdate({ adminPin: d.adminPin });
+            const secretPatch: Partial<AppState> = { adminPin: d.adminPin };
+            enqueueSectionPatch('secrets', secretPatch, JSON.stringify(secretPatch));
           }
         },
         err => {
@@ -882,6 +1245,9 @@ export function subscribeToWorkspaceCloud(
 
   return () => {
     isDisposed = true;
+    clearTimers();
+    pendingSections.clear();
+    pendingPatch = {};
     unsubs.forEach(u => u());
   };
 }
@@ -907,11 +1273,13 @@ export async function saveWorkspaceSectionsToCloud(
   const canWriteAdminSections = cloudRole === 'ADMINISTRATOR';
   const canWriteOperations = cloudRole === 'ADMINISTRATOR' || cloudRole === 'OPERATOR';
 
+  const batch = writeBatch(db);
+  const pathsWritten: string[] = [];
+
   if (sections.meta && canWriteAdminSections) {
     const keepOwnerEmail = ownerUid === uid ? user.email || undefined : undefined;
     const accessLists = buildAccessEmailLists(state, keepOwnerEmail);
     const mergedMetaAdminEmails = accessLists.adminEmails;
-    const batch = writeBatch(db);
     batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'), {
       workspaceId: WORKSPACE_ID,
       ownerUid,
@@ -930,52 +1298,47 @@ export async function saveWorkspaceSectionsToCloud(
       updatedAt: now,
       updatedByUid: uid
     });
-    try {
-      await batch.commit();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `workspaces/${WORKSPACE_ID}/config/meta`);
-    }
+    pathsWritten.push(`workspaces/${WORKSPACE_ID}/config/meta`);
   }
 
   if (sections.secrets && canWriteAdminSections) {
-    try {
-      await setDoc(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'), {
-        workspaceId: WORKSPACE_ID,
-        ownerUid,
-        adminPin: (state.adminPin || '1234').slice(0, 16),
-        updatedAt: now,
-        updatedByUid: uid
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `workspaces/${WORKSPACE_ID}/config/secrets`);
-    }
+    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'), {
+      workspaceId: WORKSPACE_ID,
+      ownerUid,
+      adminPin: (state.adminPin || '1234').slice(0, 16),
+      updatedAt: now,
+      updatedByUid: uid
+    });
+    pathsWritten.push(`workspaces/${WORKSPACE_ID}/config/secrets`);
   }
 
   if (sections.master && canWriteAdminSections) {
-    try {
-      await setDoc(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'), {
-        workspaceId: WORKSPACE_ID,
-        ownerUid,
-        ...buildBoundedMasterPayload(state),
-        updatedAt: now,
-        updatedByUid: uid
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `workspaces/${WORKSPACE_ID}/data/master`);
-    }
+    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'), {
+      workspaceId: WORKSPACE_ID,
+      ownerUid,
+      ...buildBoundedMasterPayload(state),
+      updatedAt: now,
+      updatedByUid: uid
+    });
+    pathsWritten.push(`workspaces/${WORKSPACE_ID}/data/master`);
   }
 
   if (sections.operations && canWriteOperations) {
-    try {
-      await setDoc(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'), {
-        workspaceId: WORKSPACE_ID,
-        ownerUid,
-        ...buildBoundedOperationsPayload(state),
-        updatedAt: now,
-        updatedByUid: uid
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `workspaces/${WORKSPACE_ID}/data/operations`);
-    }
+    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'), {
+      workspaceId: WORKSPACE_ID,
+      ownerUid,
+      ...buildBoundedOperationsPayload(state),
+      updatedAt: now,
+      updatedByUid: uid
+    });
+    pathsWritten.push(`workspaces/${WORKSPACE_ID}/data/operations`);
+  }
+
+  if (pathsWritten.length === 0) return;
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, pathsWritten[0]);
   }
 }
