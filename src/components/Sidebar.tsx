@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               else if (onOpenRoleSwitcher) onOpenRoleSwitcher();
               onClose();
             }}
-            title="Keluar / Ganti Pengguna"
+            title="Logout Total (Keluar ke Halaman Login & Sign Up)"
             className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-300 text-slate-400 transition text-xs shrink-0 border border-slate-700/60"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -500,7 +500,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full py-2 px-3 bg-slate-800 hover:bg-rose-950/40 hover:border-rose-500/50 hover:text-rose-300 text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition border border-slate-700/80 active:scale-95"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span>Keluar / Ganti Pengguna</span>
+          <span>Logout Total / Ganti Akun</span>
         </button>
       </div>
     </div>

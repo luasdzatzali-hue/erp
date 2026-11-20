@@ -43,6 +43,7 @@ import { MachineImportModal } from '../MachineImportModal';
 import { TankImportModal } from '../TankImportModal';
 import { MachineChangeoverModal } from '../MachineChangeoverModal';
 import { MachineChangeoverHistoryModal } from '../MachineChangeoverHistoryModal';
+import { validatePasswordStrength } from '../../utils/security';
 import { RecipeImportModal } from '../RecipeImportModal';
 import { SkuImportModal } from '../SkuImportModal';
 import { SkuWipImportModal } from '../SkuWipImportModal';
@@ -402,18 +403,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     }
   };
 
-  const handleChangePinSubmit = (e: React.FormEvent) => {
+  const handleChangePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newAdminPin.length < 4 || newAdminPin.length > 12) {
-      showToast('PIN harus berupa 4 - 12 karakter', true);
+    const check = validatePasswordStrength(newAdminPin);
+    if (!check.isValid) {
+      showToast(check.message || 'PIN/Password minimal 8 karakter dan tidak boleh umum.', true);
       return;
     }
-    if (newAdminPin !== confirmAdminPin) {
+    if (newAdminPin.trim() !== confirmAdminPin.trim()) {
       showToast('Konfirmasi PIN tidak cocok!', true);
       return;
     }
     if (onChangeAdminPin) {
-      onChangeAdminPin(newAdminPin);
+      await onChangeAdminPin(newAdminPin.trim());
       setNewAdminPin('');
       setConfirmAdminPin('');
     }
@@ -4743,14 +4745,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <form onSubmit={handleChangePinSubmit} className="space-y-4 text-xs">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    PIN Administrator Baru (4 - 12 Karakter)
+                    PIN / Password Administrator Baru (Min. 8 Karakter)
                   </label>
                   <input
                     type="password"
                     required
+                    minLength={8}
+                    maxLength={128}
                     value={newAdminPin}
                     onChange={(e) => setNewAdminPin(e.target.value)}
-                    placeholder="Masukkan PIN baru"
+                    placeholder="Minimal 8 karakter unik..."
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -4762,6 +4766,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <input
                     type="password"
                     required
+                    minLength={8}
+                    maxLength={128}
                     value={confirmAdminPin}
                     onChange={(e) => setConfirmAdminPin(e.target.value)}
                     placeholder="Ketik ulang PIN baru"
@@ -4770,7 +4776,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 </div>
 
                 <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-500/30 text-amber-300 text-[11px]">
-                  💡 <strong>Catatan:</strong> PIN default sistem adalah <code className="font-mono font-bold bg-amber-500/20 px-1 py-0.5 rounded">1234</code>. Segera perbarui jika digunakan pada lingkungan produksi nyata.
+                  🔒 <strong>Keamanan Aktif:</strong> PIN/Password Administrator di-hash menggunakan PBKDF2-SHA256 (210.000 iterasi) dan divalidasi terhadap daftar kata sandi umum yang bocor.
                 </div>
 
                 <div className="flex justify-end pt-2 border-t border-slate-800">

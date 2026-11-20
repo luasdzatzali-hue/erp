@@ -551,6 +551,7 @@ export interface SecurityAuditLog {
 export interface AppState {
   theme?: 'midnight' | 'daylight' | 'light' | 'dark'; // 'midnight' (Gelap Industrial) or 'daylight' (Putih/Cerah Terang Pabrik)
   factoryName?: string; // Nama pabrik yang didaftarkan oleh Administrator pertama
+  cloudWorkspaceId?: string; // ID Workspace Firestore terisolasi per pabrik/user
   cloudOwnerUid?: string; // UID Administrator utama pemilik workspace di Firestore
   isAuthenticated: boolean; // false initially so users land on the Sign In page
   isAdmin: boolean;

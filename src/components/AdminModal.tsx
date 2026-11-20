@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import { AdminGoogleUser } from '../types';
 import { googleSignIn, clearWorkspaceDriveToken } from '../utils/googleWorkspace';
+import {
+  normalizeEmail,
+  validatePasswordStrength,
+  verifyPasswordSlow
+} from '../utils/security';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -39,7 +44,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onClose,
   isAdmin,
   adminPin,
-  adminGoogleEmails = ['luasdzatzali@gmail.com'],
+  adminGoogleEmails = [],
   currentAdminUser,
   onLogin,
   onLogout,
@@ -55,6 +60,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [newPinInput, setNewPinInput] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -64,15 +71,31 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === adminPin) {
+    if (lockoutUntil > Date.now()) {
+      const rem = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      showToast(`Terlalu banyak percobaan gagal. Coba lagi dalam ${rem} detik.`, true);
+      return;
+    }
+
+    const isMatched = await verifyPasswordSlow(pinInput, adminPin);
+    if (isMatched) {
+      setFailedAttempts(0);
+      setLockoutUntil(0);
       onLogin();
       setPinInput('');
       onClose();
       showToast('Akses Administrator Diizinkan (Autentikasi PIN)');
     } else {
-      showToast('PIN Administrator Salah', true);
+      const nextFails = failedAttempts + 1;
+      setFailedAttempts(nextFails);
+      if (nextFails >= 5) {
+        setLockoutUntil(Date.now() + 60000);
+        showToast('Terlalu banyak percobaan gagal. Dikunci sementara 60 detik.', true);
+      } else {
+        showToast('PIN atau kredensial tidak valid', true);
+      }
     }
   };
 
@@ -82,19 +105,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     } else if (val === 'BACK') {
       setPinInput(prev => prev.slice(0, -1));
     } else {
-      if (pinInput.length < 12) {
+      if (pinInput.length < 32) {
         setPinInput(prev => prev + val);
       }
     }
   };
 
-  const handleSaveNewPin = (e: React.FormEvent) => {
+  const handleSaveNewPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPinInput.length < 4) {
-      showToast('PIN minimal 4 karakter', true);
+    const check = validatePasswordStrength(newPinInput);
+    if (!check.isValid) {
+      showToast(check.message || 'PIN minimal 8 karakter dan tidak boleh umum.', true);
       return;
     }
-    onChangePin(newPinInput);
+    await onChangePin(newPinInput.trim());
     setIsChangingPin(false);
     setNewPinInput('');
     showToast('PIN Administrator berhasil diperbarui');
@@ -106,8 +130,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const res = await googleSignIn();
       if (!res) return;
 
-      const userEmail = res.user.email?.toLowerCase().trim() || '';
-      const allowedList = adminGoogleEmails.map(e => e.toLowerCase().trim());
+      const userEmail = normalizeEmail(res.user.email || '');
+      const allowedList = adminGoogleEmails.map(e => normalizeEmail(e));
 
       const isRegistered = allowedList.includes(userEmail);
 
@@ -116,17 +140,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         displayName: res.user.displayName || userEmail.split('@')[0],
         photoURL: res.user.photoURL || undefined,
         registeredAt: new Date().toISOString(),
-        role: userEmail === 'luasdzatzali@gmail.com' ? 'SUPER_ADMIN' : 'ADMIN'
+        role: isRegistered && allowedList[0] === userEmail ? 'SUPER_ADMIN' : 'ADMIN'
       };
 
-      if (isRegistered || userEmail === 'luasdzatzali@gmail.com') {
+      if (isRegistered) {
         onLogin(adminUser);
         showToast(`Selamat datang Administrator: ${adminUser.displayName || userEmail}`);
         onClose();
       } else {
-        // Let user know they are not on the authorized admin list
         showToast(
-          `Akun Google (${userEmail}) belum terdaftar sebagai administrator. Hubungi Super Admin (luasdzatzali@gmail.com) atau masukkan PIN.`,
+          `Akun Google (${userEmail}) belum terdaftar pada daftar Administrator workspace ini.`,
           true
         );
       }
@@ -264,8 +287,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               {/* List of registered emails */}
               <div className="space-y-1.5 max-h-36 overflow-y-auto no-scrollbar pt-1">
-                {adminGoogleEmails.map((email) => {
-                  const isSuper = email.toLowerCase() === 'luasdzatzali@gmail.com';
+                {adminGoogleEmails.map((email, idx) => {
+                  const isSuper = idx === 0 || normalizeEmail(email) === normalizeEmail(currentAdminUser?.email || '');
                   return (
                     <div
                       key={email}
@@ -273,7 +296,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     >
                       <div className="truncate mr-2 flex items-center space-x-1.5">
                         <span className="font-mono text-slate-200 truncate">{email}</span>
-                        {isSuper && (
+                        {idx === 0 && (
                           <span className="text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold shrink-0">
                             Super Admin
                           </span>
@@ -299,13 +322,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {isChangingPin ? (
               <form onSubmit={handleSaveNewPin} className="space-y-2 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
                 <label className="block text-[11px] font-medium text-slate-300">
-                  Masukkan PIN Baru
+                  Masukkan PIN / Password Baru (Min. 8 Karakter)
                 </label>
                 <input
                   type="password"
+                  minLength={8}
+                  maxLength={128}
                   value={newPinInput}
                   onChange={(e) => setNewPinInput(e.target.value)}
-                  placeholder="PIN baru (min. 4 digit)"
+                  placeholder="PIN baru (min. 8 karakter unik)"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                 />
                 <div className="flex space-x-2">
@@ -388,10 +413,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <div className="space-y-3.5 py-1">
                 <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-3 text-center space-y-2">
                   <p className="text-xs text-slate-300">
-                    Masuk menggunakan akun email Google Anda yang telah didaftarkan sebagai Administrator.
-                  </p>
-                  <p className="text-[11px] text-cyan-300/90 font-mono">
-                    Super Admin default: luasdzatzali@gmail.com
+                    Masuk menggunakan akun email Google Anda yang telah didaftarkan sebagai Administrator pada workspace pabrik ini.
                   </p>
                 </div>
 
@@ -428,7 +450,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-xs font-medium text-slate-300">
                       PIN Workshop Administrator
                     </label>
-                    <span className="text-[10px] text-slate-400">Default: 12345678</span>
                   </div>
                   <div className="relative">
                     <input

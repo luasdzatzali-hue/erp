@@ -36,7 +36,8 @@ import {
   saveStateToStorage,
   getSampleState,
   getCleanBlankState,
-  DEFAULT_STATE
+  DEFAULT_STATE,
+  STORAGE_KEY
 } from './utils/storage';
 import {
   auth,
@@ -49,7 +50,7 @@ import {
   formatGoogleAuthError,
   loadCloudWorkspaceDetailed,
   publishDashboardLineStatusBroadcast,
-  registerFirstAdministrator,
+  registerAdministratorWorkspace,
   saveWorkspaceSectionsToCloud,
   signInWithGooglePopup,
   signOutGoogleAuth,
@@ -58,6 +59,14 @@ import {
   subscribeToDashboardLineStatus,
   subscribeToWorkspaceCloud
 } from './utils/firebaseSync';
+import {
+  createSecurityAuditEntry,
+  enforceHttpsTransport,
+  hashPasswordSlow,
+  normalizeEmail,
+  sanitizeTextInput,
+  validatePasswordStrength
+} from './utils/security';
 import type { User } from 'firebase/auth';
 import { getMaterialCompositeKey } from './utils/materialParser';
 import { getCurrentShift, getShiftPeriodInfo, getNextShiftNumber } from './utils/shifts';
@@ -91,6 +100,11 @@ export default function App() {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Enforce HTTPS in production environments
+  useEffect(() => {
+    enforceHttpsTransport();
+  }, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
@@ -233,20 +247,27 @@ export default function App() {
             ? 'pemakaian'
             : 'dashboard';
 
-        const fallbackEmail = sessionData.email || auth.currentUser?.email || '';
+        const fallbackEmail = normalizeEmail(sessionData.email || auth.currentUser?.email || '');
         const restoredAdminUser =
           isNewAdmin && !prev.currentAdminUser && fallbackEmail
             ? {
-                email: fallbackEmail.toLowerCase().trim(),
-                displayName: sessionData.name,
+                email: fallbackEmail,
+                displayName: sanitizeTextInput(sessionData.name, 120),
                 photoURL: auth.currentUser?.photoURL || undefined,
                 registeredAt: new Date().toISOString(),
                 role: (prev.cloudOwnerUid === auth.currentUser?.uid ||
-                  fallbackEmail.toLowerCase().trim() === 'luasdzatzali@gmail.com'
+                  fallbackEmail === 'luasdzatzali@gmail.com'
                   ? 'SUPER_ADMIN'
                   : 'ADMIN') as 'SUPER_ADMIN' | 'ADMIN'
               }
             : prev.currentAdminUser;
+
+        const loginAudit = createSecurityAuditEntry({
+          eventType: 'LOGIN_SUCCESS',
+          userEmail: fallbackEmail || sessionData.name,
+          role,
+          notes: `Masuk ke workspace ${prev.factoryName || 'ProdTrack'}`
+        });
 
         return {
           ...prev,
@@ -260,8 +281,9 @@ export default function App() {
             id: sessionData.id,
             name: sessionData.name,
             subtitle: sessionData.subtitle,
-            email: sessionData.email
-          }
+            email: fallbackEmail || sessionData.email
+          },
+          securityLogs: [loginAudit, ...(prev.securityLogs || [])].slice(0, 100)
         };
       });
       showToast(`Selamat datang, ${sessionData.name} (${role})`);
@@ -478,7 +500,7 @@ export default function App() {
     };
   }, [setupStatus, firebaseUser, refreshCloudSnapshotsBaseline]);
 
-  // Attach debounced/batched real-time Firestore listeners for multi-device collaboration
+  // Attach debounced/batched real-time Firestore listeners for multi-device collaboration (isolated per workspaceId)
   useEffect(() => {
     if (setupStatus !== 'ready' || !firebaseUser || !cloudAuthRole) return;
     const unsub = subscribeToWorkspaceCloud(
@@ -501,6 +523,7 @@ export default function App() {
         console.error('Realtime sync warning:', err);
       },
       {
+        workspaceId: state.cloudWorkspaceId,
         debounceMs: 350,
         maxWaitMs: 1200,
         criticalDebounceMs: 60
@@ -513,7 +536,7 @@ export default function App() {
         cloudUnsubRef.current = null;
       }
     };
-  }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
+  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, refreshCloudSnapshotsBaseline]);
 
   // Dedicated real-time listener specifically for DashboardView production line availability & SKU run progress
   useEffect(() => {
@@ -561,7 +584,7 @@ export default function App() {
       err => {
         console.error('Dashboard line status realtime warning:', err);
       },
-      { debounceMs: 60, maxWaitMs: 350 }
+      { workspaceId: state.cloudWorkspaceId, debounceMs: 60, maxWaitMs: 350 }
     );
     lineStatusUnsubRef.current = unsubLines;
     return () => {
@@ -570,9 +593,9 @@ export default function App() {
         lineStatusUnsubRef.current = null;
       }
     };
-  }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
+  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, refreshCloudSnapshotsBaseline]);
 
-  // First-Time Administrator Setup Wizard completion handler
+  // Administrator Setup Wizard completion handler (creates isolated multi-tenant workspace)
   const handleCompleteFirstAdminSetup = async (data: {
     user: User;
     factoryName: string;
@@ -581,7 +604,7 @@ export default function App() {
     initMode: 'template' | 'blank';
   }) => {
     const baseState = data.initMode === 'template' ? getSampleState() : getCleanBlankState();
-    const registeredState = await registerFirstAdministrator({
+    const registeredState = await registerAdministratorWorkspace({
       user: data.user,
       displayName: data.adminName,
       factoryName: data.factoryName,
@@ -589,10 +612,22 @@ export default function App() {
       initialState: baseState
     });
 
+    const signupAudit = createSecurityAuditEntry({
+      eventType: 'SIGNUP_ADMIN',
+      userEmail: data.user.email || 'admin',
+      role: 'ADMINISTRATOR',
+      notes: `Registrasi workspace baru: ${data.factoryName} (${data.initMode})`
+    });
+
+    const finalState: AppState = {
+      ...registeredState,
+      securityLogs: [signupAudit, ...(registeredState.securityLogs || [])].slice(0, 100)
+    };
+
     setAuthErrorBanner(null);
     isApplyingRemoteRef.current = true;
-    setState(registeredState);
-    refreshCloudSnapshotsBaseline(registeredState);
+    setState(finalState);
+    refreshCloudSnapshotsBaseline(finalState);
     setCloudFactoryName(data.factoryName);
     setCloudAuthRole('ADMINISTRATOR');
     setSetupStatus('ready');
@@ -657,25 +692,6 @@ export default function App() {
     }
   };
 
-  const handleFirebaseSignOut = async () => {
-    await flushPendingCloudWrites();
-    cloudUnsubRef.current?.();
-    cloudUnsubRef.current = null;
-    lineStatusUnsubRef.current?.();
-    lineStatusUnsubRef.current = null;
-    setLiveDashboardLineStatus(null);
-    setCloudAuthRole(null);
-    setAuthErrorBanner(null);
-    cloudInitializedSnapshotsRef.current = null;
-    setState(prev => ({
-      ...prev,
-      isAuthenticated: false,
-      currentAdminUser: null
-    }));
-    await signOutGoogleAuth();
-    showToast('Sesi akun Google telah diputus dari perangkat ini.');
-  };
-
   // Flush any queued batched Firestore writes cleanly
   const flushPendingCloudWrites = useCallback(async () => {
     const timers = cloudWriteTimersRef.current;
@@ -724,9 +740,126 @@ export default function App() {
     }
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
 
+  const performCompleteLogout = useCallback(async (toastMessage: string) => {
+    manualGoogleLoginInFlightRef.current = false;
+    setIsSyncingCloud(false);
+
+    try {
+      await flushPendingCloudWrites();
+    } catch {
+      // Proceed cleanly even if offline flush fails
+    }
+
+    cloudUnsubRef.current?.();
+    cloudUnsubRef.current = null;
+    lineStatusUnsubRef.current?.();
+    lineStatusUnsubRef.current = null;
+
+    if (cloudWriteTimersRef.current.debounceTimer) {
+      clearTimeout(cloudWriteTimersRef.current.debounceTimer);
+      cloudWriteTimersRef.current.debounceTimer = null;
+    }
+    if (cloudWriteTimersRef.current.maxWaitTimer) {
+      clearTimeout(cloudWriteTimersRef.current.maxWaitTimer);
+      cloudWriteTimersRef.current.maxWaitTimer = null;
+    }
+    pendingCloudSectionsRef.current = {
+      meta: false,
+      secrets: false,
+      master: false,
+      operations: false
+    };
+
+    try {
+      await signOutGoogleAuth();
+    } catch {
+      // ignore signout network errors
+    }
+
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem('prodtrack_auth_mode');
+      sessionStorage.removeItem('prodtrack_pending_google_role_v1');
+      sessionStorage.removeItem('prodtrack_pending_drive_redirect');
+    } catch {
+      // ignore storage errors
+    }
+
+    // Close all open drawers/modals so clean login/signup screen appears unobstructed
+    setIsSidebarOpen(false);
+    setIsAdminModalOpen(false);
+    setIsTankModalOpen(false);
+    setIsResetModalOpen(false);
+    setIsPdfReportModalOpen(false);
+    setIsRoleSwitcherOpen(false);
+    setIsUserManagementOpen(false);
+    setIsStockAdjustmentModalOpen(false);
+    setAlarmWipBatch(null);
+    setPreselectedRequestId(undefined);
+
+    const currentTheme = stateRef.current.theme || 'midnight';
+    const cleanBlank: AppState = {
+      ...getCleanBlankState(),
+      theme: currentTheme,
+      isAuthenticated: false,
+      isAdmin: false,
+      currentTab: 'admin-portal',
+      cloudWorkspaceId: undefined,
+      cloudOwnerUid: undefined,
+      currentAdminUser: null
+    };
+
+    isApplyingRemoteRef.current = true;
+    setLiveDashboardLineStatus(null);
+    setCloudAuthRole(null);
+    setCloudFactoryName(undefined);
+    setAuthErrorBanner(null);
+    cloudInitializedSnapshotsRef.current = null;
+    setFirebaseUser(null);
+    setState(cleanBlank);
+    setSetupStatus(prev => (prev === 'needs_setup' ? 'needs_setup' : 'ready'));
+    setTimeout(() => {
+      isApplyingRemoteRef.current = false;
+    }, 250);
+
+    // Explicitly reset URL state (remove hash and stale OAuth/query parameters) so re-auth works cleanly
+    if (typeof window !== 'undefined') {
+      try {
+        const cleanPath = window.location.pathname || '/';
+        if (window.location.search || window.location.hash) {
+          window.history.replaceState(null, document.title || '', cleanPath);
+        }
+      } catch {
+        // ignore history error
+      }
+      if (window.location.hash) {
+        window.location.hash = '';
+      }
+      try {
+        window.scrollTo(0, 0);
+      } catch {
+        // ignore scroll error
+      }
+    }
+
+    showToast(toastMessage);
+  }, [flushPendingCloudWrites, showToast]);
+
+  const handleFirebaseSignOut = async () => {
+    await performCompleteLogout('Sesi akun Google & data perangkat telah diputus total. Silakan login atau daftar akun baru.');
+  };
+
   // Save state to localStorage + two-tier debounced/batched Cloud Firestore sync + BroadcastChannel line broadcast
   useEffect(() => {
     const localSaveTimer = setTimeout(() => {
+      if (!state.isAuthenticated && !state.cloudOwnerUid) {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // ignore
+        }
+        return;
+      }
       saveStateToStorage(state);
     }, 200);
 
@@ -744,6 +877,7 @@ export default function App() {
     ) {
       cloudInitializedSnapshotsRef.current.lineDigest = currentLineDigest;
       const localSnapshot: DashboardLineStatusSnapshot = {
+        workspaceId: state.cloudWorkspaceId,
         productionLines: state.master.productionLines || [],
         activeSkuRuns: activeRunsNow,
         activeSkuRun: activeRunsNow.find(r => r.isRunning) || activeRunsNow[0] || null,
@@ -753,6 +887,7 @@ export default function App() {
       };
       setLiveDashboardLineStatus(localSnapshot);
       publishDashboardLineStatusBroadcast({
+        workspaceId: state.cloudWorkspaceId,
         productionLines: localSnapshot.productionLines || [],
         activeSkuRuns: localSnapshot.activeSkuRuns || [],
         updatedByUid: firebaseUser?.uid
@@ -823,6 +958,14 @@ export default function App() {
 
   useEffect(() => {
     const flushState = () => {
+      if (!stateRef.current.isAuthenticated && !stateRef.current.cloudOwnerUid) {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // ignore
+        }
+        return;
+      }
       saveStateToStorage(stateRef.current);
       void flushPendingCloudWrites();
     };
@@ -893,6 +1036,7 @@ export default function App() {
   // Handle URL hash navigation for opening modules in new tabs (#tab=...)
   useEffect(() => {
     const handleHashChange = () => {
+      if (!stateRef.current.isAuthenticated) return;
       const hash = window.location.hash;
       if (hash.startsWith('#tab=')) {
         const tab = hash.replace('#tab=', '') as AppState['currentTab'];
@@ -941,13 +1085,9 @@ export default function App() {
     window.location.hash = `tab=${tab}`;
   };
 
-  // Sign Out back to AuthPortalView
-  const handleSignOut = () => {
-    setState(prev => ({
-      ...prev,
-      isAuthenticated: false
-    }));
-    showToast('Berhasil keluar dari sistem');
+  // Full Logout back to clean AuthPortalView (Sign Up / Login options for any user)
+  const handleSignOut = async () => {
+    await performCompleteLogout('Berhasil logout total. Anda dapat masuk ke akun lain atau mendaftar akun baru.');
   };
 
   // Role switching (Administrator, Operator, Management)
@@ -1011,23 +1151,42 @@ export default function App() {
 
   // Operator Roster Management (Administrator only)
   const handleAddOperator = (opData: Omit<RegisteredOperator, 'id' | 'registeredAt'>) => {
+    const cleanEmail = opData.email ? normalizeEmail(opData.email) : undefined;
     const newOp: RegisteredOperator = {
       ...opData,
+      name: sanitizeTextInput(opData.name, 120),
+      nik: sanitizeTextInput(opData.nik, 40),
+      email: cleanEmail || undefined,
+      notes: opData.notes ? sanitizeTextInput(opData.notes, 200) : undefined,
       id: `op_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       registeredAt: new Date().toISOString()
     };
+    const audit = createSecurityAuditEntry({
+      eventType: 'REGISTER_OPERATOR',
+      userEmail: cleanEmail || newOp.nik,
+      role: 'OPERATOR',
+      notes: `Operator terdaftar: ${newOp.name} (${newOp.assignedLine})`
+    });
     setState(prev => ({
       ...prev,
-      registeredOperators: [newOp, ...(prev.registeredOperators || [])]
+      registeredOperators: [newOp, ...(prev.registeredOperators || [])],
+      securityLogs: [audit, ...(prev.securityLogs || [])].slice(0, 100)
     }));
     showToast(`Operator "${newOp.name}" berhasil didaftarkan`);
   };
 
   const handleUpdateOperator = (id: string, updates: Partial<RegisteredOperator>) => {
+    const cleanUpdates: Partial<RegisteredOperator> = {
+      ...updates,
+      ...(updates.name !== undefined ? { name: sanitizeTextInput(updates.name, 120) } : {}),
+      ...(updates.email !== undefined
+        ? { email: updates.email ? normalizeEmail(updates.email) : undefined }
+        : {})
+    };
     setState(prev => ({
       ...prev,
       registeredOperators: (prev.registeredOperators || []).map(op =>
-        op.id === id ? { ...op, ...updates } : op
+        op.id === id ? { ...op, ...cleanUpdates } : op
       )
     }));
     showToast('Data operator berhasil diperbarui');
@@ -1043,14 +1202,26 @@ export default function App() {
 
   // Management Access Control (Administrator only)
   const handleAddManagement = (mgtData: Omit<RegisteredManagement, 'id' | 'registeredAt'>) => {
+    const cleanEmail = normalizeEmail(mgtData.email || '');
     const newMgt: RegisteredManagement = {
       ...mgtData,
+      name: sanitizeTextInput(mgtData.name, 120),
+      email: cleanEmail,
+      title: sanitizeTextInput(mgtData.title, 100),
+      department: sanitizeTextInput(mgtData.department, 100),
       id: `mgt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       registeredAt: new Date().toISOString()
     };
+    const audit = createSecurityAuditEntry({
+      eventType: 'REGISTER_OPERATOR',
+      userEmail: cleanEmail || newMgt.name,
+      role: 'MANAGEMENT',
+      notes: `Akun Management terdaftar: ${newMgt.name} (${newMgt.title})`
+    });
     setState(prev => ({
       ...prev,
-      registeredManagement: [newMgt, ...(prev.registeredManagement || [])]
+      registeredManagement: [newMgt, ...(prev.registeredManagement || [])],
+      securityLogs: [audit, ...(prev.securityLogs || [])].slice(0, 100)
     }));
     showToast(`Management "${newMgt.name}" berhasil didaftarkan`);
   };
@@ -1103,14 +1274,30 @@ export default function App() {
     }));
   };
 
-  const handleChangePin = (newPin: string) => {
-    setState(prev => ({ ...prev, adminPin: newPin }));
+  const handleChangePin = async (newPin: string) => {
+    const check = validatePasswordStrength(newPin);
+    if (!check.isValid) {
+      showToast(check.message || 'PIN/Password minimal 8 karakter.', true);
+      return;
+    }
+    const hashed = await hashPasswordSlow(newPin);
+    const audit = createSecurityAuditEntry({
+      eventType: 'PASSWORD_CHANGE',
+      userEmail: stateRef.current.currentAdminUser?.email || auth.currentUser?.email || 'admin',
+      role: 'ADMINISTRATOR',
+      notes: 'PIN/Password Administrator diperbarui (PBKDF2-SHA256)'
+    });
+    setState(prev => ({
+      ...prev,
+      adminPin: hashed,
+      securityLogs: [audit, ...(prev.securityLogs || [])].slice(0, 100)
+    }));
   };
 
   const handleAddAdminEmail = (email: string) => {
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = normalizeEmail(email);
     setState(prev => {
-      const current = prev.adminGoogleEmails || ['luasdzatzali@gmail.com'];
+      const current = prev.adminGoogleEmails || [];
       if (current.includes(cleanEmail)) return prev;
       return {
         ...prev,
@@ -1120,16 +1307,16 @@ export default function App() {
   };
 
   const handleRemoveAdminEmail = (email: string) => {
-    const cleanEmail = email.toLowerCase().trim();
-    const activeEmail = (firebaseUser?.email || '').toLowerCase().trim();
+    const cleanEmail = normalizeEmail(email);
+    const activeEmail = normalizeEmail(firebaseUser?.email || '');
     if (cleanEmail === 'luasdzatzali@gmail.com' || (activeEmail && cleanEmail === activeEmail)) {
       showToast('Email Administrator utama / aktif tidak dapat dihapus.', true);
       return;
     }
     setState(prev => ({
       ...prev,
-      adminGoogleEmails: (prev.adminGoogleEmails || ['luasdzatzali@gmail.com']).filter(
-        e => e.toLowerCase().trim() !== cleanEmail
+      adminGoogleEmails: (prev.adminGoogleEmails || []).filter(
+        e => normalizeEmail(e) !== cleanEmail
       )
     }));
   };
@@ -1140,6 +1327,7 @@ export default function App() {
     setState(prev => ({
       ...DEFAULT_STATE,
       factoryName: prev.factoryName,
+      cloudWorkspaceId: prev.cloudWorkspaceId,
       cloudOwnerUid: prev.cloudOwnerUid,
       isAuthenticated: prev.isAuthenticated,
       isAdmin: prev.isAdmin,

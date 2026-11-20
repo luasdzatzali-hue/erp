@@ -104,10 +104,18 @@ export const DIRTY_DOZEN_PAYLOADS = [
   },
   {
     id: 12,
-    name: 'Blanket List Scraping',
-    auth: { uid: 'non_admin_uid', email: 'user@example.com', email_verified: true },
-    operation: 'list',
-    path: '/admins',
+    name: 'Blanket List Scraping & Cross-Tenant Isolation Breach',
+    auth: { uid: 'tenant_2_admin_uid', email: 'tenant2@example.com', email_verified: true },
+    operation: 'get',
+    path: '/workspaces/main/data/master',
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 13,
+    name: 'WorkspaceDirectory Enumeration / Cross-Tenant Hijack',
+    auth: { uid: 'tenant_2_admin_uid', email: 'tenant2@example.com', email_verified: true },
+    operation: 'get',
+    path: '/workspaceDirectory/0000000000000000000000000000000000000000000000000000000000000001',
     expected: 'PERMISSION_DENIED'
   }
 ];

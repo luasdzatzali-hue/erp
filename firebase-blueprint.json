@@ -66,6 +66,13 @@
           "maxLength": 120,
           "description": "Nama pabrik yang dikelola"
         },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace terisolasi milik administrator"
+        },
         "role": {
           "type": "string",
           "enum": ["SUPER_ADMIN", "ADMIN"],
@@ -152,8 +159,8 @@
         "adminPin": {
           "type": "string",
           "minLength": 4,
-          "maxLength": 16,
-          "description": "PIN Administrator lokal pabrik"
+          "maxLength": 256,
+          "description": "Hash PBKDF2-SHA256 (atau legacy PIN) Administrator lokal pabrik"
         },
         "updatedAt": {
           "type": "string",
@@ -379,6 +386,65 @@
         }
       },
       "required": ["workspaceId", "ownerUid", "requests", "receipts", "usages", "wipBatches", "cartonProductions", "tankLogs", "changeovers", "productionStops", "stockAdjustments", "activeSkuRuns", "tank", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceDirectoryEntry": {
+      "title": "WorkspaceDirectoryEntry",
+      "description": "Pemetaan SHA-256 email ke workspaceId untuk resolusi tenant aman tanpa user enumeration",
+      "type": "object",
+      "properties": {
+        "inviteId": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Hash SHA-256 dari email ter-normalisasi (lowercase trim)"
+        },
+        "emailLower": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160,
+          "description": "Email ter-normalisasi milik pengguna terotorisasi"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace tujuan"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["ADMINISTRATOR", "OPERATOR", "MANAGEMENT"],
+          "description": "Peran pengguna di workspace tersebut"
+        },
+        "factoryName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama pabrik workspace"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik workspace"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan pemetaan"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID admin pembuat/pengubah pemetaan"
+        }
+      },
+      "required": ["inviteId", "emailLower", "workspaceId", "role", "factoryName", "ownerUid", "updatedAt", "updatedByUid"]
     }
   },
   "firestore": {
@@ -388,7 +454,11 @@
     },
     "/admins/{adminId}": {
       "schema": { "$ref": "#/entities/AdminProfile" },
-      "description": "Akun administrator terdaftar dengan otoritas penuh"
+      "description": "Akun administrator terdaftar dengan otoritas penuh atas workspace miliknya"
+    },
+    "/workspaceDirectory/{inviteId}": {
+      "schema": { "$ref": "#/entities/WorkspaceDirectoryEntry" },
+      "description": "Direktori pemetaan aman hash email ke workspaceId untuk login multi-tenant"
     },
     "/workspaces/{workspaceId}/config/access": {
       "schema": { "$ref": "#/entities/WorkspaceAccessConfig" },
@@ -396,7 +466,7 @@
     },
     "/workspaces/{workspaceId}/config/secrets": {
       "schema": { "$ref": "#/entities/WorkspaceSecrets" },
-      "description": "PIN administrator terproteksi khusus admin"
+      "description": "Hash password/PIN administrator terproteksi khusus admin workspace"
     },
     "/workspaces/{workspaceId}/config/meta": {
       "schema": { "$ref": "#/entities/WorkspaceMeta" },

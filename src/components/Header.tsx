@@ -161,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
                 if (onSignOut) onSignOut();
                 else onOpenRoleSwitcher();
               }}
-              title="Keluar / Ganti Akun Pengguna"
+              title="Logout Total (Keluar ke Halaman Login & Sign Up)"
               className="p-1 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition"
             >
               <LogOut className="w-3.5 h-3.5" />

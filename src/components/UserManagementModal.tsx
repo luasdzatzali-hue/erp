@@ -20,6 +20,7 @@ import {
   RegisteredOperator,
   RegisteredManagement
 } from '../types';
+import { normalizeEmail, validatePasswordStrength } from '../utils/security';
 
 interface UserManagementModalProps {
   isOpen: boolean;
@@ -130,9 +131,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       return;
     }
     onAddManagement({
-      name: mgtName,
-      email: mgtEmail,
-      title: mgtTitle,
+      name: mgtName.trim(),
+      email: normalizeEmail(mgtEmail),
+      title: mgtTitle.trim(),
       department: mgtDepartment,
       hasViewAccess: mgtAccess
     });
@@ -143,17 +144,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   };
 
   // Handle Change PIN
-  const handleChangePinSubmit = (e: React.FormEvent) => {
+  const handleChangePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPin.length < 4 || newPin.length > 12) {
-      showToast('PIN harus berupa 4 - 12 karakter', true);
+    const check = validatePasswordStrength(newPin);
+    if (!check.isValid) {
+      showToast(check.message || 'PIN minimal 8 karakter dan tidak boleh umum', true);
       return;
     }
-    if (newPin !== confirmPin) {
+    if (newPin.trim() !== confirmPin.trim()) {
       showToast('Konfirmasi PIN tidak cocok', true);
       return;
     }
-    onChangeAdminPin(newPin);
+    await onChangeAdminPin(newPin.trim());
     setNewPin('');
     setConfirmPin('');
     showToast('PIN Administrator berhasil diperbarui');
@@ -613,13 +615,15 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">PIN Baru (4-12 digit):</label>
+                    <label className="block text-slate-400 mb-1 font-medium">PIN / Password Baru (Min. 8 karakter):</label>
                     <input
                       type="password"
                       required
+                      minLength={8}
+                      maxLength={128}
                       value={newPin}
                       onChange={(e) => setNewPin(e.target.value)}
-                      placeholder="Masukkan PIN baru..."
+                      placeholder="Minimal 8 karakter unik..."
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-400 tracking-widest"
                     />
                   </div>

@@ -30,12 +30,19 @@ import {
   consumePendingDriveRedirectFlag,
   setWorkspaceDriveToken
 } from './googleWorkspace';
+import {
+  computeEmailLookupId,
+  hashPasswordSlow,
+  normalizeEmail,
+  sanitizeTextInput,
+  validatePasswordStrength
+} from './security';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
-const WORKSPACE_ID = 'main';
+const LEGACY_WORKSPACE_ID = 'main';
 const BOOTSTRAP_EMAIL = 'luasdzatzali@gmail.com';
 const PENDING_REDIRECT_ROLE_KEY = 'prodtrack_pending_google_role_v1';
 
@@ -400,6 +407,14 @@ export async function consumeGoogleRedirectResult(): Promise<{
 
 export async function signOutGoogleAuth(): Promise<void> {
   clearWorkspaceDriveToken();
+  consumePendingDriveRedirectFlag();
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      window.sessionStorage.removeItem(PENDING_REDIRECT_ROLE_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }
   await signOut(auth);
 }
 
@@ -431,7 +446,115 @@ export async function checkFirstTimeSetup(): Promise<BootstrapStatus> {
   }
 }
 
-export async function registerFirstAdministrator(params: {
+async function syncWorkspaceDirectoryEntries(
+  workspaceId: string,
+  ownerUid: string,
+  updatedByUid: string,
+  state: AppState
+): Promise<void> {
+  const factoryName = sanitizeTextInput(state.factoryName || 'Pabrik ProdTrack', 120) || 'Pabrik ProdTrack';
+  const roleByEmail = new Map<string, UserRole>();
+
+  (state.registeredManagement || [])
+    .filter(m => m.hasViewAccess && m.email)
+    .forEach(m => {
+      const clean = normalizeEmail(m.email);
+      if (clean) roleByEmail.set(clean, 'MANAGEMENT');
+    });
+
+  (state.registeredOperators || [])
+    .filter(op => op.status === 'ACTIVE' && op.email)
+    .forEach(op => {
+      const clean = normalizeEmail(op.email || '');
+      if (clean) roleByEmail.set(clean, 'OPERATOR');
+    });
+
+  (state.adminGoogleEmails || []).forEach(e => {
+    const clean = normalizeEmail(e);
+    if (clean) roleByEmail.set(clean, 'ADMINISTRATOR');
+  });
+
+  if (auth.currentUser?.email && ownerUid === auth.currentUser.uid) {
+    roleByEmail.set(normalizeEmail(auth.currentUser.email), 'ADMINISTRATOR');
+  }
+
+  await Promise.all(
+    Array.from(roleByEmail.entries()).map(async ([emailLower, role]) => {
+      try {
+        const inviteId = await computeEmailLookupId(emailLower);
+        await setDoc(doc(db, 'workspaceDirectory', inviteId), {
+          inviteId,
+          emailLower,
+          workspaceId,
+          role,
+          factoryName,
+          ownerUid,
+          updatedAt: serverTimestamp(),
+          updatedByUid
+        });
+      } catch {
+        // Non-fatal if another tenant already claimed this email or offline
+      }
+    })
+  );
+}
+
+async function resolveWorkspaceIdForUser(user: User): Promise<{
+  workspaceId: string;
+  isAdminDoc: boolean;
+}> {
+  const uid = user.uid;
+  const email = normalizeEmail(user.email || '');
+  let isAdminDoc = email === BOOTSTRAP_EMAIL;
+
+  // 1. Check /admins/{uid} first (most direct for registered Administrators)
+  try {
+    const adminSnap = await getDocServerWithFallback(doc(db, 'admins', uid));
+    if (adminSnap.exists()) {
+      isAdminDoc = true;
+      const adminData = adminSnap.data();
+      if (typeof adminData?.workspaceId === 'string' && adminData.workspaceId.trim()) {
+        return { workspaceId: adminData.workspaceId.trim(), isAdminDoc: true };
+      }
+    }
+  } catch {
+    // Proceed to next lookup method
+  }
+
+  // 2. Check user-owned isolated workspace /workspaces/{uid}/config/meta
+  try {
+    const ownMetaSnap = await getDocServerWithFallback(doc(db, 'workspaces', uid, 'config', 'meta'));
+    if (ownMetaSnap.exists()) {
+      return { workspaceId: uid, isAdminDoc: true };
+    }
+  } catch {
+    // Proceed to directory lookup
+  }
+
+  // 3. Check SHA-256 email directory lookup (supports invited Operators, Management, & Secondary Admins)
+  if (email) {
+    try {
+      const inviteId = await computeEmailLookupId(email);
+      const dirSnap = await getDocServerWithFallback(doc(db, 'workspaceDirectory', inviteId));
+      if (dirSnap.exists()) {
+        const wsId = dirSnap.data()?.workspaceId;
+        if (typeof wsId === 'string' && wsId.trim()) {
+          return {
+            workspaceId: wsId.trim(),
+            isAdminDoc: isAdminDoc || dirSnap.data()?.role === 'ADMINISTRATOR'
+          };
+        }
+      }
+    } catch {
+      // Missing or unauthorized directory doc -> fall through to legacy workspace
+    }
+  }
+
+  // 4. Legacy 'main' workspace fallback
+  return { workspaceId: LEGACY_WORKSPACE_ID, isAdminDoc };
+}
+
+export async function registerAdministratorWorkspace(params: {
   user: User;
   displayName: string;
   factoryName: string;
@@ -440,23 +563,40 @@ export async function registerFirstAdministrator(params: {
 }): Promise<AppState> {
   const { user, displayName, factoryName, adminPin, initialState } = params;
   const uid = user.uid;
-  const email = (user.email || '').toLowerCase().trim();
+  const email = normalizeEmail(user.email || '');
 
   if (!uid || !email) {
     throw new Error('Akun Google tidak memiliki email terverifikasi.');
   }
 
-  const cleanFactory = factoryName.trim().slice(0, 120) || 'Pabrik ProdTrack';
-  const cleanName = displayName.trim().slice(0, 120) || email.split('@')[0];
-  const cleanPin = adminPin.trim().slice(0, 16);
+  const pwdCheck = validatePasswordStrength(adminPin);
+  if (!pwdCheck.isValid) {
+    throw new Error(pwdCheck.message || 'Password/PIN keamanan tidak memenuhi standar minimal 8 karakter.');
+  }
+
+  const cleanFactory = sanitizeTextInput(factoryName, 120) || 'Pabrik ProdTrack';
+  const cleanName = sanitizeTextInput(displayName, 120) || email.split('@')[0];
+  const hashedPin = await hashPasswordSlow(adminPin);
+
+  let isSystemBootstrapped = false;
+  try {
+    const bootSnap = await getDocServerWithFallback(doc(db, 'system', 'bootstrap'));
+    isSystemBootstrapped = bootSnap.exists() && Boolean(bootSnap.data()?.isInitialized);
+  } catch {
+    isSystemBootstrapped = false;
+  }
+
+  // First user sets up legacy 'main' & system/bootstrap; subsequent admins get their own isolated workspaceId = uid
+  const workspaceId = isSystemBootstrapped ? uid.slice(0, 64) : LEGACY_WORKSPACE_ID;
 
   const nextState: AppState = {
     ...initialState,
     factoryName: cleanFactory,
+    cloudWorkspaceId: workspaceId,
     cloudOwnerUid: uid,
-    adminPin: cleanPin,
+    adminPin: hashedPin,
     adminGoogleEmails: Array.from(
-      new Set([email, ...(initialState.adminGoogleEmails || []).map(e => e.toLowerCase().trim())].filter(Boolean))
+      new Set([email, ...(initialState.adminGoogleEmails || []).map(e => normalizeEmail(e))].filter(Boolean))
     ),
     currentAdminUser: {
       email,
@@ -481,43 +621,46 @@ export async function registerFirstAdministrator(params: {
   const batch = writeBatch(db);
   const now = serverTimestamp();
 
-  batch.set(doc(db, 'system', 'bootstrap'), {
-    isInitialized: true,
-    ownerUid: uid,
-    factoryName: cleanFactory,
-    initializedAt: now,
-    updatedAt: now
-  });
+  if (!isSystemBootstrapped) {
+    batch.set(doc(db, 'system', 'bootstrap'), {
+      isInitialized: true,
+      ownerUid: uid,
+      factoryName: cleanFactory,
+      initializedAt: now,
+      updatedAt: now
+    });
+  }
 
   batch.set(doc(db, 'admins', uid), {
     uid,
     email,
     displayName: cleanName,
     factoryName: cleanFactory,
+    workspaceId,
     role: 'SUPER_ADMIN',
     createdAt: now,
     updatedAt: now
   });
 
   const accessLists = buildAccessEmailLists(nextState, email);
-  batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'access'), {
-    workspaceId: WORKSPACE_ID,
+  batch.set(doc(db, 'workspaces', workspaceId, 'config', 'access'), {
+    workspaceId,
     ownerUid: uid,
     ...accessLists,
     updatedAt: now,
     updatedByUid: uid
   });
 
-  batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'), {
-    workspaceId: WORKSPACE_ID,
+  batch.set(doc(db, 'workspaces', workspaceId, 'config', 'secrets'), {
+    workspaceId,
     ownerUid: uid,
-    adminPin: cleanPin,
+    adminPin: hashedPin,
     updatedAt: now,
     updatedByUid: uid
   });
 
-  batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'), {
-    workspaceId: WORKSPACE_ID,
+  batch.set(doc(db, 'workspaces', workspaceId, 'config', 'meta'), {
+    workspaceId,
     ownerUid: uid,
     factoryName: cleanFactory,
     adminGoogleEmails: nextState.adminGoogleEmails || [email],
@@ -528,16 +671,16 @@ export async function registerFirstAdministrator(params: {
     updatedByUid: uid
   });
 
-  batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'), {
-    workspaceId: WORKSPACE_ID,
+  batch.set(doc(db, 'workspaces', workspaceId, 'data', 'master'), {
+    workspaceId,
     ownerUid: uid,
     ...buildBoundedMasterPayload(nextState),
     updatedAt: now,
     updatedByUid: uid
   });
 
-  batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'), {
-    workspaceId: WORKSPACE_ID,
+  batch.set(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
+    workspaceId,
     ownerUid: uid,
     ...buildBoundedOperationsPayload(nextState),
     updatedAt: now,
@@ -547,14 +690,20 @@ export async function registerFirstAdministrator(params: {
   try {
     await batch.commit();
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'system/bootstrap');
+    handleFirestoreError(error, OperationType.WRITE, `workspaces/${workspaceId}/config/access`);
   }
+
+  // Register directory lookup entries outside critical batch so email collisions don't block workspace creation
+  void syncWorkspaceDirectoryEntries(workspaceId, uid, uid, nextState);
 
   return nextState;
 }
 
+export const registerFirstAdministrator = registerAdministratorWorkspace;
+
 export interface LoadedCloudWorkspace {
   cloudRole: UserRole;
+  workspaceId: string;
   factoryName: string;
   ownerUid: string;
   matchedProfileName?: string;
@@ -569,28 +718,22 @@ export type LoadCloudWorkspaceOutcome =
   | { status: 'workspace_missing' };
 
 export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudWorkspaceOutcome> {
-  const email = (user.email || '').toLowerCase().trim();
+  const email = normalizeEmail(user.email || '');
   const uid = user.uid;
   if (!uid || !email) {
     return { status: 'not_authorized', email: email || '(tidak ada email)' };
   }
 
-  // 1. Check if UID has a registered admin doc (avoid throwing on non-admin permission check)
-  let isAdminUser = email === BOOTSTRAP_EMAIL;
-  try {
-    const adminSnap = await getDocServerWithFallback(doc(db, 'admins', uid));
-    if (adminSnap.exists()) {
-      isAdminUser = true;
-    }
-  } catch {
-    // Non-admin or offline; proceed to workspace meta check
-  }
+  // 1. Resolve exact isolated workspaceId for this user
+  const resolved = await resolveWorkspaceIdForUser(user);
+  const workspaceId = resolved.workspaceId;
+  let isAdminUser = resolved.isAdminDoc;
 
-  // 2. Read Workspace Meta, Master Data, Operations Data
-  const metaPath = `workspaces/${WORKSPACE_ID}/config/meta`;
+  // 2. Read Workspace Meta
+  const metaPath = `workspaces/${workspaceId}/config/meta`;
   let metaSnap;
   try {
-    metaSnap = await getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'));
+    metaSnap = await getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'config', 'meta'));
   } catch (error: any) {
     const msg = String(error?.message || '');
     if (msg.includes('Missing or insufficient permissions') || error?.code === 'permission-denied') {
@@ -604,19 +747,19 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
   }
 
   const meta = metaSnap.data();
-  const adminEmailsList: string[] = (meta.adminGoogleEmails || []).map((e: string) => e.toLowerCase().trim());
+  const adminEmailsList: string[] = (meta.adminGoogleEmails || []).map((e: string) => normalizeEmail(e));
   if (adminEmailsList.includes(email) || meta.ownerUid === uid) {
     isAdminUser = true;
   }
 
-  const masterPath = `workspaces/${WORKSPACE_ID}/data/master`;
+  const masterPath = `workspaces/${workspaceId}/data/master`;
 
   let masterSnap;
   let opsSnap;
   try {
     [masterSnap, opsSnap] = await Promise.all([
-      getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master')),
-      getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'))
+      getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'data', 'master')),
+      getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'data', 'operations'))
     ]);
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, masterPath);
@@ -625,7 +768,7 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
   let secretPin: string | undefined;
   if (isAdminUser) {
     try {
-      const secSnap = await getDocServerWithFallback(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'));
+      const secSnap = await getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'config', 'secrets'));
       if (secSnap.exists()) {
         secretPin = secSnap.data()?.adminPin;
       }
@@ -633,29 +776,30 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
       // ignore if secrets missing
     }
 
-    // Ensure secondary admin gets their /admins/{uid} profile created if invited via adminGoogleEmails
+    // Ensure secondary admin gets their /admins/{uid} profile created with workspaceId
     try {
       const checkAdmin = await getDoc(doc(db, 'admins', uid));
       if (!checkAdmin.exists()) {
         await setDoc(doc(db, 'admins', uid), {
           uid,
           email,
-          displayName: user.displayName || email.split('@')[0],
-          factoryName: meta.factoryName || 'Pabrik ProdTrack',
+          displayName: sanitizeTextInput(user.displayName || email.split('@')[0], 120),
+          factoryName: sanitizeTextInput(meta.factoryName || 'Pabrik ProdTrack', 120),
+          workspaceId,
           role: email === BOOTSTRAP_EMAIL || meta.ownerUid === uid ? 'SUPER_ADMIN' : 'ADMIN',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
       }
     } catch {
-      // Non-fatal if bootstrap admin creates on first write
+      // Non-fatal
     }
   }
 
   const masterData = masterSnap?.exists() ? masterSnap.data() : {};
   const opsData = opsSnap?.exists() ? opsSnap.data() : {};
 
-  // Determine effective cloud role for this Google user
+  // Determine effective cloud role for this Google user within this isolated workspace
   let cloudRole: UserRole = 'MANAGEMENT';
   let matchedProfileName = user.displayName || email.split('@')[0];
   let matchedProfileId = uid;
@@ -669,7 +813,7 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
     matchedProfileSubtitle = `Administrator Terverifikasi • ${meta.factoryName || 'ProdTrack'}`;
   } else {
     const matchedOp = operators.find(
-      op => op.status === 'ACTIVE' && (op.email || '').toLowerCase().trim() === email
+      op => op.status === 'ACTIVE' && normalizeEmail(op.email || '') === email
     );
     if (matchedOp) {
       cloudRole = 'OPERATOR';
@@ -678,7 +822,7 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
       matchedProfileSubtitle = `${matchedOp.nik} • ${matchedOp.assignedLine} • Shift ${matchedOp.assignedShift}`;
     } else {
       const matchedMgt = managements.find(
-        m => m.hasViewAccess && m.email.toLowerCase().trim() === email
+        m => m.hasViewAccess && normalizeEmail(m.email || '') === email
       );
       if (matchedMgt) {
         cloudRole = 'MANAGEMENT';
@@ -703,13 +847,14 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
         ...(Array.isArray(meta.adminGoogleEmails) ? meta.adminGoogleEmails : []),
         ...(isAdminUser ? [email] : [])
       ]
-        .map((e: string) => e.toLowerCase().trim())
+        .map((e: string) => normalizeEmail(e))
         .filter(Boolean)
     )
   );
 
   const statePatch: Partial<AppState> = {
     factoryName: meta.factoryName || 'Pabrik ProdTrack',
+    cloudWorkspaceId: workspaceId,
     cloudOwnerUid: meta.ownerUid,
     theme: meta.theme || 'midnight',
     adminGoogleEmails: mergedAdminEmails,
@@ -759,6 +904,7 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
     status: 'ok',
     workspace: {
       cloudRole,
+      workspaceId,
       factoryName: meta.factoryName || 'Pabrik ProdTrack',
       ownerUid: meta.ownerUid,
       matchedProfileName,
@@ -784,6 +930,7 @@ export interface WorkspaceCloudSyncMeta {
 }
 
 export interface WorkspaceSubscribeOptions {
+  workspaceId?: string;
   debounceMs?: number;
   maxWaitMs?: number;
   criticalDebounceMs?: number;
@@ -791,6 +938,7 @@ export interface WorkspaceSubscribeOptions {
 }
 
 export interface DashboardLineStatusSnapshot {
+  workspaceId?: string;
   productionLines?: ProductionLine[];
   activeSkuRuns?: ActiveSkuProductionRun[];
   activeSkuRun?: ActiveSkuProductionRun | null;
@@ -867,6 +1015,7 @@ function extractIsoFromFirestoreTimestamp(ts: unknown): string {
 }
 
 export function publishDashboardLineStatusBroadcast(params: {
+  workspaceId?: string;
   productionLines: ProductionLine[];
   activeSkuRuns: ActiveSkuProductionRun[];
   updatedByUid?: string;
@@ -876,6 +1025,7 @@ export function publishDashboardLineStatusBroadcast(params: {
     const channel = new BroadcastChannel(LINE_SYNC_CHANNEL_NAME);
     const activeRuns = params.activeSkuRuns || [];
     const payload: DashboardLineStatusSnapshot = {
+      workspaceId: params.workspaceId || LEGACY_WORKSPACE_ID,
       productionLines: params.productionLines || [],
       activeSkuRuns: activeRuns,
       activeSkuRun: activeRuns.find(r => r.isRunning) || activeRuns[0] || null,
@@ -893,10 +1043,11 @@ export function publishDashboardLineStatusBroadcast(params: {
 export function subscribeToDashboardLineStatus(
   onLineStatusUpdate: (snapshot: DashboardLineStatusSnapshot) => void,
   onError?: (err: Error) => void,
-  options?: { debounceMs?: number; maxWaitMs?: number }
+  options?: { workspaceId?: string; debounceMs?: number; maxWaitMs?: number }
 ): () => void {
   if (!auth.currentUser) return () => {};
 
+  const workspaceId = (options?.workspaceId || LEGACY_WORKSPACE_ID).slice(0, 64);
   const coalesceMs = options?.debounceMs ?? 60;
   const maxWaitMs = options?.maxWaitMs ?? 350;
 
@@ -930,6 +1081,7 @@ export function subscribeToDashboardLineStatus(
     lastEmittedDigest = digest;
 
     onLineStatusUpdate({
+      workspaceId,
       productionLines: latestLines,
       activeSkuRuns: latestRuns,
       activeSkuRun: latestRuns
@@ -963,7 +1115,7 @@ export function subscribeToDashboardLineStatus(
 
   unsubs.push(
     onSnapshot(
-      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'),
+      doc(db, 'workspaces', workspaceId, 'data', 'master'),
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
@@ -973,13 +1125,13 @@ export function subscribeToDashboardLineStatus(
         latestUpdatedByUid = typeof d.updatedByUid === 'string' ? d.updatedByUid : undefined;
         scheduleFlush('firestore');
       },
-      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/master`)
+      err => handleSnapshotError(err, `workspaces/${workspaceId}/data/master`)
     )
   );
 
   unsubs.push(
     onSnapshot(
-      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'),
+      doc(db, 'workspaces', workspaceId, 'data', 'operations'),
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
@@ -991,7 +1143,7 @@ export function subscribeToDashboardLineStatus(
         latestUpdatedByUid = typeof d.updatedByUid === 'string' ? d.updatedByUid : undefined;
         scheduleFlush('firestore');
       },
-      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/operations`)
+      err => handleSnapshotError(err, `workspaces/${workspaceId}/data/operations`)
     )
   );
 
@@ -1002,6 +1154,7 @@ export function subscribeToDashboardLineStatus(
       channel.onmessage = (event: MessageEvent<DashboardLineStatusSnapshot>) => {
         if (isDisposed || !event?.data) return;
         const incoming = event.data;
+        if (incoming.workspaceId && incoming.workspaceId !== workspaceId) return;
         if (Array.isArray(incoming.productionLines)) {
           latestLines = incoming.productionLines;
         }
@@ -1039,6 +1192,7 @@ export function subscribeToWorkspaceCloud(
 ): () => void {
   if (!auth.currentUser) return () => {};
 
+  const workspaceId = (options?.workspaceId || LEGACY_WORKSPACE_ID).slice(0, 64);
   const debounceMs = options?.debounceMs ?? 350;
   const maxWaitMs = options?.maxWaitMs ?? 1200;
   const criticalDebounceMs = options?.criticalDebounceMs ?? 60;
@@ -1134,12 +1288,13 @@ export function subscribeToWorkspaceCloud(
 
   unsubs.push(
     onSnapshot(
-      doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'),
+      doc(db, 'workspaces', workspaceId, 'config', 'meta'),
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
         const metaPatch: Partial<AppState> = {
           factoryName: d.factoryName,
+          cloudWorkspaceId: workspaceId,
           cloudOwnerUid: d.ownerUid,
           theme: d.theme,
           adminGoogleEmails: d.adminGoogleEmails || [],
@@ -1148,13 +1303,13 @@ export function subscribeToWorkspaceCloud(
         };
         enqueueSectionPatch('meta', metaPatch, JSON.stringify(metaPatch));
       },
-      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/config/meta`)
+      err => handleSnapshotError(err, `workspaces/${workspaceId}/config/meta`)
     )
   );
 
   unsubs.push(
     onSnapshot(
-      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'),
+      doc(db, 'workspaces', workspaceId, 'data', 'master'),
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
@@ -1181,13 +1336,13 @@ export function subscribeToWorkspaceCloud(
         };
         enqueueSectionPatch('master', masterPatch, JSON.stringify(masterPatch), isCriticalLineChange);
       },
-      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/master`)
+      err => handleSnapshotError(err, `workspaces/${workspaceId}/data/master`)
     )
   );
 
   unsubs.push(
     onSnapshot(
-      doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'),
+      doc(db, 'workspaces', workspaceId, 'data', 'operations'),
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
@@ -1220,14 +1375,14 @@ export function subscribeToWorkspaceCloud(
         };
         enqueueSectionPatch('operations', opsPatch, JSON.stringify(opsPatch), isCriticalLineChange);
       },
-      err => handleSnapshotError(err, `workspaces/${WORKSPACE_ID}/data/operations`)
+      err => handleSnapshotError(err, `workspaces/${workspaceId}/data/operations`)
     )
   );
 
   if (cloudRole === 'ADMINISTRATOR') {
     unsubs.push(
       onSnapshot(
-        doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'),
+        doc(db, 'workspaces', workspaceId, 'config', 'secrets'),
         snap => {
           if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
           const d = snap.data();
@@ -1267,6 +1422,7 @@ export async function saveWorkspaceSectionsToCloud(
 
   const uid = user.uid;
   const ownerUid = state.cloudOwnerUid;
+  const workspaceId = (state.cloudWorkspaceId || LEGACY_WORKSPACE_ID).slice(0, 64);
   const now = serverTimestamp();
 
   // Strictly enforce role boundaries before attempting writes
@@ -1280,10 +1436,10 @@ export async function saveWorkspaceSectionsToCloud(
     const keepOwnerEmail = ownerUid === uid ? user.email || undefined : undefined;
     const accessLists = buildAccessEmailLists(state, keepOwnerEmail);
     const mergedMetaAdminEmails = accessLists.adminEmails;
-    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'meta'), {
-      workspaceId: WORKSPACE_ID,
+    batch.set(doc(db, 'workspaces', workspaceId, 'config', 'meta'), {
+      workspaceId,
       ownerUid,
-      factoryName: (state.factoryName || 'Pabrik ProdTrack').slice(0, 120),
+      factoryName: sanitizeTextInput(state.factoryName || 'Pabrik ProdTrack', 120),
       adminGoogleEmails: mergedMetaAdminEmails,
       registeredOperators: stripUndefinedDeep((state.registeredOperators || []).slice(0, 200)),
       registeredManagement: stripUndefinedDeep((state.registeredManagement || []).slice(0, 100)),
@@ -1291,47 +1447,50 @@ export async function saveWorkspaceSectionsToCloud(
       updatedAt: now,
       updatedByUid: uid
     });
-    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'access'), {
-      workspaceId: WORKSPACE_ID,
+    batch.set(doc(db, 'workspaces', workspaceId, 'config', 'access'), {
+      workspaceId,
       ownerUid,
       ...accessLists,
       updatedAt: now,
       updatedByUid: uid
     });
-    pathsWritten.push(`workspaces/${WORKSPACE_ID}/config/meta`);
+    pathsWritten.push(`workspaces/${workspaceId}/config/meta`);
   }
 
   if (sections.secrets && canWriteAdminSections) {
-    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'config', 'secrets'), {
-      workspaceId: WORKSPACE_ID,
-      ownerUid,
-      adminPin: (state.adminPin || '1234').slice(0, 16),
-      updatedAt: now,
-      updatedByUid: uid
-    });
-    pathsWritten.push(`workspaces/${WORKSPACE_ID}/config/secrets`);
+    const secretVal = (state.adminPin || '').trim();
+    if (secretVal.length >= 4) {
+      batch.set(doc(db, 'workspaces', workspaceId, 'config', 'secrets'), {
+        workspaceId,
+        ownerUid,
+        adminPin: secretVal.slice(0, 256),
+        updatedAt: now,
+        updatedByUid: uid
+      });
+      pathsWritten.push(`workspaces/${workspaceId}/config/secrets`);
+    }
   }
 
   if (sections.master && canWriteAdminSections) {
-    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'master'), {
-      workspaceId: WORKSPACE_ID,
+    batch.set(doc(db, 'workspaces', workspaceId, 'data', 'master'), {
+      workspaceId,
       ownerUid,
       ...buildBoundedMasterPayload(state),
       updatedAt: now,
       updatedByUid: uid
     });
-    pathsWritten.push(`workspaces/${WORKSPACE_ID}/data/master`);
+    pathsWritten.push(`workspaces/${workspaceId}/data/master`);
   }
 
   if (sections.operations && canWriteOperations) {
-    batch.set(doc(db, 'workspaces', WORKSPACE_ID, 'data', 'operations'), {
-      workspaceId: WORKSPACE_ID,
+    batch.set(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
+      workspaceId,
       ownerUid,
       ...buildBoundedOperationsPayload(state),
       updatedAt: now,
       updatedByUid: uid
     });
-    pathsWritten.push(`workspaces/${WORKSPACE_ID}/data/operations`);
+    pathsWritten.push(`workspaces/${workspaceId}/data/operations`);
   }
 
   if (pathsWritten.length === 0) return;
@@ -1340,5 +1499,9 @@ export async function saveWorkspaceSectionsToCloud(
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, pathsWritten[0]);
+  }
+
+  if (sections.meta && canWriteAdminSections) {
+    void syncWorkspaceDirectoryEntries(workspaceId, ownerUid, uid, state);
   }
 }

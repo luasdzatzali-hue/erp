@@ -104,7 +104,11 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
     let contentString = JSON.stringify(payload, null, 2);
 
     if (encryptWithPin) {
-      const key = customPassphrase || state.adminPin;
+      const key = customPassphrase.trim();
+      if (key.length < 8) {
+        showToast('Masukkan kunci sandi enkripsi minimal 8 karakter terlebih dahulu.', true);
+        return;
+      }
       // Encode with base64 signature & encryption wrapper
       const encryptedWrapper = {
         isEncrypted: true,
@@ -183,10 +187,14 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
       let parsed = JSON.parse(restoreFileText);
 
       if (parsed.isEncrypted) {
-        const key = customPassphrase || state.adminPin;
+        const key = customPassphrase.trim();
+        if (!key) {
+          showToast('Masukkan kunci sandi dekripsi terlebih dahulu!', true);
+          return;
+        }
         const decoded = decodeURIComponent(escape(atob(parsed.data)));
         if (!decoded.includes(`//KEY_VERIFY:${key}`)) {
-          showToast('Kunci PIN / Passphrase dekripsi salah!', true);
+          showToast('Kunci sandi dekripsi salah!', true);
           return;
         }
         const cleanJson = decoded.split('\n//KEY_VERIFY:')[0];
@@ -338,13 +346,14 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
               {encryptWithPin && (
                 <div className="pt-2 border-t border-slate-700/60">
                   <label className="block text-[10px] text-slate-300 mb-1">
-                    Kunci Sandi Enkripsi (Default: Menggunakan PIN Administrator Anda: {state.adminPin})
+                    Kunci Sandi Enkripsi Backup (Minimal 8 karakter)
                   </label>
                   <input
-                    type="text"
+                    type="password"
+                    minLength={8}
                     value={customPassphrase}
                     onChange={(e) => setCustomPassphrase(e.target.value)}
-                    placeholder="Kosongkan untuk menggunakan PIN Admin saat ini"
+                    placeholder="Masukkan sandi enkripsi unik (min. 8 karakter)..."
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono"
                   />
                 </div>

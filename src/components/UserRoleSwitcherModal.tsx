@@ -13,6 +13,7 @@ import {
   Info
 } from 'lucide-react';
 import { AppState, UserRole, RegisteredOperator, RegisteredManagement } from '../types';
+import { verifyPasswordSlow } from '../utils/security';
 
 interface UserRoleSwitcherModalProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
     state.registeredManagement.find(m => m.hasViewAccess)?.id || state.registeredManagement[0]?.id || ''
   );
   const [pinError, setPinError] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -49,13 +52,24 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
   if (!isOpen) return null;
 
   // Handle switching to Administrator
-  const handleConfirmAdmin = (e: React.FormEvent) => {
+  const handleConfirmAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPinInput === state.adminPin) {
+    if (lockoutUntil > Date.now()) {
+      const rem = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      const msg = `Terlalu banyak percobaan gagal. Tunggu ${rem} detik.`;
+      setPinError(msg);
+      showToast(msg, true);
+      return;
+    }
+
+    const isMatched = await verifyPasswordSlow(adminPinInput, state.adminPin);
+    if (isMatched) {
+      setFailedAttempts(0);
+      setLockoutUntil(0);
       onSelectRole('ADMINISTRATOR', {
         id: 'admin_root',
-        name: 'Administrator MES & BOM',
-        email: state.adminGoogleEmails?.[0] || 'admin@factory.co.id',
+        name: state.currentAdminUser?.displayName || 'Administrator MES & BOM',
+        email: state.adminGoogleEmails?.[0] || '',
         subtitle: 'Kewenangan Penuh: Master BOM, Mesin, Tangki & User Access'
       });
       setAdminPinInput('');
@@ -63,8 +77,16 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
       showToast('Berhasil masuk sebagai Administrator (Akses Penuh)');
       onClose();
     } else {
-      setPinError('PIN Administrator salah. Silakan coba lagi.');
-      showToast('PIN Administrator tidak cocok', true);
+      const nextFails = failedAttempts + 1;
+      setFailedAttempts(nextFails);
+      if (nextFails >= 5) {
+        setLockoutUntil(Date.now() + 60000);
+        setPinError('Terlalu banyak percobaan gagal. Dikunci sementara 60 detik.');
+        showToast('Akses PIN dikunci sementara selama 60 detik.', true);
+      } else {
+        setPinError('PIN atau kredensial tidak valid. Silakan coba lagi.');
+        showToast('PIN atau kredensial tidak valid', true);
+      }
     }
   };
 
@@ -240,7 +262,6 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
                     <span>Masukkan PIN Administrator:</span>
-                    <span className="text-[10px] text-slate-500 font-mono">PIN Default: 12345678</span>
                   </label>
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />

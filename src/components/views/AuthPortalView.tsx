@@ -33,6 +33,11 @@ import {
   signInWithGoogleAuth,
   startGoogleRedirectSignIn
 } from '../../utils/firebaseSync';
+import {
+  sanitizeTextInput,
+  validatePasswordStrength,
+  verifyPasswordSlow
+} from '../../utils/security';
 
 interface AuthPortalViewProps {
   state: AppState;
@@ -90,6 +95,20 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   const [pinError, setPinError] = useState('');
   const [setupAuthError, setSetupAuthError] = useState<AuthErrorDetail | null>(null);
 
+  // Auth Mode: 'login' vs 'signup' when setupStatus is ready
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>(() => {
+    try {
+      const saved = sessionStorage.getItem('prodtrack_auth_mode');
+      if (saved === 'signup') {
+        sessionStorage.removeItem('prodtrack_auth_mode');
+        return 'signup';
+      }
+    } catch {
+      // ignore
+    }
+    return 'login';
+  });
+
   // Rate limiting & lockout protection state
   const [failedLoginAttempts, setFailedLoginAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
@@ -113,18 +132,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
     return () => clearInterval(timer);
   }, [lockoutUntil]);
 
-  const validatePasswordStrength = (pwd: string): { isValid: boolean; message?: string } => {
-    if (pwd.length < 8) {
-      return { isValid: false, message: 'Password/PIN keamanan minimal harus 8 karakter.' };
-    }
-    const leakedList = ['password123', '12345678', 'admin123', 'qwerty123', '123456', 'password'];
-    if (leakedList.includes(pwd.toLowerCase())) {
-      return { isValid: false, message: 'Password/PIN ini terdeteksi dalam daftar password umum yang pernah bocor. Gunakan kombinasi yang lebih aman.' };
-    }
-    return { isValid: true };
-  };
-
-  // First-time Admin Setup Wizard state
+  // First-time / Multi-tenant Admin Setup Wizard state
   const [setupUser, setSetupUser] = useState<User | null>(firebaseUser);
   const [setupFactoryName, setSetupFactoryName] = useState('PT Pabrik Manufaktur Nusantara');
   const [setupAdminName, setSetupAdminName] = useState(firebaseUser?.displayName || '');
@@ -140,6 +148,15 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       if (!setupAdminName && firebaseUser.displayName) {
         setSetupAdminName(firebaseUser.displayName);
       }
+    } else {
+      setSetupUser(null);
+      setSetupAdminName('');
+      setSetupPin('');
+      setSetupPinConfirm('');
+      setAdminPinInput('');
+      setPinError('');
+      setSetupAuthError(null);
+      setIsGoogleLoading(false);
     }
   }, [firebaseUser]);
 
@@ -189,6 +206,11 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
     try {
       setIsGoogleLoading(true);
       if (useRedirect) {
+        try {
+          sessionStorage.setItem('prodtrack_auth_mode', 'signup');
+        } catch {
+          // ignore
+        }
         await startGoogleRedirectSignIn('SETUP');
         return;
       }
@@ -206,18 +228,20 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
     }
   };
 
-  // Setup Wizard: Submit First-Time Admin Registration
+  // Setup Wizard: Submit Admin Registration (Initial or Isolated Multi-Tenant Signup)
   const handleSetupWizardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!setupUser) {
       showToast('Hubungkan akun Google Administrator terlebih dahulu pada Langkah 1.', true);
       return;
     }
-    if (!setupFactoryName.trim()) {
+    const cleanFactory = sanitizeTextInput(setupFactoryName, 120);
+    const cleanAdminName = sanitizeTextInput(setupAdminName, 120);
+    if (!cleanFactory) {
       showToast('Harap isi Nama Pabrik / Perusahaan.', true);
       return;
     }
-    if (!setupAdminName.trim()) {
+    if (!cleanAdminName) {
       showToast('Harap isi Nama Lengkap Administrator.', true);
       return;
     }
@@ -226,8 +250,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       showToast(pwdCheck.message || 'Password/PIN keamanan tidak memenuhi standar.', true);
       return;
     }
-    if (setupPin !== setupPinConfirm) {
-      showToast('Konfirmasi PIN tidak cocok.', true);
+    if (setupPin.trim() !== setupPinConfirm.trim()) {
+      showToast('Konfirmasi Password/PIN tidak cocok.', true);
       return;
     }
 
@@ -235,20 +259,20 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       setIsSubmittingSetup(true);
       await onCompleteFirstAdminSetup({
         user: setupUser,
-        factoryName: setupFactoryName.trim(),
-        adminName: setupAdminName.trim(),
+        factoryName: cleanFactory,
+        adminName: cleanAdminName,
         adminPin: setupPin.trim(),
         initMode: setupInitMode
       });
     } catch (err: any) {
-      showToast(err?.message || 'Gagal mendaftarkan Administrator pertama ke Cloud.', true);
+      showToast(err?.message || 'Gagal mendaftarkan Administrator ke Cloud.', true);
     } finally {
       setIsSubmittingSetup(false);
     }
   };
 
   // Admin PIN login (only allowed when device has already synced the workspace from Cloud)
-  const handleAdminPinSubmit = (e: React.FormEvent) => {
+  const handleAdminPinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockoutRemainingSecs > 0) {
       showToast(`Terlalu banyak percobaan gagal. Harap tunggu ${lockoutRemainingSecs} detik sebelum mencoba kembali.`, true);
@@ -258,8 +282,10 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       showToast('Silakan masuk dengan Akun Google Admin terlebih dahulu untuk menyinkronkan data Cloud ke perangkat ini.', true);
       return;
     }
-    if (adminPinInput === state.adminPin) {
+    const isMatched = await verifyPasswordSlow(adminPinInput, state.adminPin);
+    if (isMatched) {
       setFailedLoginAttempts(0);
+      setPinError('');
       onLoginSuccess('ADMINISTRATOR', {
         id: firebaseUser?.uid || 'admin_root',
         name: state.currentAdminUser?.displayName || firebaseUser?.displayName || 'Administrator MES & BOM',
@@ -274,10 +300,10 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         const lockoutTime = Date.now() + 60000;
         setLockoutUntil(lockoutTime);
         setLockoutRemainingSecs(60);
-        setPinError('Terlalu banyak percobaan salah. Akun dikunci sementara selama 60 detik.');
+        setPinError('Terlalu banyak percobaan gagal. Akun dikunci sementara selama 60 detik.');
         showToast('Keamanan Aktif: Login diblokir sementara selama 60 detik akibat percobaan gagal berulang.', true);
       } else {
-        setPinError('Kredensial atau PIN tidak valid. Silakan coba lagi.');
+        setPinError('Email atau PIN tidak valid. Silakan periksa kembali dan coba lagi.');
         showToast('Email atau PIN salah', true);
       }
     }
@@ -693,17 +719,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">
                       <Lock className="w-3.5 h-3.5 inline mr-1 text-amber-400" />
-                      Buat PIN Administrator (4–16 karakter):
+                      Buat PIN / Password Administrator (Min. 8 karakter):
                     </label>
                     <div className="relative">
                       <input
                         type={showSetupPin ? 'text' : 'password'}
                         required
-                        minLength={4}
-                        maxLength={16}
+                        minLength={8}
+                        maxLength={128}
                         value={setupPin}
                         onChange={e => setSetupPin(e.target.value)}
-                        placeholder="Buat PIN rahasia..."
+                        placeholder="Minimal 8 karakter unik..."
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono tracking-widest focus:outline-none focus:border-amber-500"
                       />
                       <button
@@ -718,16 +744,16 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">
-                      Konfirmasi PIN Administrator:
+                      Konfirmasi PIN / Password Administrator:
                     </label>
                     <input
                       type={showSetupPin ? 'text' : 'password'}
                       required
-                      minLength={4}
-                      maxLength={16}
+                      minLength={8}
+                      maxLength={128}
                       value={setupPinConfirm}
                       onChange={e => setSetupPinConfirm(e.target.value)}
-                      placeholder="Ulangi PIN..."
+                      placeholder="Ulangi PIN / Password..."
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tracking-widest focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -805,29 +831,300 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
           </div>
         )}
 
-        {/* STATE 4: READY — REGULAR 3-ROLE LOGIN PORTAL */}
+        {/* STATE 4: READY — LOGIN / SIGNUP PORTAL SWITCHER */}
         {setupStatus === 'ready' && (
-          <div className="space-y-4 sm:space-y-5">
-            <div className="text-center max-w-2xl mx-auto space-y-1">
-              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono font-semibold mb-1">
-                <Cloud className="w-3.5 h-3.5" />
-                <span>
-                  {isSyncingCloud
-                    ? 'Menyinkronkan data dari Cloud...'
-                    : isWorkspaceSyncedOnDevice
-                    ? `Data Pabrik Tersinkronisasi (${state.master.skus.length} SKU • ${state.master.materials.length} Material)`
-                    : `Terdaftar: ${cloudFactoryName || 'Cloud Workspace'} • Login Google untuk memuat data`}
-                </span>
-              </div>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-                Pilih Jenis Pengguna untuk Masuk
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-400">
-                Seluruh Master BOM, Resep, Line Produksi, serta hak akses Operator &amp; Manajemen tersinkronisasi aman di Cloud.
-              </p>
+          <div className="space-y-5">
+            {/* Top Auth Mode Tabs (Login vs Sign Up) */}
+            <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex items-center shadow-lg">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
+                  authMode === 'login'
+                    ? 'bg-cyan-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Masuk (Login)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuthMode('signup')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
+                  authMode === 'signup'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Daftar Akun Baru (Sign Up)</span>
+              </button>
             </div>
 
-            {renderAuthErrorBanner(authError, onClearAuthError, selectedRole)}
+            {authMode === 'signup' ? (
+              <div className="max-w-2xl mx-auto w-full space-y-4">
+                <div className="text-center space-y-1">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Pendaftaran Akun Administrator &amp; Pabrik Baru
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Buat akun administrator baru dan workspace pabrik terisolasi dengan BOM mandiri.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={handleSetupWizardSubmit}
+                  className="bg-slate-900/90 border border-amber-500/40 rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl"
+                >
+                  {/* Step 1: Google Auth Connection */}
+                  <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                        1
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">
+                          Hubungkan Akun Google untuk Pendaftaran
+                        </h3>
+                        <p className="text-[11px] text-slate-400">
+                          Identitas akun Google untuk autentikasi aman.
+                        </p>
+                      </div>
+                    </div>
+
+                    {setupUser ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">
+                        <div className="flex items-center space-x-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-white">
+                              {setupUser.displayName || 'Administrator'}
+                            </div>
+                            <div className="text-[11px] font-mono text-emerald-300">
+                              {setupUser.email}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectGoogleForSetup(false)}
+                          disabled={isGoogleLoading}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition"
+                        >
+                          Ganti Akun Google
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => handleConnectGoogleForSetup(false)}
+                          disabled={isGoogleLoading}
+                          className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-lg transition active:scale-95 disabled:opacity-50"
+                        >
+                          {isGoogleLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <KeyRound className="w-4 h-4" />
+                          )}
+                          <span>Hubungkan Akun Google Administrator</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectGoogleForSetup(true)}
+                          disabled={isGoogleLoading}
+                          className="w-full py-1.5 text-[11px] text-cyan-300 hover:text-cyan-200 underline transition disabled:opacity-50"
+                        >
+                          Popup terblokir? Hubungkan via Redirect
+                        </button>
+                      </div>
+                    )}
+
+                    {renderAuthErrorBanner(setupAuthError, () => setSetupAuthError(null), 'SETUP')}
+                  </div>
+
+                  {/* Step 2: Factory & Security Profile */}
+                  <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                        2
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">
+                          Identitas Pabrik, PIN Keamanan &amp; Pilihan BOM Awal
+                        </h3>
+                        <p className="text-[11px] text-slate-400">
+                          Data BOM, Operator, dan Management terisolasi khusus untuk akun pabrik Anda.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Nama Pabrik / Perusahaan:</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={120}
+                          value={setupFactoryName}
+                          onChange={e => setSetupFactoryName(e.target.value)}
+                          placeholder="cth: PT Manufaktur Baru Nusantara"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Nama Administrator:</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={120}
+                          value={setupAdminName}
+                          onChange={e => setSetupAdminName(e.target.value)}
+                          placeholder="Nama lengkap..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">PIN / Password (Min. 8 Karakter):</label>
+                        <div className="relative">
+                          <input
+                            type={showSetupPin ? 'text' : 'password'}
+                            required
+                            minLength={8}
+                            maxLength={128}
+                            value={setupPin}
+                            onChange={e => setSetupPin(e.target.value)}
+                            placeholder="Min. 8 karakter unik..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSetupPin(!showSetupPin)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                          >
+                            {showSetupPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Konfirmasi PIN / Password:</label>
+                        <input
+                          type={showSetupPin ? 'text' : 'password'}
+                          required
+                          minLength={8}
+                          maxLength={128}
+                          value={setupPinConfirm}
+                          onChange={e => setSetupPinConfirm(e.target.value)}
+                          placeholder="Ulangi PIN / Password..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Initial Data Choice for isolated tenant */}
+                    <div className="pt-1 space-y-2">
+                      <label className="block text-xs text-slate-300 font-medium">
+                        <Database className="w-3.5 h-3.5 inline mr-1 text-cyan-400" />
+                        Pilihan Inisialisasi Data BOM &amp; Master Awal:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSetupInitMode('template')}
+                          className={`p-3 rounded-xl border text-left transition ${
+                            setupInitMode === 'template'
+                              ? 'bg-cyan-950/50 border-cyan-500 text-white ring-1 ring-cyan-500/40'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-bold text-white flex items-center justify-between">
+                            <span>Template Data Pabrik Siap Pakai</span>
+                            {setupInitMode === 'template' && (
+                              <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Berisi contoh Bahan Baku, WIP, SKU, Mesin, Tangki yang dapat disesuaikan.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSetupInitMode('blank')}
+                          className={`p-3 rounded-xl border text-left transition ${
+                            setupInitMode === 'blank'
+                              ? 'bg-amber-950/40 border-amber-500 text-white ring-1 ring-amber-500/40'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-bold text-white flex items-center justify-between">
+                            <span>Mulai Bersih (Master BOM Kosong)</span>
+                            {setupInitMode === 'blank' && (
+                              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Mulai dari nol agar Anda menginput sendiri BOM, Operator &amp; Management.
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingSetup || !setupUser}
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl text-sm shadow-xl transition active:scale-95 flex items-center justify-center space-x-2"
+                  >
+                    {isSubmittingSetup ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Mendaftarkan Akun &amp; Workspace Baru...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-4 h-4" />
+                        <span>Buat Akun &amp; Pabrik Baru (Sign Up)</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('login')}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium"
+                    >
+                      Sudah punya akun? Masuk ke sistem (Login)
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div className="space-y-4 sm:space-y-5">
+                <div className="text-center max-w-2xl mx-auto space-y-1">
+                  <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono font-semibold mb-1">
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>
+                      {isSyncingCloud
+                        ? 'Menyinkronkan data dari Cloud...'
+                        : isWorkspaceSyncedOnDevice
+                        ? `Data Pabrik Tersinkronisasi (${state.master.skus.length} SKU • ${state.master.materials.length} Material)`
+                        : 'Pilih Peran & Masuk dengan Akun Google Anda (Atau Daftar Akun Baru)'}
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
+                    Pilih Jenis Pengguna untuk Masuk
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-400">
+                    Seluruh Master BOM, Resep, Line Produksi, serta hak akses Operator &amp; Manajemen tersinkronisasi aman di Cloud.
+                  </p>
+                </div>
+
+                {renderAuthErrorBanner(authError, onClearAuthError, selectedRole)}
 
             {/* Role Selector Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
@@ -1271,6 +1568,36 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 </div>
               </div>
             </div>
+
+                {/* Sign Up CTA Banner for New Users / Other Companies */}
+                <div className="bg-slate-900/80 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center space-x-3 text-center sm:text-left">
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0 hidden sm:flex">
+                      <Factory className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white">
+                        Pabrik / Administrator Baru yang Belum Terdaftar?
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Daftar akun Administrator baru untuk membuat workspace terisolasi dengan Master BOM, akun Operator, &amp; Manajemen milik Anda sendiri.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setPinError('');
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs whitespace-nowrap flex items-center space-x-1.5 shadow-md transition active:scale-95 shrink-0"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Daftar Akun Baru (Sign Up)</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -36,14 +36,6 @@ service cloud.firestore {
       return isVerified() && userEmailLower() == 'luasdzatzali@gmail.com';
     }
 
-    function isRegisteredAdminDoc() {
-      return isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
-    function isAdmin() {
-      return isBootstrappedEmailAdmin() || isRegisteredAdminDoc();
-    }
-
     function accessConfigPath(workspaceId) {
       return /databases/$(database)/documents/workspaces/$(workspaceId)/config/access;
     }
@@ -56,11 +48,17 @@ service cloud.firestore {
       return get(accessConfigPath(workspaceId)).data;
     }
 
+    // Strict Multi-Tenant Workspace Admin Check (Isolated per workspaceId)
     function isWorkspaceAdmin(workspaceId) {
-      return isAdmin() || (
-        isVerified() &&
-        hasAccessConfig(workspaceId) &&
-        userEmailLower() in accessData(workspaceId).adminEmails
+      return isVerified() && (
+        workspaceId == request.auth.uid ||
+        (workspaceId == 'main' && isBootstrappedEmailAdmin()) ||
+        (
+          hasAccessConfig(workspaceId) && (
+            accessData(workspaceId).ownerUid == request.auth.uid ||
+            userEmailLower() in accessData(workspaceId).adminEmails
+          )
+        )
       );
     }
 
@@ -96,14 +94,28 @@ service cloud.firestore {
 
     function isValidAdminProfile(data) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'factoryName', 'role', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['uid', 'email', 'displayName', 'factoryName', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'factoryName', 'workspaceId', 'role', 'createdAt', 'updatedAt']) &&
         isValidId(data.uid) &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
         data.factoryName is string && data.factoryName.size() >= 1 && data.factoryName.size() <= 120 &&
+        (!('workspaceId' in data) || (isValidId(data.workspaceId) && data.workspaceId.size() <= 64)) &&
         data.role in ['SUPER_ADMIN', 'ADMIN'] &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspaceDirectoryEntry(data) {
+      return data.keys().hasAll(['inviteId', 'emailLower', 'workspaceId', 'role', 'factoryName', 'ownerUid', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['inviteId', 'emailLower', 'workspaceId', 'role', 'factoryName', 'ownerUid', 'updatedAt', 'updatedByUid']) &&
+        isValidId(data.inviteId) && data.inviteId.size() >= 64 && data.inviteId.size() <= 128 &&
+        data.emailLower is string && data.emailLower.size() >= 3 && data.emailLower.size() <= 160 &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        data.role in ['ADMINISTRATOR', 'OPERATOR', 'MANAGEMENT'] &&
+        data.factoryName is string && data.factoryName.size() >= 1 && data.factoryName.size() <= 120 &&
+        isValidId(data.ownerUid) &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
     }
 
     function isValidWorkspaceAccessConfig(data) {
@@ -123,7 +135,7 @@ service cloud.firestore {
         data.keys().hasOnly(['workspaceId', 'ownerUid', 'adminPin', 'updatedAt', 'updatedByUid']) &&
         isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
         isValidId(data.ownerUid) &&
-        data.adminPin is string && data.adminPin.size() >= 4 && data.adminPin.size() <= 16 &&
+        data.adminPin is string && data.adminPin.size() >= 4 && data.adminPin.size() <= 256 &&
         data.updatedAt is timestamp &&
         isValidId(data.updatedByUid);
     }
@@ -204,13 +216,19 @@ service cloud.firestore {
         incoming().initializedAt == existing().initializedAt &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['factoryName', 'updatedAt']) &&
-        isAdmin();
+        (existing().ownerUid == request.auth.uid || isBootstrappedEmailAdmin());
       allow delete: if false;
     }
 
-    // 6. Administrator Profiles (Strict PII Isolation)
+    // 6. Administrator Profiles (Strict Multi-Tenant PII Isolation)
     match /admins/{adminId} {
-      allow get: if isValidId(adminId) && isVerified() && (request.auth.uid == adminId || isAdmin());
+      allow get: if isValidId(adminId) &&
+        isVerified() &&
+        (
+          request.auth.uid == adminId ||
+          isBootstrappedEmailAdmin() ||
+          ('workspaceId' in existing() && isWorkspaceAdmin(existing().workspaceId))
+        );
       allow list: if false;
       allow create: if isValidId(adminId) &&
         isVerified() &&
@@ -219,14 +237,27 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time &&
         (
-          isAdmin() ||
           (
             adminId == request.auth.uid &&
             incoming().role == 'SUPER_ADMIN' &&
             !exists(/databases/$(database)/documents/system/bootstrap) &&
             existsAfter(/databases/$(database)/documents/system/bootstrap) &&
             getAfter(/databases/$(database)/documents/system/bootstrap).data.ownerUid == request.auth.uid
-          )
+          ) ||
+          (
+            adminId == request.auth.uid &&
+            incoming().role == 'SUPER_ADMIN' &&
+            'workspaceId' in incoming() &&
+            incoming().workspaceId == request.auth.uid &&
+            !exists(/databases/$(database)/documents/workspaces/$(request.auth.uid)/config/access) &&
+            existsAfter(/databases/$(database)/documents/workspaces/$(request.auth.uid)/config/access) &&
+            getAfter(/databases/$(database)/documents/workspaces/$(request.auth.uid)/config/access).data.ownerUid == request.auth.uid
+          ) ||
+          (
+            'workspaceId' in incoming() &&
+            isWorkspaceAdmin(incoming().workspaceId)
+          ) ||
+          isBootstrappedEmailAdmin()
         );
       allow update: if isValidId(adminId) &&
         isVerified() &&
@@ -235,17 +266,68 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         (
-          isAdmin() ||
           (
             request.auth.uid == adminId &&
             incoming().role == existing().role &&
+            (!('workspaceId' in existing()) || incoming().workspaceId == existing().workspaceId) &&
             incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'factoryName', 'updatedAt'])
-          )
+          ) ||
+          (
+            'workspaceId' in existing() &&
+            isWorkspaceAdmin(existing().workspaceId) &&
+            incoming().workspaceId == existing().workspaceId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'factoryName', 'role', 'updatedAt'])
+          ) ||
+          isBootstrappedEmailAdmin()
         );
-      allow delete: if isValidId(adminId) && isAdmin() && adminId != request.auth.uid;
+      allow delete: if isValidId(adminId) &&
+        isVerified() &&
+        adminId != request.auth.uid &&
+        (
+          isBootstrappedEmailAdmin() ||
+          ('workspaceId' in existing() && isWorkspaceAdmin(existing().workspaceId))
+        );
     }
 
-    // 7. Workspace Configuration & Data (Strict RBAC per Tier)
+    // 7. Secure Multi-Tenant Email-Hash Workspace Directory (Anti-Enumeration)
+    match /workspaceDirectory/{inviteId} {
+      allow get: if isValidId(inviteId) &&
+        isVerified() &&
+        (
+          existing().emailLower == userEmailLower() ||
+          isWorkspaceAdmin(existing().workspaceId)
+        );
+      allow list: if false;
+      allow create: if isValidId(inviteId) &&
+        isVerified() &&
+        isValidWorkspaceDirectoryEntry(incoming()) &&
+        incoming().inviteId == inviteId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        (
+          isWorkspaceAdmin(incoming().workspaceId) ||
+          (
+            incoming().workspaceId == request.auth.uid &&
+            incoming().ownerUid == request.auth.uid &&
+            existsAfter(/databases/$(database)/documents/workspaces/$(request.auth.uid)/config/access) &&
+            getAfter(/databases/$(database)/documents/workspaces/$(request.auth.uid)/config/access).data.ownerUid == request.auth.uid
+          )
+        );
+      allow update: if isValidId(inviteId) &&
+        isVerified() &&
+        isValidWorkspaceDirectoryEntry(incoming()) &&
+        incoming().inviteId == existing().inviteId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        isWorkspaceAdmin(existing().workspaceId) &&
+        incoming().workspaceId == existing().workspaceId &&
+        incoming().ownerUid == existing().ownerUid;
+      allow delete: if isValidId(inviteId) &&
+        isVerified() &&
+        isWorkspaceAdmin(existing().workspaceId);
+    }
+
+    // 8. Workspace Configuration & Data (Strict Multi-Tenant Isolation & RBAC)
     match /workspaces/{workspaceId} {
       allow read, write: if false;
 
@@ -259,11 +341,19 @@ service cloud.firestore {
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
           (
-            isWorkspaceAdmin(workspaceId) ||
             (
+              hasAccessConfig(workspaceId) &&
+              isWorkspaceAdmin(workspaceId) &&
+              incoming().ownerUid == accessData(workspaceId).ownerUid
+            ) ||
+            (
+              !hasAccessConfig(workspaceId) &&
               incoming().ownerUid == request.auth.uid &&
-              !exists(/databases/$(database)/documents/system/bootstrap) &&
-              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
+              existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+              (
+                workspaceId == request.auth.uid ||
+                !exists(/databases/$(database)/documents/system/bootstrap)
+              )
             )
           );
         allow update: if isValidId(workspaceId) &&
@@ -288,10 +378,16 @@ service cloud.firestore {
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
           (
-            isWorkspaceAdmin(workspaceId) ||
             (
+              hasAccessConfig(workspaceId) &&
+              isWorkspaceAdmin(workspaceId) &&
+              incoming().ownerUid == accessData(workspaceId).ownerUid
+            ) ||
+            (
+              !hasAccessConfig(workspaceId) &&
               incoming().ownerUid == request.auth.uid &&
-              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(accessConfigPath(workspaceId)) &&
+              getAfter(accessConfigPath(workspaceId)).data.ownerUid == request.auth.uid &&
               existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
             )
           );
@@ -317,10 +413,16 @@ service cloud.firestore {
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
           (
-            isWorkspaceAdmin(workspaceId) ||
             (
+              hasAccessConfig(workspaceId) &&
+              isWorkspaceAdmin(workspaceId) &&
+              incoming().ownerUid == accessData(workspaceId).ownerUid
+            ) ||
+            (
+              !hasAccessConfig(workspaceId) &&
               incoming().ownerUid == request.auth.uid &&
-              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(accessConfigPath(workspaceId)) &&
+              getAfter(accessConfigPath(workspaceId)).data.ownerUid == request.auth.uid &&
               existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
             )
           );
@@ -331,10 +433,8 @@ service cloud.firestore {
           incoming().ownerUid == existing().ownerUid &&
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
-          (
-            isWorkspaceAdmin(workspaceId) &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['factoryName', 'adminGoogleEmails', 'registeredOperators', 'registeredManagement', 'theme', 'updatedAt', 'updatedByUid'])
-          );
+          isWorkspaceAdmin(workspaceId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['factoryName', 'adminGoogleEmails', 'registeredOperators', 'registeredManagement', 'theme', 'updatedAt', 'updatedByUid']);
         allow delete: if false;
       }
 
@@ -348,10 +448,16 @@ service cloud.firestore {
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
           (
-            isWorkspaceAdmin(workspaceId) ||
             (
+              hasAccessConfig(workspaceId) &&
+              isWorkspaceAdmin(workspaceId) &&
+              incoming().ownerUid == accessData(workspaceId).ownerUid
+            ) ||
+            (
+              !hasAccessConfig(workspaceId) &&
               incoming().ownerUid == request.auth.uid &&
-              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(accessConfigPath(workspaceId)) &&
+              getAfter(accessConfigPath(workspaceId)).data.ownerUid == request.auth.uid &&
               existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
             )
           );
@@ -377,10 +483,16 @@ service cloud.firestore {
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
           (
-            isWorkspaceAdmin(workspaceId) ||
             (
+              hasAccessConfig(workspaceId) &&
+              isWorkspaceAdmin(workspaceId) &&
+              incoming().ownerUid == accessData(workspaceId).ownerUid
+            ) ||
+            (
+              !hasAccessConfig(workspaceId) &&
               incoming().ownerUid == request.auth.uid &&
-              !exists(/databases/$(database)/documents/system/bootstrap) &&
+              existsAfter(accessConfigPath(workspaceId)) &&
+              getAfter(accessConfigPath(workspaceId)).data.ownerUid == request.auth.uid &&
               existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid))
             )
           );
