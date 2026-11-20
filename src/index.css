@@ -287,3 +287,15 @@ html[data-theme="daylight"],
   color: #ffffff !important;
 }
 
+/* Crisp Paper Preview Override (consistent across Midnight & Daylight themes) */
+.slip-paper-preview,
+.slip-paper-preview table,
+.slip-paper-preview thead th,
+.slip-paper-preview tbody tr,
+.slip-paper-preview td,
+.slip-paper-preview th {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #0f172a !important;
+}
+

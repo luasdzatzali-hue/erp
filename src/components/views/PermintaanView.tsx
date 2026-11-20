@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FilePlus,
   Send,
@@ -31,8 +31,21 @@ import {
   Scale,
   Lock
 } from 'lucide-react';
-import { AppState, MaterialRequest, MaterialSource, RequestCartItem, WipRecipeItem } from '../../types';
+import {
+  AppState,
+  MaterialRequest,
+  MaterialSource,
+  RequestCartItem,
+  WipRecipeItem
+} from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
+import { RequestSlipPdfModal } from '../RequestSlipPdfModal';
+import {
+  generateSeparateSupplierSlipsPdf,
+  groupCartItemsBySupplierAndWip,
+  REQUEST_SLIP_ROWS_PER_PAGE,
+  RequestSlipDeepLinkData
+} from '../../utils/requestSlipPdf';
 
 interface PermintaanViewProps {
   state: AppState;
@@ -41,6 +54,8 @@ interface PermintaanViewProps {
   onJumpToReceive: (req: MaterialRequest) => void;
   onSwitchTab: (tab: AppState['currentTab']) => void;
   onOpenStockAdjustment?: (materialId?: string) => void;
+  deepLinkSlip?: RequestSlipDeepLinkData | null;
+  onClearDeepLinkSlip?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -51,6 +66,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   onJumpToReceive,
   onSwitchTab,
   onOpenStockAdjustment,
+  deepLinkSlip,
+  onClearDeepLinkSlip,
   showToast
 }) => {
   const [selectedSkuId, setSelectedSkuId] = useState('');
@@ -78,6 +95,23 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   // Crosscheck & Konfirmasi Modal State
   const [isCrosscheckModalOpen, setIsCrosscheckModalOpen] = useState(false);
   const [isCrosscheckVerified, setIsCrosscheckVerified] = useState(false);
+  const [isSlipPdfModalOpen, setIsSlipPdfModalOpen] = useState(false);
+  const [slipModalGroupKey, setSlipModalGroupKey] = useState<string | undefined>(undefined);
+  const [slipModalSupplier, setSlipModalSupplier] = useState<string | undefined>(undefined);
+  const [slipModalCustomItems, setSlipModalCustomItems] = useState<RequestCartItem[] | null>(null);
+  const [slipModalRequestNumbers, setSlipModalRequestNumbers] = useState<string[] | undefined>(
+    undefined
+  );
+  const [activeQrDetailData, setActiveQrDetailData] = useState<RequestSlipDeepLinkData | null>(
+    null
+  );
+  const [isBatchPrintingPdf, setIsBatchPrintingPdf] = useState(false);
+
+  useEffect(() => {
+    if (deepLinkSlip) {
+      setActiveQrDetailData(deepLinkSlip);
+    }
+  }, [deepLinkSlip]);
 
   // Sync cart to localStorage
   useEffect(() => {
@@ -434,9 +468,146 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     showToast(`Berhasil mengirim ${sentCount} permintaan material resmi ke supplier (GDRM / Formulasi)!`);
   };
 
-  // Cetak Crosscheck Slip Keranjang
-  const handlePrintCart = () => {
-    window.print();
+  // Kelompokkan item keranjang berdasarkan Supplier & Jenis WIP untuk pencetakan slip PDF terpisah
+  const cartItemsBySlipGroup = useMemo(
+    () => groupCartItemsBySupplierAndWip(cartItems),
+    [cartItems]
+  );
+
+  // Helper konversi MaterialRequest (History) ke RequestCartItem untuk cetak slip per supplier & WIP
+  const mapHistoryReqToCartItem = (req: MaterialRequest): RequestCartItem => {
+    const sku = state.master.skus.find(s => s.id === req.skuId);
+    const wip = state.master.wips.find(w => w.id === req.wipId);
+    const mat = state.master.materials.find(m => m.id === req.materialId);
+    return {
+      id: req.id,
+      skuId: req.skuId,
+      skuName: sku?.name || 'SKU',
+      skuCode: sku?.code,
+      isKite: sku?.isKite,
+      wipId: req.wipId,
+      wipName: wip?.name || 'WIP',
+      materialId: req.materialId,
+      materialName: mat?.name || 'Material',
+      materialCode: mat?.code,
+      materialType: mat?.type || 'bubuk',
+      qty: req.qty,
+      theoreticalQty: req.theoreticalQty ?? req.qty,
+      packageSizeKg: req.packageSizeKg,
+      packageCount: req.packageCount,
+      surplusKg: req.surplusKg,
+      batch: req.batch,
+      saldoAwal: req.saldoAwal,
+      supplier: req.supplier,
+      shift: req.shift || 1,
+      notes: req.notes,
+      addedAt: req.date
+    };
+  };
+
+  // Buka pratinjau/cetak slip untuk 1 grup (Supplier + WIP) tertentu
+  const handlePrintCart = (targetGroupKey?: string) => {
+    if (cartItems.length === 0) {
+      showToast('Keranjang permintaan masih kosong! Tambahkan material terlebih dahulu', true);
+      return;
+    }
+    const targetGrp =
+      cartItemsBySlipGroup.find(g => g.key === targetGroupKey) || cartItemsBySlipGroup[0];
+    setSlipModalCustomItems(null);
+    setSlipModalRequestNumbers(undefined);
+    setSlipModalGroupKey(targetGrp?.key);
+    setSlipModalSupplier(targetGrp?.supplier);
+    setIsSlipPdfModalOpen(true);
+  };
+
+  // Langsung generate & unduh file PDF terpisah untuk setiap (Supplier + WIP) pada keranjang
+  const handlePrintAllSlipsBySupplier = async () => {
+    if (cartItems.length === 0) {
+      showToast('Keranjang permintaan masih kosong! Tambahkan material terlebih dahulu', true);
+      return;
+    }
+    setIsBatchPrintingPdf(true);
+    try {
+      const groups = await generateSeparateSupplierSlipsPdf(cartItems, state);
+      const summary = groups
+        .map(
+          g =>
+            `${g.supplier} • ${g.wipName} (${g.items.length} item${
+              g.pageCount > 1 ? `, ${g.pageCount} lbr` : ''
+            })`
+        )
+        .join(', ');
+      showToast(
+        `Berhasil mencetak ${groups.length} file Slip PDF terpisah per Supplier & WIP: ${summary}.`
+      );
+    } catch (err) {
+      console.error('Failed generating supplier-wip-split PDFs:', err);
+      showToast('Gagal mencetak slip PDF terpisah per Supplier & WIP.', true);
+    } finally {
+      setIsBatchPrintingPdf(false);
+    }
+  };
+
+  // Cetak ulang Slip PDF dari 1 baris History Permintaan Material (dengan Request Number di QR)
+  const handlePrintHistoryRequest = (req: MaterialRequest) => {
+    const mapped = mapHistoryReqToCartItem(req);
+    const wipKey = mapped.wipId || mapped.wipName || 'UMUM';
+    setSlipModalCustomItems([mapped]);
+    setSlipModalRequestNumbers([req.requestNumber]);
+    setSlipModalGroupKey(`${req.supplier || 'GDRM'}__${wipKey}`);
+    setSlipModalSupplier(req.supplier);
+    setIsSlipPdfModalOpen(true);
+  };
+
+  // Cetak semua permintaan Pending (dari History) menjadi slip PDF terpisah per Supplier & WIP
+  const handlePrintPendingHistoryBySupplier = async (pendingReqs: MaterialRequest[]) => {
+    if (pendingReqs.length === 0) {
+      showToast('Tidak ada permintaan berstatus Menunggu untuk dicetak.', true);
+      return;
+    }
+    setIsBatchPrintingPdf(true);
+    try {
+      const groupsReqMap = new Map<string, MaterialRequest[]>();
+      const mappedItems = pendingReqs.map(req => {
+        const mapped = mapHistoryReqToCartItem(req);
+        const sup = mapped.supplier || 'GDRM';
+        const wipKey = mapped.wipId || mapped.wipName || 'UMUM';
+        const compositeKey = `${sup}__${wipKey}`;
+        const arr = groupsReqMap.get(compositeKey) || [];
+        arr.push(req);
+        groupsReqMap.set(compositeKey, arr);
+        return mapped;
+      });
+
+      const groupedCarts = groupCartItemsBySupplierAndWip(mappedItems);
+      const { buildSupplierSlipFormOptions, generateMaterialRequestSlipPdf } = await import(
+        '../../utils/requestSlipPdf'
+      );
+
+      for (let i = 0; i < groupedCarts.length; i++) {
+        if (i > 0) {
+          await new Promise<void>(resolve => setTimeout(resolve, 180));
+        }
+        const g = groupedCarts[i];
+        const reqNumbers = (groupsReqMap.get(g.key) || []).map(r => r.requestNumber);
+        const opts = buildSupplierSlipFormOptions(g.supplier, g.items, state, {
+          wipId: g.wipId,
+          wipName: g.wipName,
+          requestNumbers: reqNumbers
+        });
+        await generateMaterialRequestSlipPdf(g.items, opts);
+      }
+      showToast(
+        `Berhasil mencetak ${groupedCarts.length} Slip PDF terpisah berdasarkan Supplier & WIP (${groupedCarts
+          .map(g => `${g.supplier}•${g.wipName}`)
+          .join(', ')}).`
+      );
+    } catch (err) {
+      console.error('Failed printing pending history slips:', err);
+      showToast('Gagal mencetak slip PDF pending per Supplier & WIP.', true);
+    } finally {
+      setIsBatchPrintingPdf(false);
+    }
   };
 
   // Cart summary calculations
@@ -992,19 +1163,45 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
           </div>
 
-          {/* Quick Cart Actions */}
-          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+          {/* Quick Cart Actions (Dipisah Per Supplier & Jenis WIP) */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             {cartItems.length > 0 && (
               <>
                 <button
                   type="button"
-                  onClick={handlePrintCart}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition flex items-center space-x-1.5"
-                  title="Cetak lembar crosscheck"
+                  onClick={handlePrintAllSlipsBySupplier}
+                  disabled={isBatchPrintingPdf}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold border border-cyan-400/40 shadow-md shadow-cyan-600/20 transition flex items-center space-x-1.5 disabled:opacity-50"
+                  title="Kelompokkan item berdasarkan supplier dan jenis WIP lalu unduh file PDF terpisah (otomatis lanjut ke lembar berikutnya jika >10 item)"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Cetak Slip</span>
+                  <span>
+                    {isBatchPrintingPdf
+                      ? 'Mencetak Slip...'
+                      : cartItemsBySlipGroup.length > 1
+                      ? `Cetak ${cartItemsBySlipGroup.length} Slip PDF (Supplier & WIP)`
+                      : `Cetak Slip PDF (${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
+                  </span>
                 </button>
+                {cartItemsBySlipGroup.map(group => (
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => handlePrintCart(group.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 ${
+                      group.supplier === 'GDRM'
+                        ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/40'
+                    }`}
+                    title={`Pratinjau & atur Slip Bon Permintaan RM & PM untuk ${group.supplier} — WIP ${group.wipName} (${group.items.length} item, ${group.pageCount} lembar A4)`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>
+                      {group.supplier} • {group.wipName} ({group.items.length}
+                      {group.pageCount > 1 ? ` • ${group.pageCount} lbr` : ''})
+                    </span>
+                  </button>
+                ))}
                 <button
                   type="button"
                   onClick={handleClearCart}
@@ -1062,104 +1259,151 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </div>
         )}
 
-        {/* Cart Items Table */}
+        {/* Cart Items Table (Dikelompokkan Per Supplier & Jenis WIP untuk Slip PDF Terpisah) */}
         {cartItems.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
-                  <th className="py-2.5 px-3">No</th>
-                  <th className="py-2.5 px-3">Material & Kode</th>
-                  <th className="py-2.5 px-3">Tujuan (SKU & WIP)</th>
-                  <th className="py-2.5 px-3 text-center">Batch</th>
-                  <th className="py-2.5 px-3">Supplier & Kemasan</th>
-                  <th className="py-2.5 px-3 text-right">Qty Form Order (kg)</th>
-                  <th className="py-2.5 px-3 text-right">Saldo Saat Ini</th>
-                  <th className="py-2.5 px-3">Catatan</th>
-                  <th className="py-2.5 px-3 text-center">Hapus</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {cartItems.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-3 font-mono text-slate-400">
-                      #{index + 1}
-                      <span className="block text-[9px] text-slate-500">{item.addedAt}</span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="font-bold text-white block">{item.materialName}</span>
-                      <span className="text-[10px] text-cyan-400 font-mono">
-                        {item.materialCode || item.materialId} • {item.materialType.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center space-x-1">
-                        <span className="font-medium text-slate-200">{item.skuName}</span>
-                        {item.isKite ? (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
-                            KITE
-                          </span>
-                        ) : (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300 font-mono">
-                            DOM
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-amber-400/90 block">
-                        WIP: {item.wipName}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center font-mono text-slate-300">
-                      {item.batch.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                        item.supplier === 'GDRM'
-                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                          : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-                      }`}>
-                        {item.supplier}
-                      </span>
-                      {item.packageCount && item.packageSizeKg && (
-                        <span className="block text-[10px] text-amber-400 font-mono font-medium mt-0.5">
-                          {item.packageCount} Zak @ {item.packageSizeKg} kg
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono">
-                      <span className="font-bold text-cyan-400 text-xs block">
-                        {item.qty.toFixed(4)} kg
-                      </span>
-                      {item.surplusKg ? (
-                        <span className="text-[9px] text-emerald-400 block font-normal">
-                          +{item.surplusKg.toFixed(2)} kg (Kemasan)
-                        </span>
-                      ) : (
-                        <span className="text-[9px] text-slate-500 block font-normal">
-                          Acuan Batch
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono text-slate-400">
-                      {item.saldoAwal.toFixed(2)} kg
-                    </td>
-                    <td className="py-3 px-3 text-[11px] text-slate-400 max-w-[140px] truncate" title={item.notes || '-'}>
-                      {item.notes || '-'}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFromCart(item.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-                        title="Hapus dari keranjang"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="divide-y divide-slate-800">
+            {cartItemsBySlipGroup.map((group, groupIdx) => (
+              <div key={group.key}>
+                {/* Supplier + WIP Group Sub-header */}
+                <div className="px-4 py-2.5 bg-slate-950/80 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border font-mono ${
+                        group.supplier === 'GDRM'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                      }`}
+                    >
+                      SLIP #{groupIdx + 1} • SUPPLIER {group.supplier.toUpperCase()} • WIP:{' '}
+                      {group.wipName.toUpperCase()}
+                    </span>
+                    <span className="text-[11px] text-slate-300 font-mono">
+                      {group.items.length} Item ({group.pageCount} Lembar A4 @ 10 baris) •{' '}
+                      {group.totalQty.toFixed(2)} kg
+                      {group.totalBags > 0 ? ` (${group.totalBags} Zak)` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintCart(group.key)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-[11px] font-semibold flex items-center space-x-1.5 transition"
+                  >
+                    <Printer className="w-3 h-3" />
+                    <span>
+                      Pratinjau &amp; Cetak ({group.supplier} • {group.wipName})
+                    </span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                        <th className="py-2.5 px-3">No</th>
+                        <th className="py-2.5 px-3">Material &amp; Kode</th>
+                        <th className="py-2.5 px-3">Tujuan (SKU &amp; WIP)</th>
+                        <th className="py-2.5 px-3 text-center">Batch</th>
+                        <th className="py-2.5 px-3">Supplier &amp; Kemasan</th>
+                        <th className="py-2.5 px-3 text-right">Qty Form Order (kg)</th>
+                        <th className="py-2.5 px-3 text-right">Saldo Saat Ini</th>
+                        <th className="py-2.5 px-3">Catatan</th>
+                        <th className="py-2.5 px-3 text-center">Hapus</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {group.items.map((item, index) => {
+                        const sheetNum = Math.floor(index / REQUEST_SLIP_ROWS_PER_PAGE) + 1;
+                        return (
+                        <tr key={item.id} className="hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-3 font-mono text-slate-400">
+                            <div className="flex items-center space-x-1">
+                              <span>#{index + 1}</span>
+                              {group.items.length > REQUEST_SLIP_ROWS_PER_PAGE && (
+                                <span className="px-1 py-0.2 rounded text-[9px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                                  Lbr {sheetNum}
+                                </span>
+                              )}
+                            </div>
+                            <span className="block text-[9px] text-slate-500">{item.addedAt}</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-white block">{item.materialName}</span>
+                            <span className="text-[10px] text-cyan-400 font-mono">
+                              {item.materialCode || item.materialId} • {item.materialType.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-1">
+                              <span className="font-medium text-slate-200">{item.skuName}</span>
+                              {item.isKite ? (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                                  KITE
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300 font-mono">
+                                  DOM
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-amber-400/90 block">
+                              WIP: {item.wipName}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-mono text-slate-300">
+                            {item.batch.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                              item.supplier === 'GDRM'
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                            }`}>
+                              {item.supplier}
+                            </span>
+                            {item.packageCount && item.packageSizeKg && (
+                              <span className="block text-[10px] text-amber-400 font-mono font-medium mt-0.5">
+                                {item.packageCount} Zak @ {item.packageSizeKg} kg
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono">
+                            <span className="font-bold text-cyan-400 text-xs block">
+                              {item.qty.toFixed(4)} kg
+                            </span>
+                            {item.surplusKg ? (
+                              <span className="text-[9px] text-emerald-400 block font-normal">
+                                +{item.surplusKg.toFixed(2)} kg (Kemasan)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-slate-500 block font-normal">
+                                Acuan Batch
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-400">
+                            {item.saldoAwal.toFixed(2)} kg
+                          </td>
+                          <td className="py-3 px-3 text-[11px] text-slate-400 max-w-[140px] truncate" title={item.notes || '-'}>
+                            {item.notes || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFromCart(item.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                              title="Hapus dari keranjang"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="py-8 px-4 text-center">
@@ -1204,15 +1448,33 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
             <h3 className="font-bold text-sm text-white">History Permintaan Material</h3>
           </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchHistory}
-              onChange={(e) => setSearchHistory(e.target.value)}
-              placeholder="Cari no req / material..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
-            />
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {filteredRequests.some(r => r.status !== 'Received') && (
+              <button
+                type="button"
+                onClick={() =>
+                  handlePrintPendingHistoryBySupplier(
+                    filteredRequests.filter(r => r.status !== 'Received')
+                  )
+                }
+                disabled={isBatchPrintingPdf}
+                className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+                title="Cetak semua permintaan berstatus Menunggu dalam file PDF terpisah per Supplier & WIP"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Cetak Slip Pending (Per Supplier &amp; WIP)</span>
+              </button>
+            )}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchHistory}
+                onChange={(e) => setSearchHistory(e.target.value)}
+                placeholder="Cari no req / material..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+              />
+            </div>
           </div>
         </div>
 
@@ -1293,20 +1555,30 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         </span>
                       </td>
                       <td className="py-3 px-3 text-center">
-                        {req.status !== 'Received' ? (
+                        <div className="flex items-center justify-center space-x-1.5">
                           <button
-                            onClick={() => onJumpToReceive(req)}
-                            className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
+                            type="button"
+                            onClick={() => handlePrintHistoryRequest(req)}
+                            className="p-1.5 bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-300 rounded-lg transition active:scale-95"
+                            title={`Cetak Slip PDF & QR untuk ${req.requestNumber}`}
                           >
-                            <span>Terima</span>
-                            <ArrowRight className="w-3 h-3" />
+                            <Printer className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
-                            <CheckCircle className="w-3 h-3 text-emerald-500" />
-                            <span>Selesai</span>
-                          </span>
-                        )}
+                          {req.status !== 'Received' ? (
+                            <button
+                              onClick={() => onJumpToReceive(req)}
+                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
+                            >
+                              <span>Terima</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
+                              <CheckCircle className="w-3 h-3 text-emerald-500" />
+                              <span>Selesai</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1456,32 +1728,241 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsCrosscheckModalOpen(false)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition"
-              >
-                Kembali & Periksa Keranjang
-              </button>
+            <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handlePrintAllSlipsBySupplier}
+                  disabled={isBatchPrintingPdf}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/40 transition flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>
+                    {cartItemsBySlipGroup.length > 1
+                      ? `Unduh ${cartItemsBySlipGroup.length} Slip PDF (Supplier & WIP)`
+                      : `Unduh Slip PDF (${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintCart(cartItemsBySlipGroup[0]?.key)}
+                  className="px-3 py-2.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/40 transition"
+                >
+                  Pratinjau
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={handleConfirmAndSendAll}
-                disabled={!isCrosscheckVerified}
-                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg ${
-                  isCrosscheckVerified
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 active:scale-95 border border-emerald-400/40'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
-                }`}
-              >
-                <Send className="w-4 h-4" />
-                <span>Kirim Semua Permintaan ({cartItems.length} Item)</span>
-              </button>
+              <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsCrosscheckModalOpen(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition"
+                >
+                  Kembali & Periksa Keranjang
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmAndSendAll}
+                  disabled={!isCrosscheckVerified}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg ${
+                    isCrosscheckVerified
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 active:scale-95 border border-emerald-400/40'
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
+                  }`}
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Kirim Semua Permintaan ({cartItems.length} Item)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAL CETAK SLIP PDF FORMAT BON PERMINTAAN RM & PM */}
+      <RequestSlipPdfModal
+        isOpen={isSlipPdfModalOpen}
+        onClose={() => {
+          setIsSlipPdfModalOpen(false);
+          setSlipModalCustomItems(null);
+          setSlipModalRequestNumbers(undefined);
+          setSlipModalGroupKey(undefined);
+        }}
+        state={state}
+        cartItems={slipModalCustomItems || cartItems}
+        initialGroupKey={slipModalGroupKey}
+        initialSupplier={slipModalSupplier}
+        requestNumbers={slipModalRequestNumbers}
+        onPreviewQrDetail={data => setActiveQrDetailData(data)}
+        showToast={showToast}
+      />
+
+      {/* MODAL DETAIL PERMINTAAN MATERIAL DARI QR SLIP */}
+      {activeQrDetailData && (() => {
+        const matchedRequests = state.transactions.requests.filter(req => {
+          if (activeQrDetailData.requestNumbers.includes(req.requestNumber)) return true;
+          if (activeQrDetailData.supplier && req.supplier !== activeQrDetailData.supplier) return false;
+          const mat = state.master.materials.find(m => m.id === req.materialId);
+          return activeQrDetailData.items.some(
+            it =>
+              (mat?.code && it.code.toLowerCase() === mat.code.toLowerCase()) ||
+              (mat?.name && it.code.toLowerCase() === mat.name.toLowerCase())
+          );
+        });
+
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-cyan-400" />
+                    <span>Detail Permintaan Material (QR Slip)</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    Bon: {activeQrDetailData.bonNumber} • Supplier: {activeQrDetailData.supplier || '-'}
+                    {activeQrDetailData.wipName ? ` • WIP: ${activeQrDetailData.wipName}` : ''}
+                    {activeQrDetailData.pageInfo ? ` • Lembar ${activeQrDetailData.pageInfo}` : ''} • Tanggal:{' '}
+                    {activeQrDetailData.tanggal || '-'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveQrDetailData(null);
+                    onClearDeepLinkSlip?.();
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto space-y-4 text-xs">
+                {/* Encoded Items from QR */}
+                <div>
+                  <h4 className="font-bold text-slate-200 mb-2">
+                    Daftar Item Pada Slip ({activeQrDetailData.items.length} Item):
+                  </h4>
+                  <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800">
+                          <th className="py-2 px-3">No</th>
+                          <th className="py-2 px-3">Kode SAP / Material</th>
+                          <th className="py-2 px-3">Nama Material (BOM)</th>
+                          <th className="py-2 px-3 text-right">Jumlah Diminta</th>
+                          <th className="py-2 px-3 text-center">SAT</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70">
+                        {activeQrDetailData.items.map((it, idx) => {
+                          const bomMat = state.master.materials.find(
+                            m =>
+                              (m.code && m.code.toLowerCase() === it.code.toLowerCase()) ||
+                              m.name.toLowerCase() === it.code.toLowerCase()
+                          );
+                          return (
+                            <tr key={`${it.code}_${idx}`}>
+                              <td className="py-2 px-3 font-mono text-slate-400">#{idx + 1}</td>
+                              <td className="py-2 px-3 font-mono text-cyan-300 font-semibold">
+                                {bomMat?.code || it.code}
+                              </td>
+                              <td className="py-2 px-3 text-white font-medium">
+                                {bomMat?.name || it.code}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-white">
+                                {it.qty}
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono text-amber-300">
+                                {it.sat}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Matched Live Requests in Database */}
+                <div>
+                  <h4 className="font-bold text-slate-200 mb-2">
+                    Status Permintaan Terdaftar di Aplikasi ({matchedRequests.length}):
+                  </h4>
+                  {matchedRequests.length > 0 ? (
+                    <div className="space-y-2">
+                      {matchedRequests.map(req => {
+                        const mat = state.master.materials.find(m => m.id === req.materialId);
+                        const sku = state.master.skus.find(s => s.id === req.skuId);
+                        return (
+                          <div
+                            key={req.id}
+                            className="p-3 bg-slate-800/60 border border-slate-700 rounded-xl flex items-center justify-between gap-3"
+                          >
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono font-bold text-white">
+                                  {req.requestNumber}
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                    req.status === 'Received'
+                                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  }`}
+                                >
+                                  {req.status === 'Received' ? 'Diterima' : 'Menunggu'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-300 mt-0.5">
+                                {mat?.code ? `[${mat.code}] ` : ''}
+                                {mat?.name || 'Material'} • {req.qty.toFixed(2)} kg • SKU: {sku?.name || '-'}
+                              </div>
+                            </div>
+                            {req.status !== 'Received' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveQrDetailData(null);
+                                  onClearDeepLinkSlip?.();
+                                  onJumpToReceive(req);
+                                }}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-semibold flex items-center space-x-1 shrink-0"
+                              >
+                                <span>Terima Inbound</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                      Belum ditemukan nomor permintaan yang tersimpan di riwayat untuk item ini (kemungkinan slip dicetak dari draft keranjang sebelum dikirim resmi).
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-3.5 border-t border-slate-800 bg-slate-950 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveQrDetailData(null);
+                    onClearDeepLinkSlip?.();
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                >
+                  Tutup Detail
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

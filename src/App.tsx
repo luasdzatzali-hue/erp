@@ -92,6 +92,7 @@ import { UserRoleSwitcherModal } from './components/UserRoleSwitcherModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
 import { playWipCompletionChime } from './utils/soundAlarm';
+import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
 import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers } from 'lucide-react';
 
 export default function App() {
@@ -116,6 +117,7 @@ export default function App() {
   const [stockAdjustmentPreselectedMatId, setStockAdjustmentPreselectedMatId] = useState<string | undefined>(undefined);
   const [alarmWipBatch, setAlarmWipBatch] = useState<WipProductionBatch | null>(null);
   const [preselectedRequestId, setPreselectedRequestId] = useState<string | undefined>(undefined);
+  const [deepLinkSlip, setDeepLinkSlip] = useState<RequestSlipDeepLinkData | null>(null);
 
   const handleOpenStockAdjustment = (materialId?: string) => {
     setStockAdjustmentPreselectedMatId(materialId);
@@ -146,7 +148,9 @@ export default function App() {
   const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
     useState<DashboardLineStatusSnapshot | null>(null);
 
+  const [authViewKey, setAuthViewKey] = useState(0);
   const isApplyingRemoteRef = useRef(false);
+  const isLoggingOutRef = useRef(false);
   const manualGoogleLoginInFlightRef = useRef(false);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
   const lineStatusUnsubRef = useRef<(() => void) | null>(null);
@@ -237,6 +241,8 @@ export default function App() {
       role: UserRole,
       sessionData: { id: string; name: string; subtitle?: string; email?: string }
     ) => {
+      isLoggingOutRef.current = false;
+      isApplyingRemoteRef.current = false;
       setAuthErrorBanner(null);
       setState(prev => {
         const isNewAdmin = role === 'ADMINISTRATOR';
@@ -435,6 +441,9 @@ export default function App() {
   // Listen to Firebase Auth state changes
   useEffect(() => {
     const unsub = subscribeAuthState(user => {
+      if (user && isLoggingOutRef.current) {
+        return;
+      }
       setFirebaseUser(user);
       if (!user) {
         cloudUnsubRef.current?.();
@@ -460,14 +469,14 @@ export default function App() {
   // Hydrate workspace from Cloud Firestore once setupStatus is ready and Firebase user is authenticated
   useEffect(() => {
     if (setupStatus !== 'ready' || !firebaseUser) return;
-    if (manualGoogleLoginInFlightRef.current) return;
+    if (manualGoogleLoginInFlightRef.current || isLoggingOutRef.current) return;
     let isCancelled = false;
 
     const syncFromCloud = async () => {
       setIsSyncingCloud(true);
       try {
         const outcome = await loadCloudWorkspaceDetailed(firebaseUser);
-        if (isCancelled || manualGoogleLoginInFlightRef.current) return;
+        if (isCancelled || manualGoogleLoginInFlightRef.current || isLoggingOutRef.current) return;
         if (outcome.status === 'ok') {
           const loaded = outcome.workspace;
           setCloudAuthRole(loaded.cloudRole);
@@ -624,6 +633,7 @@ export default function App() {
       securityLogs: [signupAudit, ...(registeredState.securityLogs || [])].slice(0, 100)
     };
 
+    isLoggingOutRef.current = false;
     setAuthErrorBanner(null);
     isApplyingRemoteRef.current = true;
     setState(finalState);
@@ -741,15 +751,26 @@ export default function App() {
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
 
   const performCompleteLogout = useCallback(async (toastMessage: string) => {
+    // Prevent re-hydration or interval updates from keeping the dashboard mounted
+    isLoggingOutRef.current = true;
     manualGoogleLoginInFlightRef.current = false;
-    setIsSyncingCloud(false);
+    isApplyingRemoteRef.current = true;
 
-    try {
-      await flushPendingCloudWrites();
-    } catch {
-      // Proceed cleanly even if offline flush fails
-    }
+    // Capture any queued cloud sections & active user context BEFORE wiping local state
+    const capturedSections = { ...pendingCloudSectionsRef.current };
+    const capturedState = stateRef.current;
+    const capturedRole = cloudAuthRole;
+    const shouldFlushCaptured =
+      setupStatus === 'ready' &&
+      Boolean(auth.currentUser || firebaseUser) &&
+      Boolean(capturedRole) &&
+      Boolean(capturedState.cloudOwnerUid) &&
+      (capturedSections.meta ||
+        capturedSections.secrets ||
+        capturedSections.master ||
+        capturedSections.operations);
 
+    // Tear down realtime listeners & pending write timers immediately
     cloudUnsubRef.current?.();
     cloudUnsubRef.current = null;
     lineStatusUnsubRef.current?.();
@@ -771,12 +792,6 @@ export default function App() {
     };
 
     try {
-      await signOutGoogleAuth();
-    } catch {
-      // ignore signout network errors
-    }
-
-    try {
       localStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem('prodtrack_auth_mode');
       sessionStorage.removeItem('prodtrack_pending_google_role_v1');
@@ -784,43 +799,6 @@ export default function App() {
     } catch {
       // ignore storage errors
     }
-
-    // Close all open drawers/modals so clean login/signup screen appears unobstructed
-    setIsSidebarOpen(false);
-    setIsAdminModalOpen(false);
-    setIsTankModalOpen(false);
-    setIsResetModalOpen(false);
-    setIsPdfReportModalOpen(false);
-    setIsRoleSwitcherOpen(false);
-    setIsUserManagementOpen(false);
-    setIsStockAdjustmentModalOpen(false);
-    setAlarmWipBatch(null);
-    setPreselectedRequestId(undefined);
-
-    const currentTheme = stateRef.current.theme || 'midnight';
-    const cleanBlank: AppState = {
-      ...getCleanBlankState(),
-      theme: currentTheme,
-      isAuthenticated: false,
-      isAdmin: false,
-      currentTab: 'admin-portal',
-      cloudWorkspaceId: undefined,
-      cloudOwnerUid: undefined,
-      currentAdminUser: null
-    };
-
-    isApplyingRemoteRef.current = true;
-    setLiveDashboardLineStatus(null);
-    setCloudAuthRole(null);
-    setCloudFactoryName(undefined);
-    setAuthErrorBanner(null);
-    cloudInitializedSnapshotsRef.current = null;
-    setFirebaseUser(null);
-    setState(cleanBlank);
-    setSetupStatus(prev => (prev === 'needs_setup' ? 'needs_setup' : 'ready'));
-    setTimeout(() => {
-      isApplyingRemoteRef.current = false;
-    }, 250);
 
     // Explicitly reset URL state (remove hash and stale OAuth/query parameters) so re-auth works cleanly
     if (typeof window !== 'undefined') {
@@ -842,8 +820,65 @@ export default function App() {
       }
     }
 
+    // Close all open drawers/modals so clean login/signup screen appears unobstructed
+    setIsSidebarOpen(false);
+    setIsAdminModalOpen(false);
+    setIsTankModalOpen(false);
+    setIsResetModalOpen(false);
+    setIsPdfReportModalOpen(false);
+    setIsRoleSwitcherOpen(false);
+    setIsUserManagementOpen(false);
+    setIsStockAdjustmentModalOpen(false);
+    setAlarmWipBatch(null);
+    setPreselectedRequestId(undefined);
+    setDeepLinkSlip(null);
+
+    const currentTheme = stateRef.current.theme || 'midnight';
+    const cleanBlank: AppState = {
+      ...getCleanBlankState(),
+      theme: currentTheme,
+      isAuthenticated: false,
+      isAdmin: false,
+      currentTab: 'admin-portal',
+      cloudWorkspaceId: undefined,
+      cloudOwnerUid: undefined,
+      currentAdminUser: null
+    };
+
+    // Synchronously overwrite stateRef & React states + increment authViewKey to force a full re-render to AuthPortalView
+    stateRef.current = cleanBlank;
+    cloudInitializedSnapshotsRef.current = null;
+    setIsSyncingCloud(false);
+    setLiveDashboardLineStatus(null);
+    setCloudAuthRole(null);
+    setCloudFactoryName(undefined);
+    setAuthErrorBanner(null);
+    setFirebaseUser(null);
+    setState(() => ({ ...cleanBlank }));
+    setSetupStatus(prev => (prev === 'needs_setup' ? 'needs_setup' : 'ready'));
+    setAuthViewKey(prev => prev + 1);
+
     showToast(toastMessage);
-  }, [flushPendingCloudWrites, showToast]);
+
+    // Best-effort bounded cloud flush + Firebase Auth sign-out in background
+    try {
+      if (shouldFlushCaptured && capturedRole) {
+        await Promise.race([
+          saveWorkspaceSectionsToCloud(capturedSections, capturedState, capturedRole),
+          new Promise<void>(resolve => setTimeout(resolve, 1200))
+        ]).catch(() => {});
+      }
+      await signOutGoogleAuth().catch(() => {});
+    } finally {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // ignore storage errors
+      }
+      isLoggingOutRef.current = false;
+      isApplyingRemoteRef.current = false;
+    }
+  }, [cloudAuthRole, firebaseUser, setupStatus, showToast]);
 
   const handleFirebaseSignOut = async () => {
     await performCompleteLogout('Sesi akun Google & data perangkat telah diputus total. Silakan login atau daftar akun baru.');
@@ -1015,7 +1050,7 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => {
       setState(prev => {
-        if (!prev.tank.isSimulationActive) return prev;
+        if (!prev.isAuthenticated || !prev.tank.isSimulationActive) return prev;
         const delta = (Math.random() - 0.5) * 0.6;
         let newTemp = prev.tank.temp + delta;
         // Keep within 44.0 - 56.0 range
@@ -1033,13 +1068,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Handle URL hash navigation for opening modules in new tabs (#tab=...)
+  // Handle URL hash navigation for opening modules in new tabs (#tab=...) and QR Slip deep-links
   useEffect(() => {
     const handleHashChange = () => {
       if (!stateRef.current.isAuthenticated) return;
       const hash = window.location.hash;
+      if (!hash || !hash.startsWith('#')) return;
+
+      const parsedSlip = parseRequestSlipQrHash(hash);
+      if (parsedSlip) {
+        setDeepLinkSlip(parsedSlip);
+        setState(prev => ({ ...prev, currentTab: 'permintaan' }));
+        return;
+      }
+
       if (hash.startsWith('#tab=')) {
-        const tab = hash.replace('#tab=', '') as AppState['currentTab'];
+        const params = new URLSearchParams(hash.slice(1));
+        const tab = params.get('tab') as AppState['currentTab'] | null;
         const validTabs: AppState['currentTab'][] = [
           'admin-portal',
           'dashboard',
@@ -1052,7 +1097,7 @@ export default function App() {
           'bom-calculator',
           'reports'
         ];
-        if (validTabs.includes(tab)) {
+        if (tab && validTabs.includes(tab)) {
           if (tab === 'reports') {
             setIsPdfReportModalOpen(true);
           } else {
@@ -1064,7 +1109,7 @@ export default function App() {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [state.isAuthenticated]);
 
   // Switch tabs with role-based access control
   const handleSwitchTab = (tab: AppState['currentTab']) => {
@@ -4577,6 +4622,7 @@ export default function App() {
   // Auto-completion of WIP Production Batches when duration expired + Audio Alarm
   useEffect(() => {
     const checkInterval = setInterval(() => {
+      if (!stateRef.current.isAuthenticated) return;
       const activeBatches = (stateRef.current.transactions.wipBatches || []).filter(
         b => b.status === 'SEDANG_PRODUKSI'
       );
@@ -4654,8 +4700,12 @@ export default function App() {
   // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
   if (!state.isAuthenticated || setupStatus !== 'ready') {
     return (
-      <div className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-sans">
+      <div
+        key={`auth-portal-shell-${authViewKey}`}
+        className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-sans"
+      >
         <AuthPortalView
+          key={`auth-portal-${authViewKey}`}
           state={state}
           theme={state.theme === 'daylight' || state.theme === 'light' ? 'daylight' : 'midnight'}
           onToggleTheme={handleToggleTheme}
@@ -4699,7 +4749,10 @@ export default function App() {
 
   // 2. TAMPILAN SETELAH LOGIN (NAVIGASI MODEL POPUP DRAWER & KONTEN LEBAR PENUH)
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 font-sans select-none">
+    <div
+      key={`app-shell-${authViewKey}`}
+      className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 font-sans select-none"
+    >
       {/* Sidebar: Model Popup Drawer (Slide-Over) untuk Komputer, Tablet & Mobile */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -4890,6 +4943,13 @@ export default function App() {
               onJumpToReceive={handleJumpToReceive}
               onSwitchTab={handleSwitchTab}
               onOpenStockAdjustment={handleOpenStockAdjustment}
+              deepLinkSlip={deepLinkSlip}
+              onClearDeepLinkSlip={() => {
+                setDeepLinkSlip(null);
+                if (window.location.hash.includes('bon=') || window.location.hash.includes('req=')) {
+                  window.location.hash = 'tab=permintaan';
+                }
+              }}
               showToast={showToast}
             />
           )}
