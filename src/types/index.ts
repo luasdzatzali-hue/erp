@@ -548,6 +548,43 @@ export interface SecurityAuditLog {
   notes?: string;
 }
 
+export type WeeklyPlanDayKey = 'senin' | 'selasa' | 'rabu' | 'kamis' | 'jumat' | 'sabtu' | 'minggu';
+
+export interface WeeklyPlanShiftRow {
+  shift: ShiftNumber; // 1 | 2 | 3
+  dailyCartons: Record<WeeklyPlanDayKey, number>;
+  totalOutput: number;
+}
+
+export interface WeeklyPlanSkuItem {
+  id: string;
+  plantUnit?: string; // e.g. "UB1"
+  line: string; // e.g. "1", "2", "3", "3A"
+  rawSkuCode: string; // e.g. "421185"
+  rawProductName: string; // e.g. "SUPERSTAR TWIN DB 12X12X25G TH"
+  matchedSkuId?: string; // Linked SKU.id in state.master.skus
+  targetPerHour?: number; // Car / Jam
+  statusNote?: string; // e.g. "OFF PRODUKSI", "MENYELESAIKAN QUOTATION"
+  isOffProduction?: boolean;
+  shifts: WeeklyPlanShiftRow[]; // Shift 1, 2, 3
+  totalProduksi: number;
+}
+
+export interface WeeklyProductionPlan {
+  id: string;
+  title: string; // e.g. "RENCANA PRODUKSI MINGGUAN - WEEK 41"
+  weekLabel: string; // e.g. "WEEK 41"
+  periodStart: string; // e.g. "05/Okt" or "2026-10-05"
+  periodEnd: string; // e.g. "11/Okt" or "2026-10-11"
+  department?: string; // e.g. "DEPARTEMEN PPIC"
+  companyHeader?: string; // e.g. "PT. MAYORA INDAH DIV. WAFER"
+  dayDates?: Partial<Record<WeeklyPlanDayKey, string>>; // e.g. { senin: '05-Oct', ... }
+  uploadedAt: string; // ISO
+  uploadedBy?: string;
+  sourceFileName?: string;
+  items: WeeklyPlanSkuItem[];
+}
+
 export interface AppState {
   theme?: 'midnight' | 'daylight' | 'light' | 'dark'; // 'midnight' (Gelap Industrial) or 'daylight' (Putih/Cerah Terang Pabrik)
   factoryName?: string; // Nama pabrik yang didaftarkan oleh Administrator pertama
@@ -585,6 +622,8 @@ export interface AppState {
     productionStops?: ProductionStopLog[];
     stockAdjustments?: MaterialStockAdjustment[];
   };
+  weeklyPlannings?: WeeklyProductionPlan[];
+  activeWeeklyPlanId?: string | null;
   activeSkuRun?: ActiveSkuProductionRun | null;
   activeSkuRuns?: ActiveSkuProductionRun[];
   lastShiftHandover?: {

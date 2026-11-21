@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { AppState, Material, RequestCartItem } from '../types';
+import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from './orderRounding';
 
 export type RequestSlipSatMode = 'kg' | 'zak_or_kg' | 'batch';
 
@@ -90,16 +91,26 @@ export function resolveCartItemSlipRow(
   sat: string;
   jumlahDiminta: string;
 } {
+  const bomMat = materialsCatalog?.find(
+    m => m.id === item.materialId || (item.materialCode && m.code === item.materialCode)
+  );
+  const pkgCfg = detectMaterialPackageConfig(bomMat);
+
   let sat = 'kg';
   let jumlahDiminta = formatSlipQuantity(item.qty);
 
   if (satMode === 'batch') {
     sat = 'batch';
-    jumlahDiminta = formatSlipQuantity(item.batch);
+    const roundedBatch = hasDecimalPart(item.batch) ? ceilSafe(item.batch) : item.batch;
+    jumlahDiminta = formatSlipQuantity(roundedBatch);
   } else if (satMode === 'zak_or_kg') {
     if (item.packageCount && item.packageCount > 0 && item.packageSizeKg) {
-      sat = 'zak';
-      jumlahDiminta = formatSlipQuantity(item.packageCount);
+      sat = pkgCfg.shortUnit || 'zak';
+      jumlahDiminta = formatSlipQuantity(ceilSafe(item.packageCount));
+    } else if (pkgCfg.hasDiscretePackaging && pkgCfg.defaultPackSizeKg > 0 && item.qty > 0) {
+      const packs = Math.max(1, ceilSafe(item.qty / pkgCfg.defaultPackSizeKg));
+      sat = pkgCfg.shortUnit || 'kemasan';
+      jumlahDiminta = formatSlipQuantity(packs);
     } else {
       sat = 'kg';
       jumlahDiminta = formatSlipQuantity(item.qty);
@@ -819,10 +830,11 @@ export function buildSupplierSlipFormOptions(
 
   const pkgSummary = itemsForGroup
     .filter(i => i.packageCount && i.packageSizeKg)
-    .map(
-      i =>
-        `${i.materialName}: ${i.packageCount} zak @ ${i.packageSizeKg} kg (${i.qty.toFixed(2)} kg)`
-    );
+    .map(i => {
+      const mat = state.master.materials.find(m => m.id === i.materialId);
+      const uLabel = detectMaterialPackageConfig(mat).shortUnit || 'zak';
+      return `${i.materialName}: ${ceilSafe(i.packageCount || 0)} ${uLabel} @ ${i.packageSizeKg} kg (${i.qty.toFixed(2)} kg)`;
+    });
   if (pkgSummary.length > 0) {
     autoNotesLines.push(`Kemasan: ${pkgSummary.slice(0, 3).join(' | ')}`);
   }

@@ -372,6 +372,14 @@
           "type": "object",
           "description": "Informasi serah terima shift terakhir"
         },
+        "weeklyPlannings": {
+          "type": "array",
+          "description": "Rencana produksi mingguan PPIC per SKU & Shift (maks 20)"
+        },
+        "activeWeeklyPlanId": {
+          "type": ["string", "null"],
+          "description": "ID planning mingguan aktif sebagai acuan pemesanan material"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

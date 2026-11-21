@@ -29,7 +29,8 @@ import {
   ActiveSkuProductionRun,
   MaterialStockAdjustment,
   ProductionLine,
-  ShiftNumber
+  ShiftNumber,
+  WeeklyProductionPlan
 } from './types';
 import {
   loadStoredState,
@@ -190,7 +191,9 @@ export default function App() {
       transactions: s.transactions,
       activeSkuRuns: s.activeSkuRuns || [],
       tank: s.tank.isSimulationActive ? { ...s.tank, temp: 0 } : s.tank,
-      lastShiftHandover: s.lastShiftHandover ?? null
+      lastShiftHandover: s.lastShiftHandover ?? null,
+      weeklyPlannings: s.weeklyPlannings || [],
+      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null
     });
 
   // Structural/critical operations excluding high-frequency Auto [ simulation counter ticks
@@ -216,7 +219,9 @@ export default function App() {
         isSimulationActive: s.tank.isSimulationActive,
         temp: s.tank.isSimulationActive ? 0 : s.tank.temp
       },
-      lastShiftHandover: s.lastShiftHandover ?? null
+      lastShiftHandover: s.lastShiftHandover ?? null,
+      weeklyPlannings: s.weeklyPlannings || [],
+      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null
     });
 
   const getActiveRunsArray = (s: AppState) =>
@@ -4316,6 +4321,43 @@ export default function App() {
     });
   };
 
+  // Weekly Production Planning handlers (acuan pemesanan material ke supplier)
+  const handleSaveWeeklyPlan = useCallback((plan: WeeklyProductionPlan) => {
+    setState(prev => {
+      const existing = prev.weeklyPlannings || [];
+      const existsIdx = existing.findIndex(p => p.id === plan.id);
+      const nextPlans =
+        existsIdx >= 0
+          ? existing.map(p => (p.id === plan.id ? plan : p))
+          : [plan, ...existing].slice(0, 12);
+      return {
+        ...prev,
+        weeklyPlannings: nextPlans,
+        activeWeeklyPlanId: plan.id
+      };
+    });
+  }, []);
+
+  const handleSelectWeeklyPlan = useCallback((planId: string) => {
+    setState(prev => ({
+      ...prev,
+      activeWeeklyPlanId: planId
+    }));
+  }, []);
+
+  const handleDeleteWeeklyPlan = useCallback((planId: string) => {
+    setState(prev => {
+      const remaining = (prev.weeklyPlannings || []).filter(p => p.id !== planId);
+      const nextActive =
+        prev.activeWeeklyPlanId === planId ? (remaining[0]?.id ?? null) : prev.activeWeeklyPlanId ?? null;
+      return {
+        ...prev,
+        weeklyPlannings: remaining,
+        activeWeeklyPlanId: nextActive
+      };
+    });
+  }, []);
+
   // Receive Material
   const handleReceiveMaterial = (receiptData: Omit<MaterialReceipt, 'id' | 'receiptNumber' | 'date'>) => {
     setState(prev => {
@@ -4943,6 +4985,9 @@ export default function App() {
               onJumpToReceive={handleJumpToReceive}
               onSwitchTab={handleSwitchTab}
               onOpenStockAdjustment={handleOpenStockAdjustment}
+              onSaveWeeklyPlan={handleSaveWeeklyPlan}
+              onSelectWeeklyPlan={handleSelectWeeklyPlan}
+              onDeleteWeeklyPlan={handleDeleteWeeklyPlan}
               deepLinkSlip={deepLinkSlip}
               onClearDeepLinkSlip={() => {
                 setDeepLinkSlip(null);

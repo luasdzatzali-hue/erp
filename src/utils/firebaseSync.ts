@@ -192,7 +192,9 @@ export function buildBoundedOperationsPayload(state: AppState) {
     stockAdjustments: keepRecent(state.transactions.stockAdjustments, 250),
     activeSkuRuns: (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).slice(0, 80),
     tank: state.tank,
-    lastShiftHandover: state.lastShiftHandover ?? null
+    lastShiftHandover: state.lastShiftHandover ?? null,
+    weeklyPlannings: (state.weeklyPlannings || []).slice(0, 12),
+    activeWeeklyPlanId: state.activeWeeklyPlanId ?? null
   });
 }
 
@@ -897,6 +899,8 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
     activeSkuRuns: activeRuns,
     activeSkuRun: activeRuns[0] || null,
     lastShiftHandover: opsData.lastShiftHandover ?? null,
+    weeklyPlannings: Array.isArray(opsData.weeklyPlannings) ? opsData.weeklyPlannings : [],
+    activeWeeklyPlanId: opsData.activeWeeklyPlanId ?? null,
     ...(opsData.tank ? { tank: opsData.tank } : {})
   };
 
@@ -1371,6 +1375,8 @@ export function subscribeToWorkspaceCloud(
           activeSkuRuns: activeRuns,
           activeSkuRun: activeRuns[0] || null,
           lastShiftHandover: d.lastShiftHandover ?? null,
+          weeklyPlannings: Array.isArray(d.weeklyPlannings) ? d.weeklyPlannings : [],
+          activeWeeklyPlanId: d.activeWeeklyPlanId ?? null,
           ...(d.tank ? { tank: d.tank } : {})
         };
         enqueueSectionPatch('operations', opsPatch, JSON.stringify(opsPatch), isCriticalLineChange);

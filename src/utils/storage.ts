@@ -911,6 +911,8 @@ export function getSampleState(): AppState {
       ],
       stockAdjustments: []
     },
+    weeklyPlannings: [],
+    activeWeeklyPlanId: null,
     activeSkuRun: null,
     activeSkuRuns: [],
     tank: {
@@ -964,6 +966,8 @@ export function getCleanBlankState(): AppState {
       productionStops: [],
       stockAdjustments: []
     },
+    weeklyPlannings: [],
+    activeWeeklyPlanId: null,
     activeSkuRun: null,
     activeSkuRuns: [],
     tank: {
@@ -1167,6 +1171,8 @@ export function loadStoredState(): AppState {
             productionStops: sanitizeUniqueIds(parsed.transactions?.productionStops || [], 'stop'),
             stockAdjustments: sanitizeUniqueIds(parsed.transactions?.stockAdjustments || [], 'adj')
           },
+          weeklyPlannings: Array.isArray(parsed.weeklyPlannings) ? parsed.weeklyPlannings : [],
+          activeWeeklyPlanId: parsed.activeWeeklyPlanId ?? null,
           activeSkuRun:
             parsed.activeSkuRun ||
             compactedActiveRuns.find((r: any) => r && r.isRunning) ||

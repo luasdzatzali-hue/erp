@@ -29,23 +29,34 @@ import {
   BookOpen,
   Zap,
   Scale,
-  Lock
+  Lock,
+  Download
 } from 'lucide-react';
 import {
   AppState,
   MaterialRequest,
   MaterialSource,
   RequestCartItem,
+  WeeklyProductionPlan,
   WipRecipeItem
 } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
 import { RequestSlipPdfModal } from '../RequestSlipPdfModal';
+import { WeeklyPlanningSection } from '../WeeklyPlanningSection';
 import {
   generateSeparateSupplierSlipsPdf,
   groupCartItemsBySupplierAndWip,
   REQUEST_SLIP_ROWS_PER_PAGE,
   RequestSlipDeepLinkData
 } from '../../utils/requestSlipPdf';
+import {
+  ceilSafe,
+  computeRoundedMaterialOrder,
+  detectMaterialPackageConfig,
+  formatKgCompact,
+  getRoundingAppliedInfo,
+  hasDecimalPart
+} from '../../utils/orderRounding';
 
 interface PermintaanViewProps {
   state: AppState;
@@ -54,6 +65,9 @@ interface PermintaanViewProps {
   onJumpToReceive: (req: MaterialRequest) => void;
   onSwitchTab: (tab: AppState['currentTab']) => void;
   onOpenStockAdjustment?: (materialId?: string) => void;
+  onSaveWeeklyPlan?: (plan: WeeklyProductionPlan) => void;
+  onSelectWeeklyPlan?: (planId: string) => void;
+  onDeleteWeeklyPlan?: (planId: string) => void;
   deepLinkSlip?: RequestSlipDeepLinkData | null;
   onClearDeepLinkSlip?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
@@ -66,6 +80,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   onJumpToReceive,
   onSwitchTab,
   onOpenStockAdjustment,
+  onSaveWeeklyPlan,
+  onSelectWeeklyPlan,
+  onDeleteWeeklyPlan,
   deepLinkSlip,
   onClearDeepLinkSlip,
   showToast
@@ -74,8 +91,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const [selectedWipId, setSelectedWipId] = useState('');
   const [selectedMatId, setSelectedMatId] = useState('');
   const [batchCount, setBatchCount] = useState<number>(1);
+  const [roundDecimalBatch, setRoundDecimalBatch] = useState<boolean>(true);
   const [supplier, setSupplier] = useState<MaterialSource>('GDRM');
-  const [gdrmBagSize, setGdrmBagSize] = useState<number>(25); // 20, 25, or 50 kg
+  const [gdrmBagSize, setGdrmBagSize] = useState<number>(25); // 15, 20, 25, 50 kg or custom
+  const [packagingRoundingEnabled, setPackagingRoundingEnabled] = useState<boolean>(false);
+  const [isCustomPackSize, setIsCustomPackSize] = useState<boolean>(false);
+  const [customPackSizeInput, setCustomPackSizeInput] = useState<string>('');
   const [totalQty, setTotalQty] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [searchHistory, setSearchHistory] = useState('');
@@ -171,8 +192,32 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     }
   }, [selectedWipId, state.master.recipes]);
 
-  // Check if GDRM solid/powder packaging rounding rule applies (15, 20, 25, 50 kg)
+  const selectedMatPkgConfig = useMemo(
+    () => detectMaterialPackageConfig(selectedMatObj),
+    [selectedMatObj]
+  );
+
+  // Check if GDRM solid/powder packaging rule or custom packaging rounding applies
   const isGdrmSolid = supplier === 'GDRM' && (selectedMatObj?.type === 'bubuk' || selectedMatObj?.type === 'padat');
+
+  const activePackSizeKg = useMemo(() => {
+    if (isCustomPackSize) {
+      const parsed = parseFloat(customPackSizeInput);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+    return gdrmBagSize;
+  }, [isCustomPackSize, customPackSizeInput, gdrmBagSize]);
+
+  const activePackUnitLabel = isCustomPackSize
+    ? selectedMatPkgConfig.isCustomPackaging && selectedMatPkgConfig.unitLabel !== 'Zak'
+      ? selectedMatPkgConfig.unitLabel
+      : 'Kemasan Custom'
+    : selectedMatPkgConfig.unitLabel || 'Zak';
+
+  const isPackagingRoundingActive =
+    Boolean(selectedMatId) &&
+    (packagingRoundingEnabled || isGdrmSolid || isCustomPackSize) &&
+    activePackSizeKg > 0;
 
   // Priority for unit weight: Recipe Item proportion > Specific WIP-Material BOM rule > Material standard weight
   const recipeItemMatch = activeRecipe?.items?.find(it => it.materialId === selectedMatId);
@@ -182,12 +227,21 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const unitWeight = recipeItemMatch
     ? recipeItemMatch.amountKg
     : (specificBOM ? specificBOM.materialKgPerBatch : (selectedMatObj?.weightKg || 0));
-  const theoreticalNeed = unitWeight * (batchCount || 1);
 
-  // Packaging rounding calculation for GDRM solid / powder
-  const bagCount = isGdrmSolid ? Math.max(1, Math.ceil(theoreticalNeed / gdrmBagSize)) : 0;
-  const roundedOrderQty = isGdrmSolid ? bagCount * gdrmBagSize : theoreticalNeed;
-  const surplusQty = isGdrmSolid ? Math.max(0, roundedOrderQty - theoreticalNeed) : 0;
+  const orderCalc = computeRoundedMaterialOrder({
+    rawBatchCount: batchCount || 0,
+    unitWeightKg: unitWeight,
+    roundDecimalBatchUp: roundDecimalBatch,
+    usePackagingRounding: isPackagingRoundingActive,
+    packageSizeKg: activePackSizeKg,
+    roundDecimalQtyUp: roundDecimalBatch || selectedMatPkgConfig.isCustomPackaging || isCustomPackSize
+  });
+
+  const effectiveBatchCount = orderCalc.effectiveBatchCount;
+  const theoreticalNeed = orderCalc.rawNeedKg;
+  const bagCount = orderCalc.packageCount;
+  const roundedOrderQty = orderCalc.finalOrderQtyKg;
+  const surplusQty = orderCalc.surplusKg;
 
   // Handler: Pilih cepat material dari resep
   const handleSelectMaterialFromRecipe = (item: WipRecipeItem) => {
@@ -214,7 +268,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     const wip = state.master.wips.find(w => w.id === selectedWipId);
     if (!sku || !wip) return;
 
-    const currentBatch = batchCount > 0 ? batchCount : 1;
+    const rawBatch = batchCount > 0 ? batchCount : 1;
+    const pulledEffectiveBatch =
+      roundDecimalBatch && hasDecimalPart(rawBatch) ? ceilSafe(rawBatch) : rawBatch;
     const newItems: RequestCartItem[] = [];
 
     for (const it of activeRecipe.items) {
@@ -222,21 +278,29 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       if (!mat) continue;
 
       const itSource: MaterialSource = mat.source || 'GDRM';
-      const itType = it.materialType || mat.type;
-      const itIsGdrmSolid = itSource === 'GDRM' && (itType === 'bubuk' || itType === 'padat');
+      const pkgCfg = detectMaterialPackageConfig(mat);
+      const usePack = pkgCfg.hasDiscretePackaging && pkgCfg.defaultPackSizeKg > 0;
+      const itPackSize = pkgCfg.defaultPackSizeKg;
 
-      let itBagSize = 25;
-      const pkgStr = (mat.packaging || '').toLowerCase();
-      if (pkgStr.includes('15') || mat.weightKg === 15) itBagSize = 15;
-      else if (pkgStr.includes('20') || mat.weightKg === 20) itBagSize = 20;
-      else if (pkgStr.includes('50') || mat.weightKg === 50) itBagSize = 50;
-      else itBagSize = 25;
+      const calc = computeRoundedMaterialOrder({
+        rawBatchCount: rawBatch,
+        unitWeightKg: it.amountKg,
+        roundDecimalBatchUp: roundDecimalBatch,
+        usePackagingRounding: usePack,
+        packageSizeKg: itPackSize,
+        roundDecimalQtyUp: roundDecimalBatch || pkgCfg.isCustomPackaging
+      });
 
-      const theoNeed = it.amountKg * currentBatch;
-      const itBagCount = itIsGdrmSolid ? Math.max(1, Math.ceil(theoNeed / itBagSize)) : 0;
-      const itRoundedQty = itIsGdrmSolid ? itBagCount * itBagSize : theoNeed;
-      const itSurplus = itIsGdrmSolid ? Math.max(0, itRoundedQty - theoNeed) : 0;
       const itSaldo = stockBalances[mat.id] ? stockBalances[mat.id].totalActual : 0;
+      const noteParts: string[] = [`[Tarik Resep ${activeRecipe.recipeCode}]`];
+      if (calc.batchWasRoundedUp) {
+        noteParts.push(`Batch ${rawBatch}→${calc.effectiveBatchCount}`);
+      }
+      if (calc.packageCount > 0) {
+        noteParts.push(`Dibulatkan: ${calc.packageCount} ${pkgCfg.unitLabel} @ ${itPackSize} kg`);
+      } else {
+        noteParts.push(`Porsi: ${it.amount} ${it.unit}/batch × ${calc.effectiveBatchCount} batch`);
+      }
 
       newItems.push({
         id: `cart_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -250,17 +314,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         materialName: mat.name,
         materialCode: mat.code,
         materialType: mat.type,
-        qty: itRoundedQty,
-        theoreticalQty: itIsGdrmSolid ? theoNeed : itRoundedQty,
-        packageSizeKg: itIsGdrmSolid ? itBagSize : undefined,
-        packageCount: itIsGdrmSolid ? itBagCount : undefined,
-        surplusKg: itIsGdrmSolid ? itSurplus : 0,
-        batch: currentBatch,
+        qty: calc.finalOrderQtyKg,
+        theoreticalQty: calc.rawNeedKg,
+        packageSizeKg: calc.packageCount > 0 ? itPackSize : undefined,
+        packageCount: calc.packageCount > 0 ? calc.packageCount : undefined,
+        surplusKg: calc.surplusKg,
+        batch: pulledEffectiveBatch,
         saldoAwal: itSaldo,
         supplier: itSource,
-        notes: itIsGdrmSolid
-          ? `[Tarik Resep ${activeRecipe.recipeCode}] Dibulatkan: ${itBagCount} Zak @ ${itBagSize} kg`
-          : `[Tarik Resep ${activeRecipe.recipeCode}] Porsi: ${it.amount} ${it.unit}/batch × ${currentBatch} batch`,
+        notes: noteParts.join(' • '),
         addedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
       });
     }
@@ -271,44 +333,77 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     }
   };
 
-  // Auto-detect default GDRM bag size (15, 20, 25, or 50 kg) when material is selected
+  // Auto-detect packaging config (standard GDRM Zak or custom Formulasi/Drum/Batching size)
   useEffect(() => {
     if (selectedMatObj) {
       if (selectedMatObj.source) {
         setSupplier(selectedMatObj.source);
       }
-      if (selectedMatObj.type === 'bubuk' || selectedMatObj.type === 'padat') {
-        const pkgStr = (selectedMatObj.packaging || '').toLowerCase();
-        const weight = selectedMatObj.weightKg;
-        if (pkgStr.includes('15') || weight === 15) {
-          setGdrmBagSize(15);
-        } else if (pkgStr.includes('20') || weight === 20) {
-          setGdrmBagSize(20);
-        } else if (pkgStr.includes('50') || weight === 50) {
-          setGdrmBagSize(50);
+      const pkgCfg = detectMaterialPackageConfig(selectedMatObj);
+      setPackagingRoundingEnabled(pkgCfg.hasDiscretePackaging);
+
+      if (pkgCfg.defaultPackSizeKg > 0) {
+        if ([15, 20, 25, 50].includes(pkgCfg.defaultPackSizeKg)) {
+          setGdrmBagSize(pkgCfg.defaultPackSizeKg);
+          setIsCustomPackSize(false);
+          setCustomPackSizeInput('');
         } else {
-          setGdrmBagSize(25);
+          setGdrmBagSize(pkgCfg.defaultPackSizeKg);
+          setIsCustomPackSize(true);
+          setCustomPackSizeInput(String(pkgCfg.defaultPackSizeKg));
         }
+      } else {
+        setGdrmBagSize(25);
+        setIsCustomPackSize(pkgCfg.isCustomPackaging);
+        setCustomPackSizeInput('');
       }
     }
   }, [selectedMatId, selectedMatObj]);
 
-  // Autofill and auto-update totalQty with GDRM rounding rule
+  // Autofill and auto-update totalQty with decimal batch + packaging ceil rounding
   useEffect(() => {
     if (!selectedMatId) return;
-
-    if (isGdrmSolid) {
-      // Rule 3: Pembulatan ke atas akan secara otomatis merubah Form order yang dikirim
-      setTotalQty(roundedOrderQty.toFixed(4));
-    } else {
-      setTotalQty(theoreticalNeed.toFixed(4));
-    }
-  }, [selectedMatId, batchCount, selectedWipId, supplier, gdrmBagSize, isGdrmSolid, roundedOrderQty, theoreticalNeed]);
+    setTotalQty(roundedOrderQty.toFixed(4));
+  }, [selectedMatId, roundedOrderQty]);
 
   // Current Saldo Awal from stock balance
   const currentSaldoAwal = selectedMatId && stockBalances[selectedMatId]
     ? stockBalances[selectedMatId].totalActual
     : 0;
+
+  const finalizeSubmittedOrder = (rawQtyNumber: number) => {
+    const manualChanged = Math.abs(rawQtyNumber - roundedOrderQty) > 1e-4;
+    let finalQty = rawQtyNumber;
+    let finalBagCount = bagCount;
+
+    if (isPackagingRoundingActive && activePackSizeKg > 0) {
+      if (manualChanged) {
+        finalBagCount = Math.max(1, ceilSafe(rawQtyNumber / activePackSizeKg));
+        finalQty = Number((finalBagCount * activePackSizeKg).toFixed(4));
+      } else {
+        finalQty = roundedOrderQty;
+      }
+    } else if (
+      (roundDecimalBatch || selectedMatPkgConfig.isCustomPackaging || isCustomPackSize) &&
+      hasDecimalPart(rawQtyNumber)
+    ) {
+      finalQty = ceilSafe(rawQtyNumber);
+    }
+
+    const finalBatch =
+      roundDecimalBatch && hasDecimalPart(effectiveBatchCount)
+        ? ceilSafe(effectiveBatchCount)
+        : effectiveBatchCount;
+    const finalSurplus = Math.max(0, Number((finalQty - theoreticalNeed).toFixed(4)));
+
+    return {
+      finalQty,
+      finalBagCount,
+      finalBatch,
+      finalSurplus,
+      qtyRoundedFromManual: Math.abs(finalQty - rawQtyNumber) > 1e-6
+    };
+  };
 
   // 1. Masukkan ke Keranjang Permintaan (Draft Crosscheck)
   const handleAddToCart = (e: React.FormEvent) => {
@@ -318,8 +413,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       return;
     }
 
-    const qtyNumber = parseFloat(totalQty);
-    if (isNaN(qtyNumber) || qtyNumber <= 0) {
+    const rawQtyNumber = parseFloat(totalQty);
+    if (isNaN(rawQtyNumber) || rawQtyNumber <= 0) {
       showToast('Kuantitas tidak valid', true);
       return;
     }
@@ -333,6 +428,28 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       return;
     }
 
+    const { finalQty, finalBagCount, finalBatch, finalSurplus, qtyRoundedFromManual } =
+      finalizeSubmittedOrder(rawQtyNumber);
+
+    const roundingSummaryNote = [
+      orderCalc.batchWasRoundedUp
+        ? `Batch ${batchCount}→${finalBatch}`
+        : '',
+      isPackagingRoundingActive
+        ? `Dibulatkan: ${finalBagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg`
+        : orderCalc.qtyWasRoundedUp || qtyRoundedFromManual
+        ? `Qty dibulatkan ke atas: ${finalQty} kg`
+        : ''
+    ]
+      .filter(Boolean)
+      .join(' • ');
+
+    const finalNotes = roundingSummaryNote
+      ? notes
+        ? `${notes} (${roundingSummaryNote})`
+        : roundingSummaryNote
+      : notes;
+
     const newItem: RequestCartItem = {
       id: `cart_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       skuId: sku.id,
@@ -345,18 +462,16 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       materialName: mat.name,
       materialCode: mat.code,
       materialType: mat.type,
-      qty: qtyNumber, // Qty form order resmi yang dikirim (dibulatkan)
-      theoreticalQty: isGdrmSolid ? theoreticalNeed : qtyNumber,
-      packageSizeKg: isGdrmSolid ? gdrmBagSize : undefined,
-      packageCount: isGdrmSolid ? bagCount : undefined,
-      surplusKg: isGdrmSolid ? surplusQty : 0,
-      batch: batchCount,
+      qty: finalQty, // Qty form order resmi yang dikirim (dibulatkan ke atas)
+      theoreticalQty: theoreticalNeed,
+      packageSizeKg: isPackagingRoundingActive ? activePackSizeKg : undefined,
+      packageCount: isPackagingRoundingActive ? finalBagCount : undefined,
+      surplusKg: finalSurplus,
+      batch: finalBatch,
       saldoAwal: currentSaldoAwal,
       supplier,
       shift: 1, // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
-      notes: isGdrmSolid
-        ? (notes ? `${notes} (Dibulatkan: ${bagCount} Zak @ ${gdrmBagSize} kg)` : `Pembulatan GDRM: ${bagCount} Zak @ ${gdrmBagSize} kg`)
-        : notes,
+      notes: finalNotes,
       addedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -365,9 +480,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     setSelectedMatId('');
     setNotes('');
     showToast(
-      isGdrmSolid
-        ? `"${mat.name}" (+${qtyNumber.toFixed(2)} kg / ${bagCount} Zak) dimasukkan ke keranjang`
-        : `"${mat.name}" (+${qtyNumber.toFixed(2)} kg) dimasukkan ke keranjang`
+      isPackagingRoundingActive
+        ? `"${mat.name}" (+${finalQty.toFixed(2)} kg / ${finalBagCount} ${activePackUnitLabel}) dimasukkan ke keranjang`
+        : `"${mat.name}" (+${finalQty.toFixed(2)} kg) dimasukkan ke keranjang`
     );
   };
 
@@ -391,36 +506,52 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       return;
     }
 
-    const qtyNumber = parseFloat(totalQty);
-    if (isNaN(qtyNumber) || qtyNumber <= 0) {
+    const rawQtyNumber = parseFloat(totalQty);
+    if (isNaN(rawQtyNumber) || rawQtyNumber <= 0) {
       showToast('Kuantitas tidak valid', true);
       return;
     }
+
+    const { finalQty, finalBagCount, finalBatch, finalSurplus, qtyRoundedFromManual } =
+      finalizeSubmittedOrder(rawQtyNumber);
+
+    const directSummaryNote = [
+      orderCalc.batchWasRoundedUp ? `Batch ${batchCount}→${finalBatch}` : '',
+      isPackagingRoundingActive
+        ? `Pembulatan ${supplier}: ${finalBagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg`
+        : orderCalc.qtyWasRoundedUp || qtyRoundedFromManual
+        ? `Qty dibulatkan ke atas: ${finalQty} kg`
+        : ''
+    ]
+      .filter(Boolean)
+      .join(' • ');
 
     onCreateRequest({
       skuId: selectedSkuId,
       wipId: selectedWipId,
       materialId: selectedMatId,
-      qty: qtyNumber,
-      theoreticalQty: isGdrmSolid ? theoreticalNeed : qtyNumber,
-      packageSizeKg: isGdrmSolid ? gdrmBagSize : undefined,
-      packageCount: isGdrmSolid ? bagCount : undefined,
-      surplusKg: isGdrmSolid ? surplusQty : 0,
-      batch: batchCount,
+      qty: finalQty,
+      theoreticalQty: theoreticalNeed,
+      packageSizeKg: isPackagingRoundingActive ? activePackSizeKg : undefined,
+      packageCount: isPackagingRoundingActive ? finalBagCount : undefined,
+      surplusKg: finalSurplus,
+      batch: finalBatch,
       saldoAwal: currentSaldoAwal,
       supplier,
       shift: 1, // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
-      notes: isGdrmSolid
-        ? (notes ? `${notes} (Dibulatkan: ${bagCount} Zak @ ${gdrmBagSize} kg)` : `Pembulatan GDRM: ${bagCount} Zak @ ${gdrmBagSize} kg`)
+      notes: directSummaryNote
+        ? notes
+          ? `${notes} (${directSummaryNote})`
+          : directSummaryNote
         : notes
     });
 
     setSelectedMatId('');
     setNotes('');
     showToast(
-      isGdrmSolid
-        ? `Permintaan langsung Shift 1 dikirim ke GDRM: ${qtyNumber.toFixed(4)} kg (${bagCount} Zak @ ${gdrmBagSize} kg)`
-        : `Permintaan material Shift 1 berhasil dikirim ke ${supplier}`
+      isPackagingRoundingActive
+        ? `Permintaan langsung Shift 1 dikirim ke ${supplier}: ${finalQty.toFixed(4)} kg (${finalBagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg)`
+        : `Permintaan material Shift 1 berhasil dikirim ke ${supplier} (${finalQty} kg)`
     );
   };
 
@@ -650,8 +781,100 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     );
   });
 
+  const historyRoundingSummary = useMemo(() => {
+    let totalDeltaKg = 0;
+    let roundedCount = 0;
+    for (const req of filteredRequests) {
+      const mObj = state.master.materials.find(m => m.id === req.materialId);
+      const info = getRoundingAppliedInfo(req, mObj);
+      if (info.hasRounding) {
+        totalDeltaKg += info.deltaKg;
+        roundedCount += 1;
+      }
+    }
+    return {
+      totalDeltaKg: Number(totalDeltaKg.toFixed(4)),
+      roundedCount
+    };
+  }, [filteredRequests, state.master.materials]);
+
+  const handleExportHistoryCsv = () => {
+    if (filteredRequests.length === 0) {
+      showToast('Tidak ada data riwayat permintaan untuk diexport.', true);
+      return;
+    }
+
+    const escapeCsv = (val: string | number | undefined) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = [
+      'No Req',
+      'Tanggal',
+      'Shift',
+      'SKU Produk',
+      'WIP Terkait',
+      'Kode Material',
+      'Nama Material',
+      'Supplier',
+      'Batch',
+      'Perhitungan Aktual (kg)',
+      'Qty Form Order (kg)',
+      'Rounding Applied (Selisih kg)',
+      'Catatan Rounding Applied',
+      'Saldo Awal (kg)',
+      'Status',
+      'Catatan'
+    ];
+
+    const rows = filteredRequests.map(req => {
+      const sObj = state.master.skus.find(s => s.id === req.skuId);
+      const wObj = state.master.wips.find(w => w.id === req.wipId);
+      const mObj = state.master.materials.find(m => m.id === req.materialId);
+      const rounding = getRoundingAppliedInfo(req, mObj);
+      const roundingDeltaFormatted = rounding.hasRounding
+        ? `+${formatKgCompact(rounding.deltaKg)}`
+        : '0.00';
+
+      return [
+        req.requestNumber,
+        req.date,
+        `Shift ${req.shift || 1}`,
+        sObj?.name || '-',
+        wObj?.name || '-',
+        mObj?.code || '-',
+        mObj?.name || '-',
+        req.supplier,
+        req.batch,
+        formatKgCompact(rounding.actualKg),
+        formatKgCompact(rounding.roundedKg),
+        roundingDeltaFormatted,
+        rounding.detailNote,
+        req.saldoAwal.toFixed(4),
+        req.status === 'Received' ? 'Diterima' : 'Menunggu',
+        req.notes || ''
+      ]
+        .map(escapeCsv)
+        .join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Laporan_Riwayat_Permintaan_Material_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast(`Berhasil export ${filteredRequests.length} baris laporan riwayat permintaan (CSV).`);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4">
       {/* SOP Rule Banner: Permintaan Hanya di Shift 1 */}
       <div className="bg-sky-500/10 border border-sky-500/30 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
         <div className="flex items-start sm:items-center space-x-3">
@@ -685,6 +908,33 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </button>
         )}
       </div>
+
+      {/* Acuan Planning Mingguan (PPIC) untuk Pemesanan Material ke Supplier */}
+      <WeeklyPlanningSection
+        state={state}
+        onSaveWeeklyPlan={plan => onSaveWeeklyPlan?.(plan)}
+        onSelectWeeklyPlan={planId => onSelectWeeklyPlan?.(planId)}
+        onDeleteWeeklyPlan={planId => onDeleteWeeklyPlan?.(planId)}
+        onAddItemsToCart={(newItems, mode) => {
+          setCartItems(prev => (mode === 'replace' ? newItems : [...newItems, ...prev]));
+        }}
+        onPrefillSkuFromPlan={(skuId, cartons) => {
+          setSelectedSkuId(skuId);
+          const firstLink = state.master.skuWips.find(sw => sw.skuId === skuId);
+          if (firstLink) {
+            setSelectedWipId(firstLink.wipId);
+            const wip = state.master.wips.find(w => w.id === firstLink.wipId);
+            if (wip && wip.batchWeightKg > 0) {
+              const estBatches = (cartons * firstLink.kgWipPerCartonSku) / wip.batchWeightKg;
+              setBatchCount(Number(Math.max(0.01, estBatches).toFixed(4)));
+            }
+          } else {
+            setSelectedWipId('');
+          }
+          setSelectedMatId('');
+        }}
+        showToast={showToast}
+      />
 
       {/* Request Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
@@ -864,13 +1114,21 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   {activeRecipe.items && activeRecipe.items.length > 0 ? (
                     <div>
                       <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">
-                        Klik Cepat Material Resep untuk Mengisi Formulir Order ({batchCount} batch):
+                        Klik Cepat Material Resep untuk Mengisi Formulir Order ({effectiveBatchCount} batch{orderCalc.batchWasRoundedUp ? ` [bulat dari ${batchCount}]` : ''}):
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {activeRecipe.items.map((it) => {
                           const isSelected = selectedMatId === it.materialId;
                           const matObj = state.master.materials.find(m => m.id === it.materialId);
-                          const totalNeededKg = it.amountKg * (batchCount || 1);
+                          const pkgCfg = detectMaterialPackageConfig(matObj);
+                          const itemCalc = computeRoundedMaterialOrder({
+                            rawBatchCount: batchCount || 1,
+                            unitWeightKg: it.amountKg,
+                            roundDecimalBatchUp: roundDecimalBatch,
+                            usePackagingRounding: pkgCfg.hasDiscretePackaging && pkgCfg.defaultPackSizeKg > 0,
+                            packageSizeKg: pkgCfg.defaultPackSizeKg,
+                            roundDecimalQtyUp: roundDecimalBatch || pkgCfg.isCustomPackaging
+                          });
                           return (
                             <button
                               key={it.id}
@@ -887,7 +1145,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                                 {it.amount} {it.unit}/batch
                               </span>
                               <span className="font-mono text-[10px] text-cyan-400">
-                                ({totalNeededKg.toFixed(2)} kg)
+                                ({itemCalc.finalOrderQtyKg.toFixed(2)} kg{itemCalc.packageCount > 0 ? ` / ${itemCalc.packageCount} ${pkgCfg.unitLabel}` : ''})
                               </span>
                             </button>
                           );
@@ -955,9 +1213,20 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           {/* Batch Count & Supplier */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                Jumlah Batch WIP
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-medium text-slate-300">
+                  Jumlah Batch WIP
+                </label>
+                <label className="inline-flex items-center space-x-1 text-[10px] text-amber-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={roundDecimalBatch}
+                    onChange={(e) => setRoundDecimalBatch(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-amber-500"
+                  />
+                  <span>Bulatkan desimal ke atas</span>
+                </label>
+              </div>
               <input
                 type="number"
                 step="0.0001"
@@ -965,8 +1234,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 value={batchCount}
                 onChange={(e) => setBatchCount(parseFloat(e.target.value) || 0)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white font-mono ${
+                  orderCalc.batchWasRoundedUp ? 'border-amber-500/60' : 'border-slate-700'
+                }`}
               />
+              {orderCalc.batchWasRoundedUp && (
+                <span className="mt-1 inline-block text-[10px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+                  Desimal {batchCount} → dibulatkan ke atas: <strong>{effectiveBatchCount} Batch</strong>
+                </span>
+              )}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-slate-300 mb-1">
@@ -984,96 +1260,182 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
           </div>
 
-          {/* ATURAN PENGIRIMAN SUPPLIER GDRM: PEMBULATAN KEMASAN PABRIKASI (20 kg / 25 kg / 50 kg) */}
-          {isGdrmSolid && (
-            <div className="sm:col-span-2 bg-gradient-to-r from-amber-950/50 via-slate-900 to-amber-950/30 border border-amber-500/40 p-3.5 sm:p-4 rounded-xl space-y-3 shadow-inner">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-500/30 pb-2">
+          {/* ATURAN PEMBULATAN KE ATAS: KEMASAN CUSTOM / PABRIKASI & BATCH DESIMAL */}
+          {selectedMatObj && (
+            <div className="sm:col-span-2 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/20 border border-amber-500/35 p-3.5 sm:p-4 rounded-xl space-y-3 shadow-inner">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-500/25 pb-2">
                 <div className="flex items-center space-x-2">
                   <div className="p-1 rounded-lg bg-amber-500/20 text-amber-400">
                     <Package className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-2">
-                      <span>Aturan Pengiriman GDRM: Kemasan Pabrikasi ({selectedMatObj?.type === 'padat' ? 'Material Padat' : 'Material Bubuk'})</span>
+                    <h4 className="font-bold text-xs sm:text-sm text-white flex flex-wrap items-center gap-1.5">
+                      <span>
+                        Format Kemasan &amp; Pembulatan Order ({selectedMatObj.packaging || activePackUnitLabel})
+                      </span>
                       <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
-                        Auto-Round Up
+                        {isPackagingRoundingActive ? 'Auto-Round Up Kemasan' : 'Berat Eksak (kg)'}
                       </span>
                     </h4>
                     <p className="text-[11px] text-amber-200/80">
-                      Material padat & bubuk dari GDRM dikirim menyesuaikan kemasan pabrikasi (15 kg, 20 kg, 25 kg, 50 kg). Pengiriman dibulatkan ke atas dan secara otomatis mengubah Form Order resmi.
+                      Jika pesanan memakai kemasan custom / pabrikasi atau batch desimal, kuantitas otomatis dibulatkan ke atas ke satuan utuh.
                     </p>
                   </div>
                 </div>
 
-                {/* Packaging Size Selector */}
-                <div className="flex items-center space-x-1.5 self-end sm:self-auto">
-                  <span className="text-[10px] font-semibold text-slate-400">Pilih Kemasan:</span>
-                  {[15, 20, 25, 50].map((size) => (
+                <label className="inline-flex items-center space-x-2 text-[11px] font-semibold text-white bg-slate-950/70 border border-slate-700 px-2.5 py-1.5 rounded-lg cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={packagingRoundingEnabled}
+                    onChange={(e) => setPackagingRoundingEnabled(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-amber-500"
+                  />
+                  <span>Bulatkan Kemasan</span>
+                </label>
+              </div>
+
+              {(packagingRoundingEnabled || isGdrmSolid || isCustomPackSize) && (
+                <>
+                  {/* Packaging Size Selector: Standard 15/20/25/50 + Native Material Pack + Custom Size */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-slate-400 mr-1">
+                      Ukuran Kemasan:
+                    </span>
+                    {selectedMatPkgConfig.defaultPackSizeKg > 0 &&
+                      ![15, 20, 25, 50].includes(selectedMatPkgConfig.defaultPackSizeKg) && (
+                        <button
+                          key="mat_native_pack"
+                          type="button"
+                          onClick={() => {
+                            setIsCustomPackSize(true);
+                            setCustomPackSizeInput(String(selectedMatPkgConfig.defaultPackSizeKg));
+                            setPackagingRoundingEnabled(true);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
+                            isCustomPackSize &&
+                            Math.abs((parseFloat(customPackSizeInput) || 0) - selectedMatPkgConfig.defaultPackSizeKg) < 1e-6
+                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
+                              : 'bg-slate-800 text-cyan-300 border border-cyan-500/40 hover:bg-slate-700'
+                          }`}
+                        >
+                          {selectedMatPkgConfig.unitLabel}: {selectedMatPkgConfig.defaultPackSizeKg} kg
+                        </button>
+                      )}
+                    {[15, 20, 25, 50].map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => {
+                          setIsCustomPackSize(false);
+                          setGdrmBagSize(size);
+                          setPackagingRoundingEnabled(true);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
+                          !isCustomPackSize && gdrmBagSize === size
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {size} kg
+                      </button>
+                    ))}
                     <button
-                      key={size}
                       type="button"
-                      onClick={() => setGdrmBagSize(size)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
-                        gdrmBagSize === size
-                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
+                      onClick={() => {
+                        setIsCustomPackSize(true);
+                        setPackagingRoundingEnabled(true);
+                        if (!customPackSizeInput) {
+                          setCustomPackSizeInput(
+                            String(selectedMatPkgConfig.defaultPackSizeKg > 0 ? selectedMatPkgConfig.defaultPackSizeKg : 10)
+                          );
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                        isCustomPackSize
+                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
                           : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
-                      {size} kg
+                      Custom (kg)
                     </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Metrics: Teoretis vs Kemasan vs Pembulatan vs Form Order */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block mb-0.5">Kebutuhan Batch WIP:</span>
-                  <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">
-                    {theoreticalNeed.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">({batchCount} batch formula)</span>
-                </div>
+                    {isCustomPackSize && (
+                      <div className="flex items-center space-x-1 ml-1">
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0.0001"
+                          value={customPackSizeInput}
+                          onChange={(e) => setCustomPackSizeInput(e.target.value)}
+                          placeholder="kg/kemasan"
+                          className="w-24 bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1 text-xs font-mono text-cyan-300 font-bold"
+                        />
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          kg / {activePackUnitLabel}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block mb-0.5">Kemasan Pabrikasi:</span>
-                  <span className="font-mono font-bold text-amber-400 text-xs sm:text-sm">
-                    {gdrmBagSize} <span className="text-[10px] text-slate-500">kg / Zak</span>
-                  </span>
-                  <span className="text-[10px] text-amber-500/90 block">Kemasan Standar GDRM</span>
-                </div>
+                  {/* Metrics: Teoretis vs Kemasan vs Pembulatan vs Form Order */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Kebutuhan Awal:</span>
+                      <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">
+                        {theoreticalNeed.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        ({batchCount} batch{orderCalc.batchWasRoundedUp ? ` → ${effectiveBatchCount} bulat` : ''})
+                      </span>
+                    </div>
 
-                <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block mb-0.5">Pembulatan ke Atas:</span>
-                  <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
-                    {bagCount} <span className="text-[10px] text-slate-500">Zak Utuh</span>
-                  </span>
-                  <span className="text-[10px] text-emerald-400 block">
-                    Surplus: +{surplusQty.toFixed(2)} kg
-                  </span>
-                </div>
+                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Satuan Kemasan:</span>
+                      <span className="font-mono font-bold text-amber-400 text-xs sm:text-sm">
+                        {activePackSizeKg} <span className="text-[10px] text-slate-500">kg / {activePackUnitLabel}</span>
+                      </span>
+                      <span className="text-[10px] text-amber-500/90 block">
+                        {selectedMatPkgConfig.isCustomPackaging || isCustomPackSize ? 'Kemasan Custom' : 'Kemasan Standar'}
+                      </span>
+                    </div>
 
-                <div className="bg-gradient-to-br from-cyan-950/50 to-slate-900 p-2.5 rounded-lg border border-cyan-500/40">
-                  <span className="text-[10px] text-cyan-300 font-semibold block mb-0.5">Form Order Dikirim:</span>
-                  <span className="font-mono font-bold text-cyan-400 text-sm sm:text-base">
-                    {roundedOrderQty.toFixed(4)} <span className="text-[10px] text-slate-400">kg</span>
-                  </span>
-                  <span className="text-[10px] text-cyan-300/80 block">Otomatis Disesuaikan</span>
-                </div>
-              </div>
+                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Pembulatan ke Atas:</span>
+                      <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
+                        {bagCount} <span className="text-[10px] text-slate-500">{activePackUnitLabel} Utuh</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-400 block">
+                        Surplus: +{surplusQty.toFixed(2)} kg
+                      </span>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-cyan-950/50 to-slate-900 p-2.5 rounded-lg border border-cyan-500/40">
+                      <span className="text-[10px] text-cyan-300 font-semibold block mb-0.5">Form Order Dikirim:</span>
+                      <span className="font-mono font-bold text-cyan-400 text-sm sm:text-base">
+                        {roundedOrderQty.toFixed(4)} <span className="text-[10px] text-slate-400">kg</span>
+                      </span>
+                      <span className="text-[10px] text-cyan-300/80 block">Otomatis Disesuaikan</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {/* Total Qty (Autofill with manual edit capability) */}
-          <div className={isGdrmSolid ? "sm:col-span-2" : ""}>
+          <div className={isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp ? "sm:col-span-2" : ""}>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-[11px] font-medium text-slate-300">
-                {isGdrmSolid ? 'Qty Form Order Resmi Dikirim ke GDRM (kg)' : 'Qty Total Permintaan (kg)'}
+                {isPackagingRoundingActive
+                  ? `Qty Form Order Resmi Dikirim ke ${supplier} (kg)`
+                  : 'Qty Total Permintaan (kg)'}
               </label>
               <span className="text-[10px] text-cyan-400 font-mono">
-                {isGdrmSolid
-                  ? `(Dibulatkan: ${bagCount} Zak @ ${gdrmBagSize} kg = ${roundedOrderQty.toFixed(4)} kg)`
-                  : selectedMatObj ? `(Basis: ${selectedMatObj.weightKg.toFixed(4)} kg × ${batchCount})` : ''}
+                {isPackagingRoundingActive
+                  ? `(Dibulatkan: ${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg = ${roundedOrderQty.toFixed(4)} kg)`
+                  : selectedMatObj
+                  ? `(Basis: ${unitWeight.toFixed(4)} kg × ${effectiveBatchCount}${orderCalc.batchWasRoundedUp ? ` [dibulatkan dari ${batchCount}]` : ''})`
+                  : ''}
               </span>
             </div>
             <input
@@ -1084,14 +1446,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               onChange={(e) => setTotalQty(e.target.value)}
               placeholder="0.0000"
               className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none ${
-                isGdrmSolid
+                isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp
                   ? 'border-amber-500/50 text-cyan-300 text-sm'
                   : 'border-slate-700 text-cyan-400 text-xs focus:border-cyan-500'
               }`}
             />
-            {isGdrmSolid && (
+            {(isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp) && (
               <p className="text-[10px] text-amber-300 mt-1">
-                ✓ Nilai formulir telah otomatis disesuaikan dengan kemasan pabrikasi {gdrmBagSize} kg ({bagCount} Zak). Surplus sebesar {surplusQty.toFixed(4)} kg akan masuk ke saldo gudang CK saat material diterima.
+                ✓ Nilai order otomatis dibulatkan ke atas
+                {orderCalc.batchWasRoundedUp ? ` (Batch ${batchCount} → ${effectiveBatchCount})` : ''}
+                {isPackagingRoundingActive ? ` (${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg)` : orderCalc.qtyWasRoundedUp ? ` (Qty ${orderCalc.afterBatchNeedKg.toFixed(4)} → ${roundedOrderQty} kg)` : ''}.
+                {surplusQty > 0 ? ` Selisih +${surplusQty.toFixed(4)} kg dicatat sebagai surplus stok saat diterima.` : ''}
               </p>
             )}
           </div>
@@ -1350,7 +1715,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center font-mono text-slate-300">
-                            {item.batch.toFixed(2)}
+                            {Number.isInteger(item.batch) ? item.batch : item.batch.toFixed(2)}
                           </td>
                           <td className="py-3 px-3">
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
@@ -1360,11 +1725,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                             }`}>
                               {item.supplier}
                             </span>
-                            {item.packageCount && item.packageSizeKg && (
-                              <span className="block text-[10px] text-amber-400 font-mono font-medium mt-0.5">
-                                {item.packageCount} Zak @ {item.packageSizeKg} kg
-                              </span>
-                            )}
+                            {item.packageCount && item.packageSizeKg && (() => {
+                              const matObj = state.master.materials.find(m => m.id === item.materialId);
+                              const uLbl = detectMaterialPackageConfig(matObj).unitLabel || 'Zak';
+                              return (
+                                <span className="block text-[10px] text-amber-400 font-mono font-medium mt-0.5">
+                                  {item.packageCount} {uLbl} @ {item.packageSizeKg} kg
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-3 text-right font-mono">
                             <span className="font-bold text-cyan-400 text-xs block">
@@ -1442,13 +1811,36 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       {/* History Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
             <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
               <FileText className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-white">History Permintaan Material</h3>
+            <div>
+              <h3 className="font-bold text-sm text-white">History Permintaan Material</h3>
+              {filteredRequests.length > 0 && (
+                <p className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                  {filteredRequests.length} permintaan • {historyRoundingSummary.roundedCount} dengan{' '}
+                  <span className="text-amber-300 font-semibold">Rounding Applied</span> (Total selisih:{' '}
+                  <span className="text-amber-300 font-semibold">
+                    +{formatKgCompact(historyRoundingSummary.totalDeltaKg)} kg
+                  </span>
+                  )
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {filteredRequests.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportHistoryCsv}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5"
+                title="Unduh Laporan Riwayat Permintaan Material (termasuk kolom Rounding Applied) dalam format CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Export CSV</span>
+              </button>
+            )}
             {filteredRequests.some(r => r.status !== 'Received') && (
               <button
                 type="button"
@@ -1487,6 +1879,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <th className="py-2.5 px-3">WIP Terkait</th>
                 <th className="py-2.5 px-3">Nama Material</th>
                 <th className="py-2.5 px-3 text-right">Qty Form Order (kg)</th>
+                <th className="py-2.5 px-3 min-w-[200px]">Rounding Applied</th>
                 <th className="py-2.5 px-3 text-right">Saldo Awal</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
                 <th className="py-2.5 px-3 text-center">Tindakan</th>
@@ -1498,6 +1891,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   const sObj = state.master.skus.find(s => s.id === req.skuId);
                   const wObj = state.master.wips.find(w => w.id === req.wipId);
                   const mObj = state.master.materials.find(m => m.id === req.materialId);
+                  const rounding = getRoundingAppliedInfo(req, mObj);
 
                   return (
                     <tr key={`${req.id}_${idx}`} className="hover:bg-slate-800/40 transition">
@@ -1523,26 +1917,45 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         <span className="font-medium text-white block">{mObj ? mObj.name : '-'}</span>
                         <span className="text-[10px] text-cyan-400">Supplier: {req.supplier}</span>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono">
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">
                         <span className="font-bold text-cyan-400 block text-xs">
                           {req.qty.toFixed(4)} kg
                         </span>
                         {req.packageCount && req.packageSizeKg ? (
-                          <div className="space-y-0.5">
-                            <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
-                              {req.packageCount} Zak @ {req.packageSizeKg} kg
-                            </span>
-                            <span className="block text-[9px] text-slate-400">
-                              Kebutuhan: {req.theoreticalQty?.toFixed(2)} kg (+{req.surplusKg?.toFixed(2)} kg)
-                            </span>
-                          </div>
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold mt-0.5">
+                            {req.packageCount} {detectMaterialPackageConfig(mObj).unitLabel} @ {req.packageSizeKg} kg
+                          </span>
                         ) : (
                           <span className="block text-[10px] text-slate-400 font-normal">
-                            {req.batch.toFixed(4)} batch
+                            {Number.isInteger(req.batch) ? req.batch : req.batch.toFixed(4)} batch
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">
+                      <td className="py-3 px-3" title={rounding.detailNote}>
+                        {rounding.hasRounding ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold tabular-nums bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              +{formatKgCompact(rounding.deltaKg)} kg
+                            </span>
+                            <span className="block text-[10px] font-mono tabular-nums text-slate-300">
+                              Aktual: {formatKgCompact(rounding.actualKg)} kg → Bulat: {formatKgCompact(rounding.roundedKg)} kg
+                            </span>
+                            <span className="block text-[10px] text-amber-400/90">
+                              {rounding.reasonTag}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono tabular-nums bg-slate-800 text-slate-400 border border-slate-700">
+                              Tidak ada (0.00 kg)
+                            </span>
+                            <span className="block text-[10px] font-mono tabular-nums text-slate-500">
+                              Aktual = Order ({formatKgCompact(rounding.roundedKg)} kg)
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-400">
                         {req.saldoAwal.toFixed(4)} kg
                       </td>
                       <td className="py-3 px-3 text-center">
@@ -1585,7 +1998,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-slate-500 text-xs">
+                  <td colSpan={9} className="text-center py-8 text-slate-500 text-xs">
                     Belum ada riwayat permintaan material. Silakan buat permintaan melalui formulir di atas.
                   </td>
                 </tr>
@@ -1685,13 +2098,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         <span className="font-mono font-bold text-cyan-400 block text-xs sm:text-sm">
                           {item.qty.toFixed(2)} kg
                         </span>
-                        {item.packageCount && item.packageSizeKg ? (
-                          <span className="text-[9px] font-mono text-amber-300 block">
-                            {item.packageCount} Zak @ {item.packageSizeKg} kg
-                          </span>
-                        ) : (
+                        {item.packageCount && item.packageSizeKg ? (() => {
+                          const matObj = state.master.materials.find(m => m.id === item.materialId);
+                          const uLbl = detectMaterialPackageConfig(matObj).unitLabel || 'Zak';
+                          return (
+                            <span className="text-[9px] font-mono text-amber-300 block">
+                              {item.packageCount} {uLbl} @ {item.packageSizeKg} kg
+                            </span>
+                          );
+                        })() : (
                           <span className="text-[9px] text-slate-400 block">
-                            {item.batch.toFixed(2)} Batch
+                            {Number.isInteger(item.batch) ? item.batch : item.batch.toFixed(2)} Batch
                           </span>
                         )}
                       </div>

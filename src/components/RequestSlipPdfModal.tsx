@@ -376,8 +376,8 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 {(
                   [
                     { id: 'kg', label: 'kg (Berat Order)' },
-                    { id: 'zak_or_kg', label: 'zak / kg (Kemasan)' },
-                    { id: 'batch', label: 'batch (Batch WIP)' }
+                    { id: 'zak_or_kg', label: 'Kemasan / Zak (Bulat Atas)' },
+                    { id: 'batch', label: 'batch (Bulat Atas)' }
                   ] as Array<{ id: RequestSlipSatMode; label: string }>
                 ).map(mode => (
                   <button

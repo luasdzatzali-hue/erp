@@ -174,7 +174,7 @@ service cloud.firestore {
 
     function isValidWorkspaceOperationsData(data) {
       return data.keys().hasAll(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'updatedAt', 'updatedByUid']) &&
-        data.keys().hasOnly(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'weeklyPlannings', 'activeWeeklyPlanId', 'updatedAt', 'updatedByUid']) &&
         isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
         isValidId(data.ownerUid) &&
         data.requests is list && data.requests.size() <= 1000 && (data.requests.size() == 0 || data.requests[0] is map) &&
@@ -189,6 +189,8 @@ service cloud.firestore {
         data.activeSkuRuns is list && data.activeSkuRuns.size() <= 100 && (data.activeSkuRuns.size() == 0 || data.activeSkuRuns[0] is map) &&
         data.tank is map &&
         (!('lastShiftHandover' in data) || data.lastShiftHandover == null || data.lastShiftHandover is map) &&
+        (!('weeklyPlannings' in data) || (data.weeklyPlannings is list && data.weeklyPlannings.size() <= 20 && (data.weeklyPlannings.size() == 0 || data.weeklyPlannings[0] is map))) &&
+        (!('activeWeeklyPlanId' in data) || data.activeWeeklyPlanId == null || (data.activeWeeklyPlanId is string && data.activeWeeklyPlanId.size() <= 128)) &&
         data.updatedAt is timestamp &&
         isValidId(data.updatedByUid);
     }
@@ -503,7 +505,7 @@ service cloud.firestore {
           incoming().ownerUid == existing().ownerUid &&
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'updatedAt', 'updatedByUid']) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'weeklyPlannings', 'activeWeeklyPlanId', 'updatedAt', 'updatedByUid']) &&
           (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
         allow delete: if false;
       }

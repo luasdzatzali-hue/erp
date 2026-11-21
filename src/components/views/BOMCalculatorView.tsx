@@ -8,10 +8,13 @@ import {
   CheckCircle2,
   FilePlus,
   Package,
-  Sparkles
+  Sparkles,
+  CalendarRange
 } from 'lucide-react';
 import { AppState, MaterialRequest } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
+import { getPlannedCartonsForItem, WEEKLY_PLAN_DAYS } from '../../utils/weeklyPlanningParser';
+import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from '../../utils/orderRounding';
 
 interface BOMCalculatorViewProps {
   state: AppState;
@@ -28,6 +31,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
 }) => {
   const [selectedSkuId, setSelectedSkuId] = useState(state.master.skus[0]?.id || '');
   const [cartonTarget, setCartonTarget] = useState<number>(500);
+  const [roundUpOrders, setRoundUpOrders] = useState<boolean>(true);
 
   const stockBalances = calculateStockBalances(state);
   const selectedSku = state.master.skus.find(s => s.id === selectedSkuId);
@@ -62,6 +66,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
     totalKgNeeded: number;
     batchWeightKg: number;
     batchesNeeded: number;
+    effectiveBatches: number;
   }
 
   interface MaterialCalculation {
@@ -75,6 +80,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
     deficitKg: number;
     sourceWips: string[];
     wipIdForRequest: string;
+    maxWipBatches: number;
   }
 
   const wipCalculations: WipCalculation[] = [];
@@ -86,6 +92,8 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
 
     const totalKg = sw.kgWipPerCartonSku * cartonTarget;
     const batches = wObj.batchWeightKg > 0 ? totalKg / wObj.batchWeightKg : 0;
+    const effectiveBatches =
+      roundUpOrders && hasDecimalPart(batches) ? ceilSafe(batches) : batches;
 
     wipCalculations.push({
       wipId: wObj.id,
@@ -93,7 +101,8 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
       kgPerCarton: sw.kgWipPerCartonSku,
       totalKgNeeded: totalKg,
       batchWeightKg: wObj.batchWeightKg,
-      batchesNeeded: batches
+      batchesNeeded: batches,
+      effectiveBatches
     });
 
     // Find materials in this WIP
@@ -102,7 +111,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
       const mObj = state.master.materials.find(m => m.id === wm.materialId);
       if (!mObj) return;
 
-      const matKgForThisWip = batches * wm.materialKgPerBatch;
+      const matKgForThisWip = effectiveBatches * wm.materialKgPerBatch;
 
       if (!materialTotalsMap[mObj.id]) {
         const bal = stockBalances[mObj.id];
@@ -117,11 +126,15 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
           currentStock: stockActual,
           deficitKg: 0,
           sourceWips: [],
-          wipIdForRequest: wObj.id
+          wipIdForRequest: wObj.id,
+          maxWipBatches: effectiveBatches
         };
       }
 
       materialTotalsMap[mObj.id].totalKgNeeded += matKgForThisWip;
+      if (effectiveBatches > materialTotalsMap[mObj.id].maxWipBatches) {
+        materialTotalsMap[mObj.id].maxWipBatches = effectiveBatches;
+      }
       if (!materialTotalsMap[mObj.id].sourceWips.includes(wObj.name)) {
         materialTotalsMap[mObj.id].sourceWips.push(wObj.name);
       }
@@ -135,22 +148,65 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
 
   const materialList = Object.values(materialTotalsMap);
 
+  const activeWeeklyPlan =
+    (state.weeklyPlannings || []).find(p => p.id === state.activeWeeklyPlanId) ||
+    (state.weeklyPlannings || [])[0] ||
+    null;
+
+  const matchedPlanSkus = activeWeeklyPlan
+    ? activeWeeklyPlan.items.filter(it => Boolean(it.matchedSkuId) && it.totalProduksi > 0)
+    : [];
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       {/* Target Planning Card */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 mb-4">
-          <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-            <Calculator className="w-5 h-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-4">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-white">
+                Kalkulator Kebutuhan Produksi & Formulasi BOM
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Simulasi cepat kebutuhan WIP dan bahan baku langsung dibandingkan dengan stok aktual pabrik
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-sm text-white">
-              Kalkulator Kebutuhan Produksi & Formulasi BOM
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              Simulasi cepat kebutuhan WIP dan bahan baku langsung dibandingkan dengan stok aktual pabrik
-            </p>
-          </div>
+
+          {activeWeeklyPlan && matchedPlanSkus.length > 0 && (
+            <div className="flex items-center space-x-2 text-xs">
+              <CalendarRange className="w-4 h-4 text-cyan-400 shrink-0" />
+              <select
+                defaultValue=""
+                onChange={e => {
+                  const chosen = matchedPlanSkus.find(it => it.id === e.target.value);
+                  if (chosen && chosen.matchedSkuId) {
+                    const totalWeek = getPlannedCartonsForItem(
+                      chosen,
+                      WEEKLY_PLAN_DAYS.map(d => d.key),
+                      [1, 2, 3]
+                    );
+                    setSelectedSkuId(chosen.matchedSkuId);
+                    setCartonTarget(totalWeek);
+                    showToast(
+                      `Target dimuat dari ${activeWeeklyPlan.weekLabel}: ${chosen.rawProductName} (${totalWeek.toLocaleString('id-ID')} ktn)`
+                    );
+                  }
+                }}
+                className="bg-slate-800 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-cyan-300 font-semibold"
+              >
+                <option value="">Muat dari {activeWeeklyPlan.weekLabel}...</option>
+                {matchedPlanSkus.map(it => (
+                  <option key={it.id} value={it.id}>
+                    {it.rawSkuCode} • {it.rawProductName} ({it.totalProduksi.toLocaleString('id-ID')} ktn/mgg)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -234,7 +290,9 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                     {w.totalKgNeeded.toFixed(4)} <span className="text-xs text-slate-400">kg WIP</span>
                   </div>
                   <div className="text-xs font-mono text-amber-400 mt-0.5">
-                    = {w.batchesNeeded.toFixed(2)} Batch{' '}
+                    = {roundUpOrders && hasDecimalPart(w.batchesNeeded)
+                      ? `${w.effectiveBatches} Batch (dari ${w.batchesNeeded.toFixed(2)})`
+                      : `${w.batchesNeeded.toFixed(2)} Batch`}{' '}
                     <span className="text-[10px] text-slate-500">(@ {w.batchWeightKg.toFixed(1)} kg)</span>
                   </div>
                 </div>
@@ -250,7 +308,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
 
       {/* Step 2: Breakdown Material Database with Stock Comparison */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
               <Boxes className="w-4 h-4" />
@@ -264,6 +322,15 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               </p>
             </div>
           </div>
+          <label className="inline-flex items-center space-x-2 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-xl cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={roundUpOrders}
+              onChange={e => setRoundUpOrders(e.target.checked)}
+              className="rounded border-slate-600 bg-slate-800 text-amber-500"
+            />
+            <span className="font-semibold">Bulatkan Batch Desimal &amp; Kemasan Custom ke Atas</span>
+          </label>
         </div>
 
         <div className="overflow-x-auto">
@@ -325,16 +392,22 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-center">
                         {hasDeficit ? (() => {
-                          const isGdrmSolid = m.supplier === 'GDRM' && (m.materialType === 'bubuk' || m.materialType === 'padat');
-                          let bagSize = 25;
-                          const pkgStr = (m.packaging || '').toLowerCase();
-                          if (pkgStr.includes('15')) bagSize = 15;
-                          else if (pkgStr.includes('20')) bagSize = 20;
-                          else if (pkgStr.includes('50')) bagSize = 50;
-
-                          const bagCount = isGdrmSolid ? Math.max(1, Math.ceil(m.deficitKg / bagSize)) : 1;
-                          const orderQty = isGdrmSolid ? bagCount * bagSize : m.deficitKg;
-                          const surplusKg = isGdrmSolid ? Math.max(0, orderQty - m.deficitKg) : 0;
+                          const matObj = state.master.materials.find(mat => mat.id === m.materialId);
+                          const pkgCfg = detectMaterialPackageConfig(matObj);
+                          const usePackCeil =
+                            roundUpOrders && pkgCfg.hasDiscretePackaging && pkgCfg.defaultPackSizeKg > 0;
+                          const bagSize = pkgCfg.defaultPackSizeKg;
+                          const bagCount = usePackCeil ? Math.max(1, ceilSafe(m.deficitKg / bagSize)) : 0;
+                          const orderQty = usePackCeil
+                            ? Number((bagCount * bagSize).toFixed(4))
+                            : roundUpOrders && hasDecimalPart(m.deficitKg)
+                            ? ceilSafe(m.deficitKg)
+                            : m.deficitKg;
+                          const surplusKg = Math.max(0, Number((orderQty - m.deficitKg).toFixed(4)));
+                          const reqBatch =
+                            roundUpOrders && hasDecimalPart(m.maxWipBatches)
+                              ? ceilSafe(m.maxWipBatches)
+                              : Math.max(1, Math.round(m.maxWipBatches || 1));
 
                           return (
                             <div className="flex flex-col items-center space-y-1">
@@ -346,28 +419,36 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                                     materialId: m.materialId,
                                     qty: orderQty,
                                     theoreticalQty: m.deficitKg,
-                                    packageSizeKg: isGdrmSolid ? bagSize : undefined,
-                                    packageCount: isGdrmSolid ? bagCount : undefined,
+                                    packageSizeKg: usePackCeil ? bagSize : undefined,
+                                    packageCount: usePackCeil ? bagCount : undefined,
                                     surplusKg: surplusKg,
-                                    batch: 1,
+                                    batch: reqBatch,
                                     saldoAwal: m.currentStock,
                                     supplier: m.supplier as any,
-                                    notes: isGdrmSolid
-                                      ? `Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan GDRM ${bagCount} Zak @ ${bagSize} kg = ${orderQty.toFixed(4)} kg)`
+                                    notes: usePackCeil
+                                      ? `Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ${bagCount} ${pkgCfg.unitLabel} @ ${bagSize} kg = ${orderQty.toFixed(4)} kg)`
+                                      : surplusKg > 0
+                                      ? `Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ke atas menjadi ${orderQty} kg)`
                                       : `Auto-request defisit produksi ${cartonTarget} karton ${selectedSku?.name}`
                                   });
                                   showToast(
-                                    isGdrmSolid
-                                      ? `Order GDRM dibuat: ${orderQty.toFixed(4)} kg (${bagCount} Zak @ ${bagSize} kg, surplus +${surplusKg.toFixed(4)} kg)`
-                                      : `Permintaan defisit ${m.materialName} berhasil diajukan`
+                                    usePackCeil
+                                      ? `Order ${m.supplier} dibuat: ${orderQty.toFixed(4)} kg (${bagCount} ${pkgCfg.unitLabel} @ ${bagSize} kg, surplus +${surplusKg.toFixed(4)} kg)`
+                                      : `Permintaan defisit ${m.materialName} (${orderQty} kg) berhasil diajukan`
                                   );
                                 }}
                                 className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
                               >
                                 <FilePlus className="w-3 h-3" />
-                                <span>{isGdrmSolid ? `Order ${bagCount} Zak (${orderQty} kg)` : 'Minta Qty Kurang'}</span>
+                                <span>
+                                  {usePackCeil
+                                    ? `Order ${bagCount} ${pkgCfg.unitLabel} (${Number(orderQty.toFixed(2))} kg)`
+                                    : roundUpOrders && hasDecimalPart(m.deficitKg)
+                                    ? `Order ${orderQty} kg (Bulat Atas)`
+                                    : 'Minta Qty Kurang'}
+                                </span>
                               </button>
-                              {isGdrmSolid && (
+                              {usePackCeil && (
                                 <span className="text-[9px] text-amber-400 font-mono">
                                   Bulat: @{bagSize}kg (+{surplusKg.toFixed(2)}kg)
                                 </span>
