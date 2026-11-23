@@ -1,12 +1,99 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: #06090f;
+  --foreground: #f1f5f9;
+  --card: #0c121d;
+  --card-foreground: #f1f5f9;
+  --popover: #0c121d;
+  --popover-foreground: #f1f5f9;
+  --primary: #06b6d4;
+  --primary-foreground: #04080e;
+  --secondary: #151e2e;
+  --secondary-foreground: #f1f5f9;
+  --muted: #151e2e;
+  --muted-foreground: #94a3b8;
+  --accent: #1a2436;
+  --accent-foreground: #f1f5f9;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --input: #334155;
+  --ring: #06b6d4;
+  --radius: 0.625rem;
+}
+
+html.theme-daylight,
+html[data-theme="daylight"] {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #f8fafc;
+  --muted-foreground: #475569;
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #0284c7;
+}
+
 @layer base {
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.005em;
   }
   code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
   }
+}
+
+/* Oil & Gas Distribution Control Room hairline coordinate grid */
+.scada-grid-surface {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.theme-daylight .scada-grid-surface {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
 }
 
 /* Custom scrollbar - dark industrial theme */
@@ -123,15 +210,20 @@ html[data-theme="daylight"],
 }
 
 /* Background surfaces */
-.theme-daylight .bg-slate-950 {
-  background-color: #f8fafc !important;
+.theme-daylight .bg-slate-950,
+.theme-daylight .bg-\[\#06090f\],
+.theme-daylight .bg-\[\#080c14\] {
+  background-color: #f1f5f9 !important;
 }
 .theme-daylight .bg-slate-900,
-.theme-daylight .bg-slate-850 {
+.theme-daylight .bg-slate-850,
+.theme-daylight .bg-\[\#0c121d\],
+.theme-daylight .bg-\[\#0b111c\] {
   background-color: #ffffff !important;
 }
-.theme-daylight .bg-slate-800 {
-  background-color: #f1f5f9 !important;
+.theme-daylight .bg-slate-800,
+.theme-daylight .bg-\[\#131b2b\] {
+  background-color: #f8fafc !important;
 }
 .theme-daylight .bg-slate-750,
 .theme-daylight .bg-slate-700 {
@@ -139,18 +231,67 @@ html[data-theme="daylight"],
 }
 
 /* Translucent surfaces */
+.theme-daylight .bg-slate-900\/95,
 .theme-daylight .bg-slate-900\/90,
 .theme-daylight .bg-slate-900\/80,
 .theme-daylight .bg-slate-900\/60,
 .theme-daylight .bg-slate-950\/80,
-.theme-daylight .bg-slate-950\/90 {
+.theme-daylight .bg-slate-950\/70,
+.theme-daylight .bg-slate-950\/60,
+.theme-daylight .bg-slate-950\/90,
+.theme-daylight .bg-\[\#0c121d\]\/90,
+.theme-daylight .bg-\[\#0c121d\]\/75,
+.theme-daylight .bg-\[\#0c121d\]\/70,
+.theme-daylight .bg-\[\#06090f\]\/90,
+.theme-daylight .bg-\[\#06090f\]\/85,
+.theme-daylight .bg-\[\#06090f\]\/80,
+.theme-daylight .bg-\[\#06090f\]\/70 {
   background-color: #ffffff !important;
 }
 .theme-daylight .bg-slate-800\/90,
 .theme-daylight .bg-slate-800\/80,
+.theme-daylight .bg-slate-800\/60,
 .theme-daylight .bg-slate-800\/50,
-.theme-daylight .bg-slate-800\/40 {
+.theme-daylight .bg-slate-800\/40,
+.theme-daylight .bg-\[\#0c121d\]\/95,
+.theme-daylight .bg-\[\#0c121d\]\/80,
+.theme-daylight .bg-\[\#080c14\]\/90,
+.theme-daylight .bg-\[\#080c14\]\/80,
+.theme-daylight .bg-\[\#080c14\]\/70 {
   background-color: #f8fafc !important;
+}
+
+/* Gantt Chart Bars in Daylight Theme (High-Contrast) */
+.theme-daylight .gantt-bar-active {
+  background-color: #fef3c7 !important;
+  border-color: #d97706 !important;
+  color: #78350f !important;
+}
+.theme-daylight .gantt-bar-done {
+  background-color: #d1fae5 !important;
+  border-color: #059669 !important;
+  color: #064e3b !important;
+}
+.theme-daylight .gantt-bar-co {
+  background-color: #e0e7ff !important;
+  border-color: #4f46e5 !important;
+  color: #312e81 !important;
+}
+.theme-daylight .gantt-bar-proj {
+  background-color: #e0f2fe !important;
+  border-color: #0284c7 !important;
+  color: #0c4a6e !important;
+}
+.theme-daylight .gantt-bar-cancel {
+  background-color: #ffe4e6 !important;
+  border-color: #e11d48 !important;
+  color: #881337 !important;
+}
+.theme-daylight .gantt-bar-active .text-cyan-300,
+.theme-daylight .gantt-bar-done .text-cyan-300,
+.theme-daylight .gantt-bar-co .text-cyan-300,
+.theme-daylight .gantt-bar-proj .text-cyan-300 {
+  color: #0369a1 !important;
 }
 
 /* Borders */
@@ -297,5 +438,31 @@ html[data-theme="daylight"],
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #0f172a !important;
+}
+
+@keyframes bubble {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(calc(var(--rand-x-offset, 1) * 10vw)) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.animate-bubble {
+  animation: bubble var(--animation-duration, 15s) ease-in-out infinite;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bubble {
+    animation: none !important;
+    opacity: 0.15 !important;
+  }
 }
 

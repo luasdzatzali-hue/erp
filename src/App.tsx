@@ -94,6 +94,7 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
+import { ContactSection, ContactFormData } from '@/components/ui/contact';
 import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers } from 'lucide-react';
 
 export default function App() {
@@ -1100,7 +1101,8 @@ export default function App() {
           'pemakaian',
           'master',
           'bom-calculator',
-          'reports'
+          'reports',
+          'contact'
         ];
         if (tab && validTabs.includes(tab)) {
           if (tab === 'reports') {
@@ -1123,7 +1125,7 @@ export default function App() {
       return;
     }
     const role = stateRef.current.currentUserRole;
-    if (role === 'MANAGEMENT' && tab !== 'dashboard' && tab !== 'tank-monitoring' && tab !== 'shift-summary') {
+    if (role === 'MANAGEMENT' && tab !== 'dashboard' && tab !== 'tank-monitoring' && tab !== 'shift-summary' && tab !== 'contact') {
       showToast('Akses dibatasi: User Management hanya memiliki izin melihat Dashboard, Tangki WIP, dan Ringkasan Shift', true);
       return;
     }
@@ -1157,8 +1159,8 @@ export default function App() {
       const isNewAdmin = role === 'ADMINISTRATOR';
       let nextTab = prev.currentTab;
 
-      // Management is strictly restricted to dashboard, tank-monitoring, and shift-summary
-      if (role === 'MANAGEMENT' && nextTab !== 'dashboard' && nextTab !== 'tank-monitoring' && nextTab !== 'shift-summary') {
+      // Management is strictly restricted to dashboard, tank-monitoring, shift-summary, and contact
+      if (role === 'MANAGEMENT' && nextTab !== 'dashboard' && nextTab !== 'tank-monitoring' && nextTab !== 'shift-summary' && nextTab !== 'contact') {
         nextTab = 'dashboard';
       }
       // Non-admins cannot stay in Master BOM
@@ -4736,7 +4738,8 @@ export default function App() {
     pemakaian: 'Work Order WIP & Pemakaian Material Resep',
     master: 'Konfigurasi Master BOM, Resep, Mesin & Tangki',
     'bom-calculator': 'Kalkulator Kebutuhan Produksi & Formulasi BOM',
-    reports: 'Laporan Saldo Stock Aktual Shift (PDF Landscape)'
+    reports: 'Laporan Saldo Stock Aktual Shift (PDF Landscape)',
+    contact: 'Kontak & Dukungan Tim Teknis ProdTrack MES'
   };
 
   // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
@@ -4830,37 +4833,35 @@ export default function App() {
           currentViewTitle={viewTitles[state.currentTab] || 'ProdTrack MES'}
         />
 
-        {/* Live Factory Telemetry Ticker Bar */}
-        <div className="bg-slate-900/90 border-b border-slate-800/80 px-3 sm:px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar gap-2 shrink-0 text-xs">
-          <div className="flex items-center space-x-2 shrink-0">
-            {/* Shift Beacon */}
-            <div className="flex items-center space-x-1.5 bg-slate-950/80 px-2.5 py-1 rounded-full border border-slate-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-bold text-white text-[11px]">Shift {getCurrentShift().shift}</span>
-              <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">({getCurrentShift().timeRange})</span>
+        {/* Live Factory Dispatch Console Strip */}
+        <div className="bg-[#06090f] border-b border-slate-800/90 px-3 sm:px-5 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar gap-3 shrink-0 text-xs">
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Shift Telemetry */}
+            <div className="flex items-center gap-1.5 bg-[#0c121d] px-2.5 py-1 rounded-md border border-slate-800 font-mono tabular-nums whitespace-nowrap">
+              <span className="font-bold text-emerald-400 text-[11px]">Shift {getCurrentShift().shift}</span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">· {getCurrentShift().timeRange}</span>
             </div>
 
-            {/* Running Multi-SKU Ticker */}
+            {/* Running Multi-SKU Dispatch */}
             {(() => {
               const runs = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).filter(r => r.isRunning);
               if (runs.length > 0) {
                 return (
                   <div
                     onClick={() => handleSwitchTab('dashboard')}
-                    className="flex items-center space-x-1.5 cursor-pointer bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-1 rounded-full text-[11px] hover:bg-cyan-900/60 transition"
+                    className="flex items-center gap-2 cursor-pointer bg-cyan-950/40 border border-cyan-500/40 px-2.5 py-1 rounded-md text-[11px] hover:bg-cyan-900/40 transition whitespace-nowrap"
                     title="Klik untuk membuka modul Manufacturing & melihat SKU yang sedang diproses"
                   >
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                    <span className="font-bold text-cyan-300 font-mono">
-                      {runs.length === 1 ? '1 Line Aktif:' : `${runs.length} Line Aktif:`}
+                    <span className="font-bold text-cyan-400 font-mono">
+                      {runs.length === 1 ? '1 Lini Aktif:' : `${runs.length} Lini Aktif:`}
                     </span>
-                    <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar max-w-[280px] sm:max-w-[450px]">
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[280px] sm:max-w-[480px]">
                       {runs.map((r, i) => (
-                        <span key={r.id || `${r.lineId || ''}_${r.skuId}_${i}`} className="flex items-center space-x-1 whitespace-nowrap">
-                          {i > 0 && <span className="text-slate-500">·</span>}
-                          {r.lineName && <span className="text-cyan-300 font-bold">{r.lineName}:</span>}
-                          <span className="text-white font-semibold">{r.skuName}</span>
-                          <span className="text-cyan-400 font-mono text-[10px]">
+                        <span key={r.id || `${r.lineId || ''}_${r.skuId}_${i}`} className="flex items-center gap-1 whitespace-nowrap">
+                          {i > 0 && <span className="text-slate-600">·</span>}
+                          {r.lineName && <span className="text-cyan-300 font-semibold">{r.lineName}:</span>}
+                          <span className="text-slate-100 font-medium">{r.skuName}</span>
+                          <span className="text-cyan-400 font-mono text-[10px] tabular-nums">
                             ({(r.cartonsProducedTotal || 0).toLocaleString()}{r.plannedCartons ? `/${r.plannedCartons.toLocaleString()}` : ''} ktn)
                           </span>
                         </span>
@@ -4870,56 +4871,56 @@ export default function App() {
                 );
               }
               return (
-                <div className="flex items-center space-x-1 bg-slate-950/60 px-2.5 py-1 rounded-full border border-slate-800 text-[11px] text-slate-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                  <span>Line Standby</span>
+                <div className="flex items-center gap-1.5 bg-[#0c121d] px-2.5 py-1 rounded-md border border-slate-800 text-[11px] text-slate-400 whitespace-nowrap">
+                  <span>Lini Siaga</span>
                 </div>
               );
             })()}
 
-            {/* Active Running WIP Batch Countdown Indicator */}
+            {/* Active Running WIP Batch Quick Action */}
             {(() => {
               const running = (state.transactions.wipBatches || []).find(b => b.status === 'SEDANG_PRODUKSI');
               if (!running) return null;
               return (
                 <div
                   onClick={() => handleSwitchTab('pemakaian')}
-                  className="cursor-pointer flex items-center space-x-1.5 bg-amber-950/60 border border-amber-500/40 px-2.5 py-1 rounded-full text-[11px] hover:border-amber-400 transition"
-                  title="Klik untuk membuka rincian batch di Pemakaian"
+                  className="cursor-pointer flex items-center gap-2 bg-amber-950/40 border border-amber-500/40 px-2.5 py-1 rounded-md text-[11px] hover:border-amber-400 transition whitespace-nowrap"
+                  title="Klik untuk membuka rincian batch & Gantt WIP"
                 >
-                  <Clock className="w-3 h-3 text-amber-400 animate-spin" />
-                  <span className="text-amber-300 font-semibold">{running.batchCode} ({running.wipName})</span>
+                  <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                  <span className="text-amber-300 font-mono font-semibold">{running.batchCode}</span>
+                  <span className="text-slate-200 hidden sm:inline">· {running.wipName}</span>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCompleteWipBatch(running.id);
                     }}
-                    className="px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 text-[9px] font-black uppercase hover:bg-amber-400 active:scale-95 ml-1"
-                    title="Selesaikan batch sekarang & picu alarm"
+                    className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition whitespace-nowrap shrink-0"
+                    title="Selesaikan batch sekarang & transfer ke tangki"
                   >
-                    ⚡ Selesai
+                    Selesai
                   </button>
                 </div>
               );
             })()}
           </div>
 
-          {/* Quick Report Download Trigger (One UI Pill) */}
-          <div className="flex items-center space-x-2 shrink-0">
+          {/* Quick Report Download Trigger */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setIsPdfReportModalOpen(true)}
-              className="flex items-center space-x-1 bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/40 text-rose-200 px-2.5 py-1 rounded-full text-[11px] font-semibold transition active:scale-95"
+              className="flex items-center gap-1.5 bg-[#0c121d] hover:bg-slate-800 border border-slate-800 hover:border-rose-500/40 text-slate-200 px-2.5 py-1 rounded-md text-[11px] font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
               title="Download Laporan Saldo Stock Aktual Shift Format PDF (A4 Landscape)"
             >
-              <FileText className="w-3 h-3 text-rose-400" />
+              <FileText className="w-3.5 h-3.5 text-rose-400" />
               <span>Laporan Shift (PDF)</span>
             </button>
           </div>
         </div>
 
         {/* Main Content View Area */}
-        <main className={`flex-1 ${state.currentTab === 'admin-portal' ? 'overflow-y-auto lg:overflow-hidden p-2 sm:p-3 lg:p-4' : 'overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8'} bg-slate-950 relative`}>
+        <main className={`flex-1 ${state.currentTab === 'admin-portal' ? 'overflow-y-auto lg:overflow-hidden p-2 sm:p-3 lg:p-4' : 'overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8'} bg-[#06090f] relative`}>
           {state.currentTab === 'admin-portal' && (
             <AdminPortalView
               state={state}
@@ -4957,6 +4958,9 @@ export default function App() {
               onSetProductionLinesCount={handleSetProductionLinesCount}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               onChangeSku={handleSkuChangeover}
+              onSaveWeeklyPlan={handleSaveWeeklyPlan}
+              onSelectWeeklyPlan={handleSelectWeeklyPlan}
+              onDeleteWeeklyPlan={handleDeleteWeeklyPlan}
               showToast={showToast}
             />
           )}
@@ -5085,6 +5089,36 @@ export default function App() {
               onSwitchTab={handleSwitchTab}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               showToast={showToast}
+            />
+          )}
+
+          {state.currentTab === 'contact' && (
+            <ContactSection
+              brandName={state.factoryName || 'ProdTrack MES Support'}
+              title="Dukungan Teknis & Integrasi Operasional Pabrik"
+              mainMessage="Hubungi Tim Engineering"
+              contactEmail="support@prodtrack-mes.local"
+              ctaLabel="Kirim Tiket"
+              navLinks={[
+                { label: 'Dashboard', href: '#tab=dashboard', onClick: () => handleSwitchTab('dashboard') },
+                { label: 'Tangki WIP', href: '#tab=tank-monitoring', onClick: () => handleSwitchTab('tank-monitoring') },
+                { label: 'Permintaan Material', href: '#tab=permintaan', onClick: () => handleSwitchTab('permintaan') },
+                { label: 'Ringkasan Shift', href: '#tab=shift-summary', onClick: () => handleSwitchTab('shift-summary') }
+              ]}
+              projectTypeOptions={[
+                'Penyesuaian BOM & Resep',
+                'Integrasi SAP / Warehouse',
+                'Kalibrasi Tangki WIP',
+                'Planning Mingguan',
+                'Laporan PDF Shift',
+                'Akses Pengguna & Role',
+                'Permasalahan Jaringan',
+                'Permintaan Fitur Baru',
+                'Lainnya'
+              ]}
+              onSubmit={(data: ContactFormData) => {
+                showToast(`Pesan dukungan dari ${data.name} berhasil dicatat (${data.projectType.length} topik).`);
+              }}
             />
           )}
         </main>

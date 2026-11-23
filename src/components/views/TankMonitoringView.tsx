@@ -326,21 +326,20 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-[1440px] mx-auto space-y-5 pb-12">
       {/* Title & Executive Bar */}
-      <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[#0c121d] border border-slate-800 p-4 sm:p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2 text-sky-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Dedicated Process Dashboard</span>
-            <span className="text-slate-400">•</span>
-            <span className="text-amber-800 font-bold">Shift {currentShift.shift} ({currentShift.timeRange})</span>
+          <div className="flex flex-wrap items-center gap-2 text-cyan-400 text-[11px] font-mono font-semibold uppercase tracking-wider mb-1">
+            <span>Process Tank Telemetry</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-amber-400">Shift {currentShift.shift} ({currentShift.timeRange})</span>
           </div>
-          <h2 className="text-lg sm:text-2xl font-bold text-slate-900 flex items-center space-x-2.5">
-            <Cylinder className="w-6 h-6 text-sky-700" />
-            <span>Monitoring Tangki WIP (Holding & Storage Tank)</span>
+          <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2.5 tracking-tight">
+            <Cylinder className="w-5 h-5 text-cyan-400 shrink-0" />
+            <span>Monitoring Tangki WIP (Holding &amp; Storage Tank)</span>
           </h2>
-          <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
             Pantau ketersediaan massa WIP secara real-time. Isi tangki otomatis berkurang presisi setiap 1 karton produk jadi (SKU) yang berhasil diproduksi berdasarkan formula rasio BOM WIP.
           </p>
         </div>
@@ -352,32 +351,29 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                 setInitialTransferSourceId(undefined);
                 setIsTransferModalOpen(true);
               }}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition shadow-xs active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 active:scale-95"
               title="Transfer Antar-Tangki (Holding Tank ➔ Storage Tank atau sebaliknya)"
             >
-              <ArrowRightLeft className="w-4 h-4" />
+              <ArrowRightLeft className="w-3.5 h-3.5" />
               <span>Transfer Antar-Tangki</span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/20 text-white font-bold ml-0.5">
-                Rule Baru
-              </span>
             </button>
           )}
 
           <button
             onClick={handlePrint}
-            className="flex items-center space-x-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium transition shadow"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition whitespace-nowrap shrink-0"
             title="Cetak Ringkasan Tangki"
           >
-            <Printer className="w-4 h-4 text-cyan-400" />
+            <Printer className="w-3.5 h-3.5 text-cyan-400" />
             <span className="hidden sm:inline">Cetak Laporan</span>
           </button>
 
           {isAdmin && onSwitchTab && (
             <button
               onClick={() => onSwitchTab('master')}
-              className="flex items-center space-x-2 px-3 py-2 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-medium transition"
+              className="flex items-center gap-1.5 px-3 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-semibold transition whitespace-nowrap shrink-0"
             >
-              <Sliders className="w-4 h-4" />
+              <Sliders className="w-3.5 h-3.5" />
               <span>Kelola Master</span>
             </button>
           )}
@@ -386,134 +382,132 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
       {/* Odoo MES Management Read-Only Banner */}
       {isManagement && (
-        <div className="bg-indigo-950/50 border border-indigo-500/40 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xl">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0">
+        <div className="bg-indigo-950/40 border border-indigo-500/40 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0">
               <Eye className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <span>Odoo MRP Portal: Mode Management (Pantau Saja)</span>
+              <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>Portal Monitoring: Mode Management (Pantau Saja)</span>
               </p>
               <p className="text-[11px] text-slate-300 mt-0.5">
-                Memantau telemetri seluruh {state.master.tanks.length} tangki WIP (Holding Tank & Storage Tank) secara visual dan real-time. Tidak dapat melakukan transfer atau pengisian tangki.
+                Memantau telemetri seluruh {state.master.tanks.length} tangki WIP (Holding Tank &amp; Storage Tank) secara visual dan real-time. Tidak dapat melakukan transfer atau pengisian tangki.
               </p>
             </div>
           </div>
-          <span className="self-start sm:self-center px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/40 font-mono whitespace-nowrap">
+          <span className="self-start sm:self-center px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/40 font-mono whitespace-nowrap">
             READ-ONLY
           </span>
         </div>
       )}
 
       {/* KPI Cards Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Metric 1 */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-semibold mb-1.5">
+        <div className="bg-[#0c121d] border border-slate-800 p-3.5 sm:p-4 rounded-xl">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-mono uppercase tracking-wider mb-1.5">
             <span>Total Tangki WIP</span>
-            <Cylinder className="w-4 h-4 text-sky-700" />
+            <Cylinder className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono">{stats.totalTanks}</span>
-            <span className="text-[11px] text-slate-500 font-medium">Unit</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-white font-mono tabular-nums">{stats.totalTanks}</span>
+            <span className="text-[11px] text-slate-400 font-medium">Unit</span>
           </div>
-          <div className="flex items-center space-x-2 mt-2 text-[10px]">
-            <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300 font-bold">
+          <div className="flex items-center gap-2 mt-2 text-[10px] font-mono">
+            <span className="text-amber-400 font-semibold">
               {stats.holdingCount} Holding
             </span>
-            <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold">
+            <span className="text-slate-600">·</span>
+            <span className="text-indigo-300 font-semibold">
               {stats.storageCount} Storage
             </span>
           </div>
         </div>
 
         {/* Metric 2 */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-semibold mb-1.5">
-            <span>Total Massa WIP Tersedia</span>
-            <Layers className="w-4 h-4 text-emerald-700" />
+        <div className="bg-[#0c121d] border border-slate-800 p-3.5 sm:p-4 rounded-xl">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-mono uppercase tracking-wider mb-1.5">
+            <span>Massa WIP Tersedia</span>
+            <Layers className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-xl sm:text-2xl font-extrabold text-emerald-700 font-mono">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl sm:text-2xl font-extrabold text-emerald-400 font-mono tabular-nums">
               {stats.totalCurrentLevel.toLocaleString('id-ID', { maximumFractionDigits: 1 })}
             </span>
-            <span className="text-[11px] text-slate-600 font-medium">/ {stats.totalCapacity.toLocaleString('id-ID')} kg</span>
+            <span className="text-[11px] text-slate-400 font-mono tabular-nums">/ {stats.totalCapacity.toLocaleString('id-ID')} kg</span>
           </div>
-          <div className="mt-2 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+          <div className="mt-2.5 w-full bg-[#06090f] border border-slate-800 h-1.5 rounded-full overflow-hidden">
             <div
-              className="bg-emerald-600 h-full rounded-full transition-all duration-500"
+              className="bg-emerald-500 h-full transition-all duration-500"
               style={{ width: `${Math.min(100, stats.avgUtilization)}%` }}
             />
           </div>
         </div>
 
         {/* Metric 3 */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-semibold mb-1.5">
-            <span>Rata-rata Utilisasi Kapasitas</span>
-            <Activity className="w-4 h-4 text-amber-600" />
+        <div className="bg-[#0c121d] border border-slate-800 p-3.5 sm:p-4 rounded-xl">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-mono uppercase tracking-wider mb-1.5">
+            <span>Utilisasi Kapasitas</span>
+            <Activity className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-xl sm:text-2xl font-extrabold text-amber-700 font-mono">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-amber-400 font-mono tabular-nums">
               {stats.avgUtilization.toFixed(1)}%
             </span>
-            <span className="text-[11px] text-slate-500 font-medium">Kapasitas Penuh</span>
+            <span className="text-[11px] text-slate-400 font-medium">Terisi</span>
           </div>
-          <p className="text-[10px] text-slate-600 mt-2 font-medium">
-            Status tangki keseluruhan optimal & siap produksi
+          <p className="text-[10px] text-slate-400 mt-2">
+            Kapasitas operasional tangki terpantau
           </p>
         </div>
 
         {/* Metric 4 */}
-        <div className="bg-white border border-slate-200 p-3.5 sm:p-4 rounded-2xl shadow-xs">
-          <div className="flex items-center justify-between text-slate-600 text-xs font-semibold mb-1.5">
-            <span>Tangki Menipis / Perlu Diisi</span>
-            <ShieldAlert className={`w-4 h-4 ${stats.lowStockCount > 0 ? 'text-rose-600 animate-bounce' : 'text-slate-400'}`} />
+        <div className={`bg-[#0c121d] border p-3.5 sm:p-4 rounded-xl ${stats.lowStockCount > 0 ? 'border-rose-500/50' : 'border-slate-800'}`}>
+          <div className="flex items-center justify-between text-slate-400 text-[11px] font-mono uppercase tracking-wider mb-1.5">
+            <span>Tangki Menipis</span>
+            <ShieldAlert className={`w-4 h-4 ${stats.lowStockCount > 0 ? 'text-rose-400' : 'text-slate-500'}`} />
           </div>
-          <div className="flex items-baseline space-x-2">
-            <span className={`text-xl sm:text-2xl font-extrabold font-mono ${stats.lowStockCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-xl sm:text-2xl font-extrabold font-mono tabular-nums ${stats.lowStockCount > 0 ? 'text-rose-400' : 'text-white'}`}>
               {stats.lowStockCount}
             </span>
-            <span className="text-[11px] text-slate-500 font-medium">Tangki di bawah 20%</span>
+            <span className="text-[11px] text-slate-400 font-medium">Tangki &lt; 20%</span>
           </div>
-          <p className="text-[10px] text-slate-600 mt-2">
+          <p className="text-[10px] mt-2">
             {stats.lowStockCount > 0 ? (
-              <span className="text-rose-700 font-bold">Perlu segera dilakukan batch transfer</span>
+              <span className="text-rose-400 font-semibold">Perlu segera batch transfer / isi</span>
             ) : (
-              <span className="text-emerald-700 font-medium">Semua tangki dalam batas aman</span>
+              <span className="text-emerald-400 font-medium">Semua tangki dalam batas aman</span>
             )}
           </p>
         </div>
       </div>
 
       {/* SECTION: Automated Carton Production Controller & Depletion Mechanism */}
-      <div className="bg-white border-2 border-sky-300 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4 relative overflow-hidden text-slate-900">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="bg-[#0c121d] border border-cyan-500/30 rounded-xl p-4 sm:p-5 space-y-4 relative overflow-hidden text-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
           <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-950 border border-sky-300 uppercase tracking-wider flex items-center space-x-1">
-                <Zap className="w-3 h-3 text-sky-700" />
-                <span>Pengurang Tangki Otomatis Per Karton</span>
-              </span>
-              <span className="text-xs text-slate-500 font-medium">• Real-time Depletion Logic</span>
+            <div className="flex items-center gap-2 text-[10px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
+              <Zap className="w-3.5 h-3.5" />
+              <span>Pengurang Tangki Otomatis Per Karton · Real-time Depletion</span>
             </div>
-            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center space-x-2">
-              <Package className="w-5 h-5 text-sky-700" />
-              <span>Simulasi & Monitoring Output Produksi Karton (SKU)</span>
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <Package className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>Simulasi &amp; Monitoring Output Produksi Karton (SKU)</span>
             </h3>
-            <p className="text-xs text-slate-600 font-medium">
-              Pengurangan isi (kg) tangki holding & storage tank otomatis berjalan secara real-time berdasarkan Target Master BOM saat tombol Start ditekan.
+            <p className="text-xs text-slate-400">
+              Pengurangan isi (kg) tangki holding &amp; storage tank otomatis berjalan secara real-time berdasarkan Target Master BOM saat tombol Start ditekan.
             </p>
           </div>
 
           {/* Active SKU Selector & Start/Stop Controls */}
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-wrap items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-700 font-bold shrink-0">SKU Aktif:</span>
+          <div className="bg-[#080c14] p-2.5 rounded-xl border border-slate-800 flex flex-wrap items-center gap-2 shrink-0">
+            <span className="text-xs text-slate-300 font-bold shrink-0">SKU Aktif:</span>
             <select
               value={selectedSkuId}
               onChange={(e) => setSelectedSkuId(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-xs"
+              className="bg-[#06090f] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-cyan-500"
             >
               {state.master.skus.map(s => {
                 const isRun = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).some(r => r.isRunning && r.skuId === s.id);
@@ -530,8 +524,8 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
               const currentRunForSelected = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).find(r => r.skuId === selectedSkuId);
               if (!currentRunForSelected?.isRunning) return null;
               return (
-                <div className="flex items-center space-x-1 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-xs">
-                  <span className="text-[10px] text-slate-600 font-mono font-medium">Speed:</span>
+                <div className="flex items-center space-x-1 bg-[#06090f] px-2 py-1 rounded-lg border border-slate-700">
+                  <span className="text-[10px] text-slate-400 font-mono font-medium">Speed:</span>
                   {[1, 2, 5].map((mult) => (
                     <button
                       key={mult}
@@ -540,7 +534,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition ${
                         (currentRunForSelected?.speedMultiplier || 1) === mult
                           ? 'bg-emerald-600 text-white'
-                          : 'text-slate-600 hover:text-slate-900'
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       {mult}x
@@ -552,7 +546,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
             {/* Start / Stop Production Buttons */}
             {isManagement ? (
-              <div className="px-3 py-1.5 bg-indigo-950/60 border border-indigo-500/40 rounded-lg text-xs text-indigo-300 font-semibold flex items-center space-x-1.5 shadow">
+              <div className="px-3 py-1.5 bg-indigo-950/60 border border-indigo-500/40 rounded-lg text-xs text-indigo-300 font-semibold flex items-center space-x-1.5">
                 <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Mode Management (Pantau Saja)</span>
               </div>
@@ -563,7 +557,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsStopModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white rounded-lg text-xs font-bold shadow-md shadow-rose-600/30 flex items-center space-x-1.5 transition active:scale-95 animate-pulse"
+                    className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
                     <span>Stop SKU Ini (Six Big Losses)</span>
@@ -585,7 +579,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                       }
                     }
                   }}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-600/30 flex items-center space-x-1.5 transition active:scale-95"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Mulai SKU Ini (Start)</span>
@@ -597,7 +591,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
         {/* Formula breakdown card for 1 carton */}
         {activeSku && (
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 sm:p-4 space-y-2">
+          <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3 sm:p-4 space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-300 gap-2">
               <div className="flex items-center space-x-2">
                 <Info className="w-4 h-4 text-cyan-400 shrink-0" />
@@ -697,75 +691,50 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
         {!isManagement && (
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-600 font-bold mr-1">Aksi Cepat Pengurangan:</span>
+              <span className="text-xs text-slate-400 font-semibold mr-1">Aksi Cepat Pengurangan:</span>
               <button
                 onClick={() => handleTriggerProduction(1)}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center space-x-1.5 transition active:scale-95 border border-sky-700"
+                className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 text-white" />
-                <span className="text-white font-bold">+1 Karton Selesai</span>
+                <span>+1 Karton Selesai</span>
               </button>
 
-              <button
-                onClick={() => handleTriggerProduction(5)}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
-              >
-                +5 Karton
-              </button>
-
-              <button
-                onClick={() => handleTriggerProduction(10)}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
-              >
-                +10 Karton
-              </button>
-
-              <button
-                onClick={() => handleTriggerProduction(25)}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
-              >
-                +25 Karton
-              </button>
-
-              <button
-                onClick={() => handleTriggerProduction(50)}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
-              >
-                +50 Karton
-              </button>
-
-              <button
-                onClick={() => handleTriggerProduction(100)}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
-              >
-                +100 Karton
-              </button>
+              {[5, 10, 25, 50, 100].map(qty => (
+                <button
+                  key={qty}
+                  onClick={() => handleTriggerProduction(qty)}
+                  className="px-3 py-1.5 bg-[#080c14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono font-bold transition active:scale-95 whitespace-nowrap shrink-0"
+                >
+                  +{qty}
+                </button>
+              ))}
 
               <button
                 onClick={() => handleTriggerProduction(200)}
-                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-300 rounded-xl text-xs font-bold transition active:scale-95 shadow-xs"
+                className="px-3 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-mono font-bold transition active:scale-95 whitespace-nowrap shrink-0"
               >
-                +200 Karton (cth: jam 15:30)
+                +200 Ktn
               </button>
             </div>
 
             {/* Custom Carton Input */}
-            <form onSubmit={handleCustomCartonSubmit} className="flex items-center space-x-2 shrink-0">
-              <div className="flex items-center bg-white rounded-xl border border-slate-300 px-2.5 py-1 shadow-xs">
-                <span className="text-xs text-slate-600 font-medium mr-2">Qty Custom:</span>
+            <form onSubmit={handleCustomCartonSubmit} className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-[#06090f] rounded-lg border border-slate-700 px-2.5 py-1">
+                <span className="text-xs text-slate-400 font-medium mr-2">Qty Custom:</span>
                 <input
                   type="number"
                   min="1"
                   step="1"
                   value={customCartons}
                   onChange={(e) => setCustomCartons(e.target.value)}
-                  className="w-16 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 font-mono font-bold text-center focus:outline-none focus:border-sky-500"
+                  className="w-16 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono font-bold text-center focus:outline-none focus:border-cyan-500"
                 />
-                <span className="text-xs text-slate-600 font-medium ml-1">ktn</span>
+                <span className="text-xs text-slate-400 font-mono ml-1.5">ktn</span>
               </div>
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition active:scale-95 shadow-xs border border-sky-700"
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition active:scale-95 whitespace-nowrap shrink-0"
               >
                 Kurangi
               </button>
@@ -775,45 +744,45 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
       </div>
 
       {/* Tank Controls: Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0c121d] p-3 rounded-xl border border-slate-800">
         {/* Filter buttons */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setTankTypeFilter('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 ${
               tankTypeFilter === 'ALL'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-cyan-600 text-white'
+                : 'text-slate-300 bg-[#080c14] hover:bg-slate-800 border border-slate-800'
             }`}
           >
             Semua Tangki ({state.master.tanks.length})
           </button>
           <button
             onClick={() => setTankTypeFilter('STORAGE_TANK')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 ${
               tankTypeFilter === 'STORAGE_TANK'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-300 bg-[#080c14] hover:bg-slate-800 border border-slate-800'
             }`}
           >
             Storage Tank ({stats.storageCount})
           </button>
           <button
             onClick={() => setTankTypeFilter('HOLDING_TANK')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 ${
               tankTypeFilter === 'HOLDING_TANK'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-amber-600 text-white'
+                : 'text-slate-300 bg-[#080c14] hover:bg-slate-800 border border-slate-800'
             }`}
           >
             Holding Tank ({stats.holdingCount})
           </button>
           <button
             onClick={() => setTankTypeFilter('LOW_STOCK')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 ${
               tankTypeFilter === 'LOW_STOCK'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-rose-600 text-white'
+                : 'text-slate-300 bg-[#080c14] hover:bg-slate-800 border border-slate-800'
             }`}
           >
             Menipis / Perlu Diisi ({stats.lowStockCount})
@@ -828,7 +797,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari kode/nama tangki..."
-            className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium shadow-xs"
+            className="w-full bg-[#06090f] border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-medium"
           />
         </div>
       </div>
@@ -852,36 +821,36 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           return (
             <div
               key={tank.id}
-              className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition hover:border-sky-400 flex flex-col justify-between ${
-                isLow ? 'border-rose-400 ring-1 ring-rose-200' : 'border-slate-200'
+              className={`bg-[#0c121d] border rounded-xl p-4 sm:p-5 transition hover:border-cyan-500/40 flex flex-col justify-between ${
+                isLow ? 'border-rose-500/60' : 'border-slate-800'
               }`}
             >
               {/* Header card */}
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono text-sm font-extrabold text-sky-950 bg-sky-100 px-2.5 py-0.5 rounded-lg border border-sky-300 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-extrabold text-cyan-300 bg-cyan-950/60 px-2.5 py-0.5 rounded border border-cyan-500/30">
                         {tank.code}
                       </span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        className={`text-[10px] font-mono font-bold uppercase tracking-wider ${
                           tank.type === 'STORAGE_TANK'
-                            ? 'bg-indigo-100 text-indigo-950 border border-indigo-300'
-                            : 'bg-amber-100 text-amber-950 border border-amber-300'
+                            ? 'text-indigo-300'
+                            : 'text-amber-400'
                         }`}
                       >
                         {tank.type === 'STORAGE_TANK' ? 'Storage Tank' : 'Holding Tank'}
                       </span>
                     </div>
-                    <h4 className="font-bold text-sm text-slate-900 mt-1.5">{tank.name}</h4>
+                    <h4 className="font-bold text-sm text-white mt-1.5">{tank.name}</h4>
                   </div>
 
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
                       tank.status === 'ACTIVE'
-                        ? 'bg-emerald-100 text-emerald-950 border border-emerald-300'
-                        : 'bg-slate-200 text-slate-700'
+                        ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
                     {tank.status}
@@ -889,18 +858,18 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                 </div>
 
                 {/* Assigned WIP & Multi-Machine Info */}
-                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 my-3 text-xs space-y-1.5">
+                <div className="bg-[#06090f] rounded-lg p-2.5 border border-slate-800 my-3 text-xs space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-600 text-[11px] font-medium">1 Formula WIP:</span>
-                    <span className="text-slate-900 font-bold truncate max-w-[170px] text-right">
-                      {wip ? wip.name : <em className="text-slate-400 font-normal">Kosong / Belum Diisi</em>}
+                    <span className="text-slate-400 text-[11px] font-medium">1 Formula WIP:</span>
+                    <span className="text-slate-100 font-bold truncate max-w-[170px] text-right">
+                      {wip ? wip.name : <em className="text-slate-500 font-normal">Kosong / Belum Diisi</em>}
                     </span>
                   </div>
 
-                  <div className="pt-1 border-t border-slate-200">
+                  <div className="pt-1 border-t border-slate-800">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-600 text-[11px] font-medium">Mesin Pengisi:</span>
-                      <span className="text-[10px] text-sky-800 font-mono font-bold">
+                      <span className="text-slate-400 text-[11px] font-medium">Mesin Pengisi:</span>
+                      <span className="text-[10px] text-cyan-400 font-mono font-bold">
                         {machines.length} Mesin Sumber
                       </span>
                     </div>
@@ -910,16 +879,16 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                         {machines.map(m => (
                           <span
                             key={m.id}
-                            className="px-1.5 py-0.5 bg-sky-100 border border-sky-300 text-sky-950 rounded text-[10px] font-mono flex items-center space-x-1"
+                            className="px-1.5 py-0.5 bg-[#0c121d] border border-slate-700 text-slate-200 rounded text-[10px] font-mono flex items-center gap-1"
                             title={`${m.code} - ${m.name} (${m.line})`}
                           >
-                            <span className="font-extrabold text-sky-950 bg-sky-200/80 px-1 py-0.2 rounded border border-sky-300">{m.code}</span>
-                            <span className="text-slate-800 truncate max-w-[90px] font-medium">{m.name}</span>
+                            <span className="font-bold text-cyan-400">{m.code}</span>
+                            <span className="text-slate-300 truncate max-w-[90px]">{m.name}</span>
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-400 text-[10px] italic">
+                      <span className="text-slate-500 text-[10px] italic">
                         Belum dihubungkan ke mesin pengisi
                       </span>
                     )}
@@ -929,9 +898,9 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                 {/* VISUAL TANK CYLINDER GAUGE */}
                 <div className="flex items-center space-x-4 my-4">
                   {/* Visual SVG Tank Vessel */}
-                  <div className="relative w-16 h-28 bg-slate-100 rounded-2xl border-2 border-slate-300 overflow-hidden flex flex-col justify-end p-1 shadow-inner shrink-0">
+                  <div className="relative w-16 h-28 bg-[#06090f] rounded-xl border-2 border-slate-700 overflow-hidden flex flex-col justify-end p-1 shadow-inner shrink-0">
                     {/* Measurement graduation markings */}
-                    <div className="absolute inset-y-2 left-1.5 flex flex-col justify-between text-[8px] font-mono text-slate-500 select-none pointer-events-none z-10">
+                    <div className="absolute inset-y-2 left-1.5 flex flex-col justify-between text-[8px] font-mono text-slate-400 select-none pointer-events-none z-10">
                       <span>-100%</span>
                       <span>-75%</span>
                       <span>-50%</span>
@@ -939,9 +908,9 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                       <span>-0%</span>
                     </div>
 
-                    {/* Animated Liquid Level */}
+                    {/* Liquid Level */}
                     <div
-                      className={`w-full rounded-b-xl transition-all duration-700 relative overflow-hidden ${
+                      className={`w-full rounded-b-lg transition-all duration-700 relative overflow-hidden ${
                         percent < 20
                           ? 'bg-rose-500'
                           : percent < 50
@@ -950,29 +919,28 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                       }`}
                       style={{ height: `${Math.max(4, Math.min(100, percent))}%` }}
                     >
-                      {/* Wave shine effect */}
-                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                      <div className="absolute inset-x-0 top-0 h-1 bg-white/30" />
                     </div>
                   </div>
 
                   {/* Level numbers & stats */}
                   <div className="flex-1 space-y-1.5">
                     <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-slate-600 font-medium">Level Saat Ini:</span>
-                      <span className="font-mono text-base font-extrabold text-slate-900">
-                        {tank.currentLevelKg.toFixed(1)} <span className="text-xs font-normal text-slate-500">kg</span>
+                      <span className="text-xs text-slate-400 font-medium">Level Saat Ini:</span>
+                      <span className="font-mono text-base font-extrabold text-white tabular-nums">
+                        {tank.currentLevelKg.toFixed(1)} <span className="text-xs font-normal text-slate-400">kg</span>
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-600 font-medium">Kapasitas Maks:</span>
-                      <span className="font-mono text-slate-800 font-semibold">
+                      <span className="text-slate-400 font-medium">Kapasitas Maks:</span>
+                      <span className="font-mono text-slate-300 font-semibold tabular-nums">
                         {tank.capacityKg.toFixed(0)} kg
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-600 font-medium">Persentase:</span>
+                      <span className="text-slate-400 font-medium">Persentase:</span>
                       <span
-                        className={`font-mono font-bold ${
+                        className={`font-mono font-bold tabular-nums ${
                           percent < 20 ? 'text-rose-400' : percent < 50 ? 'text-amber-400' : 'text-emerald-400'
                         }`}
                       >
@@ -982,7 +950,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
                     {/* Low stock warning */}
                     {isLow && (
-                      <div className="flex items-center space-x-1.5 text-rose-400 text-[11px] font-bold bg-rose-500/10 px-2 py-1 rounded-lg border border-rose-500/20">
+                      <div className="flex items-center gap-1.5 text-rose-400 text-[11px] font-bold bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                         <span>Level Kritis (&lt; 20%)</span>
                       </div>
@@ -991,33 +959,33 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                 </div>
 
                 {/* Sensors: Temperature & Agitator Status */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-xs">
-                  <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
-                    <div className="flex items-center space-x-1.5 text-slate-600 text-[11px] font-medium">
-                      <Thermometer className="w-3.5 h-3.5 text-amber-600" />
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
+                  <div className="flex items-center justify-between bg-[#06090f] p-2 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                      <Thermometer className="w-3.5 h-3.5 text-amber-400" />
                       <span>Suhu:</span>
                     </div>
-                    <span className="font-mono text-slate-900 font-extrabold text-[11px]">
+                    <span className="font-mono text-white font-bold text-[11px] tabular-nums">
                       {tank.temp !== undefined ? `${tank.temp.toFixed(1)}°C` : 'N/A'}
                     </span>
                   </div>
 
                   <button
                     onClick={() => handleToggleAgitator(tank)}
-                    className={`flex items-center justify-between p-2 rounded-xl border transition ${
+                    className={`flex items-center justify-between p-2 rounded-lg border transition ${
                       tank.agitatorStatus === 'ON'
-                        ? 'bg-sky-100 border-sky-300 text-sky-950 font-bold'
-                        : 'bg-slate-100 border-slate-200 text-slate-700 font-medium'
+                        ? 'bg-cyan-950/60 border-cyan-500/40 text-cyan-300 font-bold'
+                        : 'bg-[#06090f] border-slate-800 text-slate-400 font-medium'
                     }`}
                     title="Klik untuk mengubah status agitator (ON/OFF)"
                   >
-                    <div className="flex items-center space-x-1.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-[11px]">
                       <RotateCw
-                        className={`w-3.5 h-3.5 ${tank.agitatorStatus === 'ON' ? 'animate-spin text-sky-700' : ''}`}
+                        className={`w-3.5 h-3.5 ${tank.agitatorStatus === 'ON' ? 'animate-spin text-cyan-400' : ''}`}
                       />
                       <span>Agitator:</span>
                     </div>
-                    <span className="font-bold text-[10px]">
+                    <span className="font-mono font-bold text-[10px]">
                       {tank.agitatorStatus || 'OFF'}
                     </span>
                   </button>
@@ -1025,11 +993,11 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
                 {/* Carton Production Capability */}
                 {estimatedCartons !== null && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-xs flex items-center justify-between">
-                    <span className="text-slate-700 text-[11px] font-medium">
+                  <div className="mt-3 p-2.5 rounded-lg bg-[#06090f] border border-cyan-500/20 text-xs flex items-center justify-between">
+                    <span className="text-slate-300 text-[11px] font-medium">
                       Kemampuan Produksi [{activeSku?.code || 'SKU'}]:
                     </span>
-                    <span className="font-mono text-sky-950 font-extrabold">
+                    <span className="font-mono text-cyan-400 font-extrabold tabular-nums">
                       {estimatedCartons} Karton
                     </span>
                   </div>
@@ -1038,7 +1006,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
 
               {/* Action buttons footer */}
               {!isManagement ? (
-                <div className="space-y-1.5 mt-4 pt-3 border-t border-slate-200">
+                <div className="space-y-1.5 mt-4 pt-3 border-t border-slate-800">
                   {isAdmin ? (
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -1046,9 +1014,9 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                           setActiveRefillTank(tank);
                           setRefillAmount(wip ? wip.batchWeightKg.toString() : '100');
                         }}
-                        className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
+                        className="px-2.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
                       >
-                        <ArrowUpCircle className="w-3.5 h-3.5 text-sky-700" />
+                        <ArrowUpCircle className="w-3.5 h-3.5 text-cyan-400" />
                         <span>+ Isi Batch WIP</span>
                       </button>
 
@@ -1057,16 +1025,16 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                           setActiveCalibrateTank(tank);
                           setCalibratedLevel(tank.currentLevelKg.toString());
                         }}
-                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95 shadow-xs"
+                        className="px-2.5 py-1.5 bg-[#080c14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
                       >
-                        <Sliders className="w-3.5 h-3.5 text-slate-600" />
+                        <Sliders className="w-3.5 h-3.5 text-slate-400" />
                         <span>Kalibrasi Level</span>
                       </button>
                     </div>
                   ) : (
-                    <div className="px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-medium flex items-center space-x-1.5">
-                      <Lock className="w-3 h-3 text-amber-600 shrink-0" />
-                      <span>Isi Batch WIP & Kalibrasi Isi Tangki hanya tersedia di Mode Administrator</span>
+                    <div className="px-2.5 py-1.5 rounded-lg bg-[#080c14] border border-slate-800 text-slate-400 text-[10px] font-medium flex items-center gap-1.5">
+                      <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>Isi Batch WIP &amp; Kalibrasi Isi Tangki hanya tersedia di Mode Administrator</span>
                     </div>
                   )}
 
@@ -1077,10 +1045,10 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                       setInitialTransferSourceId(tank.id);
                       setIsTransferModalOpen(true);
                     }}
-                    className={`w-full py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center justify-center space-x-1.5 active:scale-95 shadow-xs ${
+                    className={`w-full py-1.5 rounded-lg text-[11px] font-bold border transition flex items-center justify-center gap-1.5 active:scale-95 ${
                       tank.type === 'HOLDING_TANK'
-                        ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-300'
-                        : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                        ? 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border-indigo-500/30'
+                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
                     }`}
                     title={
                       tank.type === 'HOLDING_TANK'
@@ -1091,7 +1059,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                     <ArrowRightLeft className="w-3 h-3 text-current" />
                     <span>
                       {tank.type === 'HOLDING_TANK'
-                        ? '➔ Transfer ke Storage Tank (Rule Baru)'
+                        ? '➔ Transfer ke Storage Tank'
                         : '➔ Transfer ke Holding Tank'}
                     </span>
                   </button>
@@ -1110,7 +1078,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
       </div>
 
       {filteredTanks.length === 0 && (
-        <div className="text-center py-12 bg-slate-900 border border-slate-800 rounded-2xl">
+        <div className="text-center py-12 bg-[#0c121d] border border-slate-800 rounded-xl">
           <Cylinder className="w-12 h-12 text-slate-600 mx-auto mb-2" />
           <h4 className="font-bold text-white text-sm">Tidak ada tangki yang sesuai filter</h4>
           <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau kategori filter.</p>
@@ -1118,7 +1086,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
       )}
 
       {/* SECTION: Audit Trail Log Pengurangan & Transfer Tangki */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+      <div className="bg-[#0c121d] border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-2">
             <History className="w-5 h-5 text-purple-400" />

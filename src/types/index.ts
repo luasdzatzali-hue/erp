@@ -258,7 +258,9 @@ export interface MaterialRequest {
   wipId: string;
   materialId: string;
   qty: number; // kg yang dipesan ke supplier (hasil pembulatan ke atas jika GDRM bubuk)
-  theoreticalQty?: number; // kg kebutuhan teoretis batch sebelum pembulatan
+  theoreticalQty?: number; // kg kebutuhan teoretis batch (termasuk allowance jika ada) sebelum pembulatan
+  baseTheoreticalQty?: number; // kg kebutuhan murni sebelum penambahan allowance (%)
+  allowancePercent?: number; // Persentase allowance order (0, 3, 5, 7)
   packageSizeKg?: number; // Kemasan pabrikasi (15, 20, 25, 50 kg)
   packageCount?: number; // Jumlah zak hasil pembulatan ke atas
   surplusKg?: number; // Surplus saldo yang akan masuk gudang
@@ -283,7 +285,9 @@ export interface RequestCartItem {
   materialCode?: string;
   materialType: string;
   qty: number; // Qty form order resmi yang dipesan ke supplier (kg)
-  theoreticalQty: number; // Kebutuhan teoretis sebelum pembulatan
+  theoreticalQty: number; // Kebutuhan (termasuk allowance jika ada) sebelum pembulatan
+  baseTheoreticalQty?: number; // Kebutuhan murni sebelum allowance (%)
+  allowancePercent?: number; // Persentase allowance order (0, 3, 5, 7)
   packageSizeKg?: number; // Kemasan pabrikasi (15, 20, 25, 50 kg)
   packageCount?: number; // Jumlah zak hasil pembulatan ke atas
   surplusKg?: number; // Surplus saldo yang akan masuk gudang
@@ -599,7 +603,7 @@ export interface AppState {
   adminPin: string;
   adminGoogleEmails?: string[]; // Daftar email Google yang didaftarkan sebagai Administrator
   currentAdminUser?: AdminGoogleUser | null;
-  currentTab: 'admin-portal' | 'dashboard' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports';
+  currentTab: 'admin-portal' | 'dashboard' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports' | 'contact';
   master: {
     materials: Material[];
     wips: WIP[];

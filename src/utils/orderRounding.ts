@@ -169,6 +169,7 @@ export interface OrderRoundingInput {
   rawBatchCount: number;
   unitWeightKg: number; // Material kg required for 1 batch WIP
   directNeedKg?: number; // Optional override when need kg is already aggregated (e.g. BOM deficit)
+  allowancePercent?: number; // Optional order allowance % (e.g. 0, 3, 5, 7) added before round-up
   roundDecimalBatchUp: boolean; // If true and batchCount has decimal, ceil(batchCount)
   usePackagingRounding: boolean; // If true and packageSizeKg > 0, ceil(needKg / packageSizeKg)
   packageSizeKg: number;
@@ -181,6 +182,9 @@ export interface OrderRoundingResult {
   batchWasRoundedUp: boolean;
   rawNeedKg: number;
   afterBatchNeedKg: number;
+  allowancePercent: number;
+  allowanceKg: number;
+  needWithAllowanceKg: number;
   packageCount: number;
   finalOrderQtyKg: number;
   packageWasRoundedUp: boolean;
@@ -191,8 +195,9 @@ export interface OrderRoundingResult {
 /**
  * Computes material order quantity applying:
  * 1) Decimal batch round-up (Math.ceil via ceilSafe) when batchCount is fractional
- * 2) Custom / factory packaging round-up (Math.ceil via ceilSafe) when packaged ordering is enabled
- * 3) Direct kg round-up (Math.ceil via ceilSafe) when no fixed packageSizeKg applies and roundDecimalQtyUp is enabled
+ * 2) Order allowance percentage (+3%, +5%, +7%) if selected
+ * 3) Custom / factory packaging round-up (Math.ceil via ceilSafe) when packaged ordering is enabled
+ * 4) Direct kg round-up (Math.ceil via ceilSafe) when no fixed packageSizeKg applies and roundDecimalQtyUp is enabled
  */
 export function computeRoundedMaterialOrder(input: OrderRoundingInput): OrderRoundingResult {
   const safeRawBatch = Number.isFinite(input.rawBatchCount) && input.rawBatchCount > 0 ? input.rawBatchCount : 0;
@@ -214,17 +219,27 @@ export function computeRoundedMaterialOrder(input: OrderRoundingInput): OrderRou
       ? Math.max(0, input.directNeedKg)
       : safeUnitWeight * effectiveBatchCount;
 
+  const safeAllowancePercent =
+    Number.isFinite(input.allowancePercent) && (input.allowancePercent || 0) > 0
+      ? Number(input.allowancePercent)
+      : 0;
+  const allowanceMultiplier = 1 + safeAllowancePercent / 100;
+  const rawNeedWithAllowanceKg = Number((rawNeedKg * allowanceMultiplier).toFixed(4));
+  const needWithAllowanceKg = Number((afterBatchNeedKg * allowanceMultiplier).toFixed(4));
+  const allowanceKg = Math.max(0, Number((needWithAllowanceKg - afterBatchNeedKg).toFixed(4)));
+
   const safePackSize =
     input.usePackagingRounding && Number.isFinite(input.packageSizeKg) && input.packageSizeKg > 0
       ? input.packageSizeKg
       : 0;
 
-  if (safePackSize > 0 && afterBatchNeedKg > 0) {
-    const exactPacks = afterBatchNeedKg / safePackSize;
+  if (safePackSize > 0 && needWithAllowanceKg > 0) {
+    const exactPacks = needWithAllowanceKg / safePackSize;
     const packageCount = Math.max(1, ceilSafe(exactPacks));
     const finalOrderQtyKg = Number((packageCount * safePackSize).toFixed(4));
-    const packageWasRoundedUp = hasDecimalPart(exactPacks) && finalOrderQtyKg > afterBatchNeedKg + EPSILON;
-    const surplusKg = Math.max(0, Number((finalOrderQtyKg - rawNeedKg).toFixed(4)));
+    const packageWasRoundedUp =
+      hasDecimalPart(exactPacks) && finalOrderQtyKg > needWithAllowanceKg + EPSILON;
+    const surplusKg = Math.max(0, Number((finalOrderQtyKg - rawNeedWithAllowanceKg).toFixed(4)));
 
     return {
       rawBatchCount: safeRawBatch,
@@ -232,6 +247,9 @@ export function computeRoundedMaterialOrder(input: OrderRoundingInput): OrderRou
       batchWasRoundedUp,
       rawNeedKg,
       afterBatchNeedKg,
+      allowancePercent: safeAllowancePercent,
+      allowanceKg,
+      needWithAllowanceKg,
       packageCount,
       finalOrderQtyKg,
       packageWasRoundedUp,
@@ -241,9 +259,11 @@ export function computeRoundedMaterialOrder(input: OrderRoundingInput): OrderRou
   }
 
   const shouldRoundQtyKg =
-    Boolean(input.roundDecimalQtyUp) && afterBatchNeedKg > 0 && hasDecimalPart(afterBatchNeedKg);
-  const finalOrderQtyKg = shouldRoundQtyKg ? ceilSafe(afterBatchNeedKg) : afterBatchNeedKg;
-  const qtyWasRoundedUp = shouldRoundQtyKg && finalOrderQtyKg > afterBatchNeedKg + EPSILON;
+    Boolean(input.roundDecimalQtyUp) &&
+    needWithAllowanceKg > 0 &&
+    hasDecimalPart(needWithAllowanceKg);
+  const finalOrderQtyKg = shouldRoundQtyKg ? ceilSafe(needWithAllowanceKg) : needWithAllowanceKg;
+  const qtyWasRoundedUp = shouldRoundQtyKg && finalOrderQtyKg > needWithAllowanceKg + EPSILON;
 
   return {
     rawBatchCount: safeRawBatch,
@@ -251,11 +271,14 @@ export function computeRoundedMaterialOrder(input: OrderRoundingInput): OrderRou
     batchWasRoundedUp,
     rawNeedKg,
     afterBatchNeedKg,
+    allowancePercent: safeAllowancePercent,
+    allowanceKg,
+    needWithAllowanceKg,
     packageCount: 0,
     finalOrderQtyKg,
     packageWasRoundedUp: false,
     qtyWasRoundedUp,
-    surplusKg: Math.max(0, Number((finalOrderQtyKg - rawNeedKg).toFixed(4)))
+    surplusKg: Math.max(0, Number((finalOrderQtyKg - rawNeedWithAllowanceKg).toFixed(4)))
   };
 }
 

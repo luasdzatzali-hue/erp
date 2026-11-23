@@ -1,19 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Calculator,
-  ArrowRight,
   Boxes,
   Layers,
   AlertTriangle,
   CheckCircle2,
   FilePlus,
-  Package,
-  Sparkles,
-  CalendarRange
+  CalendarRange,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight
 } from 'lucide-react';
-import { AppState, MaterialRequest } from '../../types';
+import { AppState, MaterialRequest, ShiftNumber } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
-import { getPlannedCartonsForItem, WEEKLY_PLAN_DAYS } from '../../utils/weeklyPlanningParser';
+import {
+  calculateWeeklyPlanMaterialRequirements,
+  getPlannedCartonsForItem,
+  WEEKLY_PLAN_DAYS
+} from '../../utils/weeklyPlanningParser';
 import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from '../../utils/orderRounding';
 
 interface BOMCalculatorViewProps {
@@ -32,6 +36,8 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
   const [selectedSkuId, setSelectedSkuId] = useState(state.master.skus[0]?.id || '');
   const [cartonTarget, setCartonTarget] = useState<number>(500);
   const [roundUpOrders, setRoundUpOrders] = useState<boolean>(true);
+  const [planShiftScope, setPlanShiftScope] = useState<'ALL' | ShiftNumber>('ALL');
+  const [showWeeklySummary, setShowWeeklySummary] = useState<boolean>(true);
 
   const stockBalances = calculateStockBalances(state);
   const selectedSku = state.master.skus.find(s => s.id === selectedSkuId);
@@ -157,9 +163,145 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
     ? activeWeeklyPlan.items.filter(it => Boolean(it.matchedSkuId) && it.totalProduksi > 0)
     : [];
 
+  const weeklyPlanDemand = useMemo(() => {
+    if (!activeWeeklyPlan) return null;
+    return calculateWeeklyPlanMaterialRequirements(activeWeeklyPlan, state, {
+      selectedDays: WEEKLY_PLAN_DAYS.map(d => d.key),
+      selectedShifts: planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope],
+      selectedItemIds: activeWeeklyPlan.items.map(i => i.id),
+      lineFilter: 'ALL',
+      orderMode: 'FULL_NEED',
+      batchRoundMode: roundUpOrders ? 'CEIL_BATCH' : 'EXACT',
+      packagingRoundMode: roundUpOrders ? 'ROUND_UP' : 'EXACT',
+      allowancePercent: 0
+    });
+  }, [activeWeeklyPlan, state, planShiftScope, roundUpOrders]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      {/* Target Planning Card */}
+      {/* Consolidated Weekly Production Plan Primary Demand Source Card */}
+      {activeWeeklyPlan && (
+        <div className="bg-[#0c121d]/80 backdrop-blur-md border border-cyan-500/35 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
+          <div className="p-4 border-b border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#080c14]/80">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0">
+                <CalendarRange className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-sm text-white">
+                    Sumber Utama: Planning Mingguan Aktif ({activeWeeklyPlan.weekLabel})
+                  </h3>
+                  <span className="text-[11px] font-mono text-cyan-300 tabular-nums">
+                    {(weeklyPlanDemand?.totalPlannedCartons || 0).toLocaleString('id-ID')} Karton ·{' '}
+                    {(weeklyPlanDemand?.totalTheoreticalKg || 0).toFixed(2)} kg Kebutuhan
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Perhitungan kebutuhan material seluruh SKU &amp; Shift berdasarkan jadwal mingguan aktif.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <select
+                value={planShiftScope}
+                onChange={e =>
+                  setPlanShiftScope(
+                    e.target.value === 'ALL' ? 'ALL' : (Number(e.target.value) as ShiftNumber)
+                  )
+                }
+                className="bg-[#06090f]/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-semibold"
+              >
+                <option value="ALL">Semua Shift (S1–S3)</option>
+                <option value={1}>Shift 1 Saja</option>
+                <option value={2}>Shift 2 Saja</option>
+                <option value={3}>Shift 3 Saja</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => onSwitchTab('dashboard')}
+                className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
+              >
+                <span>Edit di Dashboard</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWeeklySummary(prev => !prev)}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
+              >
+                {showWeeklySummary ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{showWeeklySummary ? 'Tutup Rekap' : 'Lihat Rekap'}</span>
+              </button>
+            </div>
+          </div>
+
+          {showWeeklySummary && weeklyPlanDemand && (
+            <div className="p-4 space-y-3">
+              {weeklyPlanDemand.materialRequirements.length > 0 ? (
+                <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-72 overflow-y-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 bg-slate-900 text-[11px] text-slate-300 border-b border-slate-800">
+                      <tr>
+                        <th className="py-2 px-3">Material</th>
+                        <th className="py-2 px-3">WIP &amp; SKU Terkait</th>
+                        <th className="py-2 px-3 text-right">Batch</th>
+                        <th className="py-2 px-3 text-right">Kebutuhan (kg)</th>
+                        <th className="py-2 px-3 text-right">Stok Aktual</th>
+                        <th className="py-2 px-3 text-right">Defisit / Order</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {weeklyPlanDemand.materialRequirements.map(req => {
+                        const deficit = Math.max(0, req.theoreticalQtyKg - req.currentStockKg);
+                        return (
+                          <tr key={req.key} className="hover:bg-slate-800/35">
+                            <td className="py-2 px-3">
+                              <span className="font-semibold text-white block">{req.materialName}</span>
+                              <span className="text-[10px] font-mono text-cyan-400">
+                                {req.materialCode || req.materialId} · {req.supplier}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="text-amber-300 font-medium block">{req.wipName}</span>
+                              <span className="text-[10px] text-slate-400 block truncate max-w-[210px]">
+                                {req.contributingSkusLabel}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-300">
+                              {Number.isInteger(req.batchCount) ? req.batchCount : req.batchCount.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-cyan-300">
+                              {req.theoreticalQtyKg.toFixed(2)} kg
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-400">
+                              {req.currentStockKg.toFixed(2)} kg
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums font-bold">
+                              {deficit > 0.0001 ? (
+                                <span className="text-rose-400">-{deficit.toFixed(2)} kg</span>
+                              ) : (
+                                <span className="text-emerald-400">Cukup</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Belum ada material BOM terhitung pada scope shift ini. Pastikan SKU di planning sudah tertaut ke Master SKU &amp; BOM.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Target Planning Card (Single SKU Simulator) */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-4">
           <div className="flex items-center space-x-2">
@@ -184,24 +326,37 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                 onChange={e => {
                   const chosen = matchedPlanSkus.find(it => it.id === e.target.value);
                   if (chosen && chosen.matchedSkuId) {
-                    const totalWeek = getPlannedCartonsForItem(
+                    const shiftsArg: ShiftNumber[] =
+                      planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope];
+                    const totalScoped = getPlannedCartonsForItem(
                       chosen,
                       WEEKLY_PLAN_DAYS.map(d => d.key),
-                      [1, 2, 3]
+                      shiftsArg
                     );
                     setSelectedSkuId(chosen.matchedSkuId);
-                    setCartonTarget(totalWeek);
+                    setCartonTarget(totalScoped);
                     showToast(
-                      `Target dimuat dari ${activeWeeklyPlan.weekLabel}: ${chosen.rawProductName} (${totalWeek.toLocaleString('id-ID')} ktn)`
+                      `Target dimuat dari ${activeWeeklyPlan.weekLabel} (${
+                        planShiftScope === 'ALL' ? 'Semua Shift' : `Shift ${planShiftScope}`
+                      }): ${chosen.rawProductName} (${totalScoped.toLocaleString('id-ID')} ktn)`
                     );
                   }
                 }}
                 className="bg-slate-800 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-cyan-300 font-semibold"
               >
-                <option value="">Muat dari {activeWeeklyPlan.weekLabel}...</option>
+                <option value="">
+                  Muat SKU dari {activeWeeklyPlan.weekLabel} (
+                  {planShiftScope === 'ALL' ? 'S1–S3' : `S${planShiftScope}`})...
+                </option>
                 {matchedPlanSkus.map(it => (
                   <option key={it.id} value={it.id}>
-                    {it.rawSkuCode} • {it.rawProductName} ({it.totalProduksi.toLocaleString('id-ID')} ktn/mgg)
+                    {it.rawSkuCode} • {it.rawProductName} (
+                    {getPlannedCartonsForItem(
+                      it,
+                      WEEKLY_PLAN_DAYS.map(d => d.key),
+                      planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope]
+                    ).toLocaleString('id-ID')}{' '}
+                    ktn)
                   </option>
                 ))}
               </select>

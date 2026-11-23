@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
-import { AppState, Material, RequestCartItem } from '../types';
+import { AppState, Material, RequestCartItem, StorageLocation } from '../types';
 import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from './orderRounding';
 
 export type RequestSlipSatMode = 'kg' | 'zak_or_kg' | 'batch';
@@ -815,11 +815,51 @@ export function buildSupplierSlipFormOptions(
       : supplier || 'Warehouse';
 
   const uniqueSkus = Array.from(new Set(itemsForGroup.map(i => i.skuName).filter(Boolean)));
-  const tujuanDefault = wipName
-    ? `Produksi ${wipName}${uniqueSkus.length > 0 ? ` (${uniqueSkus.slice(0, 2).join(', ')})` : ''}`
-    : uniqueSkus.length > 0
-    ? `Produksi - ${uniqueSkus.slice(0, 2).join(', ')}`
-    : 'Produksi';
+
+  const storageLabels: Record<StorageLocation, string> = {
+    CK: 'Area Penyimpanan CK',
+    WINEROTO: 'Area Penyimpanan WINEROTO',
+    STORAGE_TANK: 'Storage Tank Liquid'
+  };
+
+  const resolvedLocations = Array.from(
+    new Set(
+      itemsForGroup.map((item): StorageLocation => {
+        const mat = state.master.materials.find(
+          m => m.id === item.materialId || (item.materialCode && m.code === item.materialCode)
+        );
+        if (mat?.type === 'liquid' || item.materialType === 'liquid') {
+          return 'STORAGE_TANK';
+        }
+        const initCk = Number(mat?.initialStockCk ?? 0);
+        const initWineroto = Number(mat?.initialStockWineroto ?? 0);
+        if (initWineroto > initCk) {
+          return 'WINEROTO';
+        }
+        if (initCk > initWineroto) {
+          return 'CK';
+        }
+        const latestReceipt = [...(state.transactions.receipts || [])]
+          .reverse()
+          .find(
+            r =>
+              r.materialId === item.materialId &&
+              (r.location === 'CK' || r.location === 'WINEROTO')
+          );
+        if (latestReceipt) {
+          return latestReceipt.location;
+        }
+        return (item.supplier || supplier) === 'Formulasi' ? 'WINEROTO' : 'CK';
+      })
+    )
+  );
+
+  const tujuanDefault =
+    resolvedLocations.length > 0
+      ? resolvedLocations.map(loc => storageLabels[loc]).join(' / ')
+      : supplier === 'Formulasi'
+      ? storageLabels.WINEROTO
+      : storageLabels.CK;
 
   const autoNotesLines: string[] = [];
   if (wipName) {

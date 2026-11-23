@@ -17,13 +17,18 @@ import {
   HardDrive,
   RefreshCw,
   ArrowRight,
-  Layers
+  Layers,
+  PenSquare,
+  Copy,
+  RotateCcw,
+  Zap
 } from 'lucide-react';
 import {
   AppState,
   RequestCartItem,
   ShiftNumber,
   WeeklyPlanDayKey,
+  WeeklyPlanShiftRow,
   WeeklyPlanSkuItem,
   WeeklyProductionPlan
 } from '../types';
@@ -50,8 +55,62 @@ interface WeeklyPlanningSectionProps {
   onDeleteWeeklyPlan: (planId: string) => void;
   onAddItemsToCart: (items: RequestCartItem[], mode: 'append' | 'replace') => void;
   onPrefillSkuFromPlan?: (skuId: string, cartons: number) => void;
+  defaultExpanded?: boolean;
+  readOnly?: boolean;
+  cartButtonLabel?: string;
   showToast: (msg: string, isError?: boolean) => void;
 }
+
+const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+const getMondayOfWeek = (refDate: Date): Date => {
+  const d = new Date(refDate);
+  d.setHours(12, 0, 0, 0);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
+};
+
+const toIsoDateStr = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const addDaysIso = (isoStr: string, offsetDays: number): string => {
+  const parsed = new Date(`${isoStr}T12:00:00`);
+  if (isNaN(parsed.getTime())) return isoStr;
+  parsed.setDate(parsed.getDate() + offsetDays);
+  return toIsoDateStr(parsed);
+};
+
+const getIsoWeekNumber = (d: Date): number => {
+  const copy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = copy.getUTCDay() || 7;
+  copy.setUTCDate(copy.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(copy.getUTCFullYear(), 0, 1));
+  return Math.ceil(((copy.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+};
+
+const buildDayDatesFromStart = (
+  periodStartIso: string
+): Partial<Record<WeeklyPlanDayKey, string>> => {
+  const base = new Date(`${periodStartIso}T12:00:00`);
+  if (isNaN(base.getTime())) return {};
+  const map: Partial<Record<WeeklyPlanDayKey, string>> = {};
+  WEEKLY_PLAN_DAYS.forEach((d, idx) => {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + idx);
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = MONTH_SHORT_LABELS[dt.getMonth()] || '';
+    map[d.key] = `${dd}-${mm}`;
+  });
+  return map;
+};
+
+const WEEKDAY_KEYS: WeeklyPlanDayKey[] = ['senin', 'selasa', 'rabu', 'kamis', 'jumat'];
 
 export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   state,
@@ -60,6 +119,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   onDeleteWeeklyPlan,
   onAddItemsToCart,
   onPrefillSkuFromPlan,
+  defaultExpanded,
+  readOnly = false,
+  cartButtonLabel,
   showToast
 }) => {
   const savedPlans = state.weeklyPlannings || [];
@@ -72,15 +134,17 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     return savedPlans[0];
   }, [savedPlans, state.activeWeeklyPlanId]);
 
-  const [isExpanded, setIsExpanded] = useState<boolean>(savedPlans.length > 0);
+  const [isExpanded, setIsExpanded] = useState<boolean>(
+    defaultExpanded !== undefined ? defaultExpanded : savedPlans.length > 0
+  );
   const [activeSubTab, setActiveSubTab] = useState<'materials' | 'schedule'>('materials');
 
-  // Auto-expand when user uploads a first plan
+  // Auto-expand when user uploads a first plan (unless explicitly starting collapsed)
   useEffect(() => {
-    if (savedPlans.length > 0) {
+    if (defaultExpanded === undefined && savedPlans.length > 0) {
       setIsExpanded(true);
     }
-  }, [savedPlans.length]);
+  }, [savedPlans.length, defaultExpanded]);
 
   // Scope selectors for Material Order Calculation
   const [selectedDays, setSelectedDays] = useState<WeeklyPlanDayKey[]>(
@@ -91,6 +155,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   const [orderMode, setOrderMode] = useState<'FULL_NEED' | 'DEFICIT_ONLY'>('FULL_NEED');
   const [batchRoundMode, setBatchRoundMode] = useState<'EXACT' | 'CEIL_BATCH'>('CEIL_BATCH');
   const [packagingRoundMode, setPackagingRoundMode] = useState<'ROUND_UP' | 'EXACT'>('ROUND_UP');
+  const [allowancePercent, setAllowancePercent] = useState<number>(0);
   const [excludedItemIds, setExcludedItemIds] = useState<string[]>([]);
 
   // Upload / Import Modal State
@@ -116,6 +181,20 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
   // Delete confirmation toggle (avoid window.confirm)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Full Web App Manual Plan Builder Modal State
+  const [isManualBuilderOpen, setIsManualBuilderOpen] = useState(false);
+  const [manualBuilderMode, setManualBuilderMode] = useState<'create' | 'edit'>('create');
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftWeekLabel, setDraftWeekLabel] = useState('');
+  const [draftPeriodStart, setDraftPeriodStart] = useState('');
+  const [draftPeriodEnd, setDraftPeriodEnd] = useState('');
+  const [draftDepartment, setDraftDepartment] = useState('DEPARTEMEN PPIC');
+  const [draftItems, setDraftItems] = useState<WeeklyPlanSkuItem[]>([]);
+  const [builderSkuId, setBuilderSkuId] = useState('');
+  const [builderLine, setBuilderLine] = useState('Line A');
+  const [builderNote, setBuilderNote] = useState('');
 
   useEffect(() => {
     if (isUploadModalOpen) {
@@ -162,7 +241,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       lineFilter,
       orderMode,
       batchRoundMode,
-      packagingRoundMode
+      packagingRoundMode,
+      allowancePercent
     });
   }, [
     activePlan,
@@ -173,7 +253,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     lineFilter,
     orderMode,
     batchRoundMode,
-    packagingRoundMode
+    packagingRoundMode,
+    allowancePercent
   ]);
 
   const orderableRequirements = useMemo(
@@ -424,12 +505,343 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     showToast('Template CSV Planning Mingguan berhasil diunduh.');
   };
 
+  // --- WEB APP SELF-INPUT BUILDER HANDLERS ---
+  const openManualBuilder = (mode: 'create' | 'edit') => {
+    const defaultLine =
+      state.master.productionLines && state.master.productionLines.length > 0
+        ? state.master.productionLines[0].name
+        : 'Line A';
+
+    if (mode === 'edit' && activePlan) {
+      setManualBuilderMode('edit');
+      setEditingPlanId(activePlan.id);
+      setDraftTitle(activePlan.title || 'RENCANA PRODUKSI MINGGUAN');
+      setDraftWeekLabel(activePlan.weekLabel || 'WEEK 1');
+      const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+      const mondayIso = toIsoDateStr(getMondayOfWeek(new Date()));
+      const pStart = isoPattern.test(activePlan.periodStart) ? activePlan.periodStart : mondayIso;
+      const pEnd = isoPattern.test(activePlan.periodEnd)
+        ? activePlan.periodEnd
+        : addDaysIso(pStart, 6);
+      setDraftPeriodStart(pStart);
+      setDraftPeriodEnd(pEnd);
+      setDraftDepartment(activePlan.department || 'DEPARTEMEN PPIC');
+      setDraftItems(
+        activePlan.items.map(it => ({
+          ...it,
+          shifts: it.shifts.map(sh => ({
+            ...sh,
+            dailyCartons: { ...sh.dailyCartons }
+          }))
+        }))
+      );
+    } else {
+      const monday = getMondayOfWeek(new Date());
+      const startIso = toIsoDateStr(monday);
+      const endIso = addDaysIso(startIso, 6);
+      const weekNum = getIsoWeekNumber(monday);
+      setManualBuilderMode('create');
+      setEditingPlanId(null);
+      setDraftTitle(`RENCANA PRODUKSI MINGGUAN - WEEK ${weekNum}`);
+      setDraftWeekLabel(`WEEK ${weekNum}`);
+      setDraftPeriodStart(startIso);
+      setDraftPeriodEnd(endIso);
+      setDraftDepartment('DEPARTEMEN PPIC');
+      setDraftItems([]);
+    }
+
+    setBuilderSkuId(state.master.skus[0]?.id || '');
+    setBuilderLine(defaultLine);
+    setBuilderNote('');
+    setIsUploadModalOpen(false);
+    setIsManualBuilderOpen(true);
+  };
+
+  const handleDraftPeriodStartChange = (newStart: string) => {
+    setDraftPeriodStart(newStart);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(newStart)) {
+      setDraftPeriodEnd(addDaysIso(newStart, 6));
+      const dt = new Date(`${newStart}T12:00:00`);
+      if (!isNaN(dt.getTime()) && manualBuilderMode === 'create') {
+        const wk = getIsoWeekNumber(dt);
+        setDraftWeekLabel(`WEEK ${wk}`);
+        setDraftTitle(`RENCANA PRODUKSI MINGGUAN - WEEK ${wk}`);
+      }
+    }
+  };
+
+  const handleAddSkuToBuilder = (prefillMode: 'zero' | 'shift8h') => {
+    const sku = state.master.skus.find(s => s.id === builderSkuId);
+    if (!sku) {
+      showToast('Pilih SKU Master BOM terlebih dahulu.', true);
+      return;
+    }
+
+    const defaultShiftQty =
+      prefillMode === 'shift8h' && sku.targetHour > 0 ? Math.round(sku.targetHour * 8) : 0;
+
+    const buildShift = (sh: ShiftNumber): WeeklyPlanShiftRow => {
+      const daily = createEmptyDailyCartons();
+      if (defaultShiftQty > 0) {
+        WEEKDAY_KEYS.forEach(dk => {
+          daily[dk] = defaultShiftQty;
+        });
+      }
+      return {
+        shift: sh,
+        dailyCartons: daily,
+        totalOutput: sumDailyCartons(daily)
+      };
+    };
+
+    const shifts = [buildShift(1), buildShift(2), buildShift(3)];
+    const totalProd = shifts.reduce((acc, s) => acc + s.totalOutput, 0);
+
+    const newItem: WeeklyPlanSkuItem = {
+      id: `wpi_web_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      line: builderLine.trim() || 'Line A',
+      rawSkuCode: sku.code || sku.id.slice(-6).toUpperCase(),
+      rawProductName: sku.name,
+      matchedSkuId: sku.id,
+      targetPerHour: sku.targetHour,
+      statusNote: builderNote.trim() || undefined,
+      isOffProduction: false,
+      shifts,
+      totalProduksi: totalProd
+    };
+
+    setDraftItems(prev => [...prev, newItem]);
+    setBuilderNote('');
+    showToast(
+      `SKU "${sku.name}" ditambahkan ke daftar builder (${totalProd.toLocaleString('id-ID')} karton).`
+    );
+  };
+
+  const handleRemoveBuilderItem = (itemId: string) => {
+    setDraftItems(prev => prev.filter(it => it.id !== itemId));
+  };
+
+  const handleUpdateBuilderItemMeta = (
+    itemId: string,
+    patch: Partial<Pick<WeeklyPlanSkuItem, 'line' | 'statusNote' | 'matchedSkuId'>>
+  ) => {
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const next: WeeklyPlanSkuItem = { ...it, ...patch };
+        if (patch.matchedSkuId) {
+          const ms = state.master.skus.find(s => s.id === patch.matchedSkuId);
+          if (ms) {
+            next.rawSkuCode = ms.code || ms.id;
+            next.rawProductName = ms.name;
+            next.targetPerHour = ms.targetHour;
+          }
+        }
+        return next;
+      })
+    );
+  };
+
+  const handleBuilderCellChange = (
+    itemId: string,
+    shiftNum: ShiftNumber,
+    dayKey: WeeklyPlanDayKey,
+    rawVal: string
+  ) => {
+    const cleanVal = Math.max(0, parseInt(rawVal || '0', 10) || 0);
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const nextShifts = it.shifts.map(sh => {
+          if (sh.shift !== shiftNum) return sh;
+          const nextDaily = { ...sh.dailyCartons, [dayKey]: cleanVal };
+          return {
+            ...sh,
+            dailyCartons: nextDaily,
+            totalOutput: sumDailyCartons(nextDaily)
+          };
+        });
+        return {
+          ...it,
+          shifts: nextShifts,
+          totalProduksi: nextShifts.reduce((a, s) => a + s.totalOutput, 0),
+          isOffProduction: false
+        };
+      })
+    );
+  };
+
+  const handleBuilderFillWeekdaysTarget = (itemId: string) => {
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const ms = it.matchedSkuId
+          ? state.master.skus.find(s => s.id === it.matchedSkuId)
+          : undefined;
+        const perShiftQty = Math.round((it.targetPerHour || ms?.targetHour || 125) * 8);
+        const nextShifts = it.shifts.map(sh => {
+          const nextDaily = { ...sh.dailyCartons };
+          WEEKDAY_KEYS.forEach(dk => {
+            nextDaily[dk] = perShiftQty;
+          });
+          return {
+            ...sh,
+            dailyCartons: nextDaily,
+            totalOutput: sumDailyCartons(nextDaily)
+          };
+        });
+        return {
+          ...it,
+          shifts: nextShifts,
+          totalProduksi: nextShifts.reduce((a, s) => a + s.totalOutput, 0)
+        };
+      })
+    );
+  };
+
+  const handleBuilderCopyMonToWeekdays = (itemId: string) => {
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const nextShifts = it.shifts.map(sh => {
+          const monVal = sh.dailyCartons.senin || 0;
+          const nextDaily = { ...sh.dailyCartons };
+          WEEKDAY_KEYS.forEach(dk => {
+            nextDaily[dk] = monVal;
+          });
+          return {
+            ...sh,
+            dailyCartons: nextDaily,
+            totalOutput: sumDailyCartons(nextDaily)
+          };
+        });
+        return {
+          ...it,
+          shifts: nextShifts,
+          totalProduksi: nextShifts.reduce((a, s) => a + s.totalOutput, 0)
+        };
+      })
+    );
+  };
+
+  const handleBuilderCopyShift1ToAll = (itemId: string) => {
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const s1 = it.shifts.find(s => s.shift === 1);
+        if (!s1) return it;
+        const nextShifts = it.shifts.map(sh => {
+          if (sh.shift === 1) return sh;
+          const copied = { ...s1.dailyCartons };
+          return {
+            ...sh,
+            dailyCartons: copied,
+            totalOutput: sumDailyCartons(copied)
+          };
+        });
+        return {
+          ...it,
+          shifts: nextShifts,
+          totalProduksi: nextShifts.reduce((a, s) => a + s.totalOutput, 0)
+        };
+      })
+    );
+  };
+
+  const handleBuilderResetZero = (itemId: string) => {
+    setDraftItems(prev =>
+      prev.map(it => {
+        if (it.id !== itemId) return it;
+        const nextShifts = it.shifts.map(sh => {
+          const empty = createEmptyDailyCartons();
+          return { ...sh, dailyCartons: empty, totalOutput: 0 };
+        });
+        return { ...it, shifts: nextShifts, totalProduksi: 0 };
+      })
+    );
+  };
+
+  const builderTotalCartons = useMemo(
+    () => draftItems.reduce((sum, it) => sum + it.totalProduksi, 0),
+    [draftItems]
+  );
+
+  const builderDayDates = useMemo(
+    () => buildDayDatesFromStart(draftPeriodStart),
+    [draftPeriodStart]
+  );
+
+  const handleSaveManualBuilder = () => {
+    if (draftItems.length === 0) {
+      showToast('Tambahkan minimal 1 SKU ke tabel planning sebelum menyimpan.', true);
+      return;
+    }
+
+    const totalCartons = draftItems.reduce((a, it) => a + it.totalProduksi, 0);
+    if (totalCartons <= 0) {
+      showToast('Isi minimal satu target karton (> 0) pada jadwal harian SKU.', true);
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const existingPlan =
+      manualBuilderMode === 'edit' && editingPlanId
+        ? savedPlans.find(p => p.id === editingPlanId)
+        : undefined;
+
+    const planToSave: WeeklyProductionPlan = {
+      id: existingPlan?.id || `plan_web_${Date.now()}`,
+      title: draftTitle.trim() || `RENCANA PRODUKSI MINGGUAN - ${draftWeekLabel || 'MANUAL'}`,
+      weekLabel: draftWeekLabel.trim() || 'WEEK MANUAL',
+      periodStart: draftPeriodStart || toIsoDateStr(new Date()),
+      periodEnd: draftPeriodEnd || addDaysIso(draftPeriodStart || toIsoDateStr(new Date()), 6),
+      department: draftDepartment.trim() || 'DEPARTEMEN PPIC',
+      dayDates:
+        Object.keys(builderDayDates).length > 0 ? builderDayDates : existingPlan?.dayDates,
+      uploadedAt: nowIso,
+      uploadedBy: state.currentSession.name,
+      sourceFileName:
+        manualBuilderMode === 'edit' && existingPlan?.sourceFileName
+          ? existingPlan.sourceFileName
+          : 'Input Mandiri Web App',
+      items: draftItems.map(it => ({
+        ...it,
+        isOffProduction: it.totalProduksi === 0 && /off/i.test(it.statusNote || '')
+      }))
+    };
+
+    onSaveWeeklyPlan(planToSave);
+    setIsManualBuilderOpen(false);
+    setIsExpanded(true);
+    setActiveSubTab('materials');
+    showToast(
+      `Planning "${planToSave.weekLabel}" (${planToSave.items.length} SKU · ${totalCartons.toLocaleString(
+        'id-ID'
+      )} karton) disimpan sebagai acuan order!`
+    );
+  };
+
+  const handleDeleteActivePlanItem = (itemId: string, labelName: string) => {
+    if (!activePlan) return;
+    if (activePlan.items.length <= 1) {
+      showToast('Minimal harus ada 1 SKU dalam jadwal aktif. Gunakan tombol Hapus Plan jika ingin menghapus seluruh jadwal.', true);
+      return;
+    }
+    const updated: WeeklyProductionPlan = {
+      ...activePlan,
+      items: activePlan.items.filter(it => it.id !== itemId)
+    };
+    setExcludedItemIds(prev => prev.filter(id => id !== itemId));
+    onSaveWeeklyPlan(updated);
+    showToast(`Baris SKU "${labelName}" dihapus dari planning aktif.`);
+  };
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
       {/* Header Bar */}
-      <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-950/60">
+      <div className="p-4 border-b border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-[#080c14]/80">
         <div className="flex items-start sm:items-center space-x-3">
-          <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
+          <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0 shadow-[0_0_12px_rgba(34,211,238,0.12)]">
             <CalendarRange className="w-5 h-5" />
           </div>
           <div>
@@ -438,17 +850,18 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 Acuan Planning Mingguan (PPIC)
               </h3>
               {activePlan ? (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                  {activePlan.weekLabel} • {activePlan.periodStart} s/d {activePlan.periodEnd}
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 tabular-nums">
+                  {activePlan.weekLabel} · {activePlan.periodStart} s/d {activePlan.periodEnd}
+                  {activePlan.sourceFileName === 'Input Mandiri Web App' ? ' · Input Web' : ''}
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#06090f]/80 text-slate-400 border border-slate-700">
                   Belum Ada Jadwal
                 </span>
               )}
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Unggah jadwal produksi mingguan (SKU &amp; target karton per shift) sebagai dasar kalkulasi order material ke supplier.
+              Input jadwal produksi mingguan langsung di web app atau unggah Excel/CSV PPIC sebagai acuan kalkulasi order material.
             </p>
           </div>
         </div>
@@ -458,31 +871,56 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             <select
               value={activePlan?.id || ''}
               onChange={e => onSelectWeeklyPlan(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-cyan-500"
+              className="bg-[#06090f]/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-cyan-500"
               title="Pilih Dokumen Planning Mingguan"
             >
               {savedPlans.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.weekLabel} ({p.periodStart}–{p.periodEnd}) • {p.items.length} SKU
+                  {p.weekLabel} ({p.periodStart}–{p.periodEnd}) · {p.items.length} SKU
                 </option>
               ))}
             </select>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsUploadModalOpen(true)}
-            className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 active:scale-95"
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-            <span>Upload Planning Mingguan</span>
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={() => openManualBuilder('create')}
+                className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/45 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95"
+              >
+                <PenSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Input Planning Mandiri</span>
+              </button>
+
+              {activePlan && (
+                <button
+                  type="button"
+                  onClick={() => openManualBuilder('edit')}
+                  className="px-3 py-1.5 bg-[#06090f]/85 hover:bg-slate-800 text-cyan-300 border border-cyan-500/35 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  title="Edit jadwal & metadata planning aktif langsung di builder web app"
+                >
+                  <PenSquare className="w-3.5 h-3.5" />
+                  <span>Edit Plan</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsUploadModalOpen(true)}
+                className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow-[0_0_12px_rgba(6,182,212,0.25)] transition flex items-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Upload Excel / Drive</span>
+              </button>
+            </>
+          )}
 
           {activePlan && (
             <button
               type="button"
               onClick={() => setIsExpanded(prev => !prev)}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1 transition"
+              className="px-2.5 py-1.5 bg-[#06090f]/85 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{isExpanded ? 'Tutup' : 'Buka'}</span>
@@ -493,24 +931,33 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
       {/* Empty CTA Strip when no weekly plan uploaded yet */}
       {!activePlan && (
-        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/30 text-xs">
+        <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#06090f]/60 text-xs">
           <div className="flex items-start space-x-2.5 text-slate-400">
             <FileSpreadsheet className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <span>
-              Mendukung file Excel PPIC (<strong className="text-slate-200">.xlsx / .xls</strong> dengan sel merge 3 shift per SKU seperti format{' '}
-              <em>Rencana Produksi Mingguan</em>), <strong className="text-slate-200">.csv</strong>, maupun Google Drive Spreadsheet.
+              Anda dapat membuat jadwal mingguan <strong className="text-emerald-300">langsung di Web App (Input Mandiri)</strong> atau mengunggah file Excel PPIC (<strong className="text-slate-200">.xlsx / .xls</strong>), <strong className="text-slate-200">.csv</strong>, maupun Google Drive Spreadsheet.
             </span>
           </div>
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => downloadWeeklyPlanningTemplateXlsx(state.master.skus)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Template Excel</span>
-            </button>
-          </div>
+          {!readOnly && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => openManualBuilder('create')}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              >
+                <PenSquare className="w-3.5 h-3.5" />
+                <span>Buat Planning Mandiri</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadWeeklyPlanningTemplateXlsx(state.master.skus)}
+                className="px-3 py-1.5 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Template Excel</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -565,7 +1012,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <span className="text-[11px] font-normal text-slate-400">kg</span>
               </span>
               <span className="text-[10px] text-slate-500 block mt-0.5">
-                Termasuk pembulatan {explosion?.totalGdrmBags || 0} Kemasan Utuh
+                {allowancePercent > 0 ? `Allowance +${allowancePercent}% · ` : ''}
+                Pembulatan {explosion?.totalGdrmBags || 0} Kemasan Utuh
               </span>
             </div>
           </div>
@@ -717,6 +1165,30 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     <option value="EXACT">Berat Eksak (kg)</option>
                   </select>
                 </div>
+
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Allowance Order:
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    {[0, 3, 5, 7].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setAllowancePercent(pct)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition whitespace-nowrap shrink-0 ${
+                          allowancePercent === pct
+                            ? pct === 0
+                              ? 'bg-cyan-600 text-white border-cyan-500'
+                              : 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {pct === 0 ? '0%' : `+${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -783,40 +1255,50 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center space-x-2">
-              {confirmDeleteId === activePlan.id ? (
-                <div className="flex items-center space-x-1.5 text-[11px]">
-                  <span className="text-rose-300">Hapus jadwal ini?</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onDeleteWeeklyPlan(activePlan.id);
-                      setConfirmDeleteId(null);
-                      showToast(`Planning "${activePlan.weekLabel}" dihapus.`);
-                    }}
-                    className="px-2 py-1 bg-rose-600 text-white rounded-lg font-bold"
-                  >
-                    Ya, Hapus
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(null)}
-                    className="px-2 py-1 bg-slate-800 text-slate-300 rounded-lg"
-                  >
-                    Batal
-                  </button>
-                </div>
-              ) : (
+            {!readOnly && (
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setConfirmDeleteId(activePlan.id)}
-                  className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition"
+                  onClick={() => openManualBuilder('edit')}
+                  className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                 >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Hapus Plan</span>
+                  <PenSquare className="w-3 h-3" />
+                  <span>Builder Lengkap</span>
                 </button>
-              )}
-            </div>
+                {confirmDeleteId === activePlan.id ? (
+                  <div className="flex items-center space-x-1.5 text-[11px]">
+                    <span className="text-rose-300">Hapus jadwal ini?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteWeeklyPlan(activePlan.id);
+                        setConfirmDeleteId(null);
+                        showToast(`Planning "${activePlan.weekLabel}" dihapus.`);
+                      }}
+                      className="px-2 py-1 bg-rose-600 text-white rounded-lg font-bold"
+                    >
+                      Ya, Hapus
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-2 py-1 bg-slate-800 text-slate-300 rounded-lg"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(activePlan.id)}
+                    className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition whitespace-nowrap shrink-0"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Hapus Plan</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* SUBTAB 1: MATERIAL REQUIREMENTS RESULT */}
@@ -867,7 +1349,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               {Number.isInteger(req.batchCount) ? req.batchCount : req.batchCount.toFixed(2)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-200">
-                              {req.theoreticalQtyKg.toFixed(2)} kg
+                              <span>{req.theoreticalQtyKg.toFixed(2)} kg</span>
+                              {req.allowancePercent && req.allowancePercent > 0 && req.allowanceKg ? (
+                                <span className="text-[10px] text-emerald-400 block">
+                                  +{req.allowanceKg.toFixed(2)} kg (+{req.allowancePercent}%)
+                                </span>
+                              ) : null}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-400">
                               {req.currentStockKg.toFixed(2)} kg
@@ -890,33 +1377,37 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   </div>
 
                   {/* Push to Cart CTA Strip */}
-                  <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="text-[11px] text-slate-300">
-                      <span>
-                        Siap membuat pesanan material untuk{' '}
-                        <strong className="text-cyan-400">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Supplier &amp; WIP saat cetak Slip PDF.
-                      </span>
+                  {!readOnly && (
+                    <div className="p-3 bg-[#06090f]/80 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="text-[11px] text-slate-300">
+                        <span>
+                          Siap membuat pesanan material untuk{' '}
+                          <strong className="text-cyan-400">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Supplier &amp; WIP saat cetak Slip PDF.
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handlePushToCart('append')}
+                          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center space-x-1.5 active:scale-95"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span>
+                            {cartButtonLabel || `Masukkan ke Keranjang (${orderableRequirements.length} Item)`}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePushToCart('replace')}
+                          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5"
+                          title="Ganti isi keranjang saat ini dengan hasil kalkulasi planning ini"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Ganti Isi Keranjang</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handlePushToCart('append')}
-                        className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 active:scale-95"
-                      >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>Masukkan ke Keranjang ({orderableRequirements.length} Item)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handlePushToCart('replace')}
-                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5"
-                        title="Ganti isi keranjang saat ini dengan hasil kalkulasi planning ini"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Ganti Isi Keranjang</span>
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </>
               ) : (
                 <div className="py-8 px-4 text-center border border-slate-800 rounded-xl bg-slate-950/40 text-xs text-slate-400">
@@ -1031,6 +1522,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                     )}
                                     <select
                                       value={item.matchedSkuId || ''}
+                                      disabled={readOnly}
                                       onChange={e =>
                                         handleUpdateActiveItemSkuLink(item.id, e.target.value)
                                       }
@@ -1048,21 +1540,36 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                         </option>
                                       ))}
                                     </select>
-                                    {matchedSku && scopedCartons > 0 && onPrefillSkuFromPlan && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          onPrefillSkuFromPlan(matchedSku.id, scopedCartons);
-                                          showToast(
-                                            `Formulir diisi acuan ${matchedSku.name} (${scopedCartons.toLocaleString('id-ID')} karton)`
-                                          );
-                                        }}
-                                        className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 font-semibold"
-                                      >
-                                        <span>Isi Form Batch ({scopedCartons.toLocaleString('id-ID')} ktn)</span>
-                                        <ArrowRight className="w-3 h-3" />
-                                      </button>
-                                    )}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                                      {matchedSku && scopedCartons > 0 && onPrefillSkuFromPlan ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            onPrefillSkuFromPlan(matchedSku.id, scopedCartons);
+                                            showToast(
+                                              `Formulir diisi acuan ${matchedSku.name} (${scopedCartons.toLocaleString('id-ID')} karton)`
+                                            );
+                                          }}
+                                          className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 font-semibold"
+                                        >
+                                          <span>Isi Form Batch ({scopedCartons.toLocaleString('id-ID')} ktn)</span>
+                                          <ArrowRight className="w-3 h-3" />
+                                        </button>
+                                      ) : (
+                                        <span />
+                                      )}
+                                      {!readOnly && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteActivePlanItem(item.id, item.rawProductName)}
+                                          className="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-semibold"
+                                          title="Hapus baris SKU ini dari jadwal"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          <span>Hapus Baris</span>
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                 </>
                               )}
@@ -1079,6 +1586,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                       type="number"
                                       min="0"
                                       step="1"
+                                      disabled={readOnly}
                                       value={val === 0 ? '' : val}
                                       placeholder="-"
                                       onChange={e =>
@@ -1089,7 +1597,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                           parseInt(e.target.value || '0', 10)
                                         )
                                       }
-                                      className="w-16 bg-slate-950/70 border border-slate-800 focus:border-cyan-500 rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-white"
+                                      className="w-16 bg-[#06090f]/80 border border-slate-800 focus:border-cyan-500 rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-white disabled:opacity-70"
                                     />
                                   </td>
                                 );
@@ -1117,10 +1625,21 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </div>
 
               {/* Quick Manual Add SKU Row */}
-              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-                <span className="text-[11px] font-bold text-slate-200 block">
-                  Tambah Baris SKU ke Planning Secara Manual
-                </span>
+              {!readOnly && (
+              <div className="p-3 bg-[#06090f]/80 border border-slate-800 rounded-xl space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-200 block">
+                    Tambah Baris SKU Cepat ke Jadwal Aktif
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openManualBuilder('edit')}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                  >
+                    <PenSquare className="w-3 h-3" />
+                    <span>Buka Builder Jadwal Lengkap (7 Hari × 3 Shift) →</span>
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 text-xs items-end">
                   <div className="col-span-2">
                     <label className="block text-[10px] text-slate-400 mb-1">SKU Master BOM</label>
@@ -1204,6 +1723,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
@@ -1212,11 +1732,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       {/* MODAL UPLOAD PLANNING MINGGUAN */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-[#0c121d]/95 backdrop-blur-md border border-slate-700/80 rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]/80">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+                <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
                   <CalendarRange className="w-5 h-5" />
                 </div>
                 <div>
@@ -1228,13 +1748,23 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsUploadModalOpen(false)}
-                className="text-slate-400 hover:text-white p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => openManualBuilder('create')}
+                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/45 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                >
+                  <PenSquare className="w-3.5 h-3.5" />
+                  <span>Atau Input Mandiri di Web App</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Source Tabs */}
@@ -1542,11 +2072,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#080c14]/80 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setIsUploadModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
               >
                 Batal
               </button>
@@ -1554,13 +2084,387 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 type="button"
                 onClick={handleSaveParsedPlan}
                 disabled={!parsePreview?.plan || parsePreview.plan.items.length === 0}
-                className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4" />
                 <span>
                   Simpan Planning ({parsePreview?.plan?.items.length || 0} SKU) Sebagai Acuan Order
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INPUT PLANNING MANDIRI DI WEB APP */}
+      {isManualBuilderOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#0c121d]/95 backdrop-blur-md border border-slate-700/80 rounded-xl w-full max-w-6xl max-h-[94vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden">
+            {/* Builder Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]/80">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30">
+                  <PenSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-white">
+                    {manualBuilderMode === 'edit'
+                      ? 'Edit Planning Mingguan di Web App'
+                      : 'Buat Planning Produksi Mingguan Mandiri (Web App)'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Susun target karton per SKU × 3 Shift × Senin–Minggu langsung tanpa perlu file Excel/CSV eksternal.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManualBuilderOpen(false)}
+                className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 self-end sm:self-center transition"
+                aria-label="Tutup builder planning mandiri"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Builder Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              {/* 1. Plan Metadata Bar */}
+              <div className="bg-[#06090f]/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-cyan-400 font-mono">
+                    1. IDENTITAS &amp; PERIODE JADWAL MINGGUAN
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+                    {draftItems.length} SKU · {builderTotalCartons.toLocaleString('id-ID')} Karton Total
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+                  <div className="lg:col-span-2">
+                    <label className="block text-[10px] text-slate-400 mb-1">Judul Jadwal</label>
+                    <input
+                      type="text"
+                      value={draftTitle}
+                      onChange={e => setDraftTitle(e.target.value)}
+                      placeholder="RENCANA PRODUKSI MINGGUAN - WEEK 48"
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Label Minggu</label>
+                    <input
+                      type="text"
+                      value={draftWeekLabel}
+                      onChange={e => setDraftWeekLabel(e.target.value)}
+                      placeholder="WEEK 48"
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Mulai (Senin)</label>
+                    <input
+                      type="date"
+                      value={draftPeriodStart}
+                      onChange={e => handleDraftPeriodStartChange(e.target.value)}
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Selesai (Minggu)</label>
+                    <input
+                      type="date"
+                      value={draftPeriodEnd}
+                      onChange={e => setDraftPeriodEnd(e.target.value)}
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Add SKU Row Bar */}
+              <div className="bg-[#06090f]/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                <span className="text-[11px] font-bold text-emerald-400 font-mono block">
+                  2. TAMBAH BARIS SKU PRODUKSI KE JADWAL
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                  <div className="md:col-span-4">
+                    <label className="block text-[10px] text-slate-400 mb-1">
+                      Pilih SKU (Master BOM)
+                    </label>
+                    <select
+                      value={builderSkuId}
+                      onChange={e => setBuilderSkuId(e.target.value)}
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="">-- Pilih SKU Master BOM --</option>
+                      {state.master.skus.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.code ? `[${s.code}] ` : ''}
+                          {s.name} ({s.targetHour} ktn/jam)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] text-slate-400 mb-1">Line Produksi</label>
+                    <input
+                      type="text"
+                      list="builder-lines-list"
+                      value={builderLine}
+                      onChange={e => setBuilderLine(e.target.value)}
+                      placeholder="Line A"
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                    <datalist id="builder-lines-list">
+                      {(state.master.productionLines || []).map(ln => (
+                        <option key={ln.id} value={ln.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] text-slate-400 mb-1">Catatan (Opsional)</label>
+                    <input
+                      type="text"
+                      value={builderNote}
+                      onChange={e => setBuilderNote(e.target.value)}
+                      placeholder="Reguler / Ekspor"
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div className="md:col-span-4 flex flex-wrap sm:flex-nowrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAddSkuToBuilder('shift8h')}
+                      className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition"
+                      title="Tambahkan SKU dengan target otomatis 8 jam × 3 shift (Senin–Jumat)"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Tambah + Isi Sen–Jum (8j)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddSkuToBuilder('zero')}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 whitespace-nowrap shrink-0 transition"
+                      title="Tambahkan SKU dengan nilai awal 0 untuk diisi manual per sel"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Kosong (0)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Editable Matrix List */}
+              {draftItems.length > 0 ? (
+                <div className="space-y-3">
+                  {draftItems.map((item, idx) => {
+                    const skuInfo = item.matchedSkuId
+                      ? state.master.skus.find(s => s.id === item.matchedSkuId)
+                      : undefined;
+                    return (
+                      <div
+                        key={item.id}
+                        className="bg-[#06090f]/80 border border-slate-800 rounded-xl overflow-hidden"
+                      >
+                        {/* SKU Item Subheader */}
+                        <div className="p-3 bg-[#080c14]/90 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[11px] text-slate-400 font-bold">
+                              #{idx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              value={item.line}
+                              onChange={e =>
+                                handleUpdateBuilderItemMeta(item.id, { line: e.target.value })
+                              }
+                              className="w-20 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-[11px] font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                              title="Edit Line Produksi"
+                            />
+                            <select
+                              value={item.matchedSkuId || ''}
+                              onChange={e =>
+                                handleUpdateBuilderItemMeta(item.id, { matchedSkuId: e.target.value })
+                              }
+                              className="bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
+                            >
+                              {!item.matchedSkuId && (
+                                <option value="">
+                                  {item.rawSkuCode} · {item.rawProductName} (Belum Tertaut)
+                                </option>
+                              )}
+                              {state.master.skus.map(ms => (
+                                <option key={ms.id} value={ms.id}>
+                                  {ms.code ? `[${ms.code}] ` : ''}
+                                  {ms.name}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+                              Target: {item.targetPerHour || skuInfo?.targetHour || 0} ktn/jam
+                            </span>
+                            <span className="text-[11px] font-mono font-bold text-emerald-400 tabular-nums">
+                              · Total: {item.totalProduksi.toLocaleString('id-ID')} Ktn
+                            </span>
+                          </div>
+
+                          {/* Quick-fill Accelerators + Delete Row */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleBuilderFillWeekdaysTarget(item.id)}
+                              className="px-2 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              title="Isi Shift 1–3 Senin s/d Jumat sesuai Target/Jam × 8 jam"
+                            >
+                              <Zap className="w-3 h-3" />
+                              <span>Isi 8j Sen–Jum</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBuilderCopyMonToWeekdays(item.id)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              title="Salin nilai hari Senin ke Selasa–Jumat di setiap shift"
+                            >
+                              <Copy className="w-3 h-3 text-cyan-400" />
+                              <span>Samakan Sen–Jum</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBuilderCopyShift1ToAll(item.id)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              title="Salin seluruh jadwal Shift 1 ke Shift 2 & Shift 3"
+                            >
+                              <Copy className="w-3 h-3 text-amber-400" />
+                              <span>S1 → S2 &amp; S3</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBuilderResetZero(item.id)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              title="Kosongkan seluruh sel angka menjadi 0"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Reset 0</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBuilderItem(item.id)}
+                              className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              title="Hapus SKU ini dari daftar"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 3 Shift × 7 Day Matrix Table */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-[11px]">
+                            <thead>
+                              <tr className="bg-[#0c121d] text-slate-400 border-b border-slate-800">
+                                <th className="py-1.5 px-2.5 w-16 text-center">Shift</th>
+                                {WEEKLY_PLAN_DAYS.map(d => (
+                                  <th key={d.key} className="py-1.5 px-1.5 text-right min-w-[74px]">
+                                    <div className="text-slate-200">{d.shortLabel}</div>
+                                    {builderDayDates[d.key] && (
+                                      <div className="text-[9px] font-mono text-slate-500 font-normal">
+                                        {builderDayDates[d.key]}
+                                      </div>
+                                    )}
+                                  </th>
+                                ))}
+                                <th className="py-1.5 px-2.5 text-right min-w-[82px] text-cyan-400">
+                                  Total Shift
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {item.shifts.map(sh => (
+                                <tr key={sh.shift} className="hover:bg-slate-800/25">
+                                  <td className="py-1.5 px-2.5 text-center font-mono font-bold text-slate-300">
+                                    S{sh.shift}
+                                  </td>
+                                  {WEEKLY_PLAN_DAYS.map(d => {
+                                    const val = sh.dailyCartons[d.key] || 0;
+                                    return (
+                                      <td key={d.key} className="py-1 px-1 text-right">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          value={val === 0 ? '' : val}
+                                          placeholder="0"
+                                          onChange={e =>
+                                            handleBuilderCellChange(
+                                              item.id,
+                                              sh.shift,
+                                              d.key,
+                                              e.target.value
+                                            )
+                                          }
+                                          className="w-full min-w-[64px] bg-[#0c121d] border border-slate-700/80 focus:border-cyan-500 rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-white focus:outline-none"
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-1.5 px-2.5 text-right font-mono tabular-nums font-bold text-cyan-300">
+                                    {sh.totalOutput.toLocaleString('id-ID')}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 px-4 text-center border border-dashed border-slate-700 rounded-xl bg-[#06090f]/60 space-y-2">
+                  <CalendarRange className="w-8 h-8 text-cyan-400 mx-auto opacity-80" />
+                  <p className="text-sm font-bold text-white">
+                    Belum Ada Baris SKU di Builder Planning
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-lg mx-auto">
+                    Pilih SKU dari dropdown di panel <strong>Tambah Baris SKU Produksi</strong> di atas lalu klik{' '}
+                    <span className="text-emerald-300 font-semibold">Tambah + Isi Sen–Jum (8j)</span> atau{' '}
+                    <span className="text-slate-200 font-semibold">Kosong (0)</span> untuk mulai mengisi target karton per hari dan shift.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Builder Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#080c14]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="text-[11px] font-mono text-slate-400 tabular-nums">
+                Ringkasan Draft: <strong className="text-white">{draftItems.length} SKU</strong> ·{' '}
+                <strong className="text-cyan-400">
+                  {builderTotalCartons.toLocaleString('id-ID')} Karton
+                </strong>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setIsManualBuilderOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveManualBuilder}
+                  disabled={draftItems.length === 0 || builderTotalCartons <= 0}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_14px_rgba(16,185,129,0.28)]"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {manualBuilderMode === 'edit'
+                      ? 'Simpan Perubahan Planning'
+                      : 'Simpan Planning Mandiri'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

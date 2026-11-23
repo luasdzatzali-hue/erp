@@ -49,57 +49,56 @@ export const Header: React.FC<HeaderProps> = ({
   const isOperator = role === 'OPERATOR';
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 z-20 shrink-0 sticky top-0 shadow-md text-slate-100">
-      <div className="px-3 sm:px-5 py-2.5 flex items-center justify-between">
-        {/* Left Section: Sidebar Popup Toggle & Breadcrumb Title */}
-        <div className="flex items-center space-x-3">
-          {/* Sidebar Menu Popup Toggle (accessible on computer, tablet, and mobile) */}
+    <header className="bg-[#080c14] border-b border-slate-800 z-20 shrink-0 sticky top-0 text-slate-100">
+      <div className="px-3 sm:px-5 py-2.5 flex items-center justify-between gap-4">
+        {/* Left Zone: Navigation Drawer Trigger & Breadcrumb */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onOpenSidebar}
             aria-label="Buka Menu Navigasi Samping"
             title="Buka Menu Navigasi (Popup Drawer)"
-            className="flex items-center space-x-2 px-2.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-750 hover:text-white transition border border-slate-700/80 active:scale-95 shadow-sm group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0c121d] text-slate-200 hover:text-white hover:border-cyan-500/50 transition border border-slate-800 active:scale-95 whitespace-nowrap shrink-0"
           >
-            <Menu className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold text-slate-200 hidden sm:inline tracking-wide">Menu</span>
+            <Menu className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-semibold hidden sm:inline">Menu</span>
           </button>
 
-          {/* Breadcrumb Module Title */}
-          <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-500 font-mono hidden sm:inline">Modul</span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-600 hidden sm:inline" />
-            <span className="font-bold text-white text-xs sm:text-sm tracking-tight">
+          <div className="flex items-center gap-2 text-xs min-w-0">
+            <span className="text-slate-500 font-mono hidden sm:inline whitespace-nowrap">Konsol Kendali</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-600 hidden sm:inline shrink-0" />
+            <h1 className="font-bold text-white text-xs sm:text-sm tracking-tight truncate">
               {currentViewTitle}
-            </span>
+            </h1>
             {isManagement && (
-              <span className="ml-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">
-                Mode Management (Hanya Melihat)
+              <span className="hidden md:inline text-[11px] font-mono text-indigo-300 whitespace-nowrap shrink-0">
+                · Mode Pantau
               </span>
             )}
           </div>
         </div>
 
-        {/* Right Section: Status Bar Telemetry & User Card (NO MODULE SWITCHER BUTTONS) */}
-        <div className="flex items-center space-x-2 sm:space-x-2.5">
+        {/* Right Zone: Live Tank Sensor Readout, Shift, Theme & User Session */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Storage Tank Liquid Sensor Readout */}
           <button
             onClick={onOpenTankModal}
             title="Klik untuk membuka detail Storage Tank Liquid"
-            className={`flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-800/90 border rounded-xl text-xs font-mono transition active:scale-95 ${
+            className={`flex items-center gap-2 px-2.5 py-1.5 bg-[#0c121d] border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
               isTempNormal
-                ? 'border-cyan-500/30 text-slate-200 hover:border-cyan-500/60'
-                : 'border-amber-500/40 text-amber-300 hover:border-amber-500/70 bg-amber-950/20'
+                ? 'border-slate-800 text-slate-200 hover:border-cyan-500/60'
+                : 'border-amber-500/50 text-amber-300 bg-amber-950/20'
             }`}
           >
-            <Droplet className={`w-3.5 h-3.5 ${isTempNormal ? 'text-cyan-400' : 'text-amber-400 animate-bounce'}`} />
+            <Droplet className={`w-3.5 h-3.5 ${isTempNormal ? 'text-cyan-400' : 'text-amber-400'}`} />
             <span className="font-semibold">{state.tank.temp.toFixed(1)}°C</span>
-            <span className="text-[10px] text-slate-400 hidden sm:inline">({state.tank.level.toFixed(0)} kg)</span>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">· {state.tank.level.toFixed(0)} kg</span>
           </button>
 
-          {/* Shift Indicator Pill */}
-          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Shift {currentShift.shift}</span>
+          {/* Shift Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0c121d] border border-slate-800 text-xs font-mono text-slate-200 tabular-nums whitespace-nowrap shrink-0">
+            <span className="text-emerald-400 font-semibold">S{currentShift.shift}</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-[11px] text-slate-400">{currentShift.timeRange}</span>
           </div>
 
           {/* Theme Toggle Button (Midnight vs Daylight) */}
@@ -109,11 +108,11 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               title={
                 theme === 'daylight' || theme === 'light'
-                  ? 'Beralih ke Tema Midnight (Gelap Industrial)'
+                  ? 'Beralih ke Tema Midnight (Gelap Control Room)'
                   : 'Beralih ke Tema Daylight (Cerah Terang Pabrik)'
               }
               aria-label="Toggle Theme"
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs font-medium text-slate-200 hover:text-white transition active:scale-95 shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0c121d] border border-slate-800 hover:border-slate-700 text-xs font-medium text-slate-200 hover:text-white transition active:scale-95 whitespace-nowrap shrink-0"
             >
               {theme === 'daylight' || theme === 'light' ? (
                 <>
@@ -129,12 +128,12 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* User Profile Pill & Sign Out Button */}
-          <div className="flex items-center space-x-1 bg-slate-850 p-1 rounded-xl border border-slate-750">
+          {/* User Profile & Sign Out */}
+          <div className="flex items-center gap-1 bg-[#0c121d] p-0.5 rounded-lg border border-slate-800 shrink-0">
             <button
               onClick={onOpenRoleSwitcher}
               title="Ganti Jenis Pengguna"
-              className={`flex items-center space-x-1.5 px-2 py-1 rounded-lg text-xs font-medium transition ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition whitespace-nowrap ${
                 isAdmin
                   ? 'text-amber-300 hover:bg-amber-500/10'
                   : isOperator
@@ -142,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-indigo-300 hover:bg-indigo-500/10'
               }`}
             >
-              <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
+              <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shrink-0 ${
                 isAdmin
                   ? 'bg-amber-500 text-slate-950'
                   : isOperator
@@ -162,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
                 else onOpenRoleSwitcher();
               }}
               title="Logout Total (Keluar ke Halaman Login & Sign Up)"
-              className="p-1 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition"
+              className="p-1.5 rounded-md text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

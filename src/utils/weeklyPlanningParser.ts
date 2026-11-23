@@ -1079,6 +1079,7 @@ export interface WeeklyPlanExplosionOptions {
   orderMode: 'FULL_NEED' | 'DEFICIT_ONLY';
   batchRoundMode: 'EXACT' | 'CEIL_BATCH';
   packagingRoundMode?: 'ROUND_UP' | 'EXACT';
+  allowancePercent?: number; // 0, 3, 5, 7
 }
 
 export interface WeeklyPlanWipNeed {
@@ -1119,6 +1120,9 @@ export interface WeeklyPlanMaterialRequirement {
   theoreticalQtyKg: number;
   currentStockKg: number;
   deficitKg: number;
+  orderBaseBeforeAllowanceKg?: number;
+  allowancePercent?: number;
+  allowanceKg?: number;
   orderBaseKg: number;
   isGdrmSolid: boolean;
   isPackagedOrder?: boolean;
@@ -1179,7 +1183,8 @@ export function calculateWeeklyPlanMaterialRequirements(
     lineFilter,
     orderMode,
     batchRoundMode,
-    packagingRoundMode = 'ROUND_UP'
+    packagingRoundMode = 'ROUND_UP',
+    allowancePercent = 0
   } = options;
 
   const stockBalances = calculateStockBalances(state);
@@ -1345,18 +1350,35 @@ export function calculateWeeklyPlanMaterialRequirements(
     }
   }
 
-  // Finalize stock deficit & GDRM packaging rounding
+  // Finalize stock deficit, optional allowance (3%, 5%, 7%), & packaging rounding
+  const safeAllowancePercent =
+    Number.isFinite(allowancePercent) && allowancePercent > 0 ? allowancePercent : 0;
+  const allowanceMultiplier = 1 + safeAllowancePercent / 100;
+
   const materialRequirements: WeeklyPlanMaterialRequirement[] = [];
   for (const req of matReqMap.values()) {
     req.deficitKg = Math.max(0, req.theoreticalQtyKg - req.currentStockKg);
-    req.orderBaseKg = orderMode === 'DEFICIT_ONLY' ? req.deficitKg : req.theoreticalQtyKg;
+    const baseNeedBeforeAllowance =
+      orderMode === 'DEFICIT_ONLY' ? req.deficitKg : req.theoreticalQtyKg;
 
-    if (req.orderBaseKg <= 0.0001) {
+    if (baseNeedBeforeAllowance <= 0.0001) {
+      req.orderBaseBeforeAllowanceKg = 0;
+      req.allowancePercent = safeAllowancePercent;
+      req.allowanceKg = 0;
+      req.orderBaseKg = 0;
       req.finalOrderQtyKg = 0;
       req.surplusKg = 0;
       materialRequirements.push(req);
       continue;
     }
+
+    req.orderBaseBeforeAllowanceKg = Number(baseNeedBeforeAllowance.toFixed(4));
+    req.allowancePercent = safeAllowancePercent;
+    req.orderBaseKg = Number((baseNeedBeforeAllowance * allowanceMultiplier).toFixed(4));
+    req.allowanceKg = Math.max(
+      0,
+      Number((req.orderBaseKg - req.orderBaseBeforeAllowanceKg).toFixed(4))
+    );
 
     const mat = state.master.materials.find(m => m.id === req.materialId);
     const pkgCfg = detectMaterialPackageConfig(mat);
@@ -1446,6 +1468,11 @@ export function convertPlanMaterialsToCartItems(
         ? Number(req.batchCount.toFixed(4))
         : Math.round(req.batchCount);
 
+      const allowanceTag =
+        req.allowancePercent && req.allowancePercent > 0
+          ? ` • Allowance +${req.allowancePercent}%`
+          : '';
+
       return {
         id: `cart_plan_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
         skuId: req.primarySkuId,
@@ -1460,6 +1487,9 @@ export function convertPlanMaterialsToCartItems(
         materialType: req.materialType,
         qty: req.finalOrderQtyKg,
         theoreticalQty: req.orderBaseKg,
+        baseTheoreticalQty: req.orderBaseBeforeAllowanceKg,
+        allowancePercent:
+          req.allowancePercent && req.allowancePercent > 0 ? req.allowancePercent : undefined,
         packageSizeKg: hasPack ? req.bagSizeKg : undefined,
         packageCount: hasPack ? req.bagCount : undefined,
         surplusKg: req.surplusKg,
@@ -1468,8 +1498,8 @@ export function convertPlanMaterialsToCartItems(
         supplier: req.supplier,
         shift: 1,
         notes: hasPack
-          ? `[Planning ${scopeSummaryLabel}] ${req.bagCount} ${unitLabel} @ ${req.bagSizeKg} kg (Butuh: ${req.orderBaseKg.toFixed(2)} kg)`
-          : `[Planning ${scopeSummaryLabel}] ${batchVal} batch WIP`,
+          ? `[Planning ${scopeSummaryLabel}${allowanceTag}] ${req.bagCount} ${unitLabel} @ ${req.bagSizeKg} kg (Butuh: ${req.orderBaseKg.toFixed(2)} kg)`
+          : `[Planning ${scopeSummaryLabel}${allowanceTag}] ${batchVal} batch WIP`,
         addedAt: nowStr
       };
     });

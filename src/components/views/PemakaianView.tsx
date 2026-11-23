@@ -43,6 +43,8 @@ import { ChevronDown, ChevronUp, RefreshCw, PackageCheck } from 'lucide-react';
 import { MaterialQrScannerModal } from '../MaterialQrScannerModal';
 import { MaterialQrLabelModal } from '../MaterialQrLabelModal';
 import { ParsedMaterialQrResult } from '../../utils/materialQr';
+import { WipGanttChart, parseWipTimestamp } from '../WipGanttChart';
+import { Activity, Maximize2 } from 'lucide-react';
 
 interface PemakaianViewProps {
   state: AppState;
@@ -70,7 +72,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   const [selectedTargetTankId, setSelectedTargetTankId] = useState<string>('');
   const [operatorName, setOperatorName] = useState('');
   const [notes, setNotes] = useState('');
-  const [activeTab, setActiveTab] = useState<'batch-order' | 'batch-history' | 'material-history' | 'shift-activity'>('batch-order');
+  const [activeTab, setActiveTab] = useState<'batch-order' | 'gantt-schedule' | 'batch-history' | 'material-history' | 'shift-activity'>('batch-order');
+  const [showInlineGantt, setShowInlineGantt] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // 3-Shift Operator System State (Otomatis mengikuti jam shift berjalan)
@@ -705,89 +708,179 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
     return stats;
   }, [state.transactions.usages, state.transactions.wipBatches]);
 
+  const handleQuickSelectFromGantt = ({ machineId, wipId: targetWipId }: { machineId?: string; wipId?: string }) => {
+    if (targetWipId) {
+      setWipId(targetWipId);
+    }
+    if (machineId) {
+      setSelectedMachineId(machineId);
+    }
+    setActiveTab('batch-order');
+    const mach = machineId ? state.master.machines.find(m => m.id === machineId) : undefined;
+    const wip = targetWipId ? state.master.wips.find(w => w.id === targetWipId) : undefined;
+    showToast(
+      `Jalur dipilih: ${mach ? `${mach.code} (${mach.name})` : 'Mesin'}${wip ? ` · WIP ${wip.name}` : ''}`
+    );
+  };
+
+  const activeBatchTotalKg = allActiveBatches.reduce((sum, b) => sum + (b.batchWeightKg || 0), 0);
+  const operationalMachinesCount = state.master.machines.filter(m => m.status === 'OPERATIONAL').length;
+  const busyMachineIds = new Set(allActiveBatches.map(b => b.targetMachineId).filter(Boolean));
+  const currentShiftStats = shiftStats[currentLiveShift.shift];
+
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      {/* 3-Shift Operator Activity & Real-time Indicator Bar */}
-      <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <div className={`p-2 rounded-xl bg-slate-800/90 border ${currentLiveShift.borderClass}`}>
-            <Clock className={`w-5 h-5 ${currentLiveShift.colorClass}`} />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-sm text-white">Sistem Kerja 3 Shift Operator</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${currentLiveShift.badgeBg} border ${currentLiveShift.borderClass} animate-pulse`}>
-                Sedang Berjalan: {currentLiveShift.name} ({currentLiveShift.timeRange})
-              </span>
+    <div className="max-w-[1440px] mx-auto space-y-4">
+      {/* OIL & GAS CONTROL ROOM DISPATCH TELEMETRY STRIP */}
+      <div className="bg-[#0c121d] border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        <div className="px-4 py-3 border-b border-slate-800 bg-[#080c14] flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0">
+              <Cpu className="w-4 h-4" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Shift 1 (07.01-15.00) • Shift 2 (15.01-23.00) • Shift 3 (23.01-07.00)
-            </p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-bold text-sm text-white tracking-tight">
+                  Pusat Kendali Produksi WIP &amp; Penyaluran Batch
+                </h2>
+                <span className={`text-[11px] font-mono font-semibold ${currentLiveShift.colorClass}`}>
+                  · {currentLiveShift.name} ({currentLiveShift.timeRange})
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Pemantauan mesin batching, penjadwalan Gantt, pemotongan FIFO pallet, dan transfer otomatis ke tangki holding/storage.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+              Jam Pabrik: <strong className="text-slate-100">{new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</strong>
+            </span>
           </div>
         </div>
 
-        {/* Live Shift Sync Notice */}
-        <div className="flex items-center space-x-2 self-end md:self-auto bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span className="text-[10px] text-slate-400 font-medium">Pemakaian Material:</span>
-          <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${currentLiveShift.badgeBg} border ${currentLiveShift.borderClass}`}>
-            Otomatis {currentLiveShift.shortLabel} ({currentLiveShift.timeRange})
-          </span>
+        {/* 4-Column Control Room Readouts */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+          <div className="p-3.5">
+            <span className="text-[11px] text-slate-400 block">Shift Operasional Aktif</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className={`text-lg font-bold font-mono tabular-nums ${currentLiveShift.colorClass}`}>
+                Shift {currentLiveShift.shift}
+              </span>
+              <span className="text-[11px] font-mono text-slate-400 tabular-nums">{currentLiveShift.timeRange}</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">Sinkronisasi otomatis jam kerja 24 jam</p>
+          </div>
+
+          <div className="p-3.5">
+            <span className="text-[11px] text-slate-400 block">Batch WIP Sedang Jalan</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className={`text-lg font-bold font-mono tabular-nums ${allActiveBatches.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {allActiveBatches.length} Batch
+              </span>
+              <span className="text-[11px] font-mono text-cyan-400 tabular-nums">{activeBatchTotalKg.toFixed(1)} kg</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">Kapasitas terkunci: maks 1 batch / mesin</p>
+          </div>
+
+          <div className="p-3.5">
+            <span className="text-[11px] text-slate-400 block">Utilisasi Mesin Batching</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-lg font-bold font-mono tabular-nums text-slate-100">
+                {busyMachineIds.size} / {state.master.machines.length}
+              </span>
+              <span className="text-[11px] font-mono text-emerald-400 tabular-nums">{operationalMachinesCount} Operasional</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {Math.max(0, operationalMachinesCount - busyMachineIds.size)} unit mesin siaga menerima dispatch
+            </p>
+          </div>
+
+          <div className="p-3.5">
+            <span className="text-[11px] text-slate-400 block">Konsumsi Material Shift {currentLiveShift.shift}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-lg font-bold font-mono tabular-nums text-cyan-400">
+                {currentShiftStats.totalKg.toFixed(1)} kg
+              </span>
+              <span className="text-[11px] font-mono text-slate-300 tabular-nums">{currentShiftStats.batchesCount} Batch</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">{currentShiftStats.count} transaksi pemotongan stok BOM</p>
+          </div>
         </div>
       </div>
-      {/* Active WIP Batches Alert Bar (if any in plant) */}
+
+      {/* Active WIP Batches Pipeline Monitor (when active batches exist) */}
       {allActiveBatches.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/40 p-3 sm:p-4 rounded-2xl shadow-xl space-y-2">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <div className="flex items-center space-x-2.5">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-              </span>
+        <div className="bg-[#0c121d] border border-amber-500/40 rounded-xl p-3.5 space-y-2.5 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-amber-400 shrink-0" />
               <h4 className="font-bold text-xs sm:text-sm text-white">
-                {allActiveBatches.length} Perintah Kerja Batch WIP Sedang Berjalan di Lantai Produksi
+                Aliran Batch Aktif di Lantai Produksi ({allActiveBatches.length} Berjalan)
               </h4>
             </div>
-            <span className="text-[10px] text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              Aturan: 1 Batch / Mesin
+            <span className="text-[11px] font-mono text-amber-300">
+              Aturan Disiplin · 1 Batch Aktif / Mesin
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
             {allActiveBatches.map(batch => {
               const bMach = state.master.machines.find(m => m.id === batch.targetMachineId);
+              const wipObj = state.master.wips.find(w => w.id === batch.wipId);
+              const tId = batch.targetTankId || wipObj?.targetTankId || wipObj?.targetTankIds?.[0];
+              const bTank = state.master.tanks.find(t => t.id === tId);
+              const startMs = parseWipTimestamp(batch.startedAt) || currentTime;
+              const estMs = parseWipTimestamp(batch.estimatedCompletionTime) || (startMs + (batch.durationMinutes || 30) * 60_000);
+              const totalMs = Math.max(1, estMs - startMs);
+              const pct = Math.min(100, Math.max(0, ((currentTime - startMs) / totalMs) * 100));
+              const remMs = estMs - currentTime;
+              const remMins = Math.floor(Math.abs(remMs) / 60_000);
+              const remSecs = Math.floor((Math.abs(remMs) % 60_000) / 1000);
+
               return (
                 <div
                   key={batch.id}
-                  className="bg-slate-900/90 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs"
+                  className="bg-[#06090f] border border-slate-800 hover:border-amber-500/50 p-3 rounded-lg space-y-2 transition"
                 >
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono font-bold text-amber-400 text-[11px]">{batch.batchCode}</span>
-                      <span className="font-semibold text-white truncate">{batch.wipName}</span>
-                      {batch.recipeCode && (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-semibold" title={batch.recipeName}>
-                          {batch.recipeCode}
-                        </span>
-                      )}
-                      {bMach && (
-                        <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-                          {bMach.code}
-                        </span>
-                      )}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                        <span className="font-bold text-amber-400">{batch.batchCode}</span>
+                        {batch.recipeCode && (
+                          <span className="text-slate-400">· {batch.recipeCode}</span>
+                        )}
+                      </div>
+                      <p className="font-semibold text-xs text-white truncate mt-0.5">{batch.wipName}</p>
+                      <p className="text-[10px] font-mono text-slate-400 mt-0.5 truncate">
+                        {bMach ? bMach.code : 'Mesin'} ➔ {bTank ? bTank.code : 'Tangki'} · {batch.batchWeightKg.toFixed(1)} kg · {batch.operatorName}
+                      </p>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 flex items-center space-x-2">
-                      <span>Mulai: {batch.startedAt}</span>
-                      <span>•</span>
-                      <span>Op: {batch.operatorName}</span>
+                    <button
+                      type="button"
+                      onClick={() => onCompleteWipBatch(batch.id)}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[10px] transition active:scale-95 shrink-0 flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Selesai</span>
+                    </button>
+                  </div>
+
+                  {/* Elapsed Progress Gauge */}
+                  <div className="space-y-1">
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 ${remMs <= 0 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
+                      <span className="text-slate-400">Progres {pct.toFixed(0)}%</span>
+                      <span className={remMs <= 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold'}>
+                        {remMs <= 0 ? 'Siap Transfer Tangki' : `Sisa ${remMins}m ${String(remSecs).padStart(2, '0')}s`}
+                      </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => onCompleteWipBatch(batch.id)}
-                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[10px] shadow transition active:scale-95 shrink-0 flex items-center space-x-1"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Selesaikan</span>
-                  </button>
                 </div>
               );
             })}
@@ -795,99 +888,151 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
         </div>
       )}
 
-      {/* Navigation & Mode Selector */}
-      <div className="bg-slate-900 border border-slate-800 p-2 rounded-2xl flex items-center justify-between shadow-lg">
-        <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar">
+      {/* Control Room Workspace Selector Bar */}
+      <div className="bg-[#0c121d] border border-slate-800 p-1.5 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('batch-order')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center space-x-1.5 ${
+            className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'batch-order'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
             }`}
           >
-            <PlayCircle className="w-4 h-4" />
-            <span>1. Perintah Kerja Produksi WIP (BOM Terintegrasi)</span>
+            <PlayCircle className="w-3.5 h-3.5" />
+            <span>1. Perintah Kerja WIP (BOM)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('gantt-schedule')}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
+              activeTab === 'gantt-schedule'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>2. Gantt Chart Produksi WIP</span>
           </button>
 
           <button
             onClick={() => setActiveTab('batch-history')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center space-x-1.5 ${
+            className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'batch-history'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
             }`}
           >
-            <Layers className="w-4 h-4" />
-            <span>2. Status Batch WIP ({wipBatchesList.length})</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>3. Status Batch WIP ({wipBatchesList.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('material-history')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center space-x-1.5 ${
+            className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'material-history'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
             }`}
           >
-            <History className="w-4 h-4" />
-            <span>3. Log Pemakaian Bahan Baku</span>
+            <History className="w-3.5 h-3.5" />
+            <span>4. Log Pemakaian Bahan Baku</span>
           </button>
 
           <button
             onClick={() => setActiveTab('shift-activity')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center space-x-1.5 ${
+            className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'shift-activity'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
             }`}
           >
-            <Clock className="w-4 h-4" />
-            <span>4. Log Aktivitas 3 Shift</span>
+            <Clock className="w-3.5 h-3.5" />
+            <span>5. Log Aktivitas 3 Shift</span>
           </button>
         </div>
+
+        {activeTab === 'batch-order' && (
+          <button
+            type="button"
+            onClick={() => setShowInlineGantt(v => !v)}
+            className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
+              showInlineGantt
+                ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>{showInlineGantt ? 'Sembunyikan Gantt' : 'Tampilkan Gantt'}</span>
+          </button>
+        )}
       </div>
 
-      {/* TAB 1: FORM PERINTAH KERJA BATCH WIP & BOM INTEGRATION */}
+      {/* TAB 2: DEDICATED FULL-WIDTH GANTT CHART PRODUKSI WIP */}
+      {activeTab === 'gantt-schedule' && (
+        <WipGanttChart
+          state={state}
+          currentTime={currentTime}
+          compact={false}
+          onCompleteWipBatch={onCompleteWipBatch}
+          onCancelWipBatch={onCancelWipBatch}
+          onQuickSelectLane={handleQuickSelectFromGantt}
+        />
+      )}
+
+      {/* TAB 1: FORM PERINTAH KERJA BATCH WIP & BOM INTEGRATION (+ LIVE GANTT) */}
       {activeTab === 'batch-order' && (
-        <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
-                <Cpu className="w-4 h-4" />
+        <div className="space-y-4">
+          {showInlineGantt && (
+            <WipGanttChart
+              state={state}
+              currentTime={currentTime}
+              compact={true}
+              onExpandFullView={() => setActiveTab('gantt-schedule')}
+              onCompleteWipBatch={onCompleteWipBatch}
+              onCancelWipBatch={onCancelWipBatch}
+              onQuickSelectLane={handleQuickSelectFromGantt}
+            />
+          )}
+
+          <div className="bg-[#0c121d] border border-slate-800 p-4 sm:p-5 rounded-xl shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                  <Cpu className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">
+                    Perintah Kerja Produksi WIP (Kapasitas 1 Batch per Periode)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Pilih jenis WIP &amp; mesin untuk memuat formulasi resep BOM serta alokasi FIFO secara otomatis
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-sm text-white">
-                  Perintah Kerja Produksi WIP (Kapasitas 1 Batch per Periode)
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  Pilih jenis WIP untuk memuat formulasi BOM terpisah secara otomatis
-                </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsQrScannerOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0 active:scale-95"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Scan QR Bahan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQrLabelOpen(true)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+                  title="Buat & unduh label QR untuk kemasan bahan baku"
+                >
+                  <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Label QR</span>
+                </button>
+                <span className="text-[11px] font-mono text-slate-400">
+                  1 Batch / Mesin
+                </span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsQrScannerOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm shadow-cyan-600/20 transition whitespace-nowrap shrink-0 active:scale-95"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>Scan QR Bahan</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsQrLabelOpen(true)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
-                title="Buat & unduh label QR untuk kemasan bahan baku"
-              >
-                <Tag className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Label QR</span>
-              </button>
-              <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-purple-950/60 border border-purple-500/30 text-purple-300">
-                Aturan MES: 1 Batch Aktif / Mesin Produksi
-              </span>
-            </div>
-          </div>
 
           {suggestedWipsFromScan && (
             <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 space-y-2 text-xs">
@@ -1765,7 +1910,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 className={`w-full py-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg ${
                   activeBatchForSelectedMachine || !wipId || !selectedMachineId || configuredMaterials.length === 0
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 active:scale-95'
+                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/25 active:scale-95'
                 }`}
               >
                 {activeBatchForSelectedMachine ? (
@@ -1776,12 +1921,13 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 ) : (
                   <>
                     <PlayCircle className="w-4 h-4" />
-                    <span>Mulai Produksi 1 Batch WIP pada {selectedMachObj?.code || 'Mesin Terpilih'} & Potong Stok Sesuai BOM</span>
+                    <span>Mulai Produksi 1 Batch WIP pada {selectedMachObj?.code || 'Mesin Terpilih'} &amp; Potong Stok Sesuai BOM</span>
                   </>
                 )}
               </button>
             </div>
           </form>
+          </div>
         </div>
       )}
 

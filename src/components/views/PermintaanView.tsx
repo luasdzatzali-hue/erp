@@ -92,6 +92,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const [selectedMatId, setSelectedMatId] = useState('');
   const [batchCount, setBatchCount] = useState<number>(1);
   const [roundDecimalBatch, setRoundDecimalBatch] = useState<boolean>(true);
+  const [allowancePercent, setAllowancePercent] = useState<number>(0);
   const [supplier, setSupplier] = useState<MaterialSource>('GDRM');
   const [gdrmBagSize, setGdrmBagSize] = useState<number>(25); // 15, 20, 25, 50 kg or custom
   const [packagingRoundingEnabled, setPackagingRoundingEnabled] = useState<boolean>(false);
@@ -231,6 +232,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const orderCalc = computeRoundedMaterialOrder({
     rawBatchCount: batchCount || 0,
     unitWeightKg: unitWeight,
+    allowancePercent,
     roundDecimalBatchUp: roundDecimalBatch,
     usePackagingRounding: isPackagingRoundingActive,
     packageSizeKg: activePackSizeKg,
@@ -238,7 +240,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   });
 
   const effectiveBatchCount = orderCalc.effectiveBatchCount;
-  const theoreticalNeed = orderCalc.rawNeedKg;
+  const theoreticalNeed = orderCalc.needWithAllowanceKg;
+  const baseTheoreticalNeed = orderCalc.rawNeedKg;
+  const allowanceKg = orderCalc.allowanceKg;
   const bagCount = orderCalc.packageCount;
   const roundedOrderQty = orderCalc.finalOrderQtyKg;
   const surplusQty = orderCalc.surplusKg;
@@ -285,6 +289,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       const calc = computeRoundedMaterialOrder({
         rawBatchCount: rawBatch,
         unitWeightKg: it.amountKg,
+        allowancePercent,
         roundDecimalBatchUp: roundDecimalBatch,
         usePackagingRounding: usePack,
         packageSizeKg: itPackSize,
@@ -295,6 +300,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       const noteParts: string[] = [`[Tarik Resep ${activeRecipe.recipeCode}]`];
       if (calc.batchWasRoundedUp) {
         noteParts.push(`Batch ${rawBatch}→${calc.effectiveBatchCount}`);
+      }
+      if (calc.allowancePercent > 0) {
+        noteParts.push(`Allowance +${calc.allowancePercent}% (+${calc.allowanceKg.toFixed(2)} kg)`);
       }
       if (calc.packageCount > 0) {
         noteParts.push(`Dibulatkan: ${calc.packageCount} ${pkgCfg.unitLabel} @ ${itPackSize} kg`);
@@ -315,7 +323,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         materialCode: mat.code,
         materialType: mat.type,
         qty: calc.finalOrderQtyKg,
-        theoreticalQty: calc.rawNeedKg,
+        theoreticalQty: calc.needWithAllowanceKg,
+        baseTheoreticalQty: calc.rawNeedKg,
+        allowancePercent: calc.allowancePercent > 0 ? calc.allowancePercent : undefined,
         packageSizeKg: calc.packageCount > 0 ? itPackSize : undefined,
         packageCount: calc.packageCount > 0 ? calc.packageCount : undefined,
         surplusKg: calc.surplusKg,
@@ -435,6 +445,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       orderCalc.batchWasRoundedUp
         ? `Batch ${batchCount}→${finalBatch}`
         : '',
+      allowancePercent > 0
+        ? `Allowance +${allowancePercent}% (+${allowanceKg.toFixed(2)} kg)`
+        : '',
       isPackagingRoundingActive
         ? `Dibulatkan: ${finalBagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg`
         : orderCalc.qtyWasRoundedUp || qtyRoundedFromManual
@@ -464,6 +477,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       materialType: mat.type,
       qty: finalQty, // Qty form order resmi yang dikirim (dibulatkan ke atas)
       theoreticalQty: theoreticalNeed,
+      baseTheoreticalQty: baseTheoreticalNeed,
+      allowancePercent: allowancePercent > 0 ? allowancePercent : undefined,
       packageSizeKg: isPackagingRoundingActive ? activePackSizeKg : undefined,
       packageCount: isPackagingRoundingActive ? finalBagCount : undefined,
       surplusKg: finalSurplus,
@@ -517,6 +532,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
     const directSummaryNote = [
       orderCalc.batchWasRoundedUp ? `Batch ${batchCount}→${finalBatch}` : '',
+      allowancePercent > 0
+        ? `Allowance +${allowancePercent}% (+${allowanceKg.toFixed(2)} kg)`
+        : '',
       isPackagingRoundingActive
         ? `Pembulatan ${supplier}: ${finalBagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg`
         : orderCalc.qtyWasRoundedUp || qtyRoundedFromManual
@@ -532,6 +550,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       materialId: selectedMatId,
       qty: finalQty,
       theoreticalQty: theoreticalNeed,
+      baseTheoreticalQty: baseTheoreticalNeed,
+      allowancePercent: allowancePercent > 0 ? allowancePercent : undefined,
       packageSizeKg: isPackagingRoundingActive ? activePackSizeKg : undefined,
       packageCount: isPackagingRoundingActive ? finalBagCount : undefined,
       surplusKg: finalSurplus,
@@ -575,6 +595,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       materialId: item.materialId,
       qty: item.qty,
       theoreticalQty: item.theoreticalQty,
+      baseTheoreticalQty: item.baseTheoreticalQty,
+      allowancePercent: item.allowancePercent,
       packageSizeKg: item.packageSizeKg,
       packageCount: item.packageCount,
       surplusKg: item.surplusKg,
@@ -624,6 +646,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       materialType: mat?.type || 'bubuk',
       qty: req.qty,
       theoreticalQty: req.theoreticalQty ?? req.qty,
+      baseTheoreticalQty: req.baseTheoreticalQty,
+      allowancePercent: req.allowancePercent,
       packageSizeKg: req.packageSizeKg,
       packageCount: req.packageCount,
       surplusKg: req.surplusKg,
@@ -822,6 +846,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       'Nama Material',
       'Supplier',
       'Batch',
+      'Allowance (%)',
       'Perhitungan Aktual (kg)',
       'Qty Form Order (kg)',
       'Rounding Applied (Selisih kg)',
@@ -850,6 +875,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         mObj?.name || '-',
         req.supplier,
         req.batch,
+        req.allowancePercent ? `${req.allowancePercent}%` : '0%',
         formatKgCompact(rounding.actualKg),
         formatKgCompact(rounding.roundedKg),
         roundingDeltaFormatted,
@@ -1124,6 +1150,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           const itemCalc = computeRoundedMaterialOrder({
                             rawBatchCount: batchCount || 1,
                             unitWeightKg: it.amountKg,
+                            allowancePercent,
                             roundDecimalBatchUp: roundDecimalBatch,
                             usePackagingRounding: pkgCfg.hasDiscretePackaging && pkgCfg.defaultPackSizeKg > 0,
                             packageSizeKg: pkgCfg.defaultPackSizeKg,
@@ -1260,6 +1287,45 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
           </div>
 
+          {/* Allowance Penambahan Kebutuhan Order (0%, +3%, +5%, +7%) */}
+          <div className="sm:col-span-2 bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[11px] font-bold text-white">
+                  Allowance Kebutuhan Order
+                </span>
+                {allowancePercent > 0 && selectedMatObj && (
+                  <span className="text-[10px] font-mono tabular-nums text-emerald-400 font-semibold">
+                    (+{allowanceKg.toFixed(2)} kg dari {orderCalc.afterBatchNeedKg.toFixed(2)} kg →{' '}
+                    {theoreticalNeed.toFixed(2)} kg)
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Tambahan toleransi stok (3%, 5%, atau 7%) untuk mengantisipasi susut timbangan/proses sebelum pembulatan kemasan.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {[0, 3, 5, 7].map(pct => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setAllowancePercent(pct)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition whitespace-nowrap shrink-0 ${
+                    allowancePercent === pct
+                      ? pct === 0
+                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
+                        : 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  {pct === 0 ? '0% (Normal)' : `+${pct}%`}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* ATURAN PEMBULATAN KE ATAS: KEMASAN CUSTOM / PABRIKASI & BATCH DESIMAL */}
           {selectedMatObj && (
             <div className="sm:col-span-2 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/20 border border-amber-500/35 p-3.5 sm:p-4 rounded-xl space-y-3 shadow-inner">
@@ -1380,12 +1446,16 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   {/* Metrics: Teoretis vs Kemasan vs Pembulatan vs Form Order */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
                     <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block mb-0.5">Kebutuhan Awal:</span>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">
+                        Kebutuhan {allowancePercent > 0 ? `(+${allowancePercent}% Allowance)` : 'Awal'}:
+                      </span>
                       <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">
                         {theoreticalNeed.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
                       </span>
                       <span className="text-[10px] text-slate-500 block">
-                        ({batchCount} batch{orderCalc.batchWasRoundedUp ? ` → ${effectiveBatchCount} bulat` : ''})
+                        {allowancePercent > 0
+                          ? `Dasar ${orderCalc.afterBatchNeedKg.toFixed(2)} kg + ${allowanceKg.toFixed(2)} kg`
+                          : `(${batchCount} batch${orderCalc.batchWasRoundedUp ? ` → ${effectiveBatchCount} bulat` : ''})`}
                       </span>
                     </div>
 
@@ -1432,9 +1502,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               </label>
               <span className="text-[10px] text-cyan-400 font-mono">
                 {isPackagingRoundingActive
-                  ? `(Dibulatkan: ${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg = ${roundedOrderQty.toFixed(4)} kg)`
+                  ? `(Dibulatkan: ${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg${allowancePercent > 0 ? `, incl. +${allowancePercent}%` : ''} = ${roundedOrderQty.toFixed(4)} kg)`
                   : selectedMatObj
-                  ? `(Basis: ${unitWeight.toFixed(4)} kg × ${effectiveBatchCount}${orderCalc.batchWasRoundedUp ? ` [dibulatkan dari ${batchCount}]` : ''})`
+                  ? `(Basis: ${unitWeight.toFixed(4)} kg × ${effectiveBatchCount}${orderCalc.batchWasRoundedUp ? ` [bulat dr ${batchCount}]` : ''}${allowancePercent > 0 ? ` + Allowance ${allowancePercent}%` : ''})`
                   : ''}
               </span>
             </div>
@@ -1451,12 +1521,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   : 'border-slate-700 text-cyan-400 text-xs focus:border-cyan-500'
               }`}
             />
-            {(isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp) && (
+            {(isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp || allowancePercent > 0) && (
               <p className="text-[10px] text-amber-300 mt-1">
-                ✓ Nilai order otomatis dibulatkan ke atas
-                {orderCalc.batchWasRoundedUp ? ` (Batch ${batchCount} → ${effectiveBatchCount})` : ''}
-                {isPackagingRoundingActive ? ` (${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg)` : orderCalc.qtyWasRoundedUp ? ` (Qty ${orderCalc.afterBatchNeedKg.toFixed(4)} → ${roundedOrderQty} kg)` : ''}.
-                {surplusQty > 0 ? ` Selisih +${surplusQty.toFixed(4)} kg dicatat sebagai surplus stok saat diterima.` : ''}
+                ✓ Kalkulasi order:
+                {orderCalc.batchWasRoundedUp ? ` Batch ${batchCount} → ${effectiveBatchCount}` : ''}
+                {allowancePercent > 0 ? ` • Allowance +${allowancePercent}% (+${allowanceKg.toFixed(2)} kg)` : ''}
+                {isPackagingRoundingActive
+                  ? ` • Bulat ${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg`
+                  : orderCalc.qtyWasRoundedUp
+                  ? ` • Bulat atas ${orderCalc.needWithAllowanceKg.toFixed(4)} → ${roundedOrderQty} kg`
+                  : ''}.
+                {surplusQty > 0 ? ` Selisih pembulatan +${surplusQty.toFixed(4)} kg dicatat sebagai surplus stok saat diterima.` : ''}
               </p>
             )}
           </div>
@@ -1739,6 +1814,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                             <span className="font-bold text-cyan-400 text-xs block">
                               {item.qty.toFixed(4)} kg
                             </span>
+                            {item.allowancePercent && item.allowancePercent > 0 ? (
+                              <span className="text-[9px] text-emerald-300 block font-semibold">
+                                Incl. Allowance +{item.allowancePercent}%
+                              </span>
+                            ) : null}
                             {item.surplusKg ? (
                               <span className="text-[9px] text-emerald-400 block font-normal">
                                 +{item.surplusKg.toFixed(2)} kg (Kemasan)
@@ -1921,6 +2001,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         <span className="font-bold text-cyan-400 block text-xs">
                           {req.qty.toFixed(4)} kg
                         </span>
+                        {req.allowancePercent && req.allowancePercent > 0 ? (
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold mt-0.5 mr-1">
+                            Allowance +{req.allowancePercent}%
+                          </span>
+                        ) : null}
                         {req.packageCount && req.packageSizeKg ? (
                           <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold mt-0.5">
                             {req.packageCount} {detectMaterialPackageConfig(mObj).unitLabel} @ {req.packageSizeKg} kg
@@ -2082,6 +2167,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                             }`}>
                               {item.supplier}
                             </span>
+                            {(item.allowancePercent ?? 0) > 0 && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                                +{item.allowancePercent}%
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-slate-400 block truncate">
                             Untuk: <strong className="text-slate-300">{item.skuName}</strong> ({item.wipName})
