@@ -145,6 +145,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [transferTo, setTransferTo] = useState<StorageLocation>('WINEROTO');
   const [transferQty, setTransferQty] = useState('');
   const [stockViewLayout, setStockViewLayout] = useState<'breakdown-sku-wip' | 'by-location'>('breakdown-sku-wip');
+  const [filterLineId, setFilterLineId] = useState<string>('all');
   const [filterSkuId, setFilterSkuId] = useState<string>('all');
   const [filterWipId, setFilterWipId] = useState<string>('all');
   const [isSkuCatalogExpanded, setIsSkuCatalogExpanded] = useState<boolean>(false);
@@ -228,28 +229,123 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
   });
 
-  // Stock Material breakdown by SKU and WIP
+  // Stock Material breakdown by Production Line, SKU, and WIP
   const stockBreakdownRows = useMemo(() => {
     return calculateMaterialStockBreakdown(state);
   }, [state]);
 
+  const breakdownLineOptions = useMemo(() => {
+    const map = new Map<string, { lineId: string; lineName: string; count: number }>();
+    stockBreakdownRows.forEach(r => {
+      const existing = map.get(r.lineId);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(r.lineId, { lineId: r.lineId, lineName: r.lineName, count: 1 });
+      }
+    });
+    return Array.from(map.values());
+  }, [stockBreakdownRows]);
+
   const filteredBreakdownRows = useMemo(() => {
     return stockBreakdownRows.filter(r => {
+      const matchLine = filterLineId === 'all' || r.lineId === filterLineId;
       const matchSku = filterSkuId === 'all' || r.skuId === filterSkuId;
       const matchWip = filterWipId === 'all' || r.wipId === filterWipId;
       const q = (stockTableSearch || normalizedSearch).trim().toLowerCase();
       const matchSearch =
         !q ||
+        r.lineName.toLowerCase().includes(q) ||
         r.skuName.toLowerCase().includes(q) ||
         r.wipName.toLowerCase().includes(q) ||
         r.materialName.toLowerCase().includes(q) ||
         r.materialCode.toLowerCase().includes(q) ||
         r.status.toLowerCase().includes(q);
-      return matchSku && matchWip && matchSearch;
+      return matchLine && matchSku && matchWip && matchSearch;
     });
-  }, [stockBreakdownRows, filterSkuId, filterWipId, stockTableSearch, normalizedSearch]);
+  }, [stockBreakdownRows, filterLineId, filterSkuId, filterWipId, stockTableSearch, normalizedSearch]);
+
+  const groupedBreakdownByLine = useMemo(() => {
+    const groupMap = new Map<
+      string,
+      {
+        lineId: string;
+        lineName: string;
+        rows: typeof filteredBreakdownRows;
+        totalPemesananKg: number;
+        totalOnhandKg: number;
+        totalPemakaianKg: number;
+      }
+    >();
+    filteredBreakdownRows.forEach(row => {
+      const existing = groupMap.get(row.lineId);
+      if (existing) {
+        existing.rows.push(row);
+        existing.totalPemesananKg += row.pemesananKg;
+        existing.totalOnhandKg += row.totalOnhandKg;
+        existing.totalPemakaianKg += row.pemakaianKg;
+      } else {
+        groupMap.set(row.lineId, {
+          lineId: row.lineId,
+          lineName: row.lineName,
+          rows: [row],
+          totalPemesananKg: row.pemesananKg,
+          totalOnhandKg: row.totalOnhandKg,
+          totalPemakaianKg: row.pemakaianKg
+        });
+      }
+    });
+    return Array.from(groupMap.values());
+  }, [filteredBreakdownRows]);
 
   const handleExportCSV = () => {
+    if (stockViewLayout === 'breakdown-sku-wip') {
+      if (filteredBreakdownRows.length === 0) {
+        showToast('Belum ada data saldo stok material per line untuk di-export', true);
+        return;
+      }
+      const headers = [
+        'Line Produksi',
+        'SKU',
+        'Jenis WIP',
+        'Kode Material',
+        'Nama Material',
+        'Saldo Awal (kg)',
+        'Pemesanan Material (kg)',
+        'Kedatangan Material (kg)',
+        'Total Onhand (kg)',
+        'Pemakaian Material (kg)',
+        'Saldo Akhir Shift (kg)',
+        'Status'
+      ];
+      const rows = filteredBreakdownRows.map(r => [
+        `"${r.lineName}"`,
+        `"${r.skuName}"`,
+        `"${r.wipName}"`,
+        r.materialCode,
+        `"${r.materialName}"`,
+        r.saldoAwalKg.toFixed(4),
+        r.pemesananKg.toFixed(4),
+        r.kedatanganKg.toFixed(4),
+        r.totalOnhandKg.toFixed(4),
+        r.pemakaianKg.toFixed(4),
+        r.saldoAkhirKg.toFixed(4),
+        r.status
+      ]);
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Laporan_Saldo_Stok_Per_Line_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Berhasil mengunduh laporan saldo stok per Line Produksi (CSV)');
+      return;
+    }
+
     if (stockList.length === 0) {
       showToast('Belum ada data stok untuk di-export', true);
       return;
@@ -1222,12 +1318,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <h3 className="font-bold text-sm text-white flex items-center gap-2">
                   <span>Laporan Saldo Stock Material Aktual</span>
                   <span className="text-[11px] font-mono text-cyan-400 tabular-nums">
-                    · {stockViewLayout === 'breakdown-sku-wip' ? `${filteredBreakdownRows.length} Entri BOM` : `${displayStockMaterials.length} Item`}
+                    · {stockViewLayout === 'breakdown-sku-wip' ? `${filteredBreakdownRows.length} Entri (${groupedBreakdownByLine.length} Line)` : `${displayStockMaterials.length} Item`}
                   </span>
                 </h3>
                 <p className="text-[11px] text-slate-400">
                   {stockViewLayout === 'breakdown-sku-wip'
-                    ? 'Breakdown stok material berdasarkan SKU dan Jenis WIP yang diproduksi (Satuan Batch & kg)'
+                    ? 'Dipisahkan per Line Produksi, SKU, dan Jenis WIP yang diproduksi (Satuan Batch & kg)'
                     : 'Pembaruan otomatis dari riwayat Penerimaan & Pemakaian (Per Lokasi Gudang)'}
                 </p>
               </div>
@@ -1241,7 +1337,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   type="text"
                   value={stockTableSearch}
                   onChange={(e) => setStockTableSearch(e.target.value)}
-                  placeholder="Cari SKU, WIP, kode atau material..."
+                  placeholder="Cari Line, SKU, WIP, kode/material..."
                   className="w-full bg-[#06090f]/90 border border-slate-700/80 rounded-lg pl-8 pr-8 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
                 />
                 {stockTableSearch && (
@@ -1257,6 +1353,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               <button
+                type="button"
+                onClick={handleExportCSV}
+                className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                title="Download laporan saldo stok material dalam format CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>CSV</span>
+              </button>
+
+              <button
                 onClick={handlePrintReport}
                 className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               >
@@ -1267,81 +1373,118 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Subheader bar: View Mode Switch & Filters */}
-          <div className="px-4 py-2.5 bg-[#080c14]/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-            {/* View Mode Selector */}
-            <div className="flex items-center gap-1 bg-[#06090f]/90 p-1 rounded-lg border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setStockViewLayout('breakdown-sku-wip')}
-                className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                  stockViewLayout === 'breakdown-sku-wip'
-                    ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Breakdown Sesuai SKU &amp; WIP</span>
-              </button>
+          <div className="px-4 py-2.5 bg-[#080c14]/80 border-b border-slate-800/80 space-y-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* View Mode Selector */}
+              <div className="flex items-center gap-1 bg-[#06090f]/90 p-1 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setStockViewLayout('breakdown-sku-wip')}
+                  className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    stockViewLayout === 'breakdown-sku-wip'
+                      ? 'bg-cyan-600 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Per Line, SKU &amp; WIP</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setStockViewLayout('by-location')}
-                className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                  stockViewLayout === 'by-location'
-                    ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Warehouse className="w-3.5 h-3.5" />
-                <span>Per Lokasi Gudang (CK &amp; WINEROTO)</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setStockViewLayout('by-location')}
+                  className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    stockViewLayout === 'by-location'
+                      ? 'bg-cyan-600 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Warehouse className="w-3.5 h-3.5" />
+                  <span>Per Lokasi Gudang (CK &amp; WINEROTO)</span>
+                </button>
+              </div>
+
+              {/* Dropdown Filters for SKU & WIP (when in breakdown mode) */}
+              {stockViewLayout === 'breakdown-sku-wip' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-slate-400">SKU:</span>
+                    <select
+                      value={filterSkuId}
+                      onChange={(e) => setFilterSkuId(e.target.value)}
+                      className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
+                    >
+                      <option value="all">Semua SKU ({state.master.skus.length})</option>
+                      {state.master.skus.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code || 'SKU'})
+                        </option>
+                      ))}
+                      <option value="general">Stok Bebas / Non-BOM</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-slate-400">WIP:</span>
+                    <select
+                      value={filterWipId}
+                      onChange={(e) => setFilterWipId(e.target.value)}
+                      className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
+                    >
+                      <option value="all">Semua Jenis WIP ({state.master.wips.length})</option>
+                      {state.master.wips.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Dropdown Filters for SKU & WIP (when in breakdown mode) */}
-            {stockViewLayout === 'breakdown-sku-wip' && (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] text-slate-400">SKU:</span>
-                  <select
-                    value={filterSkuId}
-                    onChange={(e) => setFilterSkuId(e.target.value)}
-                    className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
+            {/* Interactive Production Line Split Filter Bar */}
+            {stockViewLayout === 'breakdown-sku-wip' && breakdownLineOptions.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/70">
+                <span className="text-[11px] font-semibold text-slate-300 mr-1">
+                  Pisah Line Produksi:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFilterLineId('all')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 tabular-nums ${
+                    filterLineId === 'all'
+                      ? 'bg-cyan-600 text-white border-cyan-500'
+                      : 'bg-[#06090f] text-slate-300 border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  Semua Line ({stockBreakdownRows.length})
+                </button>
+                {breakdownLineOptions.map(opt => (
+                  <button
+                    key={opt.lineId}
+                    type="button"
+                    onClick={() => setFilterLineId(opt.lineId)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 tabular-nums ${
+                      filterLineId === opt.lineId
+                        ? 'bg-emerald-600 text-white border-emerald-400'
+                        : 'bg-[#06090f] text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
                   >
-                    <option value="all">Semua SKU ({state.master.skus.length})</option>
-                    {state.master.skus.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code || 'SKU'})
-                      </option>
-                    ))}
-                    <option value="general">Stok Bebas / Non-BOM</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] text-slate-400">WIP:</span>
-                  <select
-                    value={filterWipId}
-                    onChange={(e) => setFilterWipId(e.target.value)}
-                    className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
-                  >
-                    <option value="all">Semua Jenis WIP ({state.master.wips.length})</option>
-                    {state.master.wips.map(w => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    {opt.lineName} ({opt.count})
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
           <div className="overflow-x-auto">
             {stockViewLayout === 'breakdown-sku-wip' ? (
-              /* TABEL BREAKDOWN SESUAI SKU & WIP (11 KOLOM STANDAR) */
+              /* TABEL BREAKDOWN DIPISAH PER LINE PRODUKSI, SKU & WIP (12 KOLOM) */
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-800/80 text-[11px] font-bold text-slate-300 border-b border-slate-700 whitespace-nowrap">
+                    <th className="py-3 px-3">Line Produksi</th>
                     <th className="py-3 px-3">SKU</th>
                     <th className="py-3 px-3">Jenis WIP</th>
                     <th className="py-3 px-2 text-center">Kode</th>
@@ -1356,108 +1499,153 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredBreakdownRows.length > 0 ? (
-                    filteredBreakdownRows.map((row) => (
-                      <tr key={row.rowKey} className="hover:bg-slate-800/40 text-xs transition">
-                        {/* SKU */}
-                        <td className="py-3 px-3 font-semibold text-white whitespace-nowrap">
-                          <div className="flex items-center space-x-1.5">
-                            <span className="truncate max-w-[170px]" title={row.skuName}>{row.skuName}</span>
-                            {row.isKite && (
-                              <span className="px-1 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
-                                KITE
+                  {groupedBreakdownByLine.length > 0 ? (
+                    groupedBreakdownByLine.map(lineGrp => (
+                      <React.Fragment key={lineGrp.lineId}>
+                        <tr className="bg-slate-900/95 border-y border-slate-700/80">
+                          <td colSpan={12} className="py-2 px-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-emerald-300 font-mono">
+                                  LINE PRODUKSI: {lineGrp.lineName.toUpperCase()}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-mono tabular-nums">
+                                  ({lineGrp.rows.length} entri material)
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono tabular-nums text-slate-300">
+                                <span>
+                                  Pemesanan:{' '}
+                                  <strong className="text-amber-300">
+                                    {lineGrp.totalPemesananKg.toFixed(2)} kg
+                                  </strong>
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  Total Onhand:{' '}
+                                  <strong className="text-cyan-300">
+                                    {lineGrp.totalOnhandKg.toFixed(2)} kg
+                                  </strong>
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  Pemakaian:{' '}
+                                  <strong className="text-rose-300">
+                                    {lineGrp.totalPemakaianKg.toFixed(2)} kg
+                                  </strong>
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        {lineGrp.rows.map(row => (
+                          <tr key={row.rowKey} className="hover:bg-slate-800/40 text-xs transition">
+                            {/* Line Produksi */}
+                            <td className="py-3 px-3 font-mono font-bold text-emerald-300 whitespace-nowrap">
+                              {row.lineName}
+                            </td>
+
+                            {/* SKU */}
+                            <td className="py-3 px-3 font-semibold text-white whitespace-nowrap">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="truncate max-w-[170px]" title={row.skuName}>{row.skuName}</span>
+                                {row.isKite && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
+                                    KITE
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Jenis WIP */}
+                            <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
+                              <span className="px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-500/30 text-[11px] font-medium">
+                                {row.wipName}
                               </span>
-                            )}
-                          </div>
-                        </td>
+                            </td>
 
-                        {/* Jenis WIP */}
-                        <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-500/30 text-[11px] font-medium">
-                            {row.wipName}
-                          </span>
-                        </td>
+                            {/* Kode Material */}
+                            <td className="py-3 px-2 text-center font-mono font-bold text-cyan-400 whitespace-nowrap">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px]">
+                                {row.materialCode}
+                              </span>
+                            </td>
 
-                        {/* Kode Material */}
-                        <td className="py-3 px-2 text-center font-mono font-bold text-cyan-400 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px]">
-                            {row.materialCode}
-                          </span>
-                        </td>
+                            {/* Nama Material */}
+                            <td className="py-3 px-3 font-medium text-white whitespace-nowrap">
+                              <span>{row.materialName}</span>
+                              <span className="block text-[10px] text-slate-500 font-mono">
+                                Formula: {row.batchSizeKg.toFixed(2)} kg/batch
+                              </span>
+                            </td>
 
-                        {/* Nama Material */}
-                        <td className="py-3 px-3 font-medium text-white whitespace-nowrap">
-                          <span>{row.materialName}</span>
-                          <span className="block text-[10px] text-slate-500 font-mono">
-                            Formula: {row.batchSizeKg.toFixed(2)} kg/batch
-                          </span>
-                        </td>
+                            {/* Saldo Awal (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                              <div className="text-slate-200 font-semibold">{row.saldoAwalBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-slate-400">({row.saldoAwalKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Saldo Awal (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                          <div className="text-slate-200 font-semibold">{row.saldoAwalBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-slate-400">({row.saldoAwalKg.toFixed(2)} kg)</div>
-                        </td>
+                            {/* Pemesanan Material (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                              <div className="text-amber-300 font-semibold">{row.pemesananBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-amber-400/80">({row.pemesananKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Pemesanan Material (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                          <div className="text-amber-300 font-semibold">{row.pemesananBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-amber-400/80">({row.pemesananKg.toFixed(2)} kg)</div>
-                        </td>
+                            {/* Kedatangan Material (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                              <div className="text-emerald-300 font-semibold">{row.kedatanganBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-emerald-400/80">({row.kedatanganKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Kedatangan Material (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                          <div className="text-emerald-300 font-semibold">{row.kedatanganBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-emerald-400/80">({row.kedatanganKg.toFixed(2)} kg)</div>
-                        </td>
+                            {/* Total Onhand Material (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-cyan-950/20 whitespace-nowrap">
+                              <div className="text-cyan-300 font-bold">{row.totalOnhandBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-cyan-400">({row.totalOnhandKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Total Onhand Material (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono bg-cyan-950/20 whitespace-nowrap">
-                          <div className="text-cyan-300 font-bold">{row.totalOnhandBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-cyan-400">({row.totalOnhandKg.toFixed(2)} kg)</div>
-                        </td>
+                            {/* Pemakaian Material (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-rose-950/20 whitespace-nowrap">
+                              <div className="text-rose-300 font-bold">{row.pemakaianBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-rose-400">({row.pemakaianKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Pemakaian Material (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono bg-rose-950/20 whitespace-nowrap">
-                          <div className="text-rose-300 font-bold">{row.pemakaianBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-rose-400">({row.pemakaianKg.toFixed(2)} kg)</div>
-                        </td>
+                            {/* Saldo Akhir Shift (batch & kg) */}
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-emerald-950/20 whitespace-nowrap">
+                              <div className="text-emerald-300 font-bold">{row.saldoAkhirBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-emerald-400">({row.saldoAkhirKg.toFixed(2)} kg)</div>
+                            </td>
 
-                        {/* Saldo Akhir Shift (batch & kg) */}
-                        <td className="py-3 px-3 text-right font-mono bg-emerald-950/20 whitespace-nowrap">
-                          <div className="text-emerald-300 font-bold">{row.saldoAkhirBatch.toFixed(2)} btc</div>
-                          <div className="text-[10px] text-emerald-400">({row.saldoAkhirKg.toFixed(2)} kg)</div>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
-                          {row.status === 'KOSONG' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                              KOSONG
-                            </span>
-                          ) : row.status === 'MENIPIS' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-flex items-center space-x-1">
-                              <AlertTriangle className="w-3 h-3 text-rose-400" />
-                              <span>MENIPIS</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 inline-flex items-center space-x-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                              <span>AMAN</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                            {/* Status */}
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              {row.status === 'KOSONG' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                  KOSONG
+                                </span>
+                              ) : row.status === 'MENIPIS' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-flex items-center space-x-1">
+                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                  <span>MENIPIS</span>
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 inline-flex items-center space-x-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>AMAN</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={11} className="text-center py-10 px-4 text-slate-400">
+                      <td colSpan={12} className="text-center py-10 px-4 text-slate-400">
                         <Boxes className="w-10 h-10 text-slate-600 mx-auto mb-2" />
                         <p className="text-sm font-semibold text-white">
                           Tidak ditemukan data breakdown stok material yang sesuai dengan filter.
                         </p>
                         <p className="text-xs text-slate-500 mt-1">
-                          Coba reset filter SKU / WIP atau kata kunci pencarian.
+                          Coba reset filter Line, SKU / WIP, atau kata kunci pencarian.
                         </p>
                       </td>
                     </tr>

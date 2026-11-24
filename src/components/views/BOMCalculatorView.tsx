@@ -19,6 +19,7 @@ import {
   WEEKLY_PLAN_DAYS
 } from '../../utils/weeklyPlanningParser';
 import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from '../../utils/orderRounding';
+import { resolveProductionLineForItem } from '../../utils/lineResolver';
 
 interface BOMCalculatorViewProps {
   state: AppState;
@@ -265,6 +266,9 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                               </span>
                             </td>
                             <td className="py-2 px-3">
+                              <span className="text-emerald-300 font-mono text-[10px] font-bold block">
+                                {req.lineName}
+                              </span>
                               <span className="text-amber-300 font-medium block">{req.wipName}</span>
                               <span className="text-[10px] text-slate-400 block truncate max-w-[210px]">
                                 {req.contributingSkusLabel}
@@ -586,7 +590,13 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                             <div className="flex flex-col items-center space-y-1">
                               <button
                                 onClick={() => {
+                                  const resolvedLine = resolveProductionLineForItem(state, {
+                                    skuId: selectedSkuId,
+                                    wipId: m.wipIdForRequest
+                                  });
                                   onQuickGenerateRequest({
+                                    lineId: resolvedLine.lineId,
+                                    lineName: resolvedLine.lineName,
                                     skuId: selectedSkuId,
                                     wipId: m.wipIdForRequest,
                                     materialId: m.materialId,
@@ -599,10 +609,10 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                                     saldoAwal: m.currentStock,
                                     supplier: m.supplier as any,
                                     notes: usePackCeil
-                                      ? `Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ${bagCount} ${pkgCfg.unitLabel} @ ${bagSize} kg = ${orderQty.toFixed(4)} kg)`
+                                      ? `[${resolvedLine.lineName}] Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ${bagCount} ${pkgCfg.unitLabel} @ ${bagSize} kg = ${orderQty.toFixed(4)} kg)`
                                       : surplusKg > 0
-                                      ? `Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ke atas menjadi ${orderQty} kg)`
-                                      : `Auto-request defisit produksi ${cartonTarget} karton ${selectedSku?.name}`
+                                      ? `[${resolvedLine.lineName}] Auto-request defisit: ${m.deficitKg.toFixed(4)} kg (Dibulatkan ke atas menjadi ${orderQty} kg)`
+                                      : `[${resolvedLine.lineName}] Auto-request defisit produksi ${cartonTarget} karton ${selectedSku?.name}`
                                   });
                                   showToast(
                                     usePackCeil

@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { calculateStockBalances } from './storage';
 import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from './orderRounding';
+import { normalizeProductionLine } from './lineResolver';
 
 export const WEEKLY_PLAN_DAYS: Array<{
   key: WeeklyPlanDayKey;
@@ -1083,6 +1084,8 @@ export interface WeeklyPlanExplosionOptions {
 }
 
 export interface WeeklyPlanWipNeed {
+  lineId: string;
+  lineName: string;
   wipId: string;
   wipName: string;
   wipCode: string;
@@ -1101,7 +1104,9 @@ export interface WeeklyPlanWipNeed {
 }
 
 export interface WeeklyPlanMaterialRequirement {
-  key: string; // `${wipId}__${materialId}`
+  key: string; // `${lineId}__${wipId}__${materialId}`
+  lineId: string;
+  lineName: string;
   materialId: string;
   materialName: string;
   materialCode?: string;
@@ -1223,15 +1228,27 @@ export function calculateWeeklyPlanMaterialRequirements(
       continue;
     }
 
+    const resolvedLine = normalizeProductionLine(
+      item.line,
+      state.master.productionLines
+    ) || {
+      lineId: 'line_umum',
+      lineName: 'Line Umum',
+      lineCode: 'UMUM'
+    };
+
     for (const sw of skuWipLinks) {
       const wip = state.master.wips.find(w => w.id === sw.wipId);
       if (!wip) continue;
       const wipKgForSku = itemCartons * (sw.kgWipPerCartonSku || 0);
       if (wipKgForSku <= 0) continue;
 
-      let existing = wipNeedsMap.get(wip.id);
+      const wipLineKey = `${resolvedLine.lineId}__${wip.id}`;
+      let existing = wipNeedsMap.get(wipLineKey);
       if (!existing) {
         existing = {
+          lineId: resolvedLine.lineId,
+          lineName: resolvedLine.lineName,
           wipId: wip.id,
           wipName: wip.name,
           wipCode: wip.code || wip.id,
@@ -1242,7 +1259,7 @@ export function calculateWeeklyPlanMaterialRequirements(
           usedBatches: 0,
           contributingSkus: []
         };
-        wipNeedsMap.set(wip.id, existing);
+        wipNeedsMap.set(wipLineKey, existing);
       }
 
       existing.totalCartons += itemCartons;
@@ -1311,7 +1328,7 @@ export function calculateWeeklyPlanMaterialRequirements(
       const mat = state.master.materials.find(m => m.id === comp.materialId);
       if (!mat || comp.kgPerBatch <= 0) continue;
 
-      const matKey = `${wipNeed.wipId}__${mat.id}`;
+      const matKey = `${wipNeed.lineId}__${wipNeed.wipId}__${mat.id}`;
       const addedKg = used * comp.kgPerBatch;
       const stockAtual = stockBalances[mat.id]?.totalActual || 0;
 
@@ -1319,6 +1336,8 @@ export function calculateWeeklyPlanMaterialRequirements(
       if (!req) {
         req = {
           key: matKey,
+          lineId: wipNeed.lineId,
+          lineName: wipNeed.lineName,
           materialId: mat.id,
           materialName: mat.name,
           materialCode: mat.code,
@@ -1421,8 +1440,9 @@ export function calculateWeeklyPlanMaterialRequirements(
     materialRequirements.push(req);
   }
 
-  // Sort by Supplier (GDRM first, then Formulasi), then WIP Name, then Material Name
+  // Sort by Production Line, then Supplier (GDRM first, then Formulasi), then WIP Name, then Material Name
   materialRequirements.sort((a, b) => {
+    if (a.lineName !== b.lineName) return a.lineName.localeCompare(b.lineName);
     if (a.supplier !== b.supplier) return a.supplier.localeCompare(b.supplier);
     if (a.wipName !== b.wipName) return a.wipName.localeCompare(b.wipName);
     return a.materialName.localeCompare(b.materialName);
@@ -1475,6 +1495,8 @@ export function convertPlanMaterialsToCartItems(
 
       return {
         id: `cart_plan_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+        lineId: req.lineId,
+        lineName: req.lineName,
         skuId: req.primarySkuId,
         skuName: req.contributingSkusLabel,
         skuCode: req.primarySkuCode,
@@ -1498,8 +1520,8 @@ export function convertPlanMaterialsToCartItems(
         supplier: req.supplier,
         shift: 1,
         notes: hasPack
-          ? `[Planning ${scopeSummaryLabel}${allowanceTag}] ${req.bagCount} ${unitLabel} @ ${req.bagSizeKg} kg (Butuh: ${req.orderBaseKg.toFixed(2)} kg)`
-          : `[Planning ${scopeSummaryLabel}${allowanceTag}] ${batchVal} batch WIP`,
+          ? `[${req.lineName} • Planning ${scopeSummaryLabel}${allowanceTag}] ${req.bagCount} ${unitLabel} @ ${req.bagSizeKg} kg (Butuh: ${req.orderBaseKg.toFixed(2)} kg)`
+          : `[${req.lineName} • Planning ${scopeSummaryLabel}${allowanceTag}] ${batchVal} batch WIP`,
         addedAt: nowStr
       };
     });

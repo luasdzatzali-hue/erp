@@ -1475,6 +1475,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                          <th className="py-2.5 px-3">Line Produksi</th>
                           <th className="py-2.5 px-3">Material &amp; Kode SAP</th>
                           <th className="py-2.5 px-3">Supplier</th>
                           <th className="py-2.5 px-3">WIP &amp; SKU Acuan</th>
@@ -1487,6 +1488,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       <tbody className="divide-y divide-slate-800/60">
                         {orderableRequirements.map(req => (
                           <tr key={req.key} className="hover:bg-slate-800/40 transition">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="font-mono font-bold text-emerald-300">
+                                {req.lineName}
+                              </span>
+                            </td>
                             <td className="py-2.5 px-3">
                               <span className="font-bold text-white block">{req.materialName}</span>
                               <span className="text-[10px] font-mono text-cyan-400">
@@ -1547,7 +1553,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       <div className="text-[11px] text-slate-300">
                         <span>
                           Siap membuat pesanan material untuk{' '}
-                          <strong className="text-cyan-400">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Supplier &amp; WIP saat cetak Slip PDF.
+                          <strong className="text-cyan-400">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Line Produksi, Supplier &amp; WIP saat cetak Slip PDF.
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">

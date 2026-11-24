@@ -1,8 +1,14 @@
 import { AppState, ShiftNumber } from '../types';
 import { calculateStockBalances } from './storage';
+import {
+  resolveProductionLineForItem,
+  resolveProductionLinesForSkuWip
+} from './lineResolver';
 
 export interface MaterialStockBreakdownRow {
   rowKey: string;
+  lineId: string;
+  lineName: string;
   skuId: string;
   skuName: string;
   skuCode: string;
@@ -63,7 +69,7 @@ export interface SkuWipUsageGroup {
  */
 export function calculateMaterialStockBreakdown(
   state: AppState,
-  options?: { dateString?: string; shift?: ShiftNumber | 'ALL' }
+  options?: { dateString?: string; shift?: ShiftNumber | 'ALL'; lineId?: string }
 ): MaterialStockBreakdownRow[] {
   const stockBalances = calculateStockBalances(state);
   const selectedDate = options?.dateString;
@@ -122,94 +128,123 @@ export function calculateMaterialStockBreakdown(
         if (u.materialId) matIdSet.add(u.materialId);
       });
 
-      // If no material linked yet, skip this pair
-      matIdSet.forEach(matId => {
-        const mat = state.master.materials.find(m => m.id === matId);
-        if (!mat) return;
+      const prodLines = resolveProductionLinesForSkuWip(state, sku.id, wip.id);
 
-        processedMaterialIds.add(mat.id);
+      prodLines.forEach(prodLine => {
+        // If no material linked yet, skip this pair
+        matIdSet.forEach(matId => {
+          const mat = state.master.materials.find(m => m.id === matId);
+          if (!mat) return;
 
-        // Calculate batch size kg for this material in this WIP formula
-        let batchSizeKg = 0;
-        const recipeItem = wipRecipes.flatMap(r => r.items || []).find(it => it.materialId === mat.id);
-        if (recipeItem && recipeItem.amountKg > 0) {
-          batchSizeKg = recipeItem.amountKg;
-        } else {
-          const wm = (state.master.wipMats || []).find(w => w.wipId === wip.id && w.materialId === mat.id);
-          if (wm && wm.materialKgPerBatch > 0) {
-            batchSizeKg = wm.materialKgPerBatch;
-          } else if (mat.weightKg > 0) {
-            batchSizeKg = mat.weightKg;
+          processedMaterialIds.add(mat.id);
+
+          // Calculate batch size kg for this material in this WIP formula
+          let batchSizeKg = 0;
+          const recipeItem = wipRecipes.flatMap(r => r.items || []).find(it => it.materialId === mat.id);
+          if (recipeItem && recipeItem.amountKg > 0) {
+            batchSizeKg = recipeItem.amountKg;
           } else {
-            batchSizeKg = 25; // default fallback
+            const wm = (state.master.wipMats || []).find(w => w.wipId === wip.id && w.materialId === mat.id);
+            if (wm && wm.materialKgPerBatch > 0) {
+              batchSizeKg = wm.materialKgPerBatch;
+            } else if (mat.weightKg > 0) {
+              batchSizeKg = mat.weightKg;
+            } else {
+              batchSizeKg = 25; // default fallback
+            }
           }
-        }
 
-        const bal = stockBalances[mat.id] || { totalActual: 0, isLowStock: false };
-        const totalOnhandKg = bal.totalActual;
-        const totalOnhandBatch = batchSizeKg > 0 ? totalOnhandKg / batchSizeKg : 0;
+          const bal = stockBalances[mat.id] || { totalActual: 0, isLowStock: false };
+          const totalOnhandKg = bal.totalActual;
+          const totalOnhandBatch = batchSizeKg > 0 ? totalOnhandKg / batchSizeKg : 0;
 
-        // Kedatangan material
-        const kedatanganKg = filteredReceipts
-          .filter(r => r.materialId === mat.id)
-          .reduce((sum, r) => sum + r.receivedQty, 0);
-        const kedatanganBatch = batchSizeKg > 0 ? kedatanganKg / batchSizeKg : 0;
+          // Kedatangan material
+          const kedatanganKg = filteredReceipts
+            .filter(r => r.materialId === mat.id)
+            .reduce((sum, r) => sum + r.receivedQty, 0);
+          const kedatanganBatch = batchSizeKg > 0 ? kedatanganKg / batchSizeKg : 0;
 
-        // Pemesanan material
-        const pemesananKg = filteredRequests
-          .filter(r => r.materialId === mat.id)
-          .reduce((sum, r) => sum + r.qty, 0);
-        const pemesananBatch = batchSizeKg > 0 ? pemesananKg / batchSizeKg : 0;
+          // Pemesanan material (attributable to this Production Line when requests specify a line)
+          const pemesananKg = filteredRequests
+            .filter(r => {
+              if (r.materialId !== mat.id) return false;
+              if (r.lineId || r.lineName) {
+                const reqLine = resolveProductionLineForItem(state, {
+                  explicitLineId: r.lineId,
+                  explicitLineName: r.lineName,
+                  skuId: r.skuId,
+                  wipId: r.wipId
+                });
+                return reqLine.lineId === prodLine.lineId;
+              }
+              return true;
+            })
+            .reduce((sum, r) => sum + r.qty, 0);
+          const pemesananBatch = batchSizeKg > 0 ? pemesananKg / batchSizeKg : 0;
 
-        // Pemakaian material untuk WIP & SKU ini
-        const pemakaianKg = filteredUsages
-          .filter(u => u.materialId === mat.id && (u.wipId === wip.id || u.skuId === sku.id))
-          .reduce((sum, u) => sum + u.usageQty, 0);
-        const pemakaianBatch = batchSizeKg > 0 ? pemakaianKg / batchSizeKg : 0;
+          // Pemakaian material untuk WIP, SKU, & Line Produksi ini
+          const pemakaianKg = filteredUsages
+            .filter(u => {
+              if (u.materialId !== mat.id) return false;
+              if (!(u.wipId === wip.id || u.skuId === sku.id)) return false;
+              if (prodLines.length > 1) {
+                const uLine = resolveProductionLineForItem(state, {
+                  skuId: u.skuId || sku.id,
+                  wipId: u.wipId || wip.id
+                });
+                return uLine.lineId === prodLine.lineId || uLine.lineId === 'line_umum';
+              }
+              return true;
+            })
+            .reduce((sum, u) => sum + u.usageQty, 0);
+          const pemakaianBatch = batchSizeKg > 0 ? pemakaianKg / batchSizeKg : 0;
 
-        // Saldo Akhir Shift
-        const saldoAkhirKg = totalOnhandKg;
-        const saldoAkhirBatch = totalOnhandBatch;
+          // Saldo Akhir Shift
+          const saldoAkhirKg = totalOnhandKg;
+          const saldoAkhirBatch = totalOnhandBatch;
 
-        // Saldo Awal = Sesuai Saldo Awal Material yang dikonfigurasi/di-adjust Admin atau rekonsiliasi akhir
-        const matInitialTotal = (mat.initialStockCk ?? 0) + (mat.initialStockWineroto ?? 0) + (mat.initialStockTank ?? 0);
-        const saldoAwalKg = matInitialTotal > 0
-          ? matInitialTotal
-          : Math.max(0, saldoAkhirKg - kedatanganKg + pemakaianKg);
-        const saldoAwalBatch = batchSizeKg > 0 ? saldoAwalKg / batchSizeKg : 0;
+          // Saldo Awal = Sesuai Saldo Awal Material yang dikonfigurasi/di-adjust Admin atau rekonsiliasi akhir
+          const matInitialTotal = (mat.initialStockCk ?? 0) + (mat.initialStockWineroto ?? 0) + (mat.initialStockTank ?? 0);
+          const saldoAwalKg = matInitialTotal > 0
+            ? matInitialTotal
+            : Math.max(0, saldoAkhirKg - kedatanganKg + pemakaianKg);
+          const saldoAwalBatch = batchSizeKg > 0 ? saldoAwalKg / batchSizeKg : 0;
 
-        let status: 'AMAN' | 'MENIPIS' | 'KOSONG' = 'AMAN';
-        if (totalOnhandKg === 0) {
-          status = 'KOSONG';
-        } else if (bal.isLowStock || totalOnhandKg <= (mat.minStockAlert || 50)) {
-          status = 'MENIPIS';
-        }
+          let status: 'AMAN' | 'MENIPIS' | 'KOSONG' = 'AMAN';
+          if (totalOnhandKg === 0) {
+            status = 'KOSONG';
+          } else if (bal.isLowStock || totalOnhandKg <= (mat.minStockAlert || 50)) {
+            status = 'MENIPIS';
+          }
 
-        rows.push({
-          rowKey: `${sku.id}_${wip.id}_${mat.id}`,
-          skuId: sku.id,
-          skuName: sku.name,
-          skuCode: sku.code || `SKU-${sku.id.slice(-4).toUpperCase()}`,
-          isKite: sku.isKite,
-          wipId: wip.id,
-          wipName: wip.name,
-          materialId: mat.id,
-          materialCode: mat.code || `MAT-${mat.id.slice(-4)}`,
-          materialName: mat.name,
-          batchSizeKg,
-          saldoAwalKg,
-          saldoAwalBatch,
-          pemesananKg,
-          pemesananBatch,
-          kedatanganKg,
-          kedatanganBatch,
-          totalOnhandKg,
-          totalOnhandBatch,
-          pemakaianKg,
-          pemakaianBatch,
-          saldoAkhirKg,
-          saldoAkhirBatch,
-          status
+          rows.push({
+            rowKey: `${prodLine.lineId}_${sku.id}_${wip.id}_${mat.id}`,
+            lineId: prodLine.lineId,
+            lineName: prodLine.lineName,
+            skuId: sku.id,
+            skuName: sku.name,
+            skuCode: sku.code || `SKU-${sku.id.slice(-4).toUpperCase()}`,
+            isKite: sku.isKite,
+            wipId: wip.id,
+            wipName: wip.name,
+            materialId: mat.id,
+            materialCode: mat.code || `MAT-${mat.id.slice(-4)}`,
+            materialName: mat.name,
+            batchSizeKg,
+            saldoAwalKg,
+            saldoAwalBatch,
+            pemesananKg,
+            pemesananBatch,
+            kedatanganKg,
+            kedatanganBatch,
+            totalOnhandKg,
+            totalOnhandBatch,
+            pemakaianKg,
+            pemakaianBatch,
+            saldoAkhirKg,
+            saldoAkhirBatch,
+            status
+          });
         });
       });
     });
@@ -253,6 +288,8 @@ export function calculateMaterialStockBreakdown(
 
     rows.push({
       rowKey: `general_${mat.id}`,
+      lineId: 'gudang_umum',
+      lineName: 'Stok Bebas / Gudang',
       skuId: 'general',
       skuName: 'Stok Bebas / Bahan Baku Gudang',
       skuCode: 'GUDANG',
@@ -278,6 +315,22 @@ export function calculateMaterialStockBreakdown(
       status
     });
   });
+
+  // Sort rows by Production Line (specific lines first, then Line Umum / Gudang), SKU, WIP, Material
+  const isFallbackLine = (lineId: string) => lineId === 'gudang_umum' || lineId === 'line_umum';
+  rows.sort((a, b) => {
+    const aFb = isFallbackLine(a.lineId) ? 1 : 0;
+    const bFb = isFallbackLine(b.lineId) ? 1 : 0;
+    if (aFb !== bFb) return aFb - bFb;
+    if (a.lineName !== b.lineName) return a.lineName.localeCompare(b.lineName);
+    if (a.skuName !== b.skuName) return a.skuName.localeCompare(b.skuName);
+    if (a.wipName !== b.wipName) return a.wipName.localeCompare(b.wipName);
+    return a.materialName.localeCompare(b.materialName);
+  });
+
+  if (options?.lineId && options.lineId !== 'all') {
+    return rows.filter(r => r.lineId === options.lineId);
+  }
 
   return rows;
 }

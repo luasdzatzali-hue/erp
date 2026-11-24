@@ -111,18 +111,24 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
   onPreviewQrDetail,
   showToast
 }) => {
-  const slipGroups = useMemo(() => groupCartItemsBySupplierAndWip(cartItems), [cartItems]);
+  const slipGroups = useMemo(
+    () => groupCartItemsBySupplierAndWip(cartItems, state),
+    [cartItems, state]
+  );
 
   const [activeGroupKey, setActiveGroupKey] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [customSapCodes, setCustomSapCodes] = useState<Record<string, string>>({});
   const [isHeaderEditorOpen, setIsHeaderEditorOpen] = useState(false);
+  const [isSlipListCollapsed, setIsSlipListCollapsed] = useState(false);
   const [zoomMode, setZoomMode] = useState<'fit' | number>(100);
   const [fitScale, setFitScale] = useState<number>(1);
 
   const stageRef = useRef<HTMLDivElement>(null);
 
   const [formOptions, setFormOptions] = useState<RequestSlipFormOptions>({
+    lineId: '',
+    lineName: 'Line Umum',
     supplier: 'GDRM',
     wipId: '',
     wipName: '',
@@ -130,7 +136,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
     docCode: 'MAY PRC LLA WFR UTG WHRxx/09/001-08-4',
     department: 'Warehouse',
     kepadaWarehouse: 'GDRM (Gudang Bahan Baku)',
-    tujuanPengiriman: 'Area Penyimpanan CK',
+    tujuanPengiriman: 'Line Umum · Area Penyimpanan CK',
     permintaanShift: 'Shift 1',
     bonNumber: '',
     tanggal: formatIndonesianDateDash(),
@@ -165,7 +171,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
       return () => ro.disconnect();
     }
     return undefined;
-  }, [isOpen, isHeaderEditorOpen]);
+  }, [isOpen, isHeaderEditorOpen, isSlipListCollapsed]);
 
   // Auto-select comfortable scale when modal opens (fit on narrow screens, crisp 100% on wide desktop)
   useEffect(() => {
@@ -211,16 +217,19 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
     return slipGroups.find(g => g.key === activeGroupKey) || slipGroups[0];
   }, [slipGroups, activeGroupKey]);
 
+  const activeLineName = activeGroup?.lineName || 'Line Umum';
   const activeSupplier = activeGroup?.supplier || 'GDRM';
   const activeWipName = activeGroup?.wipName || 'Umum';
   const activeGroupItems = activeGroup?.items || [];
 
-  // Build form defaults for a (Supplier + WIP) group while preserving operator metadata edits
+  // Build form defaults for a (Line + Supplier + WIP) group while preserving operator metadata edits
   const buildGroupDefaults = (
     group: SupplierWipCartGroup,
     prevOpts?: RequestSlipFormOptions
   ): RequestSlipFormOptions => {
     return buildSupplierSlipFormOptions(group.supplier, group.items, state, {
+      lineId: group.lineId,
+      lineName: group.lineName,
       wipId: group.wipId,
       wipName: group.wipName,
       factoryGroupName: state.factoryName || prevOpts?.factoryGroupName || 'PRODTRACK',
@@ -281,6 +290,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         pageItems.length > 0
           ? buildRequestSlipQrUrl(pageItems, {
               bonNumber: formOptions.bonNumber,
+              lineName: formOptions.lineName || activeLineName,
               supplier: activeSupplier,
               wipName: activeWipName,
               tanggal: formOptions.tanggal,
@@ -307,7 +317,9 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
     formOptions.satMode,
     formOptions.includeMaterialCodeInSap,
     formOptions.bonNumber,
+    formOptions.lineName,
     formOptions.tanggal,
+    activeLineName,
     activeSupplier,
     activeWipName,
     state.master.materials,
@@ -332,8 +344,11 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
     }
     setIsExporting(true);
     try {
+      const effectiveLineName = formOptions.lineName || activeLineName;
       await generateMaterialRequestSlipPdf(activeGroupItems, {
         ...formOptions,
+        lineId: activeGroup.lineId,
+        lineName: effectiveLineName,
         supplier: activeSupplier,
         wipId: activeGroup.wipId,
         wipName: activeWipName,
@@ -342,7 +357,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         requestNumbers
       });
       showToast(
-        `Slip PDF "${activeSupplier} • ${activeWipName}" (${activeGroupItems.length} item, ${totalPages} lembar) berhasil diunduh.`
+        `Slip PDF "${effectiveLineName} • ${activeSupplier} • ${activeWipName}" (${activeGroupItems.length} item, ${totalPages} lembar) berhasil diunduh.`
       );
     } catch (err) {
       console.error('Failed to generate request slip PDF:', err);
@@ -366,6 +381,8 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
           grp.key === activeGroup?.key
             ? {
                 ...formOptions,
+                lineId: grp.lineId,
+                lineName: formOptions.lineName || grp.lineName,
                 supplier: grp.supplier,
                 wipId: grp.wipId,
                 wipName: grp.wipName,
@@ -377,7 +394,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         await generateMaterialRequestSlipPdf(grp.items, grpOpts);
       }
       showToast(
-        `Berhasil mengunduh ${slipGroups.length} file Slip PDF terpisah (Supplier & WIP).`
+        `Berhasil mengunduh ${slipGroups.length} file Slip PDF terpisah (Line Produksi, Supplier & WIP).`
       );
     } catch (err) {
       console.error('Failed to export all slip PDFs:', err);
@@ -412,7 +429,8 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 Pratinjau &amp; Cetak Slip PDF — BON PERMINTAAN RM &amp; PM
               </h3>
               <p className="text-[11px] sm:text-xs text-slate-400 truncate">
-                Supplier <strong className="text-cyan-300">{activeSupplier}</strong> · WIP{' '}
+                Line <strong className="text-emerald-300">{formOptions.lineName || activeLineName}</strong> · Supplier{' '}
+                <strong className="text-cyan-300">{activeSupplier}</strong> · WIP{' '}
                 <strong className="text-amber-300">{activeWipName}</strong> ·{' '}
                 <span className="font-mono tabular-nums">
                   {activeGroupItems.length} item · {totalPages} lembar A4 Landscape
@@ -430,48 +448,99 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
           </button>
         </div>
 
-        {/* Supplier + WIP Split Tabs Bar */}
+        {/* Line Produksi + Supplier + WIP Collapsible Tabs Bar */}
         {slipGroups.length > 0 && (
-          <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold text-slate-400 flex items-center space-x-1.5 mr-1">
-                <Layers className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Lembar Slip:</span>
-              </span>
-              {slipGroups.map(grp => {
-                const isSelected = grp.key === activeGroup?.key;
-                return (
-                  <button
-                    key={grp.key}
-                    type="button"
-                    onClick={() => setActiveGroupKey(grp.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 border ${
-                      isSelected
-                        ? grp.supplier === 'GDRM'
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                          : 'bg-purple-600 text-white border-purple-400 shadow-sm'
-                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span>
-                      {grp.supplier} · {grp.wipName}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums ${
-                        isSelected ? 'bg-black/20' : 'bg-slate-800 text-slate-400'
-                      }`}
+          <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 shrink-0 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="text-[11px] font-semibold text-slate-300 flex items-center space-x-1.5 shrink-0">
+                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Lembar Slip ({slipGroups.length}):</span>
+                </span>
+
+                {isSlipListCollapsed && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <select
+                      aria-label="Pilih lembar slip aktif"
+                      value={activeGroup?.key || ''}
+                      onChange={e => setActiveGroupKey(e.target.value)}
+                      className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-white max-w-[360px]"
                     >
-                      {grp.items.length} item
-                      {grp.pageCount > 1 ? ` · ${grp.pageCount} lbr` : ''}
-                    </span>
-                  </button>
-                );
-              })}
+                      {slipGroups.map(grp => (
+                        <option key={grp.key} value={grp.key}>
+                          {grp.lineName} · {grp.supplier} · {grp.wipName} ({grp.items.length} item
+                          {grp.pageCount > 1 ? ` · ${grp.pageCount} lbr` : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className="text-[11px] font-mono tabular-nums text-emerald-400">
+                  ✓ Kode SAP BOM: {autoSapFilledCount}/{activeGroupItems.length} item terisi
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSlipListCollapsed(prev => !prev)}
+                  aria-expanded={!isSlipListCollapsed}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  title={
+                    isSlipListCollapsed
+                      ? 'Tampilkan daftar lembar slip agar lebih mudah memilih'
+                      : 'Collapse daftar lembar slip agar porsi pratinjau kertas lebih besar'
+                  }
+                >
+                  {isSlipListCollapsed ? (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Tampilkan Lembar Slip</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Collapse Lembar Slip</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            <div className="text-[11px] font-mono text-emerald-400 px-2 py-0.5">
-              ✓ Kode SAP BOM: {autoSapFilledCount}/{activeGroupItems.length} item terisi
-            </div>
+            {!isSlipListCollapsed && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {slipGroups.map(grp => {
+                  const isSelected = grp.key === activeGroup?.key;
+                  return (
+                    <button
+                      key={grp.key}
+                      type="button"
+                      onClick={() => setActiveGroupKey(grp.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 border whitespace-nowrap shrink-0 ${
+                        isSelected
+                          ? grp.supplier === 'GDRM'
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                            : 'bg-purple-600 text-white border-purple-400 shadow-sm'
+                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>
+                        {grp.lineName} · {grp.supplier} · {grp.wipName}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums ${
+                          isSelected ? 'bg-black/20' : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {grp.items.length} item
+                        {grp.pageCount > 1 ? ` · ${grp.pageCount} lbr` : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -599,7 +668,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               <span className="font-bold text-cyan-300 flex items-center space-x-1.5">
                 <FileText className="w-4 h-4" />
                 <span>
-                  Pengaturan Header Slip ({activeSupplier} — {activeWipName})
+                  Pengaturan Header Slip ({formOptions.lineName || activeLineName} — {activeSupplier} — {activeWipName})
                 </span>
               </span>
               <button
@@ -612,6 +681,19 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <div>
+                <label className="block text-[10px] text-slate-400 mb-1">Line Produksi Tujuan</label>
+                <input
+                  type="text"
+                  value={formOptions.lineName || ''}
+                  onChange={e =>
+                    setFormOptions(prev => ({ ...prev, lineName: e.target.value }))
+                  }
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  placeholder="Line A / Line 1"
+                />
+              </div>
+
               <div>
                 <label className="block text-[10px] text-slate-400 mb-1">Kepada Warehouse</label>
                 <input
@@ -901,10 +983,16 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                       <div className="font-bold text-2xl tracking-wide text-center leading-tight">
                         BON PERMINTAAN RM &amp; PM
                       </div>
-                      {totalPages > 1 && (
-                        <div className="text-xs font-semibold mt-1 text-center">
-                          Lembar {sheet.pageNumber} dari {totalPages}
-                          {sheet.pageNumber > 1 ? ' (Lanjutan)' : ''}
+                      {(formOptions.lineName || totalPages > 1) && (
+                        <div className="text-xs font-bold mt-1 text-center">
+                          {[
+                            formOptions.lineName ? `Line Produksi: ${formOptions.lineName}` : '',
+                            totalPages > 1
+                              ? `Lembar ${sheet.pageNumber} dari ${totalPages}${sheet.pageNumber > 1 ? ' (Lanjutan)' : ''}`
+                              : ''
+                          ]
+                            .filter(Boolean)
+                            .join('  •  ')}
                         </div>
                       )}
                     </div>
@@ -1231,14 +1319,14 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         {/* Modal Footer */}
         <div className="px-4 py-3 border-t border-slate-800 bg-slate-950 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5 shrink-0">
           <span className="text-[11px] text-slate-400">
-            Slip dipisah per Supplier &amp; WIP (10 baris/lembar A4 Landscape dengan QR per lembar).
+            Slip dipisah per Line Produksi, Supplier &amp; WIP (10 baris/lembar A4 Landscape dengan QR per lembar).
           </span>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition whitespace-nowrap shrink-0"
             >
               Tutup
             </button>
@@ -1248,7 +1336,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 type="button"
                 onClick={handleDownloadAllGroupsPdf}
                 disabled={isExporting}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/40 transition flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/40 transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 <Layers className="w-4 h-4" />
                 <span>Download Semua Slip ({slipGroups.length} File PDF)</span>
@@ -1259,13 +1347,13 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               type="button"
               onClick={handleDownloadCurrentGroupPdf}
               disabled={isExporting}
-              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-cyan-600/30 transition flex items-center space-x-2 active:scale-95 border border-cyan-400/40 disabled:opacity-50"
+              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-cyan-600/30 transition flex items-center space-x-2 active:scale-95 border border-cyan-400/40 disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               <FileDown className="w-4 h-4" />
               <span>
                 {isExporting
                   ? 'Membuat PDF...'
-                  : `Download Slip (${activeSupplier} • ${activeWipName})`}
+                  : `Download Slip (${formOptions.lineName || activeLineName} • ${activeSupplier} • ${activeWipName})`}
               </span>
             </button>
           </div>

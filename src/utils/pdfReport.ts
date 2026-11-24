@@ -268,8 +268,7 @@ export function generateShiftProductionReportPdf(
 
   currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
 
-  // ----------------- SECTION 3: LAPORAN SALDO STOCK MATERIAL AKTUAL -----------------
-  // Requested header: sku ; Jenis WIP ; kode ; Nama material ; saldo awal (batch & kg) ; pemesanan material (batch & kg) ; kedatangan material (batch & kg) ; total onhand material (batch & kg) ; pemakaian material (batch & kg) ; saldo akhir shift (batch & kg) ; status.
+  // ----------------- SECTION 3: LAPORAN SALDO STOCK MATERIAL AKTUAL (DIPISAH PER LINE PRODUKSI) -----------------
   if (currentY > 165) {
     doc.addPage();
     currentY = 16;
@@ -278,74 +277,133 @@ export function generateShiftProductionReportPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text('3. Laporan Saldo Stock Material Aktual (Breakdown Berdasarkan SKU & WIP yang Diproduksi)', 14, currentY);
+  doc.text('3. Laporan Saldo Stock Material Aktual (Dipisahkan Berdasarkan Line Produksi, SKU & WIP)', 14, currentY);
 
-  currentY += 2;
+  currentY += 4;
 
   const stockBreakdown = calculateMaterialStockBreakdown(state, {
     dateString: selectedDate,
     shift: options.shift
   });
 
-  const stockRows = stockBreakdown.map(r => [
-    r.skuName + (r.isKite ? ' [KITE]' : ''),
-    r.wipName,
-    r.materialCode,
-    r.materialName,
-    `${r.saldoAwalBatch.toFixed(2)} btc\n(${r.saldoAwalKg.toFixed(2)} kg)`,
-    `${r.pemesananBatch.toFixed(2)} btc\n(${r.pemesananKg.toFixed(2)} kg)`,
-    `${r.kedatanganBatch.toFixed(2)} btc\n(${r.kedatanganKg.toFixed(2)} kg)`,
-    `${r.totalOnhandBatch.toFixed(2)} btc\n(${r.totalOnhandKg.toFixed(2)} kg)`,
-    `${r.pemakaianBatch.toFixed(2)} btc\n(${r.pemakaianKg.toFixed(2)} kg)`,
-    `${r.saldoAkhirBatch.toFixed(2)} btc\n(${r.saldoAkhirKg.toFixed(2)} kg)`,
-    r.status
-  ]);
-
-  autoTable(doc, {
-    startY: currentY,
-    head: [[
-      'SKU',
-      'Jenis WIP',
-      'Kode',
-      'Nama Material',
-      'Saldo Awal\n(Batch & kg)',
-      'Pemesanan Material\n(Batch & kg)',
-      'Kedatangan Material\n(Batch & kg)',
-      'Total Onhand Material\n(Batch & kg)',
-      'Pemakaian Material\n(Batch & kg)',
-      'Saldo Akhir Shift\n(Batch & kg)',
-      'Status'
-    ]],
-    body: stockRows.length > 0 ? stockRows : [['-', '-', '-', 'Tidak ada data stok material', '-', '-', '-', '-', '-', '-', '-']],
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontSize: 7,
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    bodyStyles: {
-      fontSize: 6.5,
-      textColor: [51, 65, 85]
-    },
-    columnStyles: {
-      0: { cellWidth: 26, halign: 'left', fontStyle: 'bold' },
-      1: { cellWidth: 25, halign: 'left' },
-      2: { cellWidth: 15, halign: 'center' },
-      3: { cellWidth: 35, halign: 'left' },
-      4: { cellWidth: 26, halign: 'right' },
-      5: { cellWidth: 26, halign: 'right' },
-      6: { cellWidth: 26, halign: 'right' },
-      7: { cellWidth: 26, halign: 'right', fontStyle: 'bold', textColor: [14, 116, 144] },
-      8: { cellWidth: 26, halign: 'right' },
-      9: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
-      10: { cellWidth: 17, halign: 'center', fontStyle: 'bold' }
-    },
-    theme: 'striped',
-    margin: { left: 14, right: 14 }
+  const stockByLineMap = new Map<string, { lineName: string; rows: typeof stockBreakdown }>();
+  stockBreakdown.forEach(r => {
+    const existing = stockByLineMap.get(r.lineId);
+    if (existing) {
+      existing.rows.push(r);
+    } else {
+      stockByLineMap.set(r.lineId, { lineName: r.lineName, rows: [r] });
+    }
   });
 
-  currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
+  const lineGroups = Array.from(stockByLineMap.values());
+  if (lineGroups.length === 0) {
+    autoTable(doc, {
+      startY: currentY,
+      head: [[
+        'SKU',
+        'Jenis WIP',
+        'Kode',
+        'Nama Material',
+        'Saldo Awal\n(Batch & kg)',
+        'Pemesanan Material\n(Batch & kg)',
+        'Kedatangan Material\n(Batch & kg)',
+        'Total Onhand Material\n(Batch & kg)',
+        'Pemakaian Material\n(Batch & kg)',
+        'Saldo Akhir Shift\n(Batch & kg)',
+        'Status'
+      ]],
+      body: [['-', '-', '-', 'Tidak ada data stok material', '-', '-', '-', '-', '-', '-', '-']],
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: 7,
+        fontStyle: 'bold',
+        halign: 'left'
+      },
+      bodyStyles: { fontSize: 6.5, textColor: [51, 65, 85] },
+      theme: 'striped',
+      margin: { left: 14, right: 14 }
+    });
+    currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
+  } else {
+    lineGroups.forEach((grp, grpIdx) => {
+      if (currentY > 170) {
+        doc.addPage();
+        currentY = 16;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(14, 116, 144);
+      doc.text(
+        `3.${grpIdx + 1} Line Produksi: ${grp.lineName} (${grp.rows.length} Entri Material)`,
+        14,
+        currentY
+      );
+      currentY += 2;
+
+      const stockRows = grp.rows.map(r => [
+        r.skuName + (r.isKite ? ' [KITE]' : ''),
+        r.wipName,
+        r.materialCode,
+        r.materialName,
+        `${r.saldoAwalBatch.toFixed(2)} btc\n(${r.saldoAwalKg.toFixed(2)} kg)`,
+        `${r.pemesananBatch.toFixed(2)} btc\n(${r.pemesananKg.toFixed(2)} kg)`,
+        `${r.kedatanganBatch.toFixed(2)} btc\n(${r.kedatanganKg.toFixed(2)} kg)`,
+        `${r.totalOnhandBatch.toFixed(2)} btc\n(${r.totalOnhandKg.toFixed(2)} kg)`,
+        `${r.pemakaianBatch.toFixed(2)} btc\n(${r.pemakaianKg.toFixed(2)} kg)`,
+        `${r.saldoAkhirBatch.toFixed(2)} btc\n(${r.saldoAkhirKg.toFixed(2)} kg)`,
+        r.status
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          'SKU',
+          'Jenis WIP',
+          'Kode',
+          'Nama Material',
+          'Saldo Awal\n(Batch & kg)',
+          'Pemesanan Material\n(Batch & kg)',
+          'Kedatangan Material\n(Batch & kg)',
+          'Total Onhand Material\n(Batch & kg)',
+          'Pemakaian Material\n(Batch & kg)',
+          'Saldo Akhir Shift\n(Batch & kg)',
+          'Status'
+        ]],
+        body: stockRows,
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+          halign: 'left'
+        },
+        bodyStyles: {
+          fontSize: 6.5,
+          textColor: [51, 65, 85]
+        },
+        columnStyles: {
+          0: { cellWidth: 26, halign: 'left', fontStyle: 'bold' },
+          1: { cellWidth: 25, halign: 'left' },
+          2: { cellWidth: 15, halign: 'center' },
+          3: { cellWidth: 35, halign: 'left' },
+          4: { cellWidth: 26, halign: 'right' },
+          5: { cellWidth: 26, halign: 'right' },
+          6: { cellWidth: 26, halign: 'right' },
+          7: { cellWidth: 26, halign: 'right', fontStyle: 'bold', textColor: [14, 116, 144] },
+          8: { cellWidth: 26, halign: 'right' },
+          9: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+          10: { cellWidth: 17, halign: 'center', fontStyle: 'bold' }
+        },
+        theme: 'striped',
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    });
+  }
 
   // ----------------- SECTION 4: PRODUKSI BATCH WIP & ALIRAN TANGKI -----------------
   if (currentY > 165) {

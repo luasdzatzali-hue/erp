@@ -60,6 +60,10 @@ import {
   getRoundingAppliedInfo,
   hasDecimalPart
 } from '../../utils/orderRounding';
+import {
+  getSelectableProductionLines,
+  resolveProductionLineForItem
+} from '../../utils/lineResolver';
 
 interface PermintaanViewProps {
   state: AppState;
@@ -86,6 +90,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 }) => {
   const [selectedSkuId, setSelectedSkuId] = useState('');
   const [selectedWipId, setSelectedWipId] = useState('');
+  const [selectedLineId, setSelectedLineId] = useState('');
   const [selectedMatId, setSelectedMatId] = useState('');
   const [batchCount, setBatchCount] = useState<number>(1);
   const [roundDecimalBatch, setRoundDecimalBatch] = useState<boolean>(true);
@@ -175,6 +180,35 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     : [];
 
   const activeRecipe = recipesForWip.find(r => r.id === selectedRecipeId) || (recipesForWip.length > 0 ? (recipesForWip.find(r => r.isDefault) || recipesForWip[0]) : null);
+
+  const selectableLines = useMemo(() => getSelectableProductionLines(state), [state]);
+
+  const resolvedAutoLine = useMemo(
+    () =>
+      resolveProductionLineForItem(state, {
+        skuId: selectedSkuId || undefined,
+        wipId: selectedWipId || undefined
+      }),
+    [state, selectedSkuId, selectedWipId]
+  );
+
+  // Auto-resolve default Production Line whenever SKU or WIP selection changes
+  useEffect(() => {
+    setSelectedLineId(resolvedAutoLine.lineId);
+  }, [resolvedAutoLine.lineId]);
+
+  const activeRequestLine = useMemo(() => {
+    if (selectedLineId) {
+      const fromList = selectableLines.find(l => l.lineId === selectedLineId);
+      if (fromList) return fromList;
+      return resolveProductionLineForItem(state, {
+        explicitLineId: selectedLineId,
+        skuId: selectedSkuId || undefined,
+        wipId: selectedWipId || undefined
+      });
+    }
+    return resolvedAutoLine;
+  }, [selectedLineId, selectableLines, state, selectedSkuId, selectedWipId, resolvedAutoLine]);
 
   // Auto-select default or first recipe when selectedWipId changes
   useEffect(() => {
@@ -310,6 +344,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
       newItems.push({
         id: `cart_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        lineId: activeRequestLine.lineId,
+        lineName: activeRequestLine.lineName,
         skuId: sku.id,
         skuName: sku.name,
         skuCode: sku.code,
@@ -463,6 +499,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
     const newItem: RequestCartItem = {
       id: `cart_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      lineId: activeRequestLine.lineId,
+      lineName: activeRequestLine.lineName,
       skuId: sku.id,
       skuName: sku.name,
       skuCode: sku.code,
@@ -543,6 +581,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       .join(' • ');
 
     onCreateRequest({
+      lineId: activeRequestLine.lineId,
+      lineName: activeRequestLine.lineName,
       skuId: selectedSkuId,
       wipId: selectedWipId,
       materialId: selectedMatId,
@@ -587,23 +627,33 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const handleConfirmAndSendAll = () => {
     if (cartItems.length === 0) return;
 
-    const requestPayloads = cartItems.map(item => ({
-      skuId: item.skuId,
-      wipId: item.wipId,
-      materialId: item.materialId,
-      qty: item.qty,
-      theoreticalQty: item.theoreticalQty,
-      baseTheoreticalQty: item.baseTheoreticalQty,
-      allowancePercent: item.allowancePercent,
-      packageSizeKg: item.packageSizeKg,
-      packageCount: item.packageCount,
-      surplusKg: item.surplusKg,
-      batch: item.batch,
-      saldoAwal: item.saldoAwal,
-      supplier: item.supplier,
-      shift: (1 as const), // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
-      notes: item.notes
-    }));
+    const requestPayloads = cartItems.map(item => {
+      const resolvedLine = resolveProductionLineForItem(state, {
+        explicitLineId: item.lineId,
+        explicitLineName: item.lineName,
+        skuId: item.skuId,
+        wipId: item.wipId
+      });
+      return {
+        lineId: resolvedLine.lineId,
+        lineName: resolvedLine.lineName,
+        skuId: item.skuId,
+        wipId: item.wipId,
+        materialId: item.materialId,
+        qty: item.qty,
+        theoreticalQty: item.theoreticalQty,
+        baseTheoreticalQty: item.baseTheoreticalQty,
+        allowancePercent: item.allowancePercent,
+        packageSizeKg: item.packageSizeKg,
+        packageCount: item.packageCount,
+        surplusKg: item.surplusKg,
+        batch: item.batch,
+        saldoAwal: item.saldoAwal,
+        supplier: item.supplier,
+        shift: (1 as const), // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
+        notes: item.notes
+      };
+    });
 
     if (onCreateMultipleRequests) {
       onCreateMultipleRequests(requestPayloads);
@@ -619,19 +669,27 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     showToast(`Berhasil mengirim ${sentCount} permintaan material resmi ke supplier (GDRM / Formulasi)!`);
   };
 
-  // Kelompokkan item keranjang berdasarkan Supplier & Jenis WIP untuk pencetakan slip PDF terpisah
+  // Kelompokkan item keranjang berdasarkan Line Produksi, Supplier & Jenis WIP untuk pencetakan slip PDF terpisah
   const cartItemsBySlipGroup = useMemo(
-    () => groupCartItemsBySupplierAndWip(cartItems),
-    [cartItems]
+    () => groupCartItemsBySupplierAndWip(cartItems, state),
+    [cartItems, state]
   );
 
-  // Helper konversi MaterialRequest (History) ke RequestCartItem untuk cetak slip per supplier & WIP
+  // Helper konversi MaterialRequest (History) ke RequestCartItem untuk cetak slip per Line, Supplier & WIP
   const mapHistoryReqToCartItem = (req: MaterialRequest): RequestCartItem => {
     const sku = state.master.skus.find(s => s.id === req.skuId);
     const wip = state.master.wips.find(w => w.id === req.wipId);
     const mat = state.master.materials.find(m => m.id === req.materialId);
+    const lineInfo = resolveProductionLineForItem(state, {
+      explicitLineId: req.lineId,
+      explicitLineName: req.lineName,
+      skuId: req.skuId,
+      wipId: req.wipId
+    });
     return {
       id: req.id,
+      lineId: lineInfo.lineId,
+      lineName: lineInfo.lineName,
       skuId: req.skuId,
       skuName: sku?.name || 'SKU',
       skuCode: sku?.code,
@@ -658,7 +716,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     };
   };
 
-  // Buka pratinjau/cetak slip untuk 1 grup (Supplier + WIP) tertentu
+  // Buka pratinjau/cetak slip untuk 1 grup (Line Produksi + Supplier + WIP) tertentu
   const handlePrintCart = (targetGroupKey?: string) => {
     if (cartItems.length === 0) {
       showToast('Keranjang permintaan masih kosong! Tambahkan material terlebih dahulu', true);
@@ -673,7 +731,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     setIsSlipPdfModalOpen(true);
   };
 
-  // Langsung generate & unduh file PDF terpisah untuk setiap (Supplier + WIP) pada keranjang
+  // Langsung generate & unduh file PDF terpisah untuk setiap (Line Produksi + Supplier + WIP) pada keranjang
   const handlePrintAllSlipsBySupplier = async () => {
     if (cartItems.length === 0) {
       showToast('Keranjang permintaan masih kosong! Tambahkan material terlebih dahulu', true);
@@ -685,17 +743,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       const summary = groups
         .map(
           g =>
-            `${g.supplier} • ${g.wipName} (${g.items.length} item${
+            `${g.lineName} • ${g.supplier} • ${g.wipName} (${g.items.length} item${
               g.pageCount > 1 ? `, ${g.pageCount} lbr` : ''
             })`
         )
         .join(', ');
       showToast(
-        `Berhasil mencetak ${groups.length} file Slip PDF terpisah per Supplier & WIP: ${summary}.`
+        `Berhasil mencetak ${groups.length} file Slip PDF terpisah per Line, Supplier & WIP: ${summary}.`
       );
     } catch (err) {
-      console.error('Failed generating supplier-wip-split PDFs:', err);
-      showToast('Gagal mencetak slip PDF terpisah per Supplier & WIP.', true);
+      console.error('Failed generating line-supplier-wip-split PDFs:', err);
+      showToast('Gagal mencetak slip PDF terpisah per Line, Supplier & WIP.', true);
     } finally {
       setIsBatchPrintingPdf(false);
     }
@@ -707,12 +765,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
     const wipKey = mapped.wipId || mapped.wipName || 'UMUM';
     setSlipModalCustomItems([mapped]);
     setSlipModalRequestNumbers([req.requestNumber]);
-    setSlipModalGroupKey(`${req.supplier || 'GDRM'}__${wipKey}`);
+    setSlipModalGroupKey(`${mapped.lineId || 'line_umum'}__${req.supplier || 'GDRM'}__${wipKey}`);
     setSlipModalSupplier(req.supplier);
     setIsSlipPdfModalOpen(true);
   };
 
-  // Cetak semua permintaan Pending (dari History) menjadi slip PDF terpisah per Supplier & WIP
+  // Cetak semua permintaan Pending (dari History) menjadi slip PDF terpisah per Line Produksi, Supplier & WIP
   const handlePrintPendingHistoryBySupplier = async (pendingReqs: MaterialRequest[]) => {
     if (pendingReqs.length === 0) {
       showToast('Tidak ada permintaan berstatus Menunggu untuk dicetak.', true);
@@ -725,14 +783,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         const mapped = mapHistoryReqToCartItem(req);
         const sup = mapped.supplier || 'GDRM';
         const wipKey = mapped.wipId || mapped.wipName || 'UMUM';
-        const compositeKey = `${sup}__${wipKey}`;
+        const lineKey = mapped.lineId || 'line_umum';
+        const compositeKey = `${lineKey}__${sup}__${wipKey}`;
         const arr = groupsReqMap.get(compositeKey) || [];
         arr.push(req);
         groupsReqMap.set(compositeKey, arr);
         return mapped;
       });
 
-      const groupedCarts = groupCartItemsBySupplierAndWip(mappedItems);
+      const groupedCarts = groupCartItemsBySupplierAndWip(mappedItems, state);
       const { buildSupplierSlipFormOptions, generateMaterialRequestSlipPdf } = await import(
         '../../utils/requestSlipPdf'
       );
@@ -744,6 +803,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         const g = groupedCarts[i];
         const reqNumbers = (groupsReqMap.get(g.key) || []).map(r => r.requestNumber);
         const opts = buildSupplierSlipFormOptions(g.supplier, g.items, state, {
+          lineId: g.lineId,
+          lineName: g.lineName,
           wipId: g.wipId,
           wipName: g.wipName,
           requestNumbers: reqNumbers
@@ -751,13 +812,13 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         await generateMaterialRequestSlipPdf(g.items, opts);
       }
       showToast(
-        `Berhasil mencetak ${groupedCarts.length} Slip PDF terpisah berdasarkan Supplier & WIP (${groupedCarts
-          .map(g => `${g.supplier}•${g.wipName}`)
+        `Berhasil mencetak ${groupedCarts.length} Slip PDF terpisah berdasarkan Line Produksi, Supplier & WIP (${groupedCarts
+          .map(g => `${g.lineName}•${g.supplier}•${g.wipName}`)
           .join(', ')}).`
       );
     } catch (err) {
       console.error('Failed printing pending history slips:', err);
-      showToast('Gagal mencetak slip PDF pending per Supplier & WIP.', true);
+      showToast('Gagal mencetak slip PDF pending per Line, Supplier & WIP.', true);
     } finally {
       setIsBatchPrintingPdf(false);
     }
@@ -794,11 +855,18 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const filteredRequests = state.transactions.requests.filter(req => {
     const sObj = state.master.skus.find(s => s.id === req.skuId);
     const mObj = state.master.materials.find(m => m.id === req.materialId);
+    const reqLine = resolveProductionLineForItem(state, {
+      explicitLineId: req.lineId,
+      explicitLineName: req.lineName,
+      skuId: req.skuId,
+      wipId: req.wipId
+    });
     const query = searchHistory.toLowerCase();
     return (
       req.requestNumber.toLowerCase().includes(query) ||
       (sObj && sObj.name.toLowerCase().includes(query)) ||
       (mObj && mObj.name.toLowerCase().includes(query)) ||
+      reqLine.lineName.toLowerCase().includes(query) ||
       req.supplier.toLowerCase().includes(query)
     );
   });
@@ -838,6 +906,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       'No Req',
       'Tanggal',
       'Shift',
+      'Line Produksi',
       'SKU Produk',
       'WIP Terkait',
       'Kode Material',
@@ -858,6 +927,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       const sObj = state.master.skus.find(s => s.id === req.skuId);
       const wObj = state.master.wips.find(w => w.id === req.wipId);
       const mObj = state.master.materials.find(m => m.id === req.materialId);
+      const reqLine = resolveProductionLineForItem(state, {
+        explicitLineId: req.lineId,
+        explicitLineName: req.lineName,
+        skuId: req.skuId,
+        wipId: req.wipId
+      });
       const rounding = getRoundingAppliedInfo(req, mObj);
       const roundingDeltaFormatted = rounding.hasRounding
         ? `+${formatKgCompact(rounding.deltaKg)}`
@@ -867,6 +942,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         req.requestNumber,
         req.date,
         `Shift ${req.shift || 1}`,
+        reqLine.lineName,
         sObj?.name || '-',
         wObj?.name || '-',
         mObj?.code || '-',
@@ -1109,6 +1185,37 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 Bobot Batch Acuan: {selectedWipObj.batchWeightKg.toFixed(4)} kg
               </span>
             )}
+          </div>
+
+          {/* Line Produksi Selection (Otomatis deteksi dari Planning / Mesin WIP, bisa diubah) */}
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-medium text-slate-300">
+                Line Produksi Tujuan (Pemisah Lembar Slip Order)
+              </label>
+              <span className="text-[10px] text-emerald-400 font-mono">
+                Rekomendasi otomatis: {resolvedAutoLine.lineName}
+              </span>
+            </div>
+            <select
+              value={activeRequestLine.lineId}
+              onChange={(e) => setSelectedLineId(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium"
+            >
+              {!selectableLines.some(l => l.lineId === activeRequestLine.lineId) && (
+                <option value={activeRequestLine.lineId}>
+                  {activeRequestLine.lineName}
+                </option>
+              )}
+              {selectableLines.map(ln => (
+                <option key={ln.lineId} value={ln.lineId}>
+                  {ln.lineName}{ln.lineCode ? ` (${ln.lineCode})` : ''}
+                </option>
+              ))}
+              {!selectableLines.some(l => l.lineId === 'line_umum') && (
+                <option value="line_umum">Line Umum</option>
+              )}
+            </select>
           </div>
 
           {/* OPSI PILIH MATERIAL DARI RESEP FORMULASI WIP */}
@@ -1656,7 +1763,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
           </div>
 
-          {/* Quick Cart Actions (Dipisah Per Supplier & Jenis WIP) */}
+          {/* Quick Cart Actions (Dipisah Per Line Produksi, Supplier & Jenis WIP) */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             {cartItems.length > 0 && (
               <>
@@ -1664,16 +1771,16 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   type="button"
                   onClick={handlePrintAllSlipsBySupplier}
                   disabled={isBatchPrintingPdf}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold border border-cyan-400/40 shadow-md shadow-cyan-600/20 transition flex items-center space-x-1.5 disabled:opacity-50"
-                  title="Kelompokkan item berdasarkan supplier dan jenis WIP lalu unduh file PDF terpisah (otomatis lanjut ke lembar berikutnya jika >10 item)"
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold border border-cyan-400/40 shadow-md shadow-cyan-600/20 transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
+                  title="Kelompokkan item berdasarkan Line Produksi, supplier, dan jenis WIP lalu unduh file PDF terpisah (otomatis lanjut ke lembar berikutnya jika >10 item)"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>
                     {isBatchPrintingPdf
                       ? 'Mencetak Slip...'
                       : cartItemsBySlipGroup.length > 1
-                      ? `Cetak ${cartItemsBySlipGroup.length} Slip PDF (Supplier & WIP)`
-                      : `Cetak Slip PDF (${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
+                      ? `Cetak ${cartItemsBySlipGroup.length} Slip PDF (Line, Supplier & WIP)`
+                      : `Cetak Slip PDF (${cartItemsBySlipGroup[0]?.lineName || 'Line'} • ${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
                   </span>
                 </button>
                 {cartItemsBySlipGroup.map(group => (
@@ -1681,16 +1788,16 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                     key={group.key}
                     type="button"
                     onClick={() => handlePrintCart(group.key)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 whitespace-nowrap shrink-0 ${
                       group.supplier === 'GDRM'
                         ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
                         : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/40'
                     }`}
-                    title={`Pratinjau & atur Slip Bon Permintaan RM & PM untuk ${group.supplier} — WIP ${group.wipName} (${group.items.length} item, ${group.pageCount} lembar A4)`}
+                    title={`Pratinjau & atur Slip Bon Permintaan RM & PM untuk ${group.lineName} — ${group.supplier} — WIP ${group.wipName} (${group.items.length} item, ${group.pageCount} lembar A4)`}
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span>
-                      {group.supplier} • {group.wipName} ({group.items.length}
+                      {group.lineName} • {group.supplier} • {group.wipName} ({group.items.length}
                       {group.pageCount > 1 ? ` • ${group.pageCount} lbr` : ''})
                     </span>
                   </button>
@@ -1698,7 +1805,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <button
                   type="button"
                   onClick={handleClearCart}
-                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-xl text-xs font-medium border border-rose-500/20 transition flex items-center space-x-1.5"
+                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-xl text-xs font-medium border border-rose-500/20 transition flex items-center space-x-1.5 whitespace-nowrap shrink-0"
                   title="Kosongkan seluruh item dari keranjang"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -1752,12 +1859,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </div>
         )}
 
-        {/* Cart Items Table (Dikelompokkan Per Supplier & Jenis WIP untuk Slip PDF Terpisah) */}
+        {/* Cart Items Table (Dikelompokkan Per Line Produksi, Supplier & Jenis WIP untuk Slip PDF Terpisah) */}
         {cartItems.length > 0 ? (
           <div className="divide-y divide-slate-800">
             {cartItemsBySlipGroup.map((group, groupIdx) => (
               <div key={group.key}>
-                {/* Supplier + WIP Group Sub-header */}
+                {/* Line Produksi + Supplier + WIP Group Sub-header */}
                 <div className="px-4 py-2.5 bg-slate-950/80 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -1767,7 +1874,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                       }`}
                     >
-                      SLIP #{groupIdx + 1} • SUPPLIER {group.supplier.toUpperCase()} • WIP:{' '}
+                      SLIP #{groupIdx + 1} • {group.lineName.toUpperCase()} • SUPPLIER {group.supplier.toUpperCase()} • WIP:{' '}
                       {group.wipName.toUpperCase()}
                     </span>
                     <span className="text-[11px] text-slate-300 font-mono">
@@ -1779,11 +1886,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handlePrintCart(group.key)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-[11px] font-semibold flex items-center space-x-1.5 transition"
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-[11px] font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
                   >
                     <Printer className="w-3 h-3" />
                     <span>
-                      Pratinjau &amp; Cetak ({group.supplier} • {group.wipName})
+                      Pratinjau &amp; Cetak ({group.lineName} • {group.supplier} • {group.wipName})
                     </span>
                   </button>
                 </div>
@@ -1839,7 +1946,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                               )}
                             </div>
                             <span className="text-[10px] text-amber-400/90 block">
-                              WIP: {item.wipName}
+                              WIP: {item.wipName} · <strong className="text-emerald-300">{group.lineName}</strong>
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center font-mono text-slate-300">
@@ -1983,11 +2090,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   )
                 }
                 disabled={isBatchPrintingPdf}
-                className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-                title="Cetak semua permintaan berstatus Menunggu dalam file PDF terpisah per Supplier & WIP"
+                className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
+                title="Cetak semua permintaan berstatus Menunggu dalam file PDF terpisah per Line Produksi, Supplier & WIP"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Cetak Slip Pending (Per Supplier &amp; WIP)</span>
+                <span>Cetak Slip Pending (Per Line, Supplier &amp; WIP)</span>
               </button>
             )}
             <div className="relative w-full sm:w-64">
@@ -1996,7 +2103,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 type="text"
                 value={searchHistory}
                 onChange={(e) => setSearchHistory(e.target.value)}
-                placeholder="Cari no req / material..."
+                placeholder="Cari no req, line, atau material..."
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
               />
             </div>
@@ -2008,7 +2115,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             <thead>
               <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
                 <th className="py-2.5 px-3">No. Req / Tanggal</th>
-                <th className="py-2.5 px-3">SKU Produk</th>
+                <th className="py-2.5 px-3">SKU &amp; Line Produksi</th>
                 <th className="py-2.5 px-3">WIP Terkait</th>
                 <th className="py-2.5 px-3">Nama Material</th>
                 <th className="py-2.5 px-3 text-right">Qty Form Order (kg)</th>
@@ -2024,6 +2131,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   const sObj = state.master.skus.find(s => s.id === req.skuId);
                   const wObj = state.master.wips.find(w => w.id === req.wipId);
                   const mObj = state.master.materials.find(m => m.id === req.materialId);
+                  const reqLine = resolveProductionLineForItem(state, {
+                    explicitLineId: req.lineId,
+                    explicitLineName: req.lineName,
+                    skuId: req.skuId,
+                    wipId: req.wipId
+                  });
                   const rounding = getRoundingAppliedInfo(req, mObj);
 
                   return (
@@ -2040,7 +2153,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       <td className="py-3 px-3">
                         <span className="font-medium text-white block">{sObj ? sObj.name : '-'}</span>
                         <span className={`text-[10px] ${sObj?.isKite ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
-                          {sObj?.isKite ? 'Ekspor KITE' : 'Domestik'}
+                          {sObj?.isKite ? 'Ekspor KITE' : 'Domestik'} ·{' '}
+                          <strong className="text-emerald-300 font-mono">{reqLine.lineName}</strong>
                         </span>
                       </td>
                       <td className="py-3 px-3 text-slate-300">
@@ -2299,8 +2413,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   <Printer className="w-4 h-4" />
                   <span>
                     {cartItemsBySlipGroup.length > 1
-                      ? `Unduh ${cartItemsBySlipGroup.length} Slip PDF (Supplier & WIP)`
-                      : `Unduh Slip PDF (${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
+                      ? `Unduh ${cartItemsBySlipGroup.length} Slip PDF (Line, Supplier & WIP)`
+                      : `Unduh Slip PDF (${cartItemsBySlipGroup[0]?.lineName || 'Line'} • ${cartItemsBySlipGroup[0]?.supplier || 'GDRM'} • ${cartItemsBySlipGroup[0]?.wipName || 'WIP'})`}
                   </span>
                 </button>
                 <button
@@ -2381,7 +2495,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                     <span>Detail Permintaan Material (QR Slip)</span>
                   </h3>
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                    Bon: {activeQrDetailData.bonNumber} • Supplier: {activeQrDetailData.supplier || '-'}
+                    Bon: {activeQrDetailData.bonNumber}
+                    {activeQrDetailData.lineName ? ` • Line: ${activeQrDetailData.lineName}` : ''} • Supplier: {activeQrDetailData.supplier || '-'}
                     {activeQrDetailData.wipName ? ` • WIP: ${activeQrDetailData.wipName}` : ''}
                     {activeQrDetailData.pageInfo ? ` • Lembar ${activeQrDetailData.pageInfo}` : ''} • Tanggal:{' '}
                     {activeQrDetailData.tanggal || '-'}

@@ -2,12 +2,15 @@ import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { AppState, Material, RequestCartItem, StorageLocation } from '../types';
 import { ceilSafe, detectMaterialPackageConfig, hasDecimalPart } from './orderRounding';
+import { normalizeProductionLine, resolveProductionLineForItem } from './lineResolver';
 
 export type RequestSlipSatMode = 'kg' | 'zak_or_kg' | 'batch';
 
 export const REQUEST_SLIP_ROWS_PER_PAGE = 10;
 
 export interface RequestSlipFormOptions {
+  lineId?: string;
+  lineName?: string;
   supplier?: string;
   wipId?: string;
   wipName?: string;
@@ -40,6 +43,7 @@ export interface RequestSlipDeepLinkItem {
 
 export interface RequestSlipDeepLinkData {
   bonNumber: string;
+  lineName?: string;
   supplier: string;
   wipName: string;
   tanggal: string;
@@ -137,6 +141,7 @@ export function buildRequestSlipQrUrl(
   options: Pick<
     RequestSlipFormOptions,
     | 'bonNumber'
+    | 'lineName'
     | 'supplier'
     | 'wipName'
     | 'tanggal'
@@ -154,6 +159,8 @@ export function buildRequestSlipQrUrl(
   const params = new URLSearchParams();
   params.set('tab', 'permintaan');
   if (options.bonNumber) params.set('bon', options.bonNumber.trim());
+  const effectiveLine = options.lineName || items[0]?.lineName || '';
+  if (effectiveLine) params.set('line', effectiveLine.slice(0, 32));
   const effectiveSupplier = options.supplier || items[0]?.supplier || 'GDRM';
   params.set('sup', effectiveSupplier);
   const effectiveWip = options.wipName || items[0]?.wipName || '';
@@ -216,6 +223,7 @@ export function parseRequestSlipQrHash(hash: string): RequestSlipDeepLinkData | 
 
   return {
     bonNumber: bon || reqParam || 'SLIP-QR',
+    lineName: params.get('line') || undefined,
     supplier: params.get('sup') || '',
     wipName: params.get('wip') || '',
     tanggal: params.get('tgl') || '',
@@ -266,6 +274,7 @@ export async function generateMaterialRequestSlipPdf(
         ? options.qrDeepLinkUrl
         : buildRequestSlipQrUrl(pageItems, {
             bonNumber: options.bonNumber,
+            lineName: options.lineName,
             supplier: options.supplier,
             wipName: options.wipName,
             tanggal: options.tanggal,
@@ -323,18 +332,24 @@ export async function generateMaterialRequestSlipPdf(
     // Center box: Title
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14.5);
-    doc.text('BON PERMINTAAN RM & PM', marginX + leftBoxW + centerBoxW / 2, headerY + 12.2, {
+    doc.text('BON PERMINTAAN RM & PM', marginX + leftBoxW + centerBoxW / 2, headerY + 11.5, {
       align: 'center'
     });
+    const centerSubParts: string[] = [];
+    if (options.lineName) {
+      centerSubParts.push(`Line Produksi: ${options.lineName}`);
+    }
     if (totalPages > 1) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.text(
-        `Lembar ${pageIdx + 1} dari ${totalPages}${pageIdx > 0 ? ' (Lanjutan)' : ''}`,
-        marginX + leftBoxW + centerBoxW / 2,
-        headerY + 17.5,
-        { align: 'center' }
+      centerSubParts.push(
+        `Lembar ${pageIdx + 1} dari ${totalPages}${pageIdx > 0 ? ' (Lanjutan)' : ''}`
       );
+    }
+    if (centerSubParts.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(centerSubParts.join('  •  '), marginX + leftBoxW + centerBoxW / 2, headerY + 17.5, {
+        align: 'center'
+      });
     }
 
     // Right box: split into 2 rows
@@ -711,6 +726,10 @@ export async function generateMaterialRequestSlipPdf(
     }
   }
 
+  const lineTag = (options.lineName || items[0]?.lineName || '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 18);
   const supTag = (options.supplier || items[0]?.supplier || 'ALL').replace(/[^a-zA-Z0-9_-]/g, '_');
   const wipTag = (options.wipName || items[0]?.wipName || '')
     .replace(/[^a-zA-Z0-9_-]+/g, '_')
@@ -718,9 +737,8 @@ export async function generateMaterialRequestSlipPdf(
     .slice(0, 24);
   const safeBon = (options.bonNumber || 'Bon_Permintaan').replace(/[^a-zA-Z0-9_-]/g, '_');
   const safeDate = (options.tanggal || formatIndonesianDateDash()).replace(/[^0-9-]/g, '');
-  const filename = wipTag
-    ? `Bon_Permintaan_${supTag}_${wipTag}_${safeBon}_${safeDate}.pdf`
-    : `Bon_Permintaan_${supTag}_${safeBon}_${safeDate}.pdf`;
+  const tagParts = [lineTag, supTag, wipTag].filter(Boolean).join('_');
+  const filename = `Bon_Permintaan_${tagParts}_${safeBon}_${safeDate}.pdf`;
   doc.save(filename);
 }
 
@@ -733,6 +751,8 @@ export interface SupplierCartGroup {
 
 export interface SupplierWipCartGroup {
   key: string;
+  lineId: string;
+  lineName: string;
   supplier: string;
   wipId: string;
   wipName: string;
@@ -758,30 +778,67 @@ export function groupCartItemsBySupplier(items: RequestCartItem[]): SupplierCart
   }));
 }
 
-export function groupCartItemsBySupplierAndWip(items: RequestCartItem[]): SupplierWipCartGroup[] {
-  const map = new Map<string, RequestCartItem[]>();
+export function groupCartItemsBySupplierAndWip(
+  items: RequestCartItem[],
+  state?: AppState
+): SupplierWipCartGroup[] {
+  const map = new Map<
+    string,
+    { lineId: string; lineName: string; items: RequestCartItem[] }
+  >();
+
   items.forEach(item => {
     const sup = item.supplier || 'GDRM';
     const wipKey = item.wipId || item.wipName || 'UMUM';
-    const compositeKey = `${sup}__${wipKey}`;
-    const list = map.get(compositeKey) || [];
-    list.push(item);
-    map.set(compositeKey, list);
+    const lineInfo = state
+      ? resolveProductionLineForItem(state, {
+          explicitLineId: item.lineId,
+          explicitLineName: item.lineName,
+          skuId: item.skuId,
+          wipId: item.wipId
+        })
+      : normalizeProductionLine(item.lineName, undefined, item.lineId) || {
+          lineId: item.lineId || 'line_umum',
+          lineName: item.lineName || 'Line Umum',
+          lineCode: 'UMUM'
+        };
+
+    const compositeKey = `${lineInfo.lineId}__${sup}__${wipKey}`;
+    const existing = map.get(compositeKey);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      map.set(compositeKey, {
+        lineId: lineInfo.lineId,
+        lineName: lineInfo.lineName,
+        items: [item]
+      });
+    }
   });
 
-  return Array.from(map.entries()).map(([key, grpItems]) => {
-    const first = grpItems[0];
+  const groups: SupplierWipCartGroup[] = Array.from(map.entries()).map(([key, grp]) => {
+    const first = grp.items[0];
     return {
       key,
+      lineId: grp.lineId,
+      lineName: grp.lineName,
       supplier: first.supplier || 'GDRM',
       wipId: first.wipId || '',
       wipName: first.wipName || 'Umum',
-      items: grpItems,
-      totalQty: grpItems.reduce((sum, i) => sum + i.qty, 0),
-      totalBags: grpItems.reduce((sum, i) => sum + (i.packageCount || 0), 0),
-      pageCount: Math.max(1, Math.ceil(grpItems.length / REQUEST_SLIP_ROWS_PER_PAGE))
+      items: grp.items,
+      totalQty: grp.items.reduce((sum, i) => sum + i.qty, 0),
+      totalBags: grp.items.reduce((sum, i) => sum + (i.packageCount || 0), 0),
+      pageCount: Math.max(1, Math.ceil(grp.items.length / REQUEST_SLIP_ROWS_PER_PAGE))
     };
   });
+
+  groups.sort((a, b) => {
+    if (a.lineName !== b.lineName) return a.lineName.localeCompare(b.lineName);
+    if (a.supplier !== b.supplier) return a.supplier.localeCompare(b.supplier);
+    return a.wipName.localeCompare(b.wipName);
+  });
+
+  return groups;
 }
 
 export function buildSupplierSlipFormOptions(
@@ -806,6 +863,18 @@ export function buildSupplierSlipFormOptions(
   const wipObj = state.master.wips.find(w => w.id === wipId || w.name === wipName);
   const rawWipTag = wipObj?.code || wipName || 'WIP';
   const wipCode = rawWipTag.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'WIP';
+
+  const resolvedLine = resolveProductionLineForItem(state, {
+    explicitLineId: overrides?.lineId || itemsForGroup[0]?.lineId,
+    explicitLineName: overrides?.lineName || itemsForGroup[0]?.lineName,
+    skuId: itemsForGroup[0]?.skuId,
+    wipId
+  });
+  const lineId = overrides?.lineId || resolvedLine.lineId;
+  const lineName = overrides?.lineName || resolvedLine.lineName;
+  const lineTag =
+    (resolvedLine.lineCode || lineName).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) ||
+    'LINE';
 
   const kepadaDefault =
     supplier === 'GDRM'
@@ -854,14 +923,16 @@ export function buildSupplierSlipFormOptions(
     )
   );
 
-  const tujuanDefault =
+  const storageDefault =
     resolvedLocations.length > 0
       ? resolvedLocations.map(loc => storageLabels[loc]).join(' / ')
       : supplier === 'Formulasi'
       ? storageLabels.WINEROTO
       : storageLabels.CK;
+  const tujuanDefault = `${lineName} · ${storageDefault}`;
 
   const autoNotesLines: string[] = [];
+  autoNotesLines.push(`Line Produksi: ${lineName}`);
   if (wipName) {
     autoNotesLines.push(`Jenis WIP: ${wipName}${uniqueSkus.length > 0 ? ` • SKU: ${uniqueSkus.join(', ')}` : ''}`);
   } else if (uniqueSkus.length > 0) {
@@ -882,6 +953,8 @@ export function buildSupplierSlipFormOptions(
   const operatorName = state.currentSession?.name || state.currentAdminUser?.displayName || '';
 
   return {
+    lineId,
+    lineName,
     supplier,
     wipId,
     wipName,
@@ -891,7 +964,7 @@ export function buildSupplierSlipFormOptions(
     kepadaWarehouse: overrides?.kepadaWarehouse || kepadaDefault,
     tujuanPengiriman: overrides?.tujuanPengiriman || tujuanDefault,
     permintaanShift: overrides?.permintaanShift || 'Shift 1',
-    bonNumber: overrides?.bonNumber || `BON-${yymmdd}-${supCode}-${wipCode}-${seqNum}`,
+    bonNumber: overrides?.bonNumber || `BON-${yymmdd}-${lineTag}-${supCode}-${wipCode}-${seqNum}`,
     tanggal: overrides?.tanggal || formatIndonesianDateDash(now),
     namaPengirim: overrides?.namaPengirim || '',
     namaPenerima: overrides?.namaPenerima || operatorName,
@@ -911,8 +984,8 @@ export function buildSupplierSlipFormOptions(
 }
 
 /**
- * Groups requested materials by their target supplier AND WIP type,
- * generating a separate PDF slip file for each (Supplier + WIP) group.
+ * Groups requested materials by Production Line, target supplier, AND WIP type,
+ * generating a separate PDF slip file for each (Line + Supplier + WIP) group.
  * Groups with >10 materials automatically spill into continuation sheets (10 rows/sheet).
  */
 export async function generateSeparateSupplierSlipsPdf(
@@ -920,7 +993,7 @@ export async function generateSeparateSupplierSlipsPdf(
   state: AppState,
   overrides?: Partial<RequestSlipFormOptions>
 ): Promise<SupplierWipCartGroup[]> {
-  const groups = groupCartItemsBySupplierAndWip(items);
+  const groups = groupCartItemsBySupplierAndWip(items, state);
   for (let idx = 0; idx < groups.length; idx++) {
     if (idx > 0) {
       await new Promise<void>(resolve => setTimeout(resolve, 180));
@@ -928,6 +1001,8 @@ export async function generateSeparateSupplierSlipsPdf(
     const group = groups[idx];
     const opts = buildSupplierSlipFormOptions(group.supplier, group.items, state, {
       ...overrides,
+      lineId: group.lineId,
+      lineName: group.lineName,
       wipId: group.wipId,
       wipName: group.wipName
     });

@@ -254,6 +254,8 @@ export interface MaterialRequest {
   requestNumber: string;
   date: string;
   shift?: ShiftNumber; // SOP Rule: Permintaan material hanya dapat dilakukan di Shift 1
+  lineId?: string;
+  lineName?: string;
   skuId: string;
   wipId: string;
   materialId: string;
@@ -295,6 +297,8 @@ export interface RequestCartItem {
   saldoAwal: number;
   supplier: MaterialSource;
   shift?: ShiftNumber; // SOP Rule: Shift 1
+  lineId?: string;
+  lineName?: string;
   notes?: string;
   addedAt: string;
 }
