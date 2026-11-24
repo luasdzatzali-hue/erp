@@ -9,6 +9,7 @@ import {
   EyeOff,
   Layers,
   Maximize2,
+  PauseCircle,
   Play,
   Search,
   Sparkles,
@@ -29,6 +30,8 @@ export interface WipGanttChartProps {
   currentTime: number;
   compact?: boolean;
   onExpandFullView?: () => void;
+  onPauseWipBatch?: (batch: WipProductionBatch) => void;
+  onResumeWipBatch?: (batchId: string) => void;
   onCompleteWipBatch?: (batchId: string) => void;
   onCancelWipBatch?: (batchId: string) => void;
   onQuickSelectLane?: (params: { machineId?: string; wipId?: string }) => void;
@@ -45,7 +48,7 @@ interface GanttItem {
   subtitle: string;
   startMs: number;
   endMs: number;
-  status: 'SEDANG_PRODUKSI' | 'SELESAI' | 'DIBATALKAN' | 'CHANGEOVER' | 'PROJECTED';
+  status: 'SEDANG_PRODUKSI' | 'DIJEDA' | 'SELESAI' | 'DIBATALKAN' | 'CHANGEOVER' | 'PROJECTED';
   shift: ShiftNumber;
   batch?: WipProductionBatch;
   tankCode?: string;
@@ -65,6 +68,7 @@ interface GanttLane {
   meta: string;
   statusTag: string;
   isRunning: boolean;
+  isPaused?: boolean;
   isMaintenance: boolean;
   items: GanttItem[];
   machineId?: string;
@@ -155,6 +159,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
   currentTime,
   compact = false,
   onExpandFullView,
+  onPauseWipBatch,
+  onResumeWipBatch,
   onCompleteWipBatch,
   onCancelWipBatch,
   onQuickSelectLane
@@ -257,6 +263,9 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         if (estEndParsed !== null && estEndParsed > startMs) {
           endMs = estEndParsed;
         }
+      } else if (b.status === 'DIJEDA') {
+        const remMs = typeof b.remainingMsAtPause === 'number' ? b.remainingMsAtPause : durMins * 60_000;
+        endMs = Math.max(startMs + durMins * 60_000, currentTime + remMs);
       }
 
       // Ensure minimum visible duration of 5 minutes for bar rendering
@@ -267,6 +276,10 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
       if (b.status === 'SEDANG_PRODUKSI') {
         const total = Math.max(1, safeEndMs - startMs);
         progressPct = Math.min(100, Math.max(0, ((currentTime - startMs) / total) * 100));
+      } else if (b.status === 'DIJEDA') {
+        const plannedMs = Math.max(1, durMins * 60_000);
+        const remMs = typeof b.remainingMsAtPause === 'number' ? b.remainingMsAtPause : plannedMs;
+        progressPct = Math.min(100, Math.max(0, ((plannedMs - remMs) / plannedMs) * 100));
       } else if (b.status === 'SELESAI') {
         progressPct = 100;
       }
@@ -420,21 +433,25 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
       const result: GanttLane[] = state.master.machines.map(mach => {
         const laneItems = visibleItems.filter(it => it.laneId === mach.id);
         const activeBatch = (state.transactions.wipBatches || []).find(
-          b => b.targetMachineId === mach.id && b.status === 'SEDANG_PRODUKSI'
+          b => b.targetMachineId === mach.id && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
         );
+        const isPaused = activeBatch?.status === 'DIJEDA';
         return {
           id: mach.id,
           code: mach.code,
           name: mach.name,
           meta: `${mach.line} · ${mach.capacityKgPerHour} kg/j`,
           statusTag: activeBatch
-            ? 'PROSES'
+            ? isPaused
+              ? 'DIJEDA'
+              : 'PROSES'
             : mach.status === 'OPERATIONAL'
             ? 'SIAGA'
             : mach.status === 'MAINTENANCE'
             ? 'MAINT'
             : mach.status,
           isRunning: Boolean(activeBatch),
+          isPaused,
           isMaintenance: mach.status === 'MAINTENANCE',
           items: laneItems,
           machineId: mach.id,
@@ -451,6 +468,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
           meta: 'Riwayat batch tanpa ID mesin',
           statusTag: 'LOG',
           isRunning: false,
+          isPaused: false,
           isMaintenance: false,
           items: unassignedItems,
           machineId: undefined,
@@ -481,17 +499,20 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         state.master.tanks.find(t => t.assignedWipId === w.id)?.id;
       const tank = tankId ? tankMap.get(tankId) : undefined;
       const laneItems = visibleItems.filter(it => it.laneId === w.id);
-      const isRunning = (state.transactions.wipBatches || []).some(
-        b => b.wipId === w.id && b.status === 'SEDANG_PRODUKSI'
+      const runningBatch = (state.transactions.wipBatches || []).find(
+        b => b.wipId === w.id && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
       );
+      const isRunning = Boolean(runningBatch);
+      const isPaused = runningBatch?.status === 'DIJEDA';
 
       return {
         id: w.id,
         code: w.code,
         name: w.name,
         meta: `${w.batchWeightKg.toFixed(1)} kg/btc${tank ? ` · ➔ ${tank.code}` : ''}`,
-        statusTag: isRunning ? 'PROSES' : 'SIAGA',
+        statusTag: isPaused ? 'DIJEDA' : isRunning ? 'PROSES' : 'SIAGA',
         isRunning,
+        isPaused,
         isMaintenance: false,
         items: laneItems,
         machineId: w.assignedMachineId || w.assignedMachineIds?.[0],
@@ -562,7 +583,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
   // KPI summary calculated strictly from visible batches
   const ganttStats = useMemo(() => {
     const batchItems = visibleItems.filter(it => it.kind === 'batch');
-    const activeCount = batchItems.filter(it => it.status === 'SEDANG_PRODUKSI').length;
+    const activeCount = batchItems.filter(it => it.status === 'SEDANG_PRODUKSI' || it.status === 'DIJEDA').length;
     const completedCount = batchItems.filter(it => it.status === 'SELESAI').length;
     const totalKg = batchItems
       .filter(it => it.status !== 'DIBATALKAN')
@@ -573,7 +594,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         : 0;
     const activeMachineCount = new Set(
       (state.transactions.wipBatches || [])
-        .filter(b => b.status === 'SEDANG_PRODUKSI' && b.targetMachineId)
+        .filter(b => (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA') && b.targetMachineId)
         .map(b => b.targetMachineId)
     ).size;
 
@@ -909,7 +930,9 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                         </span>
                         <span
                           className={`text-[10px] font-mono font-semibold ${
-                            lane.isRunning
+                            lane.isPaused
+                              ? 'text-sky-400'
+                              : lane.isRunning
                               ? 'text-amber-400'
                               : lane.isMaintenance
                               ? 'text-rose-400'
@@ -986,6 +1009,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                         const barStyles =
                           item.status === 'SEDANG_PRODUKSI'
                             ? 'gantt-bar-active bg-amber-950/90 border-amber-500/80 text-amber-100 hover:border-amber-400'
+                            : item.status === 'DIJEDA'
+                            ? 'gantt-bar-pause bg-sky-950/90 border-sky-500/80 border-dashed text-sky-100 hover:border-sky-400'
                             : item.status === 'SELESAI'
                             ? 'gantt-bar-done bg-emerald-950/85 border-emerald-500/60 text-emerald-100 hover:border-emerald-400'
                             : item.status === 'CHANGEOVER'
@@ -1003,15 +1028,17 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                               left: `${leftPct}%`,
                               width: `${Math.min(widthPct, 100 - leftPct)}%`
                             }}
-                            title={`${item.title} · ${item.subtitle} (${formatTimeShort(item.startMs)}–${formatTimeShort(item.endMs)} · ${formatDurationLabel(item.durationMinutes)})`}
+                            title={`${item.title} · ${item.subtitle}${item.status === 'DIJEDA' ? ' [DIJEDA]' : ''} (${formatTimeShort(item.startMs)}–${formatTimeShort(item.endMs)} · ${formatDurationLabel(item.durationMinutes)})`}
                             className={`absolute top-1.5 bottom-1.5 rounded-md border px-2 text-left overflow-hidden transition-all z-10 flex flex-col justify-center ${barStyles} ${
                               isSelected ? 'ring-2 ring-cyan-400 z-20' : ''
                             }`}
                           >
-                            {/* Progress fill inside active batch bar */}
-                            {item.status === 'SEDANG_PRODUKSI' && typeof item.progressPct === 'number' && (
+                            {/* Progress fill inside active / paused batch bar */}
+                            {(item.status === 'SEDANG_PRODUKSI' || item.status === 'DIJEDA') && typeof item.progressPct === 'number' && (
                               <div
-                                className="absolute inset-y-0 left-0 bg-amber-500/25 pointer-events-none"
+                                className={`absolute inset-y-0 left-0 pointer-events-none ${
+                                  item.status === 'DIJEDA' ? 'bg-sky-500/25' : 'bg-amber-500/25'
+                                }`}
                                 style={{ width: `${item.progressPct}%` }}
                               />
                             )}
@@ -1071,6 +1098,10 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
             <span>Sedang Produksi (Live)</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-2.5 rounded-sm bg-sky-950 border border-dashed border-sky-500" />
+            <span>Dijeda / Pause</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
             <span className="w-3 h-2.5 rounded-sm bg-emerald-950 border border-emerald-500" />
             <span>Selesai &amp; Transfer Tangki</span>
           </span>
@@ -1112,6 +1143,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                 className={`text-[11px] font-mono font-bold ${
                   selectedItem.status === 'SEDANG_PRODUKSI'
                     ? 'text-amber-400'
+                    : selectedItem.status === 'DIJEDA'
+                    ? 'text-sky-400'
                     : selectedItem.status === 'SELESAI'
                     ? 'text-emerald-400'
                     : selectedItem.status === 'CHANGEOVER'
@@ -1123,6 +1156,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               >
                 {selectedItem.status === 'SEDANG_PRODUKSI'
                   ? 'Sedang Diproses'
+                  : selectedItem.status === 'DIJEDA'
+                  ? 'Dijeda (Timer Berhenti)'
                   : selectedItem.status === 'SELESAI'
                   ? 'Selesai Ditransfer'
                   : selectedItem.status === 'CHANGEOVER'
@@ -1133,8 +1168,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              {selectedItem.batch && selectedItem.status === 'SEDANG_PRODUKSI' && (
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedItem.batch && (selectedItem.status === 'SEDANG_PRODUKSI' || selectedItem.status === 'DIJEDA') && (
                 <>
                   {onCancelWipBatch && (
                     <button
@@ -1146,6 +1181,26 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                       className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/40 text-rose-300 text-[11px] font-semibold transition whitespace-nowrap shrink-0"
                     >
                       Batalkan Batch
+                    </button>
+                  )}
+                  {selectedItem.status === 'SEDANG_PRODUKSI' && onPauseWipBatch && (
+                    <button
+                      type="button"
+                      onClick={() => onPauseWipBatch(selectedItem.batch!)}
+                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                    >
+                      <PauseCircle className="w-3.5 h-3.5" />
+                      <span>Pause Sementara</span>
+                    </button>
+                  )}
+                  {selectedItem.status === 'DIJEDA' && onResumeWipBatch && (
+                    <button
+                      type="button"
+                      onClick={() => onResumeWipBatch(selectedItem.batch!.id)}
+                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Lanjutkan Batch</span>
                     </button>
                   )}
                   {onCompleteWipBatch && (
@@ -1213,6 +1268,27 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               </span>
             </div>
           </div>
+
+          {selectedItem.batch && selectedItem.batch.pauseLogs && selectedItem.batch.pauseLogs.length > 0 && (
+            <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px]">
+              <span className="text-sky-300 font-semibold block">
+                Audit Trail Penghentian Sementara ({selectedItem.batch.pauseLogs.length} Kejadian):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedItem.batch.pauseLogs.map(log => (
+                  <span
+                    key={log.id}
+                    className="text-[10px] px-2 py-1 rounded bg-sky-950/60 border border-sky-700/60 text-slate-200"
+                  >
+                    <strong className="text-sky-300">{log.category}</strong>: {log.reason} · Oleh {log.pausedBy}
+                    {log.pausedDurationMs !== undefined
+                      ? ` (${Math.max(1, Math.round(log.pausedDurationMs / 60000))} mnt)`
+                      : ' (Masih Dijeda)'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {selectedItem.batch && selectedItem.batch.materials.length > 0 && (
             <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px]">

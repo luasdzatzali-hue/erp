@@ -49,7 +49,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   const pendingRequests = state.transactions.requests.filter(r => r.status !== 'Received');
   const receiptsCount = state.transactions.receipts.length;
   const activeBatches = (state.transactions.wipBatches || []).filter(
-    b => b.status === 'SEDANG_PRODUKSI'
+    b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
   );
   const completedBatches = (state.transactions.wipBatches || []).filter(
     b => b.status === 'SELESAI'

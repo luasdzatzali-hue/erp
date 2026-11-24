@@ -25,7 +25,10 @@ import {
   Database,
   QrCode,
   Tag,
-  X
+  X,
+  PauseCircle,
+  Play,
+  ShieldCheck
 } from 'lucide-react';
 import {
   AppState,
@@ -44,12 +47,27 @@ import { MaterialQrScannerModal } from '../MaterialQrScannerModal';
 import { MaterialQrLabelModal } from '../MaterialQrLabelModal';
 import { ParsedMaterialQrResult } from '../../utils/materialQr';
 import { WipGanttChart, parseWipTimestamp } from '../WipGanttChart';
+import { WipBatchPauseModal } from '../WipBatchPauseModal';
 import { Activity, Maximize2 } from 'lucide-react';
+
+function formatPauseDurationMs(ms?: number): string {
+  if (ms === undefined || !Number.isFinite(ms) || ms < 0) return '-';
+  const totalSecs = Math.round(ms / 1000);
+  if (totalSecs < 60) return `${totalSecs} dtk`;
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  if (mins < 60) return `${mins}m ${String(secs).padStart(2, '0')}s`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hrs}j ${remMins}m`;
+}
 
 interface PemakaianViewProps {
   state: AppState;
   onRecordUsage: (usage: Omit<MaterialUsage, 'id' | 'usageNumber' | 'date'>) => void;
   onStartWipBatch: (batchData: Omit<WipProductionBatch, 'id' | 'batchCode' | 'status' | 'startedAt'>) => void;
+  onPauseWipBatch?: (batchId: string, reason: string, category?: string) => void;
+  onResumeWipBatch?: (batchId: string) => void;
   onCompleteWipBatch: (batchId: string) => void;
   onCancelWipBatch: (batchId: string) => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
@@ -60,6 +78,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   state,
   onRecordUsage,
   onStartWipBatch,
+  onPauseWipBatch,
+  onResumeWipBatch,
   onCompleteWipBatch,
   onCancelWipBatch,
   onSwitchTab,
@@ -76,6 +96,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   const [showInlineGantt, setShowInlineGantt] = useState<boolean>(true);
   const [isBatchOrderFormOpen, setIsBatchOrderFormOpen] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pauseModalBatch, setPauseModalBatch] = useState<WipProductionBatch | null>(null);
+  const [expandedAuditBatchIds, setExpandedAuditBatchIds] = useState<Record<string, boolean>>({});
 
   // 3-Shift Operator System State (Otomatis mengikuti jam shift berjalan)
   const [filterShift, setFilterShift] = useState<'all' | '1' | '2' | '3'>('all');
@@ -143,15 +165,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
     return availableRecipesForWip.find(r => r.id === selectedRecipeId) || null;
   }, [availableRecipesForWip, selectedRecipeId]);
 
-  // Check if the SELECTED MACHINE has an active batch currently in progress (Strict Rule: 1 batch per machine)
+  // Check if the SELECTED MACHINE has an active or paused batch (Strict Rule: 1 batch per machine)
   const activeBatchForSelectedMachine = (state.transactions.wipBatches || []).find(
-    b => b.targetMachineId === selectedMachineId && b.status === 'SEDANG_PRODUKSI'
+    b => b.targetMachineId === selectedMachineId && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
   );
 
-  // All active WIP batches across all WIPs
+  // All active or paused WIP batches across all WIPs
   const allActiveBatches = (state.transactions.wipBatches || []).filter(
-    b => b.status === 'SEDANG_PRODUKSI'
+    b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
   );
+  const pausedBatchesCount = allActiveBatches.filter(b => b.status === 'DIJEDA').length;
+  const runningBatchesCount = allActiveBatches.filter(b => b.status === 'SEDANG_PRODUKSI').length;
 
   // Auto-select recipe when WIP changes
   useEffect(() => {
@@ -791,7 +815,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </span>
               <span className="text-[11px] font-mono text-cyan-400 tabular-nums">{activeBatchTotalKg.toFixed(1)} kg</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">Kapasitas terkunci: maks 1 batch / mesin</p>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {pausedBatchesCount > 0
+                ? `${runningBatchesCount} jalan · ${pausedBatchesCount} dijeda (maks 1/mesin)`
+                : 'Kapasitas terkunci: maks 1 batch / mesin'}
+            </p>
           </div>
 
           <div className="p-3.5">
@@ -820,14 +848,15 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
         </div>
       </div>
 
-      {/* Active WIP Batches Pipeline Monitor (when active batches exist) */}
+      {/* Active & Paused WIP Batches Pipeline Monitor */}
       {allActiveBatches.length > 0 && (
         <div className="bg-[#0c121d] border border-amber-500/40 rounded-xl p-3.5 space-y-2.5 shadow-lg">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-amber-400 shrink-0" />
               <h4 className="font-bold text-xs sm:text-sm text-white">
-                Aliran Batch Aktif di Lantai Produksi ({allActiveBatches.length} Berjalan)
+                Aliran Batch Aktif di Lantai Produksi ({runningBatchesCount} Berjalan
+                {pausedBatchesCount > 0 ? ` · ${pausedBatchesCount} Dijeda` : ''})
               </h4>
             </div>
             <span className="text-[11px] font-mono text-amber-300">
@@ -841,23 +870,41 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               const wipObj = state.master.wips.find(w => w.id === batch.wipId);
               const tId = batch.targetTankId || wipObj?.targetTankId || wipObj?.targetTankIds?.[0];
               const bTank = state.master.tanks.find(t => t.id === tId);
+              const isPaused = batch.status === 'DIJEDA';
+              const durMins = batch.durationMinutes || wipObj?.productionDurationMinutes || 30;
+              const plannedMs = Math.max(1, durMins * 60_000);
               const startMs = parseWipTimestamp(batch.startedAt) || currentTime;
-              const estMs = parseWipTimestamp(batch.estimatedCompletionTime) || (startMs + (batch.durationMinutes || 30) * 60_000);
-              const totalMs = Math.max(1, estMs - startMs);
-              const pct = Math.min(100, Math.max(0, ((currentTime - startMs) / totalMs) * 100));
-              const remMs = estMs - currentTime;
+              const estMs = parseWipTimestamp(batch.estimatedCompletionTime) || (startMs + plannedMs);
+
+              const remMs = isPaused
+                ? typeof batch.remainingMsAtPause === 'number'
+                  ? batch.remainingMsAtPause
+                  : plannedMs
+                : estMs - currentTime;
+              const pct = isPaused
+                ? Math.min(100, Math.max(0, ((plannedMs - remMs) / plannedMs) * 100))
+                : Math.min(100, Math.max(0, ((currentTime - startMs) / Math.max(1, estMs - startMs)) * 100));
               const remMins = Math.floor(Math.abs(remMs) / 60_000);
               const remSecs = Math.floor((Math.abs(remMs) % 60_000) / 1000);
 
               return (
                 <div
                   key={batch.id}
-                  className="bg-[#06090f] border border-slate-800 hover:border-amber-500/50 p-3 rounded-lg space-y-2 transition"
+                  className={`bg-[#06090f] border p-3 rounded-lg space-y-2 transition ${
+                    isPaused ? 'border-sky-500/50' : 'border-slate-800 hover:border-amber-500/50'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                        <span className="font-bold text-amber-400">{batch.batchCode}</span>
+                        <span className={`font-bold ${isPaused ? 'text-sky-400' : 'text-amber-400'}`}>
+                          {batch.batchCode}
+                        </span>
+                        {isPaused && (
+                          <span className="text-[10px] font-bold text-sky-300">
+                            · DIJEDA
+                          </span>
+                        )}
                         {batch.recipeCode && (
                           <span className="text-slate-400">· {batch.recipeCode}</span>
                         )}
@@ -867,28 +914,77 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                         {bMach ? bMach.code : 'Mesin'} ➔ {bTank ? bTank.code : 'Tangki'} · {batch.batchWeightKg.toFixed(1)} kg · {batch.operatorName}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onCompleteWipBatch(batch.id)}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[10px] transition active:scale-95 shrink-0 flex items-center gap-1 whitespace-nowrap"
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Selesai</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isPaused ? (
+                        onResumeWipBatch && (
+                          <button
+                            type="button"
+                            onClick={() => onResumeWipBatch(batch.id)}
+                            className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg text-[10px] transition active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                            title="Lanjutkan penghitungan waktu batch WIP"
+                          >
+                            <Play className="w-3 h-3" />
+                            <span>Lanjut</span>
+                          </button>
+                        )
+                      ) : (
+                        onPauseWipBatch && (
+                          <button
+                            type="button"
+                            onClick={() => setPauseModalBatch(batch)}
+                            className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg text-[10px] transition active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                            title="Pause sementara batch dan catat alasan"
+                          >
+                            <PauseCircle className="w-3 h-3" />
+                            <span>Pause</span>
+                          </button>
+                        )
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onCompleteWipBatch(batch.id)}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[10px] transition active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Selesai</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Elapsed Progress Gauge */}
+                  {isPaused && batch.pauseReason && (
+                    <div className="px-2 py-1 rounded bg-sky-950/60 border border-sky-700/60 text-[10px] text-sky-200 truncate" title={batch.pauseReason}>
+                      Alasan jeda: <strong>{batch.pauseReason}</strong>
+                    </div>
+                  )}
+
+                  {/* Elapsed Progress Gauge (Frozen when paused) */}
                   <div className="space-y-1">
                     <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all duration-500 ${remMs <= 0 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                        className={`h-full transition-all duration-500 ${
+                          isPaused ? 'bg-sky-400' : remMs <= 0 ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
-                      <span className="text-slate-400">Progres {pct.toFixed(0)}%</span>
-                      <span className={remMs <= 0 ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold'}>
-                        {remMs <= 0 ? 'Siap Transfer Tangki' : `Sisa ${remMins}m ${String(remSecs).padStart(2, '0')}s`}
+                      <span className="text-slate-400">
+                        Progres {pct.toFixed(0)}%{isPaused ? ' (Berhenti)' : ''}
+                      </span>
+                      <span
+                        className={
+                          isPaused
+                            ? 'text-sky-300 font-semibold'
+                            : remMs <= 0
+                            ? 'text-emerald-400 font-bold'
+                            : 'text-amber-300 font-semibold'
+                        }
+                      >
+                        {isPaused
+                          ? `Dijeda · Sisa ${remMins}m ${String(remSecs).padStart(2, '0')}s`
+                          : remMs <= 0
+                          ? 'Siap Transfer Tangki'
+                          : `Sisa ${remMins}m ${String(remSecs).padStart(2, '0')}s`}
                       </span>
                     </div>
                   </div>
@@ -985,6 +1081,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           state={state}
           currentTime={currentTime}
           compact={false}
+          onPauseWipBatch={(b) => setPauseModalBatch(b)}
+          onResumeWipBatch={onResumeWipBatch}
           onCompleteWipBatch={onCompleteWipBatch}
           onCancelWipBatch={onCancelWipBatch}
           onQuickSelectLane={handleQuickSelectFromGantt}
@@ -1000,6 +1098,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               currentTime={currentTime}
               compact={true}
               onExpandFullView={() => setActiveTab('gantt-schedule')}
+              onPauseWipBatch={(b) => setPauseModalBatch(b)}
+              onResumeWipBatch={onResumeWipBatch}
               onCompleteWipBatch={onCompleteWipBatch}
               onCancelWipBatch={onCancelWipBatch}
               onQuickSelectLane={handleQuickSelectFromGantt}
@@ -1208,7 +1308,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   {state.master.machines.map(m => {
                     const isPreferred = selectedWipObj?.assignedMachineIds?.includes(m.id) || selectedWipObj?.assignedMachineId === m.id;
                     const isBusy = (state.transactions.wipBatches || []).some(
-                      b => b.targetMachineId === m.id && b.status === 'SEDANG_PRODUKSI'
+                      b => b.targetMachineId === m.id && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
                     );
                     const statusBadge = m.status === 'OPERATIONAL' ? 'Operasional' : m.status === 'MAINTENANCE' ? 'Maintenance' : 'Stop';
                     return (
@@ -1309,7 +1409,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   const m = state.master.machines.find(mach => mach.id === selectedMachineId);
                   if (!m) return null;
                   const isBusy = (state.transactions.wipBatches || []).some(
-                    b => b.targetMachineId === m.id && b.status === 'SEDANG_PRODUKSI'
+                    b => b.targetMachineId === m.id && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
                   );
                   return (
                     <>
@@ -1435,27 +1535,57 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
             {/* STRICT MACHINE BATCH PRODUCTION LOCK & LIVE PROGRESS BANNER */}
             {activeBatchForSelectedMachine && (() => {
+              const isPaused = activeBatchForSelectedMachine.status === 'DIJEDA';
               const estTime = activeBatchForSelectedMachine.estimatedCompletionTime
                 ? new Date(activeBatchForSelectedMachine.estimatedCompletionTime).getTime()
                 : null;
-              const remainingMs = estTime ? estTime - currentTime : 0;
-              const isOverdue = estTime ? remainingMs <= 0 : false;
-              const remMins = Math.floor(Math.abs(remainingMs) / 60000);
-              const remSecs = Math.floor((Math.abs(remainingMs) % 60000) / 1000);
+              const remainingMs = isPaused
+                ? typeof activeBatchForSelectedMachine.remainingMsAtPause === 'number'
+                  ? activeBatchForSelectedMachine.remainingMsAtPause
+                  : (activeBatchForSelectedMachine.durationMinutes || 30) * 60_000
+                : estTime
+                ? estTime - currentTime
+                : 0;
+              const isOverdue = !isPaused && estTime ? remainingMs <= 0 : false;
+              const remMins = Math.floor(Math.abs(remainingMs) / 60_000);
+              const remSecs = Math.floor((Math.abs(remainingMs) % 60_000) / 1000);
               const targetTank = state.master.tanks.find(t => t.id === activeBatchForSelectedMachine.targetTankId || t.assignedWipId === activeBatchForSelectedMachine.wipId);
               const targetMach = state.master.machines.find(m => m.id === activeBatchForSelectedMachine.targetMachineId);
+              const latestPauseLog = activeBatchForSelectedMachine.pauseLogs?.[activeBatchForSelectedMachine.pauseLogs.length - 1];
 
               return (
-                <div className="bg-gradient-to-r from-amber-950/40 via-purple-950/40 to-slate-900 border border-amber-500/50 p-4 rounded-2xl space-y-3 shadow-xl">
+                <div
+                  className={`p-4 rounded-2xl space-y-3 shadow-xl border ${
+                    isPaused
+                      ? 'bg-sky-950/40 border-sky-500/60'
+                      : 'bg-gradient-to-r from-amber-950/40 via-purple-950/40 to-slate-900 border-amber-500/50'
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div className="flex items-center space-x-3">
-                      <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 animate-pulse">
-                        <Clock className="w-6 h-6" />
+                      <div
+                        className={`p-2 rounded-xl shrink-0 ${
+                          isPaused
+                            ? 'bg-sky-950 border border-sky-700 text-sky-300'
+                            : 'bg-amber-500/20 text-amber-400 animate-pulse'
+                        }`}
+                      >
+                        {isPaused ? <PauseCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-xs sm:text-sm flex items-center space-x-2">
-                          <span>Mesin Sedang Memproses Batch di Lantai Produksi</span>
-                          <span className="px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 text-[10px] font-mono">
+                        <h4 className="font-bold text-white text-xs sm:text-sm flex flex-wrap items-center gap-2">
+                          <span>
+                            {isPaused
+                              ? 'Batch WIP Sedang Di-Pause Sementara (Timer Dihentikan)'
+                              : 'Mesin Sedang Memproses Batch di Lantai Produksi'}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                              isPaused
+                                ? 'bg-sky-950 text-sky-300 border border-sky-700'
+                                : 'bg-amber-500/30 text-amber-200'
+                            }`}
+                          >
                             {activeBatchForSelectedMachine.batchCode}
                           </span>
                         </h4>
@@ -1465,20 +1595,56 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Live Timer Pill */}
-                    <div className="text-right shrink-0 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-amber-500/40">
+                    {/* Live or Frozen Timer Box */}
+                    <div
+                      className={`text-right shrink-0 bg-slate-950/80 px-3 py-1.5 rounded-xl border ${
+                        isPaused ? 'border-sky-500/50' : 'border-amber-500/40'
+                      }`}
+                    >
                       <span className="text-[10px] text-slate-400 block uppercase font-mono">
-                        {isOverdue ? 'Status Waktu' : 'Sisa Durasi Siklus'}
+                        {isPaused
+                          ? 'Waktu Dihentikan Sementara'
+                          : isOverdue
+                          ? 'Status Waktu'
+                          : 'Sisa Durasi Siklus'}
                       </span>
-                      <span className={`font-mono text-sm font-black ${
-                        isOverdue ? 'text-emerald-400 animate-pulse' : 'text-amber-400'
-                      }`}>
-                        {isOverdue
-                          ? '🔔 SELESAI (Picu Alarm)'
-                          : `⏱️ ${remMins}m ${String(remSecs).padStart(2, '0')}s`}
+                      <span
+                        className={`font-mono tabular-nums text-sm font-black ${
+                          isPaused
+                            ? 'text-sky-300'
+                            : isOverdue
+                            ? 'text-emerald-400 animate-pulse'
+                            : 'text-amber-400'
+                        }`}
+                      >
+                        {isPaused
+                          ? `Dijeda · ${remMins}m ${String(remSecs).padStart(2, '0')}s`
+                          : isOverdue
+                          ? 'SELESAI (Picu Alarm)'
+                          : `${remMins}m ${String(remSecs).padStart(2, '0')}s`}
                       </span>
                     </div>
                   </div>
+
+                  {/* Active Pause Reason & Audit Banner */}
+                  {isPaused && (activeBatchForSelectedMachine.pauseReason || latestPauseLog) && (
+                    <div className="p-2.5 rounded-xl bg-sky-950/60 border border-sky-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-bold text-sky-300 block">
+                          Log Alasan Pause ({latestPauseLog?.category || 'Lainnya'}):
+                        </span>
+                        <p className="text-white font-medium">
+                          {latestPauseLog?.reason || activeBatchForSelectedMachine.pauseReason}
+                        </p>
+                      </div>
+                      {latestPauseLog && (
+                        <div className="text-[10px] font-mono text-slate-300 sm:text-right shrink-0">
+                          <div>Oleh: <strong>{latestPauseLog.pausedBy}</strong></div>
+                          <div>Mulai jeda: {new Date(latestPauseLog.pausedAt).toLocaleTimeString('id-ID')}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Destination Tank & Machine Badges */}
                   <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t border-slate-800">
@@ -1492,27 +1658,57 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                         ➔ Tujuan Transfer: <strong className="text-cyan-300">{targetTank.code} ({targetTank.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})</strong>
                       </span>
                     )}
+                    {typeof activeBatchForSelectedMachine.totalPausedMs === 'number' && activeBatchForSelectedMachine.totalPausedMs > 0 && (
+                      <span className="px-2 py-1 rounded-lg bg-sky-950/60 text-sky-300 border border-sky-800 font-mono text-[11px]">
+                        Akumulasi Jeda: {formatPauseDurationMs(activeBatchForSelectedMachine.totalPausedMs)}
+                      </span>
+                    )}
                     <span className="text-[11px] text-slate-400 ml-auto italic">
-                      Otomatis tertransfer ke tangki & alarm berbunyi saat durasi tuntas.
+                      {isPaused
+                        ? 'Tekan "Lanjutkan Produksi" agar penghitungan estimasi berjalan kembali.'
+                        : 'Otomatis tertransfer ke tangki & alarm berbunyi saat durasi tuntas.'}
                     </span>
                   </div>
 
-                  {/* Direct Action to complete or cancel */}
+                  {/* Direct Actions: Cancel, Pause/Resume, Complete */}
                   <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
                       onClick={() => onCancelWipBatch(activeBatchForSelectedMachine.id)}
-                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-slate-800 text-rose-400 hover:bg-slate-700 text-xs font-semibold transition"
+                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-rose-400 hover:bg-slate-700 text-xs font-semibold transition"
                     >
                       Batalkan Perintah Kerja
                     </button>
+                    {isPaused ? (
+                      onResumeWipBatch && (
+                        <button
+                          type="button"
+                          onClick={() => onResumeWipBatch(activeBatchForSelectedMachine.id)}
+                          className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5 active:scale-95"
+                        >
+                          <Play className="w-4 h-4" />
+                          <span>Lanjutkan Produksi (Resume)</span>
+                        </button>
+                      )
+                    ) : (
+                      onPauseWipBatch && (
+                        <button
+                          type="button"
+                          onClick={() => setPauseModalBatch(activeBatchForSelectedMachine)}
+                          className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5 active:scale-95"
+                        >
+                          <PauseCircle className="w-4 h-4" />
+                          <span>Pause Sementara</span>
+                        </button>
+                      )
+                    )}
                     <button
                       type="button"
                       onClick={() => onCompleteWipBatch(activeBatchForSelectedMachine.id)}
                       className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center space-x-2 active:scale-95"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>⚡ Selesai Sekarang & Uji Alarm Notifikasi ({activeBatchForSelectedMachine.batchCode})</span>
+                      <span>Selesai Sekarang &amp; Uji Alarm ({activeBatchForSelectedMachine.batchCode})</span>
                     </button>
                   </div>
                 </div>
@@ -2041,119 +2237,269 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredBatches.length > 0 ? (
-                  filteredBatches.map(batch => (
-                    <tr key={batch.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-3 font-mono font-bold text-white">
-                        <span>{batch.batchCode}</span>
-                        <span className="block text-[10px] text-slate-500 font-normal">
-                          {batch.materials.length} komponen bahan
-                        </span>
-                        {batch.materials.some(m => m.palletAllocations && m.palletAllocations.length > 0) && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
-                            🔒 FIFO Pallet
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3">
-                        {(() => {
-                          const sNum = (batch.shift || 1) as ShiftNumber;
-                          const sInfo = SHIFTS_CONFIG[sNum] || SHIFTS_CONFIG[1];
-                          return (
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${sInfo.badgeBg} border ${sInfo.borderClass}`}>
-                              {sInfo.shortLabel}
+                  filteredBatches.map(batch => {
+                    const pauseLogsCount = batch.pauseLogs?.length || 0;
+                    const isAuditExpanded = Boolean(expandedAuditBatchIds[batch.id]);
+                    const isPaused = batch.status === 'DIJEDA';
+                    const frozenRemMs =
+                      typeof batch.remainingMsAtPause === 'number'
+                        ? batch.remainingMsAtPause
+                        : (batch.durationMinutes || 30) * 60_000;
+                    const frozenM = Math.floor(Math.abs(frozenRemMs) / 60_000);
+                    const frozenS = Math.floor((Math.abs(frozenRemMs) % 60_000) / 1000);
+
+                    return (
+                      <React.Fragment key={batch.id}>
+                        <tr className="hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-3 font-mono font-bold text-white">
+                            <span>{batch.batchCode}</span>
+                            <span className="block text-[10px] text-slate-500 font-normal">
+                              {batch.materials.length} komponen bahan
                             </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="font-medium text-white block">{batch.wipName}</span>
-                        {batch.recipeCode && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono">
-                            {batch.recipeCode} {batch.recipeName ? `(${batch.recipeName})` : ''}
-                          </span>
+                            {batch.materials.some(m => m.palletAllocations && m.palletAllocations.length > 0) && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
+                                FIFO Pallet
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3">
+                            {(() => {
+                              const sNum = (batch.shift || 1) as ShiftNumber;
+                              const sInfo = SHIFTS_CONFIG[sNum] || SHIFTS_CONFIG[1];
+                              return (
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${sInfo.badgeBg} border ${sInfo.borderClass}`}>
+                                  {sInfo.shortLabel}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-medium text-white block">{batch.wipName}</span>
+                            {batch.recipeCode && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono">
+                                {batch.recipeCode} {batch.recipeName ? `(${batch.recipeName})` : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3">
+                            {(() => {
+                              const mach = state.master.machines.find(m => m.id === batch.targetMachineId);
+                              if (!mach) return <span className="text-slate-500 font-mono text-[11px]">-</span>;
+                              return (
+                                <div>
+                                  <span className="font-mono text-cyan-300 font-semibold block text-[11px]">{mach.code}</span>
+                                  <span className="text-[10px] text-slate-300 block">{mach.name}</span>
+                                  <span className="text-[9px] text-slate-500 font-mono">{mach.line}</span>
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          <td className="py-3 px-3 text-slate-300">
+                            {batch.skuName || '-'}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono tabular-nums font-bold text-cyan-400">
+                            {batch.batchWeightKg.toFixed(4)} kg
+                          </td>
+                          <td className="py-3 px-3 text-slate-400 text-[11px] space-y-0.5">
+                            <div>Mulai: {batch.startedAt}</div>
+                            {batch.durationMinutes && (
+                              <div className="text-[10px] text-amber-400/90 font-mono tabular-nums">
+                                Durasi target: {batch.durationMinutes} menit
+                              </div>
+                            )}
+                            {batch.completedAt && (
+                              <div className="text-emerald-400 text-[10px] font-semibold">Selesai: {batch.completedAt}</div>
+                            )}
+                            {batch.status === 'SEDANG_PRODUKSI' && batch.estimatedCompletionTime && (() => {
+                              const rem = new Date(batch.estimatedCompletionTime).getTime() - currentTime;
+                              const isDone = rem <= 0;
+                              const m = Math.floor(Math.abs(rem) / 60000);
+                              const s = Math.floor((Math.abs(rem) % 60000) / 1000);
+                              return (
+                                <div className={`text-[10px] font-mono tabular-nums font-bold ${isDone ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`}>
+                                  {isDone ? 'Selesai (Alarm)' : `Sisa: ${m}m ${String(s).padStart(2, '0')}s`}
+                                </div>
+                              );
+                            })()}
+                            {isPaused && (
+                              <div className="text-[10px] font-mono tabular-nums font-bold text-sky-300">
+                                Dijeda · Sisa Berhenti: {frozenM}m {String(frozenS).padStart(2, '0')}s
+                              </div>
+                            )}
+                            {typeof batch.totalPausedMs === 'number' && batch.totalPausedMs > 0 && (
+                              <div className="text-[10px] font-mono tabular-nums text-sky-400">
+                                Total Jeda: {formatPauseDurationMs(batch.totalPausedMs)}
+                              </div>
+                            )}
+                            {pauseLogsCount > 0 && (
+                              <button
+                                type="button"
+                                aria-expanded={isAuditExpanded}
+                                onClick={() =>
+                                  setExpandedAuditBatchIds(prev => ({ ...prev, [batch.id]: !prev[batch.id] }))
+                                }
+                                className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-950/60 hover:bg-sky-950 border border-sky-700 text-sky-300 text-[10px] font-semibold transition"
+                              >
+                                <ShieldCheck className="w-3 h-3" />
+                                <span>Audit Jeda ({pauseLogsCount})</span>
+                                {isAuditExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-slate-300">
+                            {batch.operatorName}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap ${
+                                batch.status === 'SEDANG_PRODUKSI'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                                  : isPaused
+                                  ? 'bg-sky-950 text-sky-300 border-sky-700'
+                                  : batch.status === 'SELESAI'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {batch.status === 'SEDANG_PRODUKSI'
+                                ? 'Sedang Produksi'
+                                : isPaused
+                                ? 'Dijeda'
+                                : batch.status === 'SELESAI'
+                                ? 'Selesai'
+                                : 'Dibatalkan'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            {batch.status === 'SEDANG_PRODUKSI' ? (
+                              <div className="inline-flex items-center justify-center gap-1.5">
+                                {onPauseWipBatch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPauseModalBatch(batch)}
+                                    className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold shadow transition active:scale-95 inline-flex items-center gap-1 whitespace-nowrap"
+                                    title="Pause sementara batch dan catat alasan audit trail"
+                                  >
+                                    <PauseCircle className="w-3 h-3" />
+                                    <span>Pause</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => onCompleteWipBatch(batch.id)}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[10px] font-bold shadow transition active:scale-95 inline-flex items-center space-x-1 whitespace-nowrap"
+                                  title="Selesaikan batch seketika dan bunyikan alarm peringatan"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Selesai</span>
+                                </button>
+                              </div>
+                            ) : isPaused ? (
+                              <div className="inline-flex items-center justify-center gap-1.5">
+                                {onResumeWipBatch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onResumeWipBatch(batch.id)}
+                                    className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold shadow transition active:scale-95 inline-flex items-center gap-1 whitespace-nowrap"
+                                    title="Lanjutkan kembali timer batch WIP"
+                                  >
+                                    <Play className="w-3 h-3" />
+                                    <span>Lanjut</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => onCompleteWipBatch(batch.id)}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[10px] font-bold shadow transition active:scale-95 inline-flex items-center space-x-1 whitespace-nowrap"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Selesai</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>{batch.status === 'DIBATALKAN' ? 'Dibatalkan' : 'Tuntas'}</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {isAuditExpanded && batch.pauseLogs && batch.pauseLogs.length > 0 && (
+                          <tr className="bg-slate-950/60">
+                            <td colSpan={10} className="px-4 py-3 border-b border-slate-800">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    <span>Audit Trail Penghentian Sementara ({batch.batchCode})</span>
+                                  </span>
+                                  <span className="font-mono tabular-nums text-slate-400">
+                                    Total Kejadian: {batch.pauseLogs.length} · Akumulasi Jeda: {formatPauseDurationMs(batch.totalPausedMs)}
+                                  </span>
+                                </div>
+                                <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                                  <table className="w-full text-left border-collapse text-[11px]">
+                                    <thead>
+                                      <tr className="bg-slate-900 text-slate-300 border-b border-slate-800">
+                                        <th className="py-1.5 px-2.5">No</th>
+                                        <th className="py-1.5 px-2.5">Kategori</th>
+                                        <th className="py-1.5 px-2.5">Alasan Penghentian Sementara</th>
+                                        <th className="py-1.5 px-2.5">Waktu Pause</th>
+                                        <th className="py-1.5 px-2.5">Waktu Lanjut</th>
+                                        <th className="py-1.5 px-2.5 text-right">Durasi Jeda</th>
+                                        <th className="py-1.5 px-2.5">Petugas Audit</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/60">
+                                      {batch.pauseLogs.map((log, lIdx) => (
+                                        <tr key={log.id}>
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-400">{lIdx + 1}</td>
+                                          <td className="py-1.5 px-2.5 font-semibold text-sky-300 whitespace-nowrap">{log.category}</td>
+                                          <td className="py-1.5 px-2.5 text-white">{log.reason}</td>
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                            {new Date(log.pausedAt).toLocaleString('id-ID', {
+                                              day: '2-digit',
+                                              month: 'short',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              second: '2-digit'
+                                            })}
+                                          </td>
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                            {log.resumedAt
+                                              ? new Date(log.resumedAt).toLocaleString('id-ID', {
+                                                  day: '2-digit',
+                                                  month: 'short',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  second: '2-digit'
+                                                })
+                                              : 'Masih Dijeda'}
+                                          </td>
+                                          <td className="py-1.5 px-2.5 text-right font-mono tabular-nums text-amber-300 whitespace-nowrap">
+                                            {log.pausedDurationMs !== undefined
+                                              ? formatPauseDurationMs(log.pausedDurationMs)
+                                              : formatPauseDurationMs(Math.max(0, currentTime - new Date(log.pausedAt).getTime()))}
+                                          </td>
+                                          <td className="py-1.5 px-2.5 text-slate-300 whitespace-nowrap">
+                                            Pause: <strong>{log.pausedBy}</strong>
+                                            {log.resumedBy ? ` · Lanjut: ${log.resumedBy}` : ''}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-3 px-3">
-                        {(() => {
-                          const mach = state.master.machines.find(m => m.id === batch.targetMachineId);
-                          if (!mach) return <span className="text-slate-500 font-mono text-[11px]">-</span>;
-                          return (
-                            <div>
-                              <span className="font-mono text-cyan-300 font-semibold block text-[11px]">{mach.code}</span>
-                              <span className="text-[10px] text-slate-300 block">{mach.name}</span>
-                              <span className="text-[9px] text-slate-500 font-mono">{mach.line}</span>
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {batch.skuName || '-'}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">
-                        {batch.batchWeightKg.toFixed(4)} kg
-                      </td>
-                      <td className="py-3 px-3 text-slate-400 text-[11px]">
-                        <div>Mulai: {batch.startedAt}</div>
-                        {batch.durationMinutes && (
-                          <div className="text-[10px] text-amber-400/90 font-mono">
-                            ⏱️ Durasi: {batch.durationMinutes} menit
-                          </div>
-                        )}
-                        {batch.completedAt && (
-                          <div className="text-emerald-400 text-[10px] font-semibold">Selesai: {batch.completedAt}</div>
-                        )}
-                        {batch.status === 'SEDANG_PRODUKSI' && batch.estimatedCompletionTime && (() => {
-                          const rem = new Date(batch.estimatedCompletionTime).getTime() - currentTime;
-                          const isDone = rem <= 0;
-                          const m = Math.floor(Math.abs(rem) / 60000);
-                          const s = Math.floor((Math.abs(rem) % 60000) / 1000);
-                          return (
-                            <div className={`text-[10px] font-mono font-bold mt-0.5 ${isDone ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`}>
-                              {isDone ? '🔔 Selesai (Alarm)' : `Sisa: ${m}m ${String(s).padStart(2, '0')}s`}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {batch.operatorName}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                          batch.status === 'SEDANG_PRODUKSI'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
-                            : batch.status === 'SELESAI'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-slate-800 text-slate-400 border-slate-700'
-                        }`}>
-                          {batch.status === 'SEDANG_PRODUKSI'
-                            ? 'Sedang Produksi'
-                            : batch.status === 'SELESAI'
-                            ? 'Selesai'
-                            : 'Dibatalkan'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        {batch.status === 'SEDANG_PRODUKSI' ? (
-                          <button
-                            onClick={() => onCompleteWipBatch(batch.id)}
-                            className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[10px] font-bold shadow transition active:scale-95 inline-flex items-center space-x-1"
-                            title="Selesaikan batch seketika dan bunyikan alarm peringatan"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>⚡ Selesai & Alarm</span>
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Tuntas</span>
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                      </React.Fragment>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="text-center py-8 text-slate-500 text-xs">
+                    <td colSpan={10} className="text-center py-8 text-slate-500 text-xs">
                       Belum ada perintah kerja batch WIP yang cocok dengan filter pencarian / shift.
                     </td>
                   </tr>
@@ -2759,10 +3105,87 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 })}
             </div>
           </div>
+          {/* Audit Trail Penghentian Sementara (Pause) Batch WIP */}
+          {(() => {
+            const pauseAuditRows = (state.transactions.wipBatches || []).flatMap(b => {
+              const mach = state.master.machines.find(m => m.id === b.targetMachineId);
+              return (b.pauseLogs || []).map(log => ({
+                batch: b,
+                machLabel: mach ? `${mach.code} - ${mach.name}` : b.targetMachineName || '-',
+                log
+              }));
+            });
+            if (pauseAuditRows.length === 0) return null;
+            return (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-1.5 rounded-lg bg-sky-950 border border-sky-800 text-sky-300">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-white">
+                        Audit Trail Penghentian Sementara (Pause) Batch WIP
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Catatan kronologis setiap jeda perintah kerja batch WIP beserta kategori, alasan, dan durasinya
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-mono tabular-nums text-sky-300 font-semibold">
+                    {pauseAuditRows.length} Catatan Pause
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                        <th className="py-2.5 px-3">Batch &amp; WIP</th>
+                        <th className="py-2.5 px-3">Mesin</th>
+                        <th className="py-2.5 px-3">Kategori</th>
+                        <th className="py-2.5 px-3">Alasan Penghentian Sementara</th>
+                        <th className="py-2.5 px-3">Waktu Pause / Lanjut</th>
+                        <th className="py-2.5 px-3 text-right">Durasi Jeda</th>
+                        <th className="py-2.5 px-3">Petugas Audit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {pauseAuditRows.map(({ batch, machLabel, log }) => (
+                        <tr key={log.id} className="hover:bg-slate-800/40 transition">
+                          <td className="py-2.5 px-3">
+                            <span className="font-mono font-bold text-sky-300 block">{batch.batchCode}</span>
+                            <span className="text-[11px] text-white">{batch.wipName}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 text-[11px]">{machLabel}</td>
+                          <td className="py-2.5 px-3 font-semibold text-sky-300 whitespace-nowrap">{log.category}</td>
+                          <td className="py-2.5 px-3 text-white">{log.reason}</td>
+                          <td className="py-2.5 px-3 font-mono tabular-nums text-[11px] text-slate-300 whitespace-nowrap">
+                            <div>Pause: {new Date(log.pausedAt).toLocaleString('id-ID')}</div>
+                            <div className="text-slate-400">
+                              Lanjut: {log.resumedAt ? new Date(log.resumedAt).toLocaleString('id-ID') : 'Masih Dijeda'}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-300 font-semibold whitespace-nowrap">
+                            {log.pausedDurationMs !== undefined
+                              ? formatPauseDurationMs(log.pausedDurationMs)
+                              : formatPauseDurationMs(Math.max(0, currentTime - new Date(log.pausedAt).getTime()))}
+                          </td>
+                          <td className="py-2.5 px-3 text-[11px] text-slate-300">
+                            <div>Pause: <strong>{log.pausedBy}</strong></div>
+                            {log.resumedBy && <div className="text-slate-400">Lanjut: {log.resumedBy}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Modals: Camera QR Scanner (Continuous Poka-Yoke Verification) & Label Generator */}
+      {/* Modals: Camera QR Scanner (Continuous Poka-Yoke Verification), Label Generator & Batch Pause Reason */}
       <MaterialQrScannerModal
         isOpen={isQrScannerOpen}
         onClose={() => setIsQrScannerOpen(false)}
@@ -2787,6 +3210,33 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
         onClose={() => setIsQrLabelOpen(false)}
         materials={state.master.materials}
         initialMaterialId={configuredMaterials[0]?.materialId}
+      />
+
+      <WipBatchPauseModal
+        isOpen={Boolean(pauseModalBatch)}
+        batch={pauseModalBatch}
+        machineLabel={
+          pauseModalBatch?.targetMachineId
+            ? (() => {
+                const m = state.master.machines.find(x => x.id === pauseModalBatch.targetMachineId);
+                return m ? `${m.code} - ${m.name}` : pauseModalBatch.targetMachineName;
+              })()
+            : pauseModalBatch?.targetMachineName
+        }
+        currentTime={currentTime}
+        actorName={
+          state.currentAdminUser?.displayName ||
+          state.currentSession?.name ||
+          pauseModalBatch?.operatorName ||
+          'Operator'
+        }
+        onClose={() => setPauseModalBatch(null)}
+        onConfirmPause={(bId, reason, category) => {
+          if (onPauseWipBatch) {
+            onPauseWipBatch(bId, reason, category);
+          }
+          setPauseModalBatch(null);
+        }}
       />
     </div>
   );

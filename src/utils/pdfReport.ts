@@ -366,6 +366,11 @@ export function generateShiftProductionReportPdf(
     const targetMachine = state.master.machines.find(m => m.id === (b.targetMachineId || wip?.assignedMachineId));
     const duration = b.durationMinutes || wip?.productionDurationMinutes || 30;
 
+    const pauseInfo =
+      b.pauseLogs && b.pauseLogs.length > 0
+        ? `${b.status} (Jeda ${b.pauseLogs.length}x: ${b.pauseLogs[b.pauseLogs.length - 1].reason})`
+        : b.status;
+
     return [
       (idx + 1).toString(),
       b.batchCode,
@@ -374,7 +379,7 @@ export function generateShiftProductionReportPdf(
       targetTank ? `${targetTank.code} (${targetTank.type === 'HOLDING_TANK' ? 'Holding' : 'Storage'})` : '-',
       `${b.batchWeightKg.toFixed(1)} kg`,
       `${duration} mnt`,
-      b.status,
+      pauseInfo,
       b.operatorName || '-'
     ];
   });

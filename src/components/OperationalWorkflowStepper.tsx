@@ -76,7 +76,9 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
     const receiptsCount = state.transactions.receipts.length;
 
     const wipBatches = state.transactions.wipBatches || [];
-    const activeWipBatches = wipBatches.filter(b => b.status === 'SEDANG_PRODUKSI').length;
+    const activeWipBatches = wipBatches.filter(
+      b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
+    ).length;
     const completedWipBatches = wipBatches.filter(b => b.status === 'SELESAI').length;
 
     const totalTankKg = state.master.tanks.reduce((s, t) => s + (t.currentLevelKg || 0), 0);

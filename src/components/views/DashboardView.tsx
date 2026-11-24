@@ -183,7 +183,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Active production batches in the plant
   const activeBatches = (state.transactions.wipBatches || []).filter(
-    b => b.status === 'SEDANG_PRODUKSI'
+    b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
   );
   const latestActiveBatch = activeBatches[0];
 
@@ -640,10 +640,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
               <span
                 className={`text-[10px] font-mono font-bold tabular-nums ${
-                  latestActiveBatch ? 'text-amber-400' : 'text-emerald-400'
+                  latestActiveBatch
+                    ? activeBatches.every(b => b.status === 'DIJEDA')
+                      ? 'text-sky-400'
+                      : 'text-amber-400'
+                    : 'text-emerald-400'
                 }`}
               >
-                {latestActiveBatch ? `${activeBatches.length} PROSES` : 'SIAGA'}
+                {latestActiveBatch
+                  ? activeBatches.every(b => b.status === 'DIJEDA')
+                    ? `${activeBatches.length} DIJEDA`
+                    : `${activeBatches.length} PROSES`
+                  : 'SIAGA'}
               </span>
             </div>
 

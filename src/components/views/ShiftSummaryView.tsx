@@ -972,6 +972,11 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                   <div className="text-[10px] text-slate-400 font-mono tabular-nums">
                     {b.batchWeightKg.toFixed(1)} kg · Op: {b.operatorName}
                   </div>
+                  {b.pauseLogs && b.pauseLogs.length > 0 && (
+                    <div className="text-[10px] text-sky-300 truncate mt-0.5">
+                      Jeda ({b.pauseLogs.length}x): {b.pauseLogs[b.pauseLogs.length - 1].reason}
+                    </div>
+                  )}
                 </div>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
@@ -979,10 +984,18 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                       ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                       : b.status === 'SEDANG_PRODUKSI'
                       ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : b.status === 'DIJEDA'
+                      ? 'bg-sky-950 text-sky-300 border border-sky-700'
                       : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {b.status === 'SELESAI' ? 'Selesai' : b.status === 'SEDANG_PRODUKSI' ? 'Proses' : 'Batal'}
+                  {b.status === 'SELESAI'
+                    ? 'Selesai'
+                    : b.status === 'SEDANG_PRODUKSI'
+                    ? 'Proses'
+                    : b.status === 'DIJEDA'
+                    ? 'Dijeda'
+                    : 'Batal'}
                 </span>
               </div>
             ))}

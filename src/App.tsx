@@ -14,6 +14,7 @@ import {
   StorageLocation,
   TankState,
   WipProductionBatch,
+  WipBatchPauseLog,
   ProductionMachine,
   WipTank,
   CartonProductionLog,
@@ -98,7 +99,7 @@ import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustme
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
 import { ContactSection, ContactFormData } from '@/components/ui/contact';
-import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers, PauseCircle, Play } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
@@ -4502,14 +4503,15 @@ export default function App() {
 
   // Start WIP Production Batch (strictly 1 batch per selected machine at a time)
   const handleStartWipBatch = (batchData: Omit<WipProductionBatch, 'id' | 'batchCode' | 'status' | 'startedAt'>) => {
-    // Check if there is already an active batch on this specific machine
+    // Check if there is already an active or paused batch on this specific machine
     const activeForMachine = (state.transactions.wipBatches || []).find(
-      b => b.targetMachineId === batchData.targetMachineId && b.status === 'SEDANG_PRODUKSI'
+      b => b.targetMachineId === batchData.targetMachineId && (b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA')
     );
     if (activeForMachine) {
       const mach = state.master.machines.find(m => m.id === batchData.targetMachineId);
       const machName = mach ? `${mach.code} - ${mach.name}` : 'Mesin terpilih';
-      showToast(`${machName} masih memiliki 1 batch aktif yang belum selesai (${activeForMachine.batchCode})! Selesaikan atau batalkan terlebih dahulu.`, true);
+      const stateText = activeForMachine.status === 'DIJEDA' ? 'sedang di-pause' : 'aktif yang belum selesai';
+      showToast(`${machName} masih memiliki 1 batch ${stateText} (${activeForMachine.batchCode})! Lanjutkan, selesaikan, atau batalkan terlebih dahulu.`, true);
       return;
     }
 
@@ -4602,12 +4604,173 @@ export default function App() {
     showToast(`Perintah Kerja ${batchCode} dimulai pada mesin ${machDisplay || 'Produksi'} (1 Batch ${batchData.wipName}). Bahan baku dipotong dari stok.`);
   };
 
+  // Pause active WIP Batch, freeze remaining time, and append mandatory audit trail log
+  const handlePauseWipBatch = (batchId: string, reason: string, category?: string) => {
+    const cleanReason = sanitizeTextInput(reason || '').trim();
+    if (cleanReason.length < 5) {
+      showToast('Alasan penghentian sementara (minimal 5 karakter) wajib diisi untuk audit trail.', true);
+      return;
+    }
+    const cleanCategory = sanitizeTextInput(category || 'Lainnya').trim() || 'Lainnya';
+    const nowMs = Date.now();
+    const pausedAtIso = new Date(nowMs).toISOString();
+    const actor =
+      stateRef.current.currentAdminUser?.displayName ||
+      stateRef.current.currentSession?.name ||
+      stateRef.current.currentUserRole ||
+      'Operator';
+
+    let pausedBatchCode = '';
+    let frozenLabel = '';
+
+    setState(prev => {
+      const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
+        if (b.id !== batchId || b.status !== 'SEDANG_PRODUKSI') return b;
+        pausedBatchCode = b.batchCode;
+        const defaultDurMs = (b.durationMinutes || 30) * 60_000;
+        let remainingMs = defaultDurMs;
+        if (b.estimatedCompletionTime) {
+          const estMs = new Date(b.estimatedCompletionTime).getTime();
+          if (Number.isFinite(estMs)) {
+            remainingMs = Math.max(0, estMs - nowMs);
+          }
+        }
+        const remMins = Math.floor(remainingMs / 60_000);
+        const remSecs = Math.floor((remainingMs % 60_000) / 1000);
+        frozenLabel = `${remMins}m ${String(remSecs).padStart(2, '0')}s`;
+
+        const newPauseEntry: WipBatchPauseLog = {
+          id: `wpl_${nowMs}_${Math.random().toString(36).substring(2, 7)}`,
+          pausedAt: pausedAtIso,
+          category: cleanCategory,
+          reason: cleanReason,
+          pausedBy: actor,
+          remainingMsAtPause: remainingMs
+        };
+
+        return {
+          ...b,
+          status: 'DIJEDA' as const,
+          pausedAt: pausedAtIso,
+          remainingMsAtPause: remainingMs,
+          estimatedCompletionTime: undefined,
+          pauseReason: cleanReason,
+          pauseLogs: [...(b.pauseLogs || []), newPauseEntry]
+        };
+      });
+
+      return {
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          wipBatches: updatedBatches
+        }
+      };
+    });
+
+    if (pausedBatchCode) {
+      showToast(
+        `Batch ${pausedBatchCode} di-pause (sisa waktu berhenti di ${frozenLabel}). Log alasan dicatat ke audit trail.`
+      );
+    }
+  };
+
+  // Resume a paused WIP Batch and recalculate estimated completion time from frozen remaining time
+  const handleResumeWipBatch = (batchId: string) => {
+    const nowMs = Date.now();
+    const resumedAtIso = new Date(nowMs).toISOString();
+    const actor =
+      stateRef.current.currentAdminUser?.displayName ||
+      stateRef.current.currentSession?.name ||
+      stateRef.current.currentUserRole ||
+      'Operator';
+
+    let resumedBatchCode = '';
+    let resumedRemLabel = '';
+
+    setState(prev => {
+      const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
+        if (b.id !== batchId || b.status !== 'DIJEDA') return b;
+        resumedBatchCode = b.batchCode;
+
+        const pausedSinceMs = b.pausedAt ? new Date(b.pausedAt).getTime() : nowMs;
+        const pausedDeltaMs = Number.isFinite(pausedSinceMs) ? Math.max(0, nowMs - pausedSinceMs) : 0;
+        const remainingMs =
+          typeof b.remainingMsAtPause === 'number' && Number.isFinite(b.remainingMsAtPause)
+            ? Math.max(0, b.remainingMsAtPause)
+            : (b.durationMinutes || 30) * 60_000;
+        const newEstimatedCompletionTime = new Date(nowMs + remainingMs).toISOString();
+
+        const remMins = Math.floor(remainingMs / 60_000);
+        const remSecs = Math.floor((remainingMs % 60_000) / 1000);
+        resumedRemLabel = `${remMins}m ${String(remSecs).padStart(2, '0')}s`;
+
+        const existingLogs = b.pauseLogs || [];
+        let closedOpenLog = false;
+        const updatedLogs = existingLogs.map((log, idx) => {
+          if (!log.resumedAt && idx === existingLogs.length - 1) {
+            closedOpenLog = true;
+            return {
+              ...log,
+              resumedAt: resumedAtIso,
+              resumedBy: actor,
+              pausedDurationMs: pausedDeltaMs
+            };
+          }
+          return log;
+        });
+        if (!closedOpenLog && b.pausedAt) {
+          updatedLogs.push({
+            id: `wpl_${nowMs}_${Math.random().toString(36).substring(2, 7)}`,
+            pausedAt: b.pausedAt,
+            resumedAt: resumedAtIso,
+            category: 'Lainnya',
+            reason: b.pauseReason || 'Penghentian sementara',
+            pausedBy: b.operatorName || actor,
+            resumedBy: actor,
+            remainingMsAtPause: remainingMs,
+            pausedDurationMs: pausedDeltaMs
+          });
+        }
+
+        return {
+          ...b,
+          status: 'SEDANG_PRODUKSI' as const,
+          pausedAt: undefined,
+          remainingMsAtPause: undefined,
+          totalPausedMs: (b.totalPausedMs || 0) + pausedDeltaMs,
+          estimatedCompletionTime: newEstimatedCompletionTime,
+          pauseLogs: updatedLogs
+        };
+      });
+
+      return {
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          wipBatches: updatedBatches
+        }
+      };
+    });
+
+    if (resumedBatchCode) {
+      showToast(`Batch ${resumedBatchCode} dilanjutkan kembali. Sisa timer berjalan dari ${resumedRemLabel}.`);
+    }
+  };
+
   // Complete WIP Batch with Auto-Transfer into designated Tank
   const handleCompleteWipBatch = (batchId: string) => {
     const now = new Date();
+    const nowMs = now.getTime();
+    const nowIso = now.toISOString();
     const dateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const completedAt = `${dateStr} ${timeStr}`;
+    const actor =
+      stateRef.current.currentAdminUser?.displayName ||
+      stateRef.current.currentSession?.name ||
+      stateRef.current.currentUserRole ||
+      'Operator';
 
     let completedBatchName = '';
     let tankTransferMessage = '';
@@ -4625,10 +4788,29 @@ export default function App() {
           batchWeight = b.batchWeightKg;
           batchCode = b.batchCode;
           wipName = b.wipName;
+
+          let extraPausedMs = 0;
+          let closedLogs = b.pauseLogs;
+          if (b.status === 'DIJEDA' && b.pausedAt) {
+            const pMs = new Date(b.pausedAt).getTime();
+            if (Number.isFinite(pMs)) extraPausedMs = Math.max(0, nowMs - pMs);
+            if (closedLogs && closedLogs.length > 0) {
+              closedLogs = closedLogs.map((log, idx) =>
+                !log.resumedAt && idx === closedLogs!.length - 1
+                  ? { ...log, resumedAt: nowIso, resumedBy: `${actor} (Diselesaikan)`, pausedDurationMs: extraPausedMs }
+                  : log
+              );
+            }
+          }
+
           return {
             ...b,
             status: 'SELESAI' as const,
-            completedAt
+            completedAt,
+            pausedAt: undefined,
+            remainingMsAtPause: undefined,
+            totalPausedMs: (b.totalPausedMs || 0) + extraPausedMs,
+            pauseLogs: closedLogs
           };
         }
         return b;
@@ -4751,6 +4933,14 @@ export default function App() {
 
   // Cancel WIP Batch
   const handleCancelWipBatch = (batchId: string) => {
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    const actor =
+      stateRef.current.currentAdminUser?.displayName ||
+      stateRef.current.currentSession?.name ||
+      stateRef.current.currentUserRole ||
+      'Operator';
+
     setState(prev => {
       const cancellingBatch = (prev.transactions.wipBatches || []).find(b => b.id === batchId);
       let updatedMachines = prev.master.machines;
@@ -4775,9 +4965,30 @@ export default function App() {
         },
         transactions: {
           ...prev.transactions,
-          wipBatches: (prev.transactions.wipBatches || []).map(b =>
-            b.id === batchId ? { ...b, status: 'DIBATALKAN' as const } : b
-          )
+          wipBatches: (prev.transactions.wipBatches || []).map(b => {
+            if (b.id !== batchId) return b;
+            let extraPausedMs = 0;
+            let closedLogs = b.pauseLogs;
+            if (b.status === 'DIJEDA' && b.pausedAt) {
+              const pMs = new Date(b.pausedAt).getTime();
+              if (Number.isFinite(pMs)) extraPausedMs = Math.max(0, nowMs - pMs);
+              if (closedLogs && closedLogs.length > 0) {
+                closedLogs = closedLogs.map((log, idx) =>
+                  !log.resumedAt && idx === closedLogs!.length - 1
+                    ? { ...log, resumedAt: nowIso, resumedBy: `${actor} (Dibatalkan)`, pausedDurationMs: extraPausedMs }
+                    : log
+                );
+              }
+            }
+            return {
+              ...b,
+              status: 'DIBATALKAN' as const,
+              pausedAt: undefined,
+              remainingMsAtPause: undefined,
+              totalPausedMs: (b.totalPausedMs || 0) + extraPausedMs,
+              pauseLogs: closedLogs
+            };
+          })
         }
       };
     });
@@ -4942,30 +5153,60 @@ export default function App() {
               );
             })()}
 
-            {/* Active Running WIP Batch Quick Action */}
+            {/* Active Running / Paused WIP Batch Quick Action */}
             {(() => {
-              const running = (state.transactions.wipBatches || []).find(b => b.status === 'SEDANG_PRODUKSI');
+              const running = (state.transactions.wipBatches || []).find(
+                b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
+              );
               if (!running) return null;
+              const isPaused = running.status === 'DIJEDA';
               return (
                 <div
                   onClick={() => handleSwitchTab('pemakaian')}
-                  className="cursor-pointer flex items-center gap-2 bg-amber-950/40 border border-amber-500/40 px-2.5 py-1 rounded-md text-[11px] hover:border-amber-400 transition whitespace-nowrap"
-                  title="Klik untuk membuka rincian batch & Gantt WIP"
+                  className={`cursor-pointer flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] transition whitespace-nowrap border ${
+                    isPaused
+                      ? 'bg-sky-950/60 border-sky-500/50 hover:border-sky-400'
+                      : 'bg-amber-950/40 border-amber-500/40 hover:border-amber-400'
+                  }`}
+                  title={isPaused ? `Batch dijeda: ${running.pauseReason || ''}` : 'Klik untuk membuka rincian batch & Gantt WIP'}
                 >
-                  <Clock className="w-3 h-3 text-amber-400 shrink-0" />
-                  <span className="text-amber-300 font-mono font-semibold">{running.batchCode}</span>
-                  <span className="text-slate-200 hidden sm:inline">· {running.wipName}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCompleteWipBatch(running.id);
-                    }}
-                    className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition whitespace-nowrap shrink-0"
-                    title="Selesaikan batch sekarang & transfer ke tangki"
-                  >
-                    Selesai
-                  </button>
+                  {isPaused ? (
+                    <PauseCircle className="w-3 h-3 text-sky-400 shrink-0" />
+                  ) : (
+                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                  )}
+                  <span className={`${isPaused ? 'text-sky-300' : 'text-amber-300'} font-mono font-semibold`}>
+                    {running.batchCode}
+                  </span>
+                  <span className="text-slate-200 hidden sm:inline">
+                    · {running.wipName} {isPaused ? '(Dijeda)' : ''}
+                  </span>
+                  {isPaused ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResumeWipBatch(running.id);
+                      }}
+                      className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold transition whitespace-nowrap shrink-0 inline-flex items-center gap-1"
+                      title="Lanjutkan kembali penghitungan waktu batch ini"
+                    >
+                      <Play className="w-2.5 h-2.5" />
+                      <span>Lanjutkan</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCompleteWipBatch(running.id);
+                      }}
+                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition whitespace-nowrap shrink-0"
+                      title="Selesaikan batch sekarang & transfer ke tangki"
+                    >
+                      Selesai
+                    </button>
+                  )}
                 </div>
               );
             })()}
@@ -5095,6 +5336,8 @@ export default function App() {
               state={state}
               onRecordUsage={handleRecordUsage}
               onStartWipBatch={handleStartWipBatch}
+              onPauseWipBatch={handlePauseWipBatch}
+              onResumeWipBatch={handleResumeWipBatch}
               onCompleteWipBatch={handleCompleteWipBatch}
               onCancelWipBatch={handleCancelWipBatch}
               onSwitchTab={handleSwitchTab}

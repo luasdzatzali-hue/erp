@@ -1327,7 +1327,7 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
   // Level 2: emergency quota recovery keeping master, active runs, and recent core transactions
   const cutoffDate = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
   const activeOrRecentBatches = (state.transactions.wipBatches || []).filter(
-    (b, idx) => b.status === 'SEDANG_PRODUKSI' || idx < 80
+    (b, idx) => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA' || idx < 80
   );
   return {
     ...state,

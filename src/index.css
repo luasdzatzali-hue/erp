@@ -314,6 +314,11 @@ html[data-theme="daylight"],
   border-color: #d97706 !important;
   color: #78350f !important;
 }
+.theme-daylight .gantt-bar-pause {
+  background-color: #e0f2fe !important;
+  border-color: #0369a1 !important;
+  color: #0c4a6e !important;
+}
 .theme-daylight .gantt-bar-done {
   background-color: #d1fae5 !important;
   border-color: #059669 !important;
@@ -335,6 +340,7 @@ html[data-theme="daylight"],
   color: #881337 !important;
 }
 .theme-daylight .gantt-bar-active .text-cyan-300,
+.theme-daylight .gantt-bar-pause .text-cyan-300,
 .theme-daylight .gantt-bar-done .text-cyan-300,
 .theme-daylight .gantt-bar-co .text-cyan-300,
 .theme-daylight .gantt-bar-proj .text-cyan-300 {
@@ -511,7 +517,10 @@ html[data-theme="daylight"],
 .theme-daylight .bg-cyan-900\/30,
 .theme-daylight .bg-cyan-900\/40,
 .theme-daylight .bg-cyan-900\/60,
-.theme-daylight .bg-sky-950 {
+.theme-daylight .bg-sky-950,
+.theme-daylight .bg-sky-950\/40,
+.theme-daylight .bg-sky-950\/60,
+.theme-daylight .bg-sky-950\/80 {
   background-color: #e0f2fe !important;
   border-color: #7dd3fc !important;
 }
@@ -821,7 +830,9 @@ html[data-theme="daylight"],
 /* Hover states on solid & accent buttons */
 .theme-daylight .hover\:bg-cyan-500:hover,
 .theme-daylight .hover\:bg-cyan-600:hover,
-.theme-daylight .hover\:bg-cyan-700:hover {
+.theme-daylight .hover\:bg-cyan-700:hover,
+.theme-daylight .hover\:bg-sky-500:hover,
+.theme-daylight .hover\:bg-sky-600:hover {
   background-color: #155e75 !important;
 }
 .theme-daylight .hover\:bg-emerald-500:hover {

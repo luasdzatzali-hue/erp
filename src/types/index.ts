@@ -402,7 +402,19 @@ export interface MaterialUsage {
   palletAllocations?: PalletAllocation[]; // Alokasi FIFO pallet terkunci yang digunakan
 }
 
-export type WipBatchStatus = 'SEDANG_PRODUKSI' | 'SELESAI' | 'DIBATALKAN';
+export type WipBatchStatus = 'SEDANG_PRODUKSI' | 'DIJEDA' | 'SELESAI' | 'DIBATALKAN';
+
+export interface WipBatchPauseLog {
+  id: string;
+  pausedAt: string; // ISO timestamp penghentian sementara
+  resumedAt?: string; // ISO timestamp dilanjutkan kembali / ditutup
+  category: string; // Kategori downtime / jeda
+  reason: string; // Alasan penghentian sementara untuk audit trail
+  pausedBy: string; // Nama operator / pengguna yang melakukan pause
+  resumedBy?: string; // Nama operator / pengguna yang melanjutkan
+  remainingMsAtPause: number; // Sisa waktu estimasi (ms) yang dibekukan saat pause
+  pausedDurationMs?: number; // Total durasi jeda (ms) setelah dilanjutkan / selesai
+}
 
 export interface WipBatchMaterialItem {
   materialId: string;
@@ -438,6 +450,11 @@ export interface WipProductionBatch {
   completedAt?: string;
   durationMinutes?: number; // Konfigurasi durasi pembuatan (menit)
   estimatedCompletionTime?: string; // Target waktu selesai otomatis (ISO)
+  pausedAt?: string; // ISO timestamp jeda berjalan saat DIJEDA
+  remainingMsAtPause?: number; // Sisa waktu siklus (ms) yang dibekukan saat DIJEDA
+  totalPausedMs?: number; // Akumulasi total durasi jeda (ms)
+  pauseReason?: string; // Alasan jeda aktif/terakhir
+  pauseLogs?: WipBatchPauseLog[]; // Audit trail penghentian sementara & kelanjutan
   targetTankId?: string; // Tangki tujuan transfer saat selesai
   targetMachineId?: string; // Mesin yang memproses batch
   targetMachineName?: string; // Nama mesin produksi terpilih dari master mesin

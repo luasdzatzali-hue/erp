@@ -70,7 +70,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const currentShift = getCurrentShift();
   const activeWeeklyPlan = getActiveWeeklyPlan(state);
   const pendingReqCount = state.transactions.requests.filter(r => r.status !== 'Received').length;
-  const activeBatchCount = (state.transactions.wipBatches || []).filter(b => b.status === 'SEDANG_PRODUKSI').length;
+  const activeBatchCount = (state.transactions.wipBatches || []).filter(
+    b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
+  ).length;
 
   // Close sidebar on Escape key
   React.useEffect(() => {
