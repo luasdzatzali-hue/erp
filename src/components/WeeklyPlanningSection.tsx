@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CalendarRange,
   UploadCloud,
@@ -206,6 +207,18 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       setSelectedDriveFile(null);
     }
   }, [isUploadModalOpen]);
+
+  useEffect(() => {
+    if (!isUploadModalOpen && !isManualBuilderOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isManualBuilderOpen) setIsManualBuilderOpen(false);
+        else if (isUploadModalOpen) setIsUploadModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isUploadModalOpen, isManualBuilderOpen]);
 
   // Reset excluded items & line filter when active plan changes
   useEffect(() => {
@@ -837,7 +850,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   };
 
   return (
-    <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
+    <div className="bg-[#0c121d] border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
       {/* Header Bar */}
       <div className="p-4 border-b border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-[#080c14]/80">
         <div className="flex items-start sm:items-center space-x-3">
@@ -1640,8 +1653,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     <span>Buka Builder Jadwal Lengkap (7 Hari × 3 Shift) →</span>
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 text-xs items-end">
-                  <div className="col-span-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-xs items-end">
+                  <div className="col-span-2 sm:col-span-3 lg:col-span-2">
                     <label className="block text-[10px] text-slate-400 mb-1">SKU Master BOM</label>
                     <select
                       value={manualSkuId}
@@ -1729,12 +1742,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
         </div>
       )}
 
-      {/* MODAL UPLOAD PLANNING MINGGUAN */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
-          <div className="bg-[#0c121d]/95 backdrop-blur-md border border-slate-700/80 rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+      {/* MODAL UPLOAD PLANNING MINGGUAN (Portaled to document.body to avoid parent overflow/backdrop-filter clipping) */}
+      {isUploadModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-5 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0c121d] border border-slate-700/80 rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
             {/* Modal Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]/80">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]">
               <div className="flex items-center space-x-3">
                 <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
                   <CalendarRange className="w-5 h-5" />
@@ -1768,7 +1781,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Source Tabs */}
-            <div className="flex border-b border-slate-800 bg-slate-900 px-4 sm:px-6 pt-3 gap-2">
+            <div className="shrink-0 flex border-b border-slate-800 bg-slate-900 px-4 sm:px-6 pt-3 gap-2">
               <button
                 type="button"
                 onClick={() => setUploadSourceTab('LOCAL')}
@@ -1797,7 +1810,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
               {uploadSourceTab === 'LOCAL' && (
                 <div className="space-y-4">
                   {/* Drag & Drop Box */}
@@ -2072,7 +2085,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#080c14]/80 flex items-center justify-between">
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-800 bg-[#080c14] flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setIsUploadModalOpen(false)}
@@ -2093,17 +2106,18 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* MODAL INPUT PLANNING MANDIRI DI WEB APP */}
-      {isManualBuilderOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5 bg-black/85 backdrop-blur-md">
-          <div className="bg-[#0c121d]/95 backdrop-blur-md border border-slate-700/80 rounded-xl w-full max-w-6xl max-h-[94vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden">
+      {/* MODAL INPUT PLANNING MANDIRI DI WEB APP (Portaled to document.body so full viewport is always visible) */}
+      {isManualBuilderOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0c121d] border border-slate-700/80 rounded-xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden my-auto">
             {/* Builder Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]/80">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30 shrink-0">
                   <PenSquare className="w-5 h-5" />
                 </div>
                 <div>
@@ -2120,7 +2134,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               <button
                 type="button"
                 onClick={() => setIsManualBuilderOpen(false)}
-                className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 self-end sm:self-center transition"
+                className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 self-end sm:self-center transition shrink-0"
                 aria-label="Tutup builder planning mandiri"
               >
                 <X className="w-4 h-4" />
@@ -2128,10 +2142,10 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Builder Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               {/* 1. Plan Metadata Bar */}
-              <div className="bg-[#06090f]/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3.5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[11px] font-bold text-cyan-400 font-mono">
                     1. IDENTITAS &amp; PERIODE JADWAL MINGGUAN
                   </span>
@@ -2182,12 +2196,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </div>
 
               {/* 2. Add SKU Row Bar */}
-              <div className="bg-[#06090f]/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+              <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
                 <span className="text-[11px] font-bold text-emerald-400 font-mono block">
                   2. TAMBAH BARIS SKU PRODUKSI KE JADWAL
                 </span>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                  <div className="md:col-span-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
+                  <div className="sm:col-span-2 lg:col-span-4 min-w-0">
                     <label className="block text-[10px] text-slate-400 mb-1">
                       Pilih SKU (Master BOM)
                     </label>
@@ -2205,7 +2219,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       ))}
                     </select>
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="lg:col-span-2 min-w-0">
                     <label className="block text-[10px] text-slate-400 mb-1">Line Produksi</label>
                     <input
                       type="text"
@@ -2221,7 +2235,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       ))}
                     </datalist>
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="lg:col-span-2 min-w-0">
                     <label className="block text-[10px] text-slate-400 mb-1">Catatan (Opsional)</label>
                     <input
                       type="text"
@@ -2231,14 +2245,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
-                  <div className="md:col-span-4 flex flex-wrap sm:flex-nowrap gap-2">
+                  <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-2 min-w-0">
                     <button
                       type="button"
                       onClick={() => handleAddSkuToBuilder('shift8h')}
-                      className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition"
+                      className="flex-1 min-w-[165px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition"
                       title="Tambahkan SKU dengan target otomatis 8 jam × 3 shift (Senin–Jumat)"
                     >
-                      <Zap className="w-3.5 h-3.5" />
+                      <Zap className="w-3.5 h-3.5 shrink-0" />
                       <span>Tambah + Isi Sen–Jum (8j)</span>
                     </button>
                     <button
@@ -2247,7 +2261,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 whitespace-nowrap shrink-0 transition"
                       title="Tambahkan SKU dengan nilai awal 0 untuk diisi manual per sel"
                     >
-                      <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                      <Plus className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                       <span>Kosong (0)</span>
                     </button>
                   </div>
@@ -2264,12 +2278,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     return (
                       <div
                         key={item.id}
-                        className="bg-[#06090f]/80 border border-slate-800 rounded-xl overflow-hidden"
+                        className="bg-[#06090f] border border-slate-800 rounded-xl overflow-hidden"
                       >
                         {/* SKU Item Subheader */}
-                        <div className="p-3 bg-[#080c14]/90 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[11px] text-slate-400 font-bold">
+                        <div className="p-3 bg-[#080c14] border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            <span className="font-mono text-[11px] text-slate-400 font-bold shrink-0">
                               #{idx + 1}
                             </span>
                             <input
@@ -2278,7 +2292,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               onChange={e =>
                                 handleUpdateBuilderItemMeta(item.id, { line: e.target.value })
                               }
-                              className="w-20 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-[11px] font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                              className="w-20 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-[11px] font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shrink-0"
                               title="Edit Line Produksi"
                             />
                             <select
@@ -2286,7 +2300,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               onChange={e =>
                                 handleUpdateBuilderItemMeta(item.id, { matchedSkuId: e.target.value })
                               }
-                              className="bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
+                              className="w-full sm:w-auto max-w-full sm:max-w-[280px] bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
                             >
                               {!item.matchedSkuId && (
                                 <option value="">
@@ -2360,10 +2374,10 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
                         {/* 3 Shift × 7 Day Matrix Table */}
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse text-[11px]">
+                          <table className="w-full min-w-[680px] text-left border-collapse text-[11px]">
                             <thead>
                               <tr className="bg-[#0c121d] text-slate-400 border-b border-slate-800">
-                                <th className="py-1.5 px-2.5 w-16 text-center">Shift</th>
+                                <th className="sticky left-0 z-10 bg-[#080c14] border-r border-slate-800 py-1.5 px-2.5 w-16 text-center">Shift</th>
                                 {WEEKLY_PLAN_DAYS.map(d => (
                                   <th key={d.key} className="py-1.5 px-1.5 text-right min-w-[74px]">
                                     <div className="text-slate-200">{d.shortLabel}</div>
@@ -2382,7 +2396,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             <tbody className="divide-y divide-slate-800/60">
                               {item.shifts.map(sh => (
                                 <tr key={sh.shift} className="hover:bg-slate-800/25">
-                                  <td className="py-1.5 px-2.5 text-center font-mono font-bold text-slate-300">
+                                  <td className="sticky left-0 z-10 bg-[#080c14] border-r border-slate-800 py-1.5 px-2.5 text-center font-mono font-bold text-slate-300">
                                     S{sh.shift}
                                   </td>
                                   {WEEKLY_PLAN_DAYS.map(d => {
@@ -2436,7 +2450,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Builder Footer */}
-            <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#080c14]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-800 bg-[#080c14] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="text-[11px] font-mono text-slate-400 tabular-nums">
                 Ringkasan Draft: <strong className="text-white">{draftItems.length} SKU</strong> ·{' '}
                 <strong className="text-cyan-400">
@@ -2467,7 +2481,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
