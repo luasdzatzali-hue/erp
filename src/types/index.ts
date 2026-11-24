@@ -603,7 +603,7 @@ export interface AppState {
   adminPin: string;
   adminGoogleEmails?: string[]; // Daftar email Google yang didaftarkan sebagai Administrator
   currentAdminUser?: AdminGoogleUser | null;
-  currentTab: 'admin-portal' | 'dashboard' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports' | 'contact';
+  currentTab: 'admin-portal' | 'dashboard' | 'weekly-planning' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports' | 'contact' | 'sheets-sync';
   master: {
     materials: Material[];
     wips: WIP[];

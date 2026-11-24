@@ -26,10 +26,13 @@ import {
   ArrowRight,
   ClipboardList,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  FileSpreadsheet,
+  CalendarRange
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
+import { getActiveWeeklyPlan } from '../utils/weeklyPlanComparison';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -65,6 +68,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isOperator = role === 'OPERATOR';
   const isManagement = role === 'MANAGEMENT';
   const currentShift = getCurrentShift();
+  const activeWeeklyPlan = getActiveWeeklyPlan(state);
+  const pendingReqCount = state.transactions.requests.filter(r => r.status !== 'Received').length;
+  const activeBatchCount = (state.transactions.wipBatches || []).filter(b => b.status === 'SEDANG_PRODUKSI').length;
 
   // Close sidebar on Escape key
   React.useEffect(() => {
@@ -180,8 +186,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Home className="w-4 h-4 text-amber-400 shrink-0" />
                 <div className="flex-1 truncate">
-                  <span className="block leading-tight">Portal Modul MRP & WMS</span>
-                  <span className="text-[10px] text-amber-400/70 font-normal">5 Modul dalam 1 Layar</span>
+                  <span className="block leading-tight">Portal Alur Operasional</span>
+                  <span className="text-[10px] text-amber-400/70 font-normal">Ringkasan 7 Tahap MRP &amp; WMS</span>
                 </div>
               </button>
               <button
@@ -196,65 +202,131 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* SECTION 2: MODUL APLIKASI MRP & WMS */}
+        {/* SECTION 2: ALUR KERJA OPERASIONAL BERURUTAN (TAHAP 1 - 7) */}
         <div className="space-y-1">
           <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Modul Aplikasi MRP & WMS
+            Alur Kerja Operasional (1 → 7)
           </p>
 
-          {/* 1. Manufacturing (Dashboard Simulasi Produksi SKU) */}
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'dashboard'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-          }`}>
-            <button
-              onClick={() => handleNavClick('dashboard')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-            >
-              <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">1. Manufacturing</span>
-                <span className="text-[10px] text-slate-400 font-mono">Simulasi & OEE</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('dashboard', e)}
-              title="Buka Manufacturing di tab baru"
-              className="p-1.5 mr-1 text-slate-400 hover:text-cyan-300 rounded-lg hover:bg-slate-800 transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {/* 1. Konfigurasi Master BOM (ADMIN ONLY) */}
+          {isAdmin && (
+            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+              state.currentTab === 'master'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}>
+              <button
+                onClick={() => handleNavClick('master')}
+                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+              >
+                <Database className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="flex-1 truncate">
+                  <span className="block leading-tight">1. Konfigurasi Master BOM</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {state.master.skus.length} SKU · {state.master.materials.length} Mat · Mesin
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleOpenInNewTab('master', e)}
+                title="Buka Konfigurasi Master BOM di tab baru"
+                className="p-1.5 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
-          {/* 2. Inventory & Tanks (Penerimaan & Monitoring Tangki WIP) */}
+          {/* 2. Penentuan Planning Mingguan */}
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'tank-monitoring'
+            state.currentTab === 'weekly-planning'
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
               : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
           }`}>
             <button
-              onClick={() => handleNavClick('tank-monitoring')}
+              onClick={() => handleNavClick('weekly-planning')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
             >
-              <Cylinder className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CalendarRange className="w-4 h-4 text-emerald-400 shrink-0" />
               <div className="flex-1 truncate">
-                <span className="block leading-tight">2. Inventory & Tangki WIP</span>
-                <span className="text-[10px] text-slate-400 font-mono">{state.master.tanks.length} Tangki Live</span>
+                <span className="block leading-tight">2. Planning Mingguan</span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {activeWeeklyPlan ? activeWeeklyPlan.weekLabel : 'Atur Target SKU/Shift'}
+                </span>
               </div>
             </button>
             <button
               type="button"
-              onClick={(e) => handleOpenInNewTab('tank-monitoring', e)}
-              title="Buka Inventory & Tangki di tab baru"
+              onClick={(e) => handleOpenInNewTab('weekly-planning', e)}
+              title="Buka Planning Mingguan di tab baru"
               className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* 3. Work Orders WIP (Pemakaian & Batch Resep) - OPERATOR & ADMIN */}
+          {/* 3. Permintaan Material (ADMIN & OPERATOR) */}
+          {!isManagement && (
+            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+              state.currentTab === 'permintaan'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}>
+              <button
+                onClick={() => handleNavClick('permintaan')}
+                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+              >
+                <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="flex-1 truncate">
+                  <span className="block leading-tight">3. Permintaan Material</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {pendingReqCount > 0 ? `${pendingReqCount} Order Menunggu` : 'Slip Order & Allowance'}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleOpenInNewTab('permintaan', e)}
+                title="Buka Permintaan Material di tab baru"
+                className="p-1.5 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* 4. Pencatatan Kedatangan & Penerimaan Fisik Material (ADMIN & OPERATOR) */}
+          {!isManagement && (
+            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+              state.currentTab === 'penerimaan'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}>
+              <button
+                onClick={() => handleNavClick('penerimaan')}
+                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+              >
+                <Truck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="flex-1 truncate">
+                  <span className="block leading-tight">4. Penerimaan Fisik</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Kedatangan, Zak &amp; Lot GDRM
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleOpenInNewTab('penerimaan', e)}
+                title="Buka Penerimaan Fisik Material di tab baru"
+                className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* 5. Pembuatan Work Order WIP (ADMIN & OPERATOR) */}
           {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
               state.currentTab === 'pemakaian'
@@ -267,8 +339,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Layers className="w-4 h-4 text-purple-400 shrink-0" />
                 <div className="flex-1 truncate">
-                  <span className="block leading-tight">3. Work Order WIP</span>
-                  <span className="text-[10px] text-slate-400 font-mono">Batch & Resep Mesin</span>
+                  <span className="block leading-tight">5. Work Order WIP</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {activeBatchCount > 0 ? `${activeBatchCount} Batch Jalan` : 'Batch Mesin & FIFO'}
+                  </span>
                 </div>
               </button>
               <button
@@ -282,7 +356,67 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* 4. Ringkasan Produksi Shift Saat Ini */}
+          {/* 6. Transfer WIP ke Storage & Tangki */}
+          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+            state.currentTab === 'tank-monitoring'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+          }`}>
+            <button
+              onClick={() => handleNavClick('tank-monitoring')}
+              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+            >
+              <Cylinder className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="flex-1 truncate">
+                <span className="block leading-tight">6. Transfer WIP ke Storage</span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {state.master.tanks.length} Tangki Storage &amp; Holding
+                </span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleOpenInNewTab('tank-monitoring', e)}
+              title="Buka Transfer WIP & Tangki di tab baru"
+              className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 7. Manufacturing (Control Room Produksi SKU) */}
+          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+            state.currentTab === 'dashboard'
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+          }`}>
+            <button
+              onClick={() => handleNavClick('dashboard')}
+              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+            >
+              <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
+              <div className="flex-1 truncate">
+                <span className="block leading-tight">7. Manufacturing</span>
+                <span className="text-[10px] text-slate-400 font-mono">Control Room Lini &amp; OEE</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleOpenInNewTab('dashboard', e)}
+              title="Buka Manufacturing di tab baru"
+              className="p-1.5 mr-1 text-slate-400 hover:text-cyan-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* SECTION 3: LAPORAN, KALKULATOR & INTEGRASI */}
+        <div className="space-y-1 pt-1 border-t border-slate-800/70">
+          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Laporan, Kalkulator &amp; Sync
+          </p>
+
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'shift-summary'
               ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
@@ -290,11 +424,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }`}>
             <button
               onClick={() => handleNavClick('shift-summary')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
+              className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
             >
-              <ClipboardList className="w-4 h-4 text-sky-400 shrink-0" />
+              <ClipboardList className="w-3.5 h-3.5 text-sky-400 shrink-0" />
               <div className="flex-1 truncate">
-                <span className="block leading-tight">4. Ringkasan Shift</span>
+                <span className="block leading-tight">Ringkasan Shift</span>
                 <span className="text-[10px] text-slate-400 font-mono">Output, SBL &amp; Konsumsi</span>
               </div>
             </button>
@@ -302,107 +436,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={(e) => handleOpenInNewTab('shift-summary', e)}
               title="Buka Ringkasan Shift di tab baru"
-              className="p-1.5 mr-1 text-slate-400 hover:text-sky-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1 mr-1 text-slate-400 hover:text-sky-300 rounded-lg hover:bg-slate-800 transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* 5. Report PDF (Shift Production & Actual Stock Balance) */}
           <button
             onClick={() => {
               if (onOpenPdfModal) onOpenPdfModal();
               onClose();
             }}
-            className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl font-medium transition text-left text-slate-300 hover:text-white hover:bg-slate-800/60"
+            className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl font-medium transition text-left text-slate-300 hover:text-white hover:bg-slate-800/60"
           >
-            <Printer className="w-4 h-4 text-rose-400 shrink-0" />
+            <Printer className="w-3.5 h-3.5 text-rose-400 shrink-0" />
             <div className="flex-1 truncate">
-              <span className="block leading-tight">5. Report PDF Shift</span>
+              <span className="block leading-tight">Report PDF Shift</span>
               <span className="text-[10px] text-slate-400 font-mono">Landscape A4</span>
             </div>
           </button>
 
-          {/* 6. Konfigurasi Master BOM (ADMIN ONLY) */}
-          {isAdmin && (
-            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-              state.currentTab === 'master'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                : 'text-amber-300/90 hover:text-amber-200 hover:bg-amber-950/30'
-            }`}>
-              <button
-                onClick={() => handleNavClick('master')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-              >
-                <Database className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">6. Konfigurasi Master BOM</span>
-                  <span className="text-[10px] text-amber-400/70 font-mono">Hierarki 4 Tingkat</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('master', e)}
-                title="Buka Konfigurasi Master BOM di tab baru"
-                className="p-1.5 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
+          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
+            state.currentTab === 'sheets-sync'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+          }`}>
+            <button
+              onClick={() => handleNavClick('sheets-sync')}
+              className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <div className="flex-1 truncate">
+                <span className="block leading-tight">Integrasi Google Sheets</span>
+                <span className="text-[10px] text-slate-400 font-mono">Sync Hasil Produksi</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleOpenInNewTab('sheets-sync', e)}
+              title="Buka Integrasi Google Sheets di tab baru"
+              className="p-1 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-        {/* SECTION 3: MODUL OPERASIONAL PENDUKUNG */}
-        {!isManagement && (
-          <div className="space-y-1">
-            <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Operasional Gudang
-            </p>
-
-            <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
-              state.currentTab === 'penerimaan'
-                ? 'bg-emerald-500/20 text-emerald-300 font-bold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}>
-              <button
-                onClick={() => handleNavClick('penerimaan')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
-              >
-                <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Penerimaan Bahan GDRM</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('penerimaan', e)}
-                title="Buka Penerimaan di tab baru"
-                className="p-1 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
-              state.currentTab === 'permintaan'
-                ? 'bg-amber-500/20 text-amber-300 font-bold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-            }`}>
-              <button
-                onClick={() => handleNavClick('permintaan')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
-              >
-                <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Permintaan Bahan Baku</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('permintaan', e)}
-                title="Buka Permintaan di tab baru"
-                className="p-1 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
+          {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
               state.currentTab === 'bom-calculator'
                 ? 'bg-indigo-500/20 text-indigo-300 font-bold'
@@ -424,8 +503,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* SECTION 4: ADMINISTRATOR UTILITIES */}
         {isAdmin && (

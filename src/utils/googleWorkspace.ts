@@ -17,6 +17,7 @@ export const auth = getAuth(app);
 
 export const SCOPES = [
   'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile'
 ];
@@ -602,3 +603,368 @@ export async function readLocalBomFile(file: File): Promise<string> {
 
   return decoded;
 }
+
+// ============================================================================
+// GOOGLE SHEETS API v4 HELPERS (Production Result Sync & Planning Verification)
+// ============================================================================
+
+export const DEFAULT_PRODUCTION_SPREADSHEET_URL =
+  'https://docs.google.com/spreadsheets/d/15__w3AHJ2TRKxEQw4aGS8s2J_relSvXFYz74ivG06xg/edit?usp=sharing';
+
+export const DEFAULT_PRODUCTION_SPREADSHEET_ID =
+  '15__w3AHJ2TRKxEQw4aGS8s2J_relSvXFYz74ivG06xg';
+
+export interface SheetTabInfo {
+  sheetId: number;
+  title: string;
+  index: number;
+  rowCount?: number;
+  columnCount?: number;
+}
+
+export interface SpreadsheetMetadata {
+  spreadsheetId: string;
+  title: string;
+  spreadsheetUrl: string;
+  sheets: SheetTabInfo[];
+}
+
+export function extractSpreadsheetIdFromInput(input: string): string | null {
+  const trimmed = String(input || '').trim();
+  if (!trimmed) return null;
+
+  const urlMatch = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{15,})/);
+  if (urlMatch && urlMatch[1]) {
+    return urlMatch[1];
+  }
+
+  if (/^[a-zA-Z0-9_-]{15,}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+function escapeSheetTitleForA1(sheetTitle: string): string {
+  return `'${String(sheetTitle || '').replace(/'/g, "''")}'`;
+}
+
+function parseSheetsApiErrorPayload(rawText: string, status: number): DriveApiError {
+  let errJson: any = null;
+  try {
+    errJson = JSON.parse(rawText);
+  } catch {
+    errJson = null;
+  }
+
+  const googleMsg = errJson?.error?.message || '';
+  const reason = errJson?.error?.errors?.[0]?.reason || '';
+  const statusStr = String(errJson?.error?.status || '');
+
+  if (status === 401 || statusStr === 'UNAUTHENTICATED') {
+    clearWorkspaceDriveToken();
+    return new DriveApiError(
+      'Sesi Google telah berakhir. Silakan klik "Sign in with Google" untuk menghubungkan ulang akses Google Sheets.',
+      { isAuthError: true, status }
+    );
+  }
+
+  if (
+    status === 403 &&
+    (reason === 'insufficientPermissions' ||
+      reason === 'insufficientScopes' ||
+      googleMsg.toLowerCase().includes('insufficient') ||
+      googleMsg.toLowerCase().includes('scope'))
+  ) {
+    clearWorkspaceDriveToken();
+    return new DriveApiError(
+      'Izin tulis Google Sheets belum diberikan pada sesi login Anda. Silakan klik "Sign in with Google" ulang dan setujui izin Google Sheets.',
+      { isAuthError: true, status }
+    );
+  }
+
+  if (status === 403 && (reason === 'accessNotConfigured' || googleMsg.includes('API has not been used'))) {
+    return new DriveApiError(
+      'Google Sheets API belum diaktifkan di Google Cloud Project aplikasi ini.',
+      { status }
+    );
+  }
+
+  if (status === 403) {
+    return new DriveApiError(
+      `Akses ke Spreadsheet ditolak (403). Pastikan akun Google Anda (${getDriveUserEmail() || 'yang sedang login'}) memiliki hak akses Editor pada spreadsheet tersebut. Detail: ${googleMsg || 'Permission denied'}`,
+      { status }
+    );
+  }
+
+  if (status === 404) {
+    return new DriveApiError(
+      'Spreadsheet tidak ditemukan (404). Periksa kembali URL atau ID Spreadsheet.',
+      { status }
+    );
+  }
+
+  return new DriveApiError(
+    googleMsg
+      ? `Google Sheets Error (${status}): ${googleMsg}`
+      : `HTTP ${status}: Gagal berkomunikasi dengan Google Sheets API`,
+    { status }
+  );
+}
+
+export async function fetchSpreadsheetMetadata(
+  token: string,
+  spreadsheetId: string
+): Promise<SpreadsheetMetadata> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia. Silakan login Google terlebih dahulu.', {
+      isAuthError: true
+    });
+  }
+
+  const fields = 'spreadsheetId,properties.title,spreadsheetUrl,sheets(properties(sheetId,title,index,gridProperties))';
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=${encodeURIComponent(fields)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+  } catch {
+    throw new DriveApiError('Tidak dapat menghubungi Google Sheets API. Periksa koneksi internet Anda.');
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+
+  const data = await res.json();
+  const sheets: SheetTabInfo[] = Array.isArray(data?.sheets)
+    ? data.sheets.map((s: any) => ({
+        sheetId: Number(s?.properties?.sheetId ?? 0),
+        title: String(s?.properties?.title ?? 'Sheet1'),
+        index: Number(s?.properties?.index ?? 0),
+        rowCount: s?.properties?.gridProperties?.rowCount,
+        columnCount: s?.properties?.gridProperties?.columnCount
+      }))
+    : [];
+
+  return {
+    spreadsheetId: String(data?.spreadsheetId || spreadsheetId),
+    title: String(data?.properties?.title || 'Spreadsheet Produksi'),
+    spreadsheetUrl: String(
+      data?.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+    ),
+    sheets
+  };
+}
+
+export async function readSpreadsheetValues(
+  token: string,
+  spreadsheetId: string,
+  sheetTitle: string,
+  cellRange = 'A1:P50'
+): Promise<string[][]> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia.', { isAuthError: true });
+  }
+
+  const a1Range = `${escapeSheetTitleForA1(sheetTitle)}!${cellRange}`;
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(a1Range)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+  } catch {
+    throw new DriveApiError('Gagal membaca isi sheet dari Google Sheets.');
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+
+  const data = await res.json();
+  return Array.isArray(data?.values)
+    ? data.values.map((row: any[]) => (Array.isArray(row) ? row.map(cell => String(cell ?? '')) : []))
+    : [];
+}
+
+export async function appendSpreadsheetRows(
+  token: string,
+  spreadsheetId: string,
+  sheetTitle: string,
+  rows: (string | number)[][]
+): Promise<{ updatedRange: string; updatedRows: number }> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia.', { isAuthError: true });
+  }
+  if (!rows || rows.length === 0) {
+    return { updatedRange: '', updatedRows: 0 };
+  }
+
+  const a1Range = `${escapeSheetTitleForA1(sheetTitle)}!A1`;
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(a1Range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          majorDimension: 'ROWS',
+          values: rows
+        })
+      }
+    );
+  } catch {
+    throw new DriveApiError('Gagal mengirim baris data ke Google Sheets.');
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+
+  const data = await res.json();
+  return {
+    updatedRange: String(data?.updates?.updatedRange || a1Range),
+    updatedRows: Number(data?.updates?.updatedRows ?? rows.length)
+  };
+}
+
+export async function updateSpreadsheetRange(
+  token: string,
+  spreadsheetId: string,
+  sheetTitle: string,
+  cellRange: string,
+  rows: (string | number)[][]
+): Promise<{ updatedRange: string; updatedRows: number }> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia.', { isAuthError: true });
+  }
+
+  const a1Range = `${escapeSheetTitleForA1(sheetTitle)}!${cellRange}`;
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(a1Range)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          majorDimension: 'ROWS',
+          values: rows
+        })
+      }
+    );
+  } catch {
+    throw new DriveApiError('Gagal memperbarui rentang sel di Google Sheets.');
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+
+  const data = await res.json();
+  return {
+    updatedRange: String(data?.updatedRange || a1Range),
+    updatedRows: Number(data?.updatedRows ?? rows.length)
+  };
+}
+
+export async function clearSpreadsheetRange(
+  token: string,
+  spreadsheetId: string,
+  sheetTitle: string,
+  cellRange = 'A1:Z1000'
+): Promise<void> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia.', { isAuthError: true });
+  }
+
+  const a1Range = `${escapeSheetTitleForA1(sheetTitle)}!${cellRange}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(a1Range)}:clear`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+}
+
+export async function createSpreadsheetTab(
+  token: string,
+  spreadsheetId: string,
+  title: string
+): Promise<SheetTabInfo> {
+  if (!token) {
+    throw new DriveApiError('Token akses Google belum tersedia.', { isAuthError: true });
+  }
+
+  const cleanTitle = title.trim();
+  if (!cleanTitle) {
+    throw new DriveApiError('Nama tab sheet baru tidak boleh kosong.');
+  }
+
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: cleanTitle
+              }
+            }
+          }
+        ]
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw parseSheetsApiErrorPayload(errText, res.status);
+  }
+
+  const data = await res.json();
+  const props = data?.replies?.[0]?.addSheet?.properties;
+  return {
+    sheetId: Number(props?.sheetId ?? 0),
+    title: String(props?.title || cleanTitle),
+    index: Number(props?.index ?? 0),
+    rowCount: props?.gridProperties?.rowCount,
+    columnCount: props?.gridProperties?.columnCount
+  };
+}
+

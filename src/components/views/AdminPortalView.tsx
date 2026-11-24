@@ -1,28 +1,24 @@
 import React from 'react';
 import {
-  Cpu,
-  Boxes,
-  Layers,
-  FileText,
-  Database,
   ArrowRight,
-  Cylinder,
+  CalendarRange,
   CheckCircle2,
-  Clock,
-  Sparkles,
-  Shield,
+  Cpu,
+  Cylinder,
+  Database,
+  FileSpreadsheet,
+  FileText,
+  Layers,
   Printer,
-  Users,
-  Activity,
-  Droplet,
-  PlayCircle,
+  Scale,
+  Shield,
   Truck,
-  RotateCw,
-  Scale
+  Users
 } from 'lucide-react';
-import { AppState, ShiftNumber } from '../../types';
-import { getCurrentShift, SHIFTS_CONFIG } from '../../utils/shifts';
+import { AppState } from '../../types';
+import { getCurrentShift } from '../../utils/shifts';
 import { calculateStockBalances } from '../../utils/storage';
+import { getActiveWeeklyPlan } from '../../utils/weeklyPlanComparison';
 
 interface AdminPortalViewProps {
   state: AppState;
@@ -38,394 +34,290 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   state,
   onSwitchTab,
   onOpenPdfModal,
-  onOpenTankModal,
   onOpenUserManagement,
-  onOpenStockAdjustment,
-  showToast
+  onOpenStockAdjustment
 }) => {
   const currentShift = getCurrentShift();
   const balances = calculateStockBalances(state);
+  const activePlan = getActiveWeeklyPlan(state);
 
-  // Active production stats
-  const activeSku = state.master.skus[0];
-  const cartonCount = (state.transactions.cartonProductions || []).reduce(
-    (acc, curr) => acc + (curr.cartonsProduced || 0),
-    0
-  );
-
-  // Active WIP Batches currently running in plant
-  const activeBatches = (state.transactions.wipBatches || []).filter(
-    b => b.status === 'SEDANG_PRODUKSI'
-  );
-
-  // Total warehouse materials weight
   const totalStockKg = Object.values(balances).reduce(
     (acc, curr) => acc + curr.totalActual,
     0
   );
 
-  // Tanks summary
+  const pendingRequests = state.transactions.requests.filter(r => r.status !== 'Received');
+  const receiptsCount = state.transactions.receipts.length;
+  const activeBatches = (state.transactions.wipBatches || []).filter(
+    b => b.status === 'SEDANG_PRODUKSI'
+  );
+  const completedBatches = (state.transactions.wipBatches || []).filter(
+    b => b.status === 'SELESAI'
+  );
+
   const totalTankCapacity = state.master.tanks.reduce((acc, curr) => acc + curr.capacityKg, 0);
   const totalTankCurrentKg = state.master.tanks.reduce((acc, curr) => acc + curr.currentLevelKg, 0);
   const tankFillPct = totalTankCapacity > 0 ? (totalTankCurrentKg / totalTankCapacity) * 100 : 0;
 
+  const activeRuns = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).filter(
+    r => r.isRunning
+  );
+  const cartonCount = (state.transactions.cartonProductions || []).reduce(
+    (acc, curr) => acc + (curr.cartonsProduced || 0),
+    0
+  );
+
+  const workflowCards = [
+    {
+      step: '01',
+      tab: 'master' as AppState['currentTab'],
+      title: 'Konfigurasi Master BOM',
+      subtitle: 'Setup Material, WIP, Resep, SKU, Mesin & Tangki',
+      icon: Database,
+      accentText: 'text-amber-400',
+      buttonClass: 'bg-amber-600 hover:bg-amber-500 text-white',
+      cta: 'Atur Master BOM',
+      ready: state.master.skus.length > 0 && state.master.materials.length > 0,
+      metrics: [
+        { label: 'Master SKU', value: `${state.master.skus.length} Produk` },
+        { label: 'WIP & Resep', value: `${state.master.wips.length} WIP / ${state.master.recipes?.length || 0} Resep` },
+        { label: 'Material', value: `${state.master.materials.length} Bahan` },
+        { label: 'Mesin & Tangki', value: `${state.master.machines.length} Mesin · ${state.master.tanks.length} Tangki` }
+      ]
+    },
+    {
+      step: '02',
+      tab: 'weekly-planning' as AppState['currentTab'],
+      title: 'Penentuan Planning Mingguan',
+      subtitle: 'Tetapkan target karton per SKU & shift sebagai acuan order',
+      icon: CalendarRange,
+      accentText: 'text-emerald-400',
+      buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+      cta: 'Atur Planning Mingguan',
+      ready: Boolean(activePlan && activePlan.items.length > 0),
+      metrics: [
+        { label: 'Plan Aktif', value: activePlan ? activePlan.weekLabel : 'Belum diatur' },
+        { label: 'Periode', value: activePlan ? `${activePlan.periodStart} - ${activePlan.periodEnd}` : '-' },
+        { label: 'Item Terjadwal', value: `${activePlan?.items.length || 0} SKU` },
+        { label: 'Total Rencana', value: `${(state.weeklyPlannings || []).length} Dokumen` }
+      ]
+    },
+    {
+      step: '03',
+      tab: 'permintaan' as AppState['currentTab'],
+      title: 'Permintaan Material',
+      subtitle: 'Kalkulasi kebutuhan BOM + allowance & cetak slip order',
+      icon: FileText,
+      accentText: 'text-sky-400',
+      buttonClass: 'bg-cyan-600 hover:bg-cyan-500 text-white',
+      cta: 'Buat Permintaan',
+      ready: state.transactions.requests.length > 0,
+      metrics: [
+        { label: 'Order Menunggu', value: `${pendingRequests.length} Slip` },
+        { label: 'Total Permintaan', value: `${state.transactions.requests.length} Transaksi` },
+        { label: 'SOP Pengajuan', value: 'Shift 1 (07:01-15:00)' },
+        { label: 'Sumber', value: 'GDRM & Formulasi' }
+      ]
+    },
+    {
+      step: '04',
+      tab: 'penerimaan' as AppState['currentTab'],
+      title: 'Kedatangan & Penerimaan Fisik',
+      subtitle: 'Timbang fisik zak/lot, koreksi berat & input saldo gudang',
+      icon: Truck,
+      accentText: 'text-emerald-400',
+      buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+      cta: 'Catat Penerimaan',
+      ready: receiptsCount > 0,
+      metrics: [
+        { label: 'Kedatangan Tercatat', value: `${receiptsCount} Lot` },
+        { label: 'Total Stok Gudang', value: `${totalStockKg.toFixed(1)} kg` },
+        { label: 'Order Pending', value: `${pendingRequests.length} Siap Terima` },
+        { label: 'SOP Terima', value: 'Shift 1 & Shift 2' }
+      ]
+    },
+    {
+      step: '05',
+      tab: 'pemakaian' as AppState['currentTab'],
+      title: 'Pembuatan Work Order WIP',
+      subtitle: 'Eksekusi batch resep mesin dengan pemotongan pallet FIFO',
+      icon: Layers,
+      accentText: 'text-indigo-400',
+      buttonClass: 'bg-indigo-600 hover:bg-indigo-500 text-white',
+      cta: 'Buka Work Order WIP',
+      ready: activeBatches.length > 0 || completedBatches.length > 0,
+      metrics: [
+        { label: 'Batch Berjalan', value: `${activeBatches.length} Proses` },
+        { label: 'Batch Selesai', value: `${completedBatches.length} Batch` },
+        { label: 'Mesin Batching', value: `${state.master.machines.length} Unit` },
+        { label: 'Kapasitas', value: 'Maks 1 Batch/Mesin' }
+      ]
+    },
+    {
+      step: '06',
+      tab: 'tank-monitoring' as AppState['currentTab'],
+      title: 'Transfer WIP ke Storage',
+      subtitle: 'Pantau volume tangki & transfer Storage Tank ⇄ Holding Tank',
+      icon: Cylinder,
+      accentText: 'text-cyan-400',
+      buttonClass: 'bg-cyan-600 hover:bg-cyan-500 text-white',
+      cta: 'Kelola Storage & Tangki',
+      ready: totalTankCurrentKg > 0,
+      metrics: [
+        { label: 'Total Tangki WIP', value: `${state.master.tanks.length} Tangki` },
+        { label: 'Volume Terisi', value: `${totalTankCurrentKg.toFixed(0)} kg (${tankFillPct.toFixed(0)}%)` },
+        { label: 'Tangki Utama', value: `${state.tank.level.toFixed(1)} kg` },
+        { label: 'Suhu Sensor', value: `${state.tank.temp.toFixed(1)}°C` }
+      ]
+    },
+    {
+      step: '07',
+      tab: 'dashboard' as AppState['currentTab'],
+      title: 'Manufacturing',
+      subtitle: 'Jalankan lini produksi karton, kontrol OEE, SBL & output akhir',
+      icon: Cpu,
+      accentText: 'text-emerald-400',
+      buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+      cta: 'Buka Control Room Manufacturing',
+      ready: activeRuns.length > 0 || cartonCount > 0,
+      metrics: [
+        { label: 'Lini Aktif', value: `${activeRuns.length} Lini Jalan` },
+        { label: 'Total Output', value: `${cartonCount.toLocaleString('id-ID')} Karton` },
+        { label: 'Shift Terkini', value: `Shift ${currentShift.shift}` },
+        { label: 'Monitoring', value: 'Plan vs Aktual' }
+      ]
+    }
+  ];
+
   return (
-    <div className="h-full flex flex-col justify-between gap-3 text-xs">
-      {/* Top Header Cockpit Banner */}
-      <div className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-amber-100 border border-amber-300 text-amber-800">
+    <div className="max-w-[1440px] mx-auto space-y-4 text-xs pb-6">
+      {/* Top Cockpit Header */}
+      <div className="bg-[#0c121d] border border-slate-800 p-4 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-400 shrink-0">
             <Shield className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <h2 className="font-extrabold text-sm sm:text-base text-slate-900">
-                Portal Modul MRP & WMS Pabrik (Halaman Utama Administrator)
-              </h2>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold font-mono">
-                Akses Penuh
-              </span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400">
+              <span className="text-amber-400 font-semibold">Portal Administrator</span>
+              <span aria-hidden="true">·</span>
+              <span>{currentShift.name} ({currentShift.timeRange})</span>
+              <span aria-hidden="true">·</span>
+              <span className="tabular-nums">{state.master.machines.length} Mesin / {state.master.tanks.length} Tangki</span>
             </div>
-            <p className="text-[11px] text-slate-600">
-              Pusat kendali eksekutif operasional manufaktur 5 modul terintegrasi dalam 1 layar desktop tanpa scrolling.
+            <h1 className="font-extrabold text-sm sm:text-base text-white tracking-tight mt-0.5">
+              Pusat Alur Kerja Operasional Pabrik (7 Tahap Berurutan)
+            </h1>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Ikuti urutan langkah 01 sampai 07 dari persiapan Master BOM hingga eksekusi Manufacturing di lini produksi.
             </p>
           </div>
         </div>
 
-        {/* Live Plant Shift Beacon */}
-        <div className="flex items-center space-x-2 text-[11px] font-mono bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 self-end sm:self-auto shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-slate-800 font-semibold">{currentShift.name} ({currentShift.timeRange})</span>
-          <span className="text-slate-400">|</span>
-          <span className="text-sky-700 font-bold">{state.master.machines.length} Mesin</span>
-          <span className="text-slate-400">|</span>
-          <span className="text-indigo-700 font-bold">{state.master.tanks.length} Tangki</span>
+        {/* Utility Shortcuts */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onSwitchTab('sheets-sync')}
+            className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Sync Google Sheets</span>
+          </button>
+          {onOpenStockAdjustment && (
+            <button
+              type="button"
+              onClick={onOpenStockAdjustment}
+              className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-amber-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+            >
+              <Scale className="w-3.5 h-3.5 text-amber-400" />
+              <span>Adjust Saldo Awal</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpenUserManagement}
+            className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+          >
+            <Users className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Pengguna ({state.registeredOperators.length + state.registeredManagement.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenPdfModal}
+            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Laporan Shift PDF</span>
+          </button>
         </div>
       </div>
 
-      {/* 5 CORE MODULES INTERACTIVE GRID: Fits on 1 screen on desktop */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {/* MODUL 1: MANUFACTURING (MRP ENGINE) */}
-        <div className="bg-white border border-slate-200 hover:border-sky-400 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all group">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-sky-100 text-sky-800">
-                  <Cpu className="w-4 h-4" />
+      {/* Sequential 7-Step Operational Workflow Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5">
+        {workflowCards.map((card, idx) => {
+          const Icon = card.icon;
+          const isFinalStep = idx === workflowCards.length - 1;
+          return (
+            <div
+              key={card.tab}
+              className={`bg-[#0c121d] border border-slate-800 hover:border-cyan-500/50 p-4 rounded-xl flex flex-col justify-between gap-3 transition ${
+                isFinalStep ? 'md:col-span-2 xl:col-span-2' : ''
+              }`}
+            >
+              <div className="space-y-2.5">
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#06090f] border border-slate-800 flex items-center justify-center shrink-0">
+                      <Icon className={`w-4 h-4 ${card.accentText}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-mono text-slate-400 block">
+                        Tahap {card.step} dari 07
+                      </span>
+                      <h2 className="font-bold text-sm text-white truncate">
+                        {card.title}
+                      </h2>
+                    </div>
+                  </div>
+
+                  {card.ready && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Aktif</span>
+                    </span>
+                  )}
                 </div>
-                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
-                  1. Modul Manufacturing (MRP)
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-sky-800 font-bold bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                Simulasi & OEE
-              </span>
-            </div>
 
-            <p className="text-[11px] text-slate-600 line-clamp-2">
-              Kalkulator kebutuhan material per batch dan simulasi eksekusi produksi karton SKU secara realtime.
-            </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {card.subtitle}
+                </p>
 
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 text-[10px] block">SKU Aktif:</span>
-                <span className="text-slate-900 font-bold truncate block">{activeSku?.name || 'Choco Delight'}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Target Rate:</span>
-                <span className="text-sky-700 font-bold">{activeSku?.targetHour || 350} ktn/jam</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Output Shift:</span>
-                <span className="text-emerald-700 font-bold">{cartonCount} Karton</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Speed Multiplier:</span>
-                <span className="text-amber-700 font-bold">1.0x Realtime</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 flex items-center space-x-2">
-            <button
-              onClick={() => onSwitchTab('dashboard')}
-              className="flex-1 py-2 px-3 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
-            >
-              <span>Buka Manufacturing</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onSwitchTab('bom-calculator')}
-              title="Kalkulator Defisit Bahan Baku"
-              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300"
-            >
-              Kalkulator BOM
-            </button>
-          </div>
-        </div>
-
-        {/* MODUL 2: INVENTORY & TANK (WMS & LIQUID SENSORS) */}
-        <div className="bg-white border border-slate-200 hover:border-emerald-400 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all group">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
-                  <Cylinder className="w-4 h-4" />
+                <div
+                  className={`grid gap-2 text-[11px] font-mono bg-[#06090f] p-2.5 rounded-lg border border-slate-800/80 tabular-nums ${
+                    isFinalStep ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'
+                  }`}
+                >
+                  {card.metrics.map(m => (
+                    <div key={m.label} className="min-w-0">
+                      <span className="text-slate-400 text-[10px] block truncate">{m.label}</span>
+                      <span className="text-slate-100 font-bold block truncate">{m.value}</span>
+                    </div>
+                  ))}
                 </div>
-                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
-                  2. Inventory & Tangki WIP
-                </h3>
               </div>
-              <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                WMS & Sensor
-              </span>
-            </div>
 
-            <p className="text-[11px] text-slate-600 line-clamp-2">
-              Penerimaan gudang GDRM area CK/Wineroto dan pemantauan 5 tangki WIP holding & storage.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 text-[10px] block">Total Stok GDRM:</span>
-                <span className="text-slate-900 font-bold">{totalStockKg.toFixed(1)} kg</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Tangki WIP Aktif:</span>
-                <span className="text-emerald-700 font-bold">{state.master.tanks.length} Unit Tangki</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Volume Terisi:</span>
-                <span className="text-sky-700 font-bold">{totalTankCurrentKg.toFixed(0)} kg ({tankFillPct.toFixed(0)}%)</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Suhu Liquid:</span>
-                <span className="text-amber-700 font-bold">{state.tank.temp.toFixed(1)}°C (Agitator ON)</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 flex items-center space-x-2">
-            <button
-              onClick={() => onSwitchTab('tank-monitoring')}
-              className="flex-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
-            >
-              <span>Monitoring Tangki WIP</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            {onOpenStockAdjustment && (
               <button
-                onClick={onOpenStockAdjustment}
-                title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
-                className="py-2 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold rounded-xl text-xs transition border border-amber-300 flex items-center space-x-1 shadow-xs"
+                type="button"
+                onClick={() => onSwitchTab(card.tab)}
+                className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95 ${card.buttonClass}`}
               >
-                <Scale className="w-3.5 h-3.5 text-amber-700" />
-                <span>Adjust Saldo</span>
+                <span>{card.cta}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
-            )}
-            <button
-              onClick={() => onSwitchTab('penerimaan')}
-              title="Penerimaan Bahan Baku Gudang GDRM"
-              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300"
-            >
-              Penerimaan
-            </button>
-          </div>
-        </div>
-
-        {/* MODUL 3: WORK ORDER WIP (SHOP FLOOR BATCHES & RECIPES) */}
-        <div className="bg-white border border-slate-200 hover:border-purple-400 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all group">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-purple-100 text-purple-800">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
-                  3. Work Order WIP
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-purple-800 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                1 Batch/Mesin
-              </span>
             </div>
-
-            <p className="text-[11px] text-slate-600 line-clamp-2">
-              Penerbitan perintah kerja pembuatan WIP berdasarkan resep formulasi presisi kg & gr per batch.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 text-[10px] block">Batch Sedang Jalan:</span>
-                <span className="text-purple-800 font-bold">{activeBatches.length} Batch Aktif</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Mesin Terhubung:</span>
-                <span className="text-slate-900 font-bold">{state.master.machines.length} Mesin</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Master Resep:</span>
-                <span className="text-sky-700 font-bold">{state.master.recipes?.length || 3} Resep Terdaftar</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Aturan Produksi:</span>
-                <span className="text-amber-700 font-bold">Maks 1 Batch/Mesin</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 flex items-center space-x-2">
-            <button
-              onClick={() => onSwitchTab('pemakaian')}
-              className="flex-1 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
-            >
-              <span>Buka Perintah Kerja WIP</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onSwitchTab('permintaan')}
-              title="Permintaan Bahan Baku"
-              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300"
-            >
-              Permintaan
-            </button>
-          </div>
-        </div>
-
-        {/* MODUL 4: REPORT PDF (LANDSCAPE A4 PRODUCTION & STOCK AUDIT) */}
-        <div className="bg-white border border-slate-200 hover:border-rose-400 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all group md:col-span-1 lg:col-span-1">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-rose-100 text-rose-800">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
-                  4. Report PDF Shift
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-rose-800 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                Landscape A4
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600 line-clamp-2">
-              Laporan saldo stock material aktual per shift format landscape dengan kolom saldo awal, kedatangan, pemakaian & saldo akhir.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 text-[10px] block">Format Kertas:</span>
-                <span className="text-slate-900 font-bold">A4 Landscape</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Audit Standar:</span>
-                <span className="text-rose-700 font-bold">ISO / GMP Plant</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Item Dilaporkan:</span>
-                <span className="text-sky-700 font-bold">{state.master.materials.length} Bahan Baku</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Shift Acuan:</span>
-                <span className="text-emerald-700 font-bold">Shift {currentShift.shift} Terkini</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 flex items-center space-x-2">
-            <button
-              onClick={onOpenPdfModal}
-              className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 shadow-xs active:scale-95"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak / Download PDF</span>
-            </button>
-          </div>
-        </div>
-
-        {/* MODUL 5: KONFIGURASI MASTER BOM (HIERARCHY, MACHINES & TANKS) */}
-        <div className="bg-white border border-slate-200 hover:border-amber-400 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all group md:col-span-2 lg:col-span-2">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
-                  <Database className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-xs sm:text-sm text-slate-900">
-                  5. Konfigurasi Master BOM & Mesin
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                Hierarki 4-Tingkat
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600">
-              Pengaturan hierarki formulasi: <strong>SKU</strong> &rarr; <strong>WIP Terpisah</strong> &rarr; <strong>Resep Formulasi</strong> &rarr; <strong>Material (Padat / Bubuk / Liquid)</strong> serta database mesin pengolah dan tangki.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 text-[10px] block">Master SKU:</span>
-                <span className="text-slate-900 font-bold">{state.master.skus.length} Produk SKU</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Master WIP:</span>
-                <span className="text-sky-700 font-bold">{state.master.wips.length} Jenis WIP</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Resep Formulasi:</span>
-                <span className="text-amber-700 font-bold">{state.master.recipes?.length || 3} Resep Terdaftar</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block">Material Database:</span>
-                <span className="text-emerald-700 font-bold">{state.master.materials.length} Bahan Baku</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 flex items-center space-x-2">
-            <button
-              onClick={() => onSwitchTab('master')}
-              className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow-xs active:scale-95"
-            >
-              <span>Buka Konfigurasi Master BOM</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            {onOpenStockAdjustment && (
-              <button
-                onClick={onOpenStockAdjustment}
-                title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
-                className="py-2 px-3 bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold rounded-xl text-xs transition border border-amber-300 flex items-center space-x-1 shadow-xs active:scale-95"
-              >
-                <Scale className="w-3.5 h-3.5 text-amber-700" />
-                <span>Adjust Saldo Awal</span>
-              </button>
-            )}
-            <button
-              onClick={onOpenUserManagement}
-              title="Kelola Pendaftaran Operator & Izin Management"
-              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-sky-800 font-semibold rounded-xl text-xs transition border border-sky-300 flex items-center space-x-1"
-            >
-              <Users className="w-3.5 h-3.5 text-sky-700" />
-              <span>Kelola Pengguna ({state.registeredOperators.length + state.registeredManagement.length})</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Compact Bottom Audit Bar */}
-      <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex items-center justify-between text-[11px] text-slate-600 shrink-0 shadow-xs">
-        <div className="flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span>Status Sistem MRP & WMS: <strong>Normal Operasional</strong></span>
-        </div>
-        <div className="flex items-center space-x-3 font-mono text-[10px]">
-          <span>Pengguna Aktif: <strong>{state.currentSession?.name || 'Administrator'}</strong></span>
-          <span>•</span>
-          <span>Versi Mesin: <strong>ProdTrack MES 4.2</strong></span>
-        </div>
+          );
+        })}
       </div>
     </div>
   );

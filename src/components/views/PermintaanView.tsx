@@ -922,17 +922,27 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </div>
         </div>
 
-        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+            <button
+              type="button"
+              onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
+              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
+              title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
+            >
+              <Scale className="w-3.5 h-3.5" />
+              <span>Adjust Saldo Awal</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
-            className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs"
-            title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
+            onClick={() => onSwitchTab('penerimaan')}
+            className="shrink-0 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition active:scale-95 whitespace-nowrap"
           >
-            <Scale className="w-3.5 h-3.5" />
-            <span>Adjust Saldo Awal (Admin)</span>
+            <span>Lanjut Tahap 04: Penerimaan Fisik</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
-        )}
+        </div>
       </div>
 
       {/* Acuan Planning Mingguan (PPIC) untuk Pemesanan Material ke Supplier */}

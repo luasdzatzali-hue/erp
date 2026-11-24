@@ -752,10 +752,20 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <span className="text-[11px] font-mono text-slate-400 tabular-nums">
               Jam Pabrik: <strong className="text-slate-100">{new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</strong>
             </span>
+            {onSwitchTab && (
+              <button
+                type="button"
+                onClick={() => onSwitchTab('tank-monitoring')}
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition active:scale-95"
+              >
+                <span>Lanjut Tahap 06: Transfer WIP</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

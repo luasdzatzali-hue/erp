@@ -87,6 +87,9 @@ import { TankMonitoringView } from './components/views/TankMonitoringView';
 import { ShiftSummaryView } from './components/views/ShiftSummaryView';
 import { AuthPortalView } from './components/views/AuthPortalView';
 import { AdminPortalView } from './components/views/AdminPortalView';
+import { GoogleSheetsSyncView } from './components/views/GoogleSheetsSyncView';
+import { WeeklyPlanningView } from './components/views/WeeklyPlanningView';
+import { OperationalWorkflowStepper } from './components/OperationalWorkflowStepper';
 import { ShiftReportPdfModal } from './components/ShiftReportPdfModal';
 import { WipCompletionAlarmModal } from './components/WipCompletionAlarmModal';
 import { UserRoleSwitcherModal } from './components/UserRoleSwitcherModal';
@@ -154,6 +157,7 @@ export default function App() {
   const isApplyingRemoteRef = useRef(false);
   const isLoggingOutRef = useRef(false);
   const manualGoogleLoginInFlightRef = useRef(false);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
   const lineStatusUnsubRef = useRef<(() => void) | null>(null);
   const cloudWriteTimersRef = useRef<{
@@ -1094,6 +1098,7 @@ export default function App() {
         const validTabs: AppState['currentTab'][] = [
           'admin-portal',
           'dashboard',
+          'weekly-planning',
           'tank-monitoring',
           'shift-summary',
           'permintaan',
@@ -1102,7 +1107,8 @@ export default function App() {
           'master',
           'bom-calculator',
           'reports',
-          'contact'
+          'contact',
+          'sheets-sync'
         ];
         if (tab && validTabs.includes(tab)) {
           if (tab === 'reports') {
@@ -1125,8 +1131,16 @@ export default function App() {
       return;
     }
     const role = stateRef.current.currentUserRole;
-    if (role === 'MANAGEMENT' && tab !== 'dashboard' && tab !== 'tank-monitoring' && tab !== 'shift-summary' && tab !== 'contact') {
-      showToast('Akses dibatasi: User Management hanya memiliki izin melihat Dashboard, Tangki WIP, dan Ringkasan Shift', true);
+    if (
+      role === 'MANAGEMENT' &&
+      tab !== 'dashboard' &&
+      tab !== 'weekly-planning' &&
+      tab !== 'tank-monitoring' &&
+      tab !== 'shift-summary' &&
+      tab !== 'contact' &&
+      tab !== 'sheets-sync'
+    ) {
+      showToast('Akses dibatasi: User Management hanya memiliki izin melihat (Read-Only)', true);
       return;
     }
     if (role !== 'ADMINISTRATOR' && (tab === 'master' || tab === 'admin-portal')) {
@@ -1135,6 +1149,9 @@ export default function App() {
     }
     setState(prev => ({ ...prev, currentTab: tab }));
     window.location.hash = `tab=${tab}`;
+    requestAnimationFrame(() => {
+      mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   // Full Logout back to clean AuthPortalView (Sign Up / Login options for any user)
@@ -1159,12 +1176,20 @@ export default function App() {
       const isNewAdmin = role === 'ADMINISTRATOR';
       let nextTab = prev.currentTab;
 
-      // Management is strictly restricted to dashboard, tank-monitoring, shift-summary, and contact
-      if (role === 'MANAGEMENT' && nextTab !== 'dashboard' && nextTab !== 'tank-monitoring' && nextTab !== 'shift-summary' && nextTab !== 'contact') {
+      // Management is strictly restricted to dashboard, weekly-planning, tank-monitoring, shift-summary, contact, and sheets-sync (read-only)
+      if (
+        role === 'MANAGEMENT' &&
+        nextTab !== 'dashboard' &&
+        nextTab !== 'weekly-planning' &&
+        nextTab !== 'tank-monitoring' &&
+        nextTab !== 'shift-summary' &&
+        nextTab !== 'contact' &&
+        nextTab !== 'sheets-sync'
+      ) {
         nextTab = 'dashboard';
       }
-      // Non-admins cannot stay in Master BOM
-      if (!isNewAdmin && nextTab === 'master') {
+      // Non-admins cannot stay in Master BOM or Admin Portal
+      if (!isNewAdmin && (nextTab === 'master' || nextTab === 'admin-portal')) {
         nextTab = 'dashboard';
       }
 
@@ -4729,17 +4754,19 @@ export default function App() {
 
   // Titles for views
   const viewTitles: Record<AppState['currentTab'], string> = {
-    'admin-portal': 'Cockpit Modul MRP & WMS Administrator',
-    dashboard: 'Manufacturing - Simulasi Produksi & Status Line',
-    'tank-monitoring': 'Inventory & Tangki WIP - Monitoring 5 Tangki',
+    'admin-portal': 'Portal Alur Kerja Operasional Administrator',
+    master: 'Tahap 01 · Konfigurasi Master BOM, Resep, Mesin & Tangki',
+    'weekly-planning': 'Tahap 02 · Penentuan Planning Produksi Mingguan',
+    permintaan: 'Tahap 03 · Permintaan Material GDRM & Formulasi',
+    penerimaan: 'Tahap 04 · Kedatangan & Penerimaan Fisik Material',
+    pemakaian: 'Tahap 05 · Pembuatan Work Order WIP & Batch Resep',
+    'tank-monitoring': 'Tahap 06 · Transfer WIP ke Storage & Tangki Holding',
+    dashboard: 'Tahap 07 · Manufacturing Control Room & Eksekusi Lini',
     'shift-summary': 'Ringkasan Produksi Shift (Output, SBL & Konsumsi Material)',
-    permintaan: 'Permintaan Material GDRM (Warehouse)',
-    penerimaan: 'Penerimaan Material & Inbound Kedatangan',
-    pemakaian: 'Work Order WIP & Pemakaian Material Resep',
-    master: 'Konfigurasi Master BOM, Resep, Mesin & Tangki',
     'bom-calculator': 'Kalkulator Kebutuhan Produksi & Formulasi BOM',
     reports: 'Laporan Saldo Stock Aktual Shift (PDF Landscape)',
-    contact: 'Kontak & Dukungan Tim Teknis ProdTrack MES'
+    contact: 'Kontak & Dukungan Tim Teknis ProdTrack MES',
+    'sheets-sync': 'Integrasi Otomatis Hasil Produksi ke Google Sheets'
   };
 
   // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
@@ -4919,8 +4946,19 @@ export default function App() {
           </div>
         </div>
 
+        {/* Persistent Pinned Operational Workflow Stepper (Remains Visible on Scroll) */}
+        {state.currentTab !== 'contact' && (
+          <OperationalWorkflowStepper
+            state={state}
+            onSwitchTab={handleSwitchTab}
+          />
+        )}
+
         {/* Main Content View Area */}
-        <main className={`flex-1 ${state.currentTab === 'admin-portal' ? 'overflow-y-auto lg:overflow-hidden p-2 sm:p-3 lg:p-4' : 'overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8'} bg-[#06090f] relative`}>
+        <main
+          ref={mainScrollRef}
+          className="flex-1 overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8 bg-[#06090f] relative"
+        >
           {state.currentTab === 'admin-portal' && (
             <AdminPortalView
               state={state}
@@ -4929,6 +4967,17 @@ export default function App() {
               onOpenTankModal={() => setIsTankModalOpen(true)}
               onOpenUserManagement={() => setIsUserManagementOpen(true)}
               onOpenStockAdjustment={handleOpenStockAdjustment}
+              showToast={showToast}
+            />
+          )}
+
+          {state.currentTab === 'weekly-planning' && (
+            <WeeklyPlanningView
+              state={state}
+              onSaveWeeklyPlan={handleSaveWeeklyPlan}
+              onSelectWeeklyPlan={handleSelectWeeklyPlan}
+              onDeleteWeeklyPlan={handleDeleteWeeklyPlan}
+              onSwitchTab={handleSwitchTab}
               showToast={showToast}
             />
           )}
@@ -5009,6 +5058,7 @@ export default function App() {
               onReceiveMaterial={handleReceiveMaterial}
               preselectedRequestId={preselectedRequestId}
               onOpenStockAdjustment={handleOpenStockAdjustment}
+              onSwitchTab={handleSwitchTab}
               showToast={showToast}
             />
           )}
@@ -5070,6 +5120,7 @@ export default function App() {
               onChangeAdminPin={handleChangePin}
               onOpenAdminModal={() => setIsAdminModalOpen(true)}
               onOpenUserManagement={() => setIsUserManagementOpen(true)}
+              onSwitchTab={handleSwitchTab}
               showToast={showToast}
             />
           )}
@@ -5088,6 +5139,14 @@ export default function App() {
               state={state}
               onSwitchTab={handleSwitchTab}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
+              showToast={showToast}
+            />
+          )}
+
+          {state.currentTab === 'sheets-sync' && (
+            <GoogleSheetsSyncView
+              state={state}
+              onSwitchTab={handleSwitchTab}
               showToast={showToast}
             />
           )}

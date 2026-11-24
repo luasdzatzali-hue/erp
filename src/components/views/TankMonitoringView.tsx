@@ -28,7 +28,8 @@ import {
   Play,
   Square,
   Eye,
-  Lock
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 import {
   AppState,
@@ -367,6 +368,17 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
             <Printer className="w-3.5 h-3.5 text-cyan-400" />
             <span className="hidden sm:inline">Cetak Laporan</span>
           </button>
+
+          {onSwitchTab && (
+            <button
+              type="button"
+              onClick={() => onSwitchTab('dashboard')}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 active:scale-95"
+            >
+              <span>Lanjut Tahap 07: Manufacturing</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {isAdmin && onSwitchTab && (
             <button

@@ -23,7 +23,8 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
-  CalendarRange
+  CalendarRange,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   AppState,
@@ -40,6 +41,8 @@ import { getCurrentShift, formatIndonesianDate, ShiftNumber } from '../../utils/
 import { DashboardLineStatusSnapshot } from '../../utils/firebaseSync';
 import { ProductionTargetPanel } from '../ProductionTargetPanel';
 import { WeeklyPlanningSection } from '../WeeklyPlanningSection';
+import { WeeklyPlanVsActualChart } from '../WeeklyPlanVsActualChart';
+import { loadSheetsSyncSettings, SHEETS_SYNC_EVENT } from '../../utils/sheetsSyncStore';
 
 interface DashboardViewProps {
   state: AppState;
@@ -154,6 +157,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [filterSkuId, setFilterSkuId] = useState<string>('all');
   const [filterWipId, setFilterWipId] = useState<string>('all');
   const [isSkuCatalogExpanded, setIsSkuCatalogExpanded] = useState<boolean>(false);
+  const [syncedLogIds, setSyncedLogIds] = useState<string[]>(() => loadSheetsSyncSettings().syncedProductionIds);
+
+  React.useEffect(() => {
+    const syncListener = () => {
+      setSyncedLogIds(loadSheetsSyncSettings().syncedProductionIds);
+    };
+    window.addEventListener(SHEETS_SYNC_EVENT, syncListener);
+    return () => window.removeEventListener(SHEETS_SYNC_EVENT, syncListener);
+  }, []);
+
+  const unsyncedProductionCount = useMemo(() => {
+    const syncedSet = new Set(syncedLogIds);
+    return (state.transactions.cartonProductions || []).filter(cp => !syncedSet.has(cp.id)).length;
+  }, [state.transactions.cartonProductions, syncedLogIds]);
 
   const isManagement = state.currentUserRole === 'MANAGEMENT';
   const currentLiveShift = getCurrentShift();
@@ -461,6 +478,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <CalendarRange className="w-3.5 h-3.5 text-emerald-400" />
             <span>Planning Mingguan</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSwitchTab('sheets-sync')}
+            className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-emerald-300 border border-emerald-500/35 hover:border-emerald-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>
+              Sync Sheets{unsyncedProductionCount > 0 ? ` (${unsyncedProductionCount})` : ''}
+            </span>
           </button>
           <button
             type="button"
@@ -898,6 +925,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Recharts Weekly Production Plan vs Actual & Per-SKU Variance Visualization */}
+      <WeeklyPlanVsActualChart
+        state={state}
+        onScrollToWeeklyPlan={scrollToWeeklyPlanning}
+        onOpenSheetsSync={() => onSwitchTab('sheets-sync')}
+      />
 
       {/* Production Target Panel: 24 Jam Penuh (3 Shift × 8 Jam Kerja) & Line Produksi */}
       <div id="production-target-console">

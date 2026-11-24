@@ -24,7 +24,8 @@ import {
   Lock,
   QrCode,
   Tag,
-  X
+  X,
+  ArrowRight
 } from 'lucide-react';
 import { AppState, MaterialReceipt, StorageLocation, ZakReceiptBreakdown, ShiftNumber } from '../../types';
 import { getCurrentShift } from '../../utils/shifts';
@@ -37,6 +38,7 @@ interface PenerimaanViewProps {
   onReceiveMaterial: (receipt: Omit<MaterialReceipt, 'id' | 'receiptNumber' | 'date'>) => void;
   preselectedRequestId?: string;
   onOpenStockAdjustment?: (materialId?: string) => void;
+  onSwitchTab?: (tab: AppState['currentTab']) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -45,6 +47,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
   onReceiveMaterial,
   preselectedRequestId,
   onOpenStockAdjustment,
+  onSwitchTab,
   showToast
 }) => {
   const [selectedReqId, setSelectedReqId] = useState(preselectedRequestId || '');
@@ -477,17 +480,29 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           </div>
         </div>
 
-        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
-          <button
-            type="button"
-            onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
-            className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs"
-            title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
-          >
-            <Scale className="w-3.5 h-3.5" />
-            <span>Adjust Saldo Awal (Admin)</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+            <button
+              type="button"
+              onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
+              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
+              title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
+            >
+              <Scale className="w-3.5 h-3.5" />
+              <span>Adjust Saldo Awal</span>
+            </button>
+          )}
+          {onSwitchTab && (
+            <button
+              type="button"
+              onClick={() => onSwitchTab('pemakaian')}
+              className="shrink-0 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition active:scale-95 whitespace-nowrap"
+            >
+              <span>Lanjut Tahap 05: Work Order WIP</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Penerimaan Form */}

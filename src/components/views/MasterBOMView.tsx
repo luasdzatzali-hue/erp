@@ -129,6 +129,7 @@ interface MasterBOMViewProps {
   onOpenAdminModal: () => void;
   onOpenUserManagement?: () => void;
   onOpenStockAdjustment?: (materialId?: string) => void;
+  onSwitchTab?: (tab: AppState['currentTab']) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -176,6 +177,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   onOpenAdminModal,
   onOpenUserManagement,
   onOpenStockAdjustment,
+  onSwitchTab,
   showToast
 }) => {
   // Master sub-tab selection
@@ -1155,6 +1157,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <span className="px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-semibold rounded-lg text-[10px]">
                 Auto-Saved System
               </span>
+              {onSwitchTab && (
+                <button
+                  type="button"
+                  onClick={() => onSwitchTab('weekly-planning')}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition active:scale-95 whitespace-nowrap shrink-0"
+                >
+                  <span>Lanjut Tahap 02: Planning Mingguan</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
