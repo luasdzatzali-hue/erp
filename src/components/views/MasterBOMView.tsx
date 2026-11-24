@@ -74,12 +74,14 @@ import {
 interface MasterBOMViewProps {
   state: AppState;
   onAddMaterial: (mat: Omit<Material, 'id'>) => void;
+  onUpdateMaterial?: (materialId: string, updates: Partial<Material>) => void;
   onDeleteMaterial: (id: string) => void;
   onImportMaterials?: (materials: Material[], mode: 'replace' | 'append') => void;
   onAddWip: (wip: Omit<WIP, 'id'>) => void;
   onUpdateWip?: (wipId: string, updates: Partial<WIP>) => void;
   onDeleteWip: (id: string) => void;
   onAddSku: (sku: Omit<SKU, 'id'>) => void;
+  onUpdateSku?: (skuId: string, updates: Partial<SKU>) => void;
   onDeleteSku: (id: string) => void;
   onImportSkus?: (skus: SKU[], mode: 'replace' | 'append') => void;
   onAddSkuWip: (sw: Omit<SkuWip, 'id'>) => void;
@@ -138,12 +140,14 @@ interface MasterBOMViewProps {
 export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   state,
   onAddMaterial,
+  onUpdateMaterial,
   onDeleteMaterial,
   onImportMaterials,
   onAddWip,
   onUpdateWip,
   onDeleteWip,
   onAddSku,
+  onUpdateSku,
   onDeleteSku,
   onImportSkus,
   onAddSkuWip,
@@ -206,13 +210,21 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [isManagementFormOpen, setIsManagementFormOpen] = useState(true);
   const [isChangePinFormOpen, setIsChangePinFormOpen] = useState(true);
 
-  // Material form state
+  // Material form state (create & edit)
   const [matName, setMatName] = useState('');
   const [matCode, setMatCode] = useState('');
   const [matType, setMatType] = useState<MaterialType>('bubuk');
   const [matSource, setMatSource] = useState<MaterialSource>('GDRM');
   const [matPackaging, setMatPackaging] = useState('');
   const [matWeight, setMatWeight] = useState('');
+  const [matMinStock, setMatMinStock] = useState('');
+  const [matInitCk, setMatInitCk] = useState('');
+  const [matInitWr, setMatInitWr] = useState('');
+  const [matInitTank, setMatInitTank] = useState('');
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [matSearch, setMatSearch] = useState('');
+  const [matTypeFilter, setMatTypeFilter] = useState<'ALL' | MaterialType>('ALL');
+  const [matSourceFilter, setMatSourceFilter] = useState<'ALL' | MaterialSource>('ALL');
 
   // WIP form state with 1 WIP = 1 Unique Code, multi-machine, duration, and multi-tanks (Holding & Storage Tanks)
   const [wipCode, setWipCode] = useState('');
@@ -263,11 +275,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [editTankMinAlert, setEditTankMinAlert] = useState<string>('');
   const [editTankAgitator, setEditTankAgitator] = useState<'ON' | 'OFF'>('ON');
 
-  // SKU form state
+  // SKU form state (create & edit)
+  const [skuCode, setSkuCode] = useState('');
   const [skuName, setSkuName] = useState('');
   const [skuIsKite, setSkuIsKite] = useState(false);
   const [skuTarget, setSkuTarget] = useState('');
   const [skuWeight, setSkuWeight] = useState('');
+  const [editingSkuId, setEditingSkuId] = useState<string | null>(null);
+  const [skuSearch, setSkuSearch] = useState('');
+  const [skuCategoryFilter, setSkuCategoryFilter] = useState<'ALL' | 'DOM' | 'KITE'>('ALL');
 
   // SkuWip form state
   const [swSkuId, setSwSkuId] = useState('');
@@ -468,29 +484,84 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     );
   }
 
-  // Material Submit
+  // Material Create & Update Submit
+  const resetMaterialForm = () => {
+    setEditingMaterialId(null);
+    setMatName('');
+    setMatCode('');
+    setMatType('bubuk');
+    setMatSource('GDRM');
+    setMatPackaging('');
+    setMatWeight('');
+    setMatMinStock('');
+    setMatInitCk('');
+    setMatInitWr('');
+    setMatInitTank('');
+  };
+
+  const handleStartEditMaterial = (mat: Material) => {
+    setIsMaterialFormOpen(true);
+    setEditingMaterialId(mat.id);
+    setMatName(mat.name);
+    setMatCode(mat.code || '');
+    setMatType(mat.type);
+    setMatSource(mat.source);
+    setMatPackaging(mat.packaging || '');
+    setMatWeight(String(mat.weightKg));
+    setMatMinStock(mat.minStockAlert !== undefined && mat.minStockAlert > 0 ? String(mat.minStockAlert) : '');
+    setMatInitCk(mat.initialStockCk !== undefined && mat.initialStockCk > 0 ? String(mat.initialStockCk) : '');
+    setMatInitWr(mat.initialStockWineroto !== undefined && mat.initialStockWineroto > 0 ? String(mat.initialStockWineroto) : '');
+    setMatInitTank(mat.initialStockTank !== undefined && mat.initialStockTank > 0 ? String(mat.initialStockTank) : '');
+  };
+
   const handleMaterialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const weight = parseFloat(matWeight);
-    if (!matName || isNaN(weight) || weight <= 0) {
-      showToast('Harap masukkan nama dan berat material yang valid', true);
+    const trimmedName = matName.trim();
+    if (!trimmedName || isNaN(weight) || weight <= 0) {
+      showToast('Harap masukkan nama dan berat kemasan material yang valid (> 0)', true);
+      return;
+    }
+
+    const parsedMinStock = matMinStock.trim() !== '' ? Math.max(0, parseFloat(matMinStock) || 0) : undefined;
+    const parsedCk = matInitCk.trim() !== '' ? Math.max(0, parseFloat(matInitCk) || 0) : 0;
+    const parsedWr = matInitWr.trim() !== '' ? Math.max(0, parseFloat(matInitWr) || 0) : 0;
+    const parsedTank = matInitTank.trim() !== '' ? Math.max(0, parseFloat(matInitTank) || 0) : 0;
+    const normalizedCode = matCode.trim().toUpperCase();
+
+    if (editingMaterialId && onUpdateMaterial) {
+      onUpdateMaterial(editingMaterialId, {
+        name: trimmedName,
+        code: normalizedCode || undefined,
+        type: matType,
+        source: matSource,
+        packaging: matPackaging.trim() || `${weight.toFixed(4)} kg`,
+        weightKg: weight,
+        minStockAlert: parsedMinStock,
+        initialStockCk: parsedCk,
+        initialStockWineroto: parsedWr,
+        initialStockTank: parsedTank
+      });
+      resetMaterialForm();
+      showToast(`Perubahan material "${trimmedName}" berhasil disimpan`);
       return;
     }
 
     onAddMaterial({
-      name: matName,
-      code: matCode.trim() || undefined,
+      name: trimmedName,
+      code: normalizedCode || undefined,
       type: matType,
       source: matSource,
-      packaging: matPackaging || `${weight.toFixed(4)} kg`,
-      weightKg: weight
+      packaging: matPackaging.trim() || `${weight.toFixed(4)} kg`,
+      weightKg: weight,
+      minStockAlert: parsedMinStock,
+      initialStockCk: parsedCk,
+      initialStockWineroto: parsedWr,
+      initialStockTank: parsedTank
     });
 
-    setMatName('');
-    setMatCode('');
-    setMatPackaging('');
-    setMatWeight('');
-    showToast('Material berhasil di-autosave ke database');
+    resetMaterialForm();
+    showToast(`Material "${trimmedName}" berhasil di-autosave ke database`);
   };
 
   // WIP Submit with 1 WIP = 1 Unique Code, Multi-Machines, Duration, and Multi-Storage/Holding Tanks
@@ -711,28 +782,61 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     }
   };
 
-  // SKU Submit
+  // SKU Create & Update Submit
+  const resetSkuForm = () => {
+    setEditingSkuId(null);
+    setSkuCode('');
+    setSkuName('');
+    setSkuIsKite(false);
+    setSkuTarget('');
+    setSkuWeight('');
+  };
+
+  const handleStartEditSku = (sku: SKU) => {
+    setIsSkuFormOpen(true);
+    setEditingSkuId(sku.id);
+    setSkuCode(sku.code || '');
+    setSkuName(sku.name);
+    setSkuIsKite(Boolean(sku.isKite));
+    setSkuTarget(String(sku.targetHour));
+    setSkuWeight(String(sku.cartonWeightKg));
+  };
+
   const handleSkuSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = skuName.trim();
+    const trimmedCode = skuCode.trim().toUpperCase();
     const targetH = parseFloat(skuTarget) || 0;
     const cWeight = parseFloat(skuWeight);
-    if (!skuName || isNaN(cWeight) || cWeight <= 0) {
-      showToast('Harap masukkan nama dan berat karton SKU yang valid', true);
+    if (!trimmedName || isNaN(cWeight) || cWeight <= 0) {
+      showToast('Harap masukkan nama dan berat karton SKU yang valid (> 0)', true);
+      return;
+    }
+
+    if (editingSkuId && onUpdateSku) {
+      onUpdateSku(editingSkuId, {
+        code: trimmedCode || undefined,
+        name: trimmedName,
+        isKite: skuIsKite,
+        targetHour: targetH,
+        cartonWeightKg: cWeight
+      });
+      resetSkuForm();
+      showToast(`Perubahan SKU "${trimmedName}" (${skuIsKite ? 'KITE Ekspor' : 'Domestik'}) berhasil disimpan`);
       return;
     }
 
     onAddSku({
-      name: skuName,
+      code: trimmedCode || undefined,
+      name: trimmedName,
       isKite: skuIsKite,
       targetHour: targetH,
       cartonWeightKg: cWeight
     });
 
-    setSkuName('');
-    setSkuIsKite(false);
-    setSkuTarget('');
-    setSkuWeight('');
-    showToast(`SKU (${skuIsKite ? 'KITE Ekspor' : 'Domestik'}) berhasil disimpan`);
+    const savedIsKite = skuIsKite;
+    resetSkuForm();
+    showToast(`SKU "${trimmedName}" (${savedIsKite ? 'KITE Ekspor' : 'Domestik'}) berhasil disimpan`);
   };
 
   // Link SKU to WIP
@@ -1085,7 +1189,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-8">
+    <div className="max-w-7xl mx-auto space-y-5 pb-8">
       {/* Sub-tab Navigation: BOM Hierarki, Master Mesin, Master Tangki */}
       <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 shadow-xl">
         <button
@@ -1184,693 +1288,1237 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
           </div>
 
-          {/* Grid: 3 Foundation Columns (1. Material, 2. WIP, 3. SKU) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Column 1: Material Master Form */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
-              <Database className="w-4 h-4 text-rose-400" />
-              <span>1. Input Material (DB)</span>
-            </h3>
-            <div className="flex items-center space-x-2">
-              {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
-                <button
-                  type="button"
-                  onClick={() => onOpenStockAdjustment()}
-                  className="text-[11px] text-amber-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-amber-950/60 border border-amber-800 hover:bg-amber-900/60 transition"
-                  title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
-                >
-                  <Scale className="w-3 h-3 text-amber-400" />
-                  <span>Adjust Saldo Awal</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
-                    showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
-                    return;
-                  }
-                  setIsImportModalOpen(true);
-                }}
-                className="text-[11px] text-cyan-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-cyan-950/60 border border-cyan-800 hover:bg-cyan-900/60 transition"
-                title="Impor dari penyimpanan lokal atau Google Drive"
-              >
-                <UploadCloud className="w-3 h-3 text-cyan-400" />
-                <span>Import</span>
-              </button>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {state.master.materials.length} item
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsMaterialFormOpen(prev => !prev)}
-                aria-expanded={isMaterialFormOpen}
-                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
-              >
-                {isMaterialFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                <span>{isMaterialFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
-              </button>
-            </div>
-          </div>
+          {/* 3 Foundation Modules: Maximized Full-Width Split Workspaces (Form + Searchable Database) */}
+          <div className="space-y-5">
+            {/* STEP 1: MAXIMIZED INPUT MATERIAL (DB) */}
+            {(() => {
+              const filteredMaterials = state.master.materials.filter(m => {
+                if (matTypeFilter !== 'ALL' && m.type !== matTypeFilter) return false;
+                if (matSourceFilter !== 'ALL' && m.source !== matSourceFilter) return false;
+                if (matSearch.trim()) {
+                  const q = matSearch.trim().toLowerCase();
+                  const hay = `${m.code || ''} ${m.name} ${m.packaging} ${m.type} ${m.source}`.toLowerCase();
+                  if (!hay.includes(q)) return false;
+                }
+                return true;
+              });
+              const matInitTotalPreview =
+                (parseFloat(matInitCk) || 0) +
+                (parseFloat(matInitWr) || 0) +
+                (parseFloat(matInitTank) || 0);
+              const packagingPresets = [
+                { label: 'Zak 15 kg', pkg: 'Zak 15 kg', weight: '15', type: 'bubuk' as MaterialType },
+                { label: 'Zak 25 kg', pkg: 'Zak 25 kg', weight: '25', type: 'bubuk' as MaterialType },
+                { label: 'Zak 50 kg', pkg: 'Zak 50 kg', weight: '50', type: 'bubuk' as MaterialType },
+                { label: 'Karton 20 kg', pkg: 'Karton 20 kg', weight: '20', type: 'padat' as MaterialType },
+                { label: 'Jerigen 20 kg', pkg: 'Jerigen 20 kg', weight: '20', type: 'liquid' as MaterialType },
+                { label: 'Drum 200 kg', pkg: 'Drum 200 kg', weight: '200', type: 'liquid' as MaterialType },
+                { label: 'IBC 1000 kg', pkg: 'IBC Tank 1000 kg', weight: '1000', type: 'liquid' as MaterialType }
+              ];
 
-          {isMaterialFormOpen && (
-          <form onSubmit={handleMaterialSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={matName}
-                onChange={(e) => setMatName(e.target.value)}
-                required
-                placeholder="Nama Material (e.g. Gula Pasir)"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-              />
-              <input
-                type="text"
-                value={matCode}
-                onChange={(e) => setMatCode(e.target.value)}
-                placeholder="Kode Material (e.g. MAT-GL-01)"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={matType}
-                onChange={(e) => setMatType(e.target.value as MaterialType)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-              >
-                <option value="bubuk">Bubuk</option>
-                <option value="liquid">Liquid</option>
-                <option value="padat">Padat</option>
-              </select>
-              <select
-                value={matSource}
-                onChange={(e) => setMatSource(e.target.value as MaterialSource)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-              >
-                <option value="GDRM">GDRM (Standar)</option>
-                <option value="Formulasi">Formulasi (Custom)</option>
-              </select>
-            </div>
-            <input
-              type="text"
-              value={matPackaging}
-              onChange={(e) => setMatPackaging(e.target.value)}
-              placeholder="Kemasan (e.g. Zak 15 kg, Zak 25 kg, Zak 50 kg)"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
-            />
-            <input
-              type="number"
-              step="0.0001"
-              value={matWeight}
-              onChange={(e) => setMatWeight(e.target.value)}
-              required
-              placeholder="Berat Kemasan (Kilogram, 4 desimal)"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
-            />
-            <button
-              type="submit"
-              className="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-rose-600/20 transition active:scale-95"
-            >
-              Simpan & Autosave Material
-            </button>
-          </form>
-          )}
-
-          {/* List of Materials */}
-          <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
-            {state.master.materials.length > 0 ? (
-              state.master.materials.map(m => (
-                <div
-                  key={m.id}
-                  className="bg-slate-800/50 border border-slate-700/60 p-2.5 rounded-xl flex items-center justify-between text-xs hover:bg-slate-800 transition"
-                >
-                  <div className="truncate mr-2">
-                    <div className="flex items-center space-x-1.5 truncate">
-                      {m.code && (
-                        <span className="font-mono text-sky-950 font-extrabold bg-sky-100 px-2 py-0.5 rounded border border-sky-300 text-[11px] shrink-0">
-                          {m.code}
-                        </span>
-                      )}
-                      <span className="font-semibold text-white truncate">{m.name}</span>
+              return (
+                <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm sm:text-base text-white">
+                          1. Input Material &amp; Database Bahan Baku
+                        </h3>
+                        <p className="text-[11px] text-slate-400">
+                          {state.master.materials.length} material terdaftar ·{' '}
+                          {state.master.materials.filter(m => m.type === 'bubuk').length} Bubuk ·{' '}
+                          {state.master.materials.filter(m => m.type === 'liquid').length} Liquid ·{' '}
+                          {state.master.materials.filter(m => m.type === 'padat').length} Padat
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">
-                      <span className="text-slate-300 font-medium">{m.type.toUpperCase()}</span> • <span className={m.source === 'Formulasi' ? 'text-purple-300 font-medium' : 'text-blue-300 font-medium'}>{m.source}</span> • {m.packaging}
-                    </span>
-                    <span className="text-[10px] text-amber-300/90 font-mono block mt-0.5">
-                      Saldo Awal: Total {((m.initialStockCk || 0) + (m.initialStockWineroto || 0) + (m.initialStockTank || 0)).toFixed(1)} kg
-                      <span className="text-slate-400 text-[9px] ml-1">
-                        (CK: {m.initialStockCk || 0} | WR: {m.initialStockWineroto || 0} | TK: {m.initialStockTank || 0})
-                      </span>
-                    </span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-mono text-cyan-400 font-semibold block text-[11px]">
-                      {m.weightKg.toFixed(4)} kg
-                    </span>
-                    <div className="flex items-center space-x-2 mt-0.5 justify-end">
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
                         <button
                           type="button"
-                          onClick={() => onOpenStockAdjustment(m.id)}
-                          className="text-amber-400 hover:text-amber-300 text-[10px] font-medium"
-                          title="Sesuaikan Saldo Awal Material Ini"
+                          onClick={() => onOpenStockAdjustment()}
+                          className="text-xs text-amber-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800 hover:bg-amber-900/60 font-semibold transition whitespace-nowrap shrink-0"
+                          title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
                         >
-                          Adjust Saldo
+                          <Scale className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Adjust Saldo Awal</span>
                         </button>
                       )}
                       <button
-                        onClick={() => onDeleteMaterial(m.id)}
-                        className="text-rose-400 hover:text-rose-300 text-[10px]"
+                        type="button"
+                        onClick={() => {
+                          if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                            showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
+                            return;
+                          }
+                          setIsImportModalOpen(true);
+                        }}
+                        className="text-xs text-cyan-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/60 border border-cyan-800 hover:bg-cyan-900/60 font-semibold transition whitespace-nowrap shrink-0"
+                        title="Impor dari penyimpanan lokal atau Google Drive"
                       >
-                        Hapus
+                        <UploadCloud className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Import File / Drive</span>
                       </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-[11px] text-slate-500 text-center py-3">Belum ada material tersimpan.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Column 2: WIP Master Form */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2 gap-2">
-            <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
-              <Layers className="w-4 h-4 text-amber-400" />
-              <span>2. Input WIP & Mesin/Tangki</span>
-            </h3>
-            <div className="flex items-center space-x-2 shrink-0">
-              <span className="text-[10px] text-slate-400 font-mono">
-                {state.master.wips.length} WIP
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsWipFormOpen(prev => !prev)}
-                aria-expanded={isWipFormOpen}
-                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
-              >
-                {isWipFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                <span>{isWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
-              </button>
-            </div>
-          </div>
-
-          {isWipFormOpen && (
-          <form onSubmit={handleWipSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
-            {/* 1 WIP = 1 Unique Code */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-1">
-                <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
-                  Kode WIP:
-                </label>
-                <input
-                  type="text"
-                  value={wipCode}
-                  onChange={(e) => setWipCode(e.target.value.toUpperCase())}
-                  required
-                  placeholder="WIP-001"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-cyan-300 font-mono font-bold uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
-                  Nama WIP (1 Nama = 1 Kode):
-                </label>
-                <input
-                  type="text"
-                  value={wipName}
-                  onChange={(e) => setWipName(e.target.value)}
-                  required
-                  placeholder="e.g. WIP Sirup Karamel"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            </div>
-
-            <input
-              type="number"
-              step="0.0001"
-              value={wipBatchWeight}
-              onChange={(e) => setWipBatchWeight(e.target.value)}
-              required
-              placeholder="Berat 1 Batch WIP (kg, 4 desimal)"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
-            />
-
-            {/* Konfigurasi Lama Waktu Produksi WIP (Menit) */}
-            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                  <RotateCw className="w-3 h-3 text-amber-400" />
-                  <span>Lama Waktu Produksi WIP:</span>
-                </label>
-                <span className="text-[10px] text-amber-400 font-mono font-bold">
-                  {wipDurationMinutes || 30} Menit / Batch
-                </span>
-              </div>
-              <div className="flex items-center space-x-1.5">
-                <input
-                  type="number"
-                  min="1"
-                  max="720"
-                  value={wipDurationMinutes}
-                  onChange={(e) => setWipDurationMinutes(e.target.value)}
-                  required
-                  placeholder="30"
-                  className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-amber-400 font-bold"
-                />
-                <span className="text-slate-400 text-xs">menit</span>
-                <div className="flex items-center space-x-1 ml-auto">
-                  {['15', '30', '45', '60'].map(mins => (
-                    <button
-                      key={mins}
-                      type="button"
-                      onClick={() => setWipDurationMinutes(mins)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition ${
-                        wipDurationMinutes === mins
-                          ? 'bg-amber-500 text-slate-950 font-bold'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                      }`}
-                    >
-                      {mins}m
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <p className="text-[9px] text-slate-400 leading-tight">
-                Batch WIP otomatis terselesaikan saat durasi tercapai & alarm peringatan berbunyi.
-              </p>
-            </div>
-
-            {/* Multi-Mesin Produksi Selector (Opsi Penggunaan Lebih dari 1 Mesin) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                  <Cpu className="w-3 h-3 text-cyan-400" />
-                  <span>Mesin Pengolah WIP (Multi-Mesin):</span>
-                </label>
-                <div className="flex items-center space-x-1 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setWipMachineIds(state.master.machines.map(m => m.id))}
-                    className="text-cyan-400 hover:text-cyan-300 font-medium"
-                  >
-                    Semua
-                  </button>
-                  <span className="text-slate-600">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setWipMachineIds([])}
-                    className="text-slate-400 hover:text-slate-300 font-medium"
-                  >
-                    Kosongkan
-                  </button>
-                </div>
-              </div>
-
-              {state.master.machines.length > 0 ? (
-                <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
-                  {state.master.machines.map(m => {
-                    const isChecked = wipMachineIds.includes(m.id);
-                    return (
-                      <label
-                        key={m.id}
-                        className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
-                          isChecked
-                            ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2 truncate mr-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setWipMachineIds(prev => [...prev, m.id]);
-                              } else {
-                                setWipMachineIds(prev => prev.filter(id => id !== m.id));
-                              }
-                            }}
-                            className="w-3.5 h-3.5 rounded text-cyan-600 bg-slate-800 border-slate-700 focus:ring-0"
-                          />
-                          <span className="font-mono font-extrabold text-sky-950 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-xs shrink-0">{m.code}</span>
-                          <span className="truncate">{m.name}</span>
-                        </div>
-                        <span className="text-[9px] text-slate-500 shrink-0 font-mono">
-                          {m.line.split('(')[0]}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
-                  Belum ada master mesin produksi. Tambahkan di tab Master Mesin.
-                </p>
-              )}
-
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>{wipMachineIds.length} mesin diizinkan memproduksi WIP ini</span>
-                {wipMachineIds.length > 1 && (
-                  <span className="text-amber-400 font-medium">★ Multi-Mesin Fleksibel</span>
-                )}
-              </div>
-            </div>
-
-            {/* Multi-Storage / Holding Tanks Selector (Penyimpanan & Transfer WIP) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                  <Database className="w-3 h-3 text-purple-400" />
-                  <span>Tangki Penampungan / Transfer (Multi-Tank):</span>
-                </label>
-                <div className="flex items-center space-x-1 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setWipTankIds(state.master.tanks.map(t => t.id))}
-                    className="text-purple-400 hover:text-purple-300 font-medium"
-                  >
-                    Semua
-                  </button>
-                  <span className="text-slate-600">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'HOLDING_TANK').map(t => t.id))}
-                    className="text-amber-400 hover:text-amber-300 font-medium"
-                    title="Pilih hanya Holding Tanks"
-                  >
-                    HT
-                  </button>
-                  <span className="text-slate-600">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'STORAGE_TANK').map(t => t.id))}
-                    className="text-cyan-400 hover:text-cyan-300 font-medium"
-                    title="Pilih hanya Storage Tanks"
-                  >
-                    ST
-                  </button>
-                  <span className="text-slate-600">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setWipTankIds([])}
-                    className="text-slate-400 hover:text-slate-300 font-medium"
-                  >
-                    Kosongkan
-                  </button>
-                </div>
-              </div>
-
-              {state.master.tanks.length > 0 ? (
-                <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
-                  {state.master.tanks.map(t => {
-                    const isChecked = wipTankIds.includes(t.id);
-                    const isHT = t.type === 'HOLDING_TANK';
-                    return (
-                      <label
-                        key={t.id}
-                        className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
-                          isChecked
-                            ? 'bg-purple-500/15 border-purple-500/50 text-white'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2 truncate mr-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setWipTankIds(prev => [...prev, t.id]);
-                              } else {
-                                setWipTankIds(prev => prev.filter(id => id !== t.id));
-                              }
-                            }}
-                            className="w-3.5 h-3.5 rounded text-purple-600 bg-slate-800 border-slate-700 focus:ring-0"
-                          />
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
-                            isHT
-                              ? 'bg-amber-950 text-amber-300 border-amber-600/50'
-                              : 'bg-sky-950 text-sky-300 border-sky-600/50'
-                          }`}>
-                            {isHT ? 'HT' : 'ST'}
-                          </span>
-                          <span className="font-mono font-bold text-white text-[11px]">{t.code}</span>
-                          <span className="truncate text-slate-300">{t.name}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
-                          {t.capacityKg} kg
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
-                  Belum ada master tangki. Tambahkan di tab Tangki.
-                </p>
-              )}
-
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>{wipTankIds.length} tangki penampungan / penyimpanan dipilih</span>
-                {wipTankIds.length > 1 && (
-                  <span className="text-purple-300 font-medium">★ Multi-Storage/Holding Tank</span>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-amber-600/20 transition active:scale-95"
-            >
-              Simpan WIP & Tautkan Mesin/Tangki
-            </button>
-          </form>
-          )}
-
-          {/* List of WIPs */}
-          <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
-            {state.master.wips.length > 0 ? (
-              state.master.wips.map(w => {
-                const assignedMachineIds = w.assignedMachineIds && w.assignedMachineIds.length > 0
-                  ? w.assignedMachineIds
-                  : w.assignedMachineId ? [w.assignedMachineId] : [];
-                const assignedMachs = state.master.machines.filter(m => assignedMachineIds.includes(m.id));
-
-                const assignedTankIds = w.targetTankIds && w.targetTankIds.length > 0
-                  ? w.targetTankIds
-                  : w.targetTankId ? [w.targetTankId] : [];
-                const assignedTnks = state.master.tanks.filter(t => assignedTankIds.includes(t.id));
-
-                return (
-                  <div
-                    key={w.id}
-                    className="bg-slate-800/50 border border-slate-700/60 p-2.5 rounded-xl text-xs hover:bg-slate-800 transition space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 truncate mr-2">
-                        {w.code && (
-                          <span className="font-mono text-amber-950 font-extrabold bg-amber-100 px-2 py-0.5 rounded border border-amber-300 text-[11px] shrink-0">
-                            {w.code}
-                          </span>
-                        )}
-                        <span className="font-semibold text-white truncate">{w.name}</span>
-                      </div>
-                      <button
-                        onClick={() => onDeleteWip(w.id)}
-                        className="text-rose-400 hover:text-rose-300 text-[10px] shrink-0"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-amber-400 font-mono font-medium">
-                        1 Batch = {w.batchWeightKg.toFixed(4)} kg
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono text-[9px]">
-                        ⏱️ {w.productionDurationMinutes || 30} mnt (Auto-Alarm)
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-1 pt-1 text-[9px]">
-                      <div className="flex flex-wrap items-center gap-1">
-                        {assignedMachs.length > 0 ? (
-                          assignedMachs.map(m => (
-                            <span key={m.id} className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300 font-mono font-bold text-[10px]">
-                              Mesin: {m.code}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-500 italic">Tanpa mesin</span>
-                        )}
-
-                        {assignedTnks.length > 0 ? (
-                          assignedTnks.map(t => (
-                            <span
-                              key={t.id}
-                              className={`px-1.5 py-0.5 rounded font-mono text-[9px] border ${
-                                t.type === 'HOLDING_TANK'
-                                  ? 'bg-amber-950 text-amber-300 border-amber-700/60'
-                                  : 'bg-purple-950 text-purple-300 border-purple-700/60'
-                              }`}
-                            >
-                              ➔ {t.code} ({t.type === 'HOLDING_TANK' ? 'HT' : 'ST'})
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-500 italic">Tanpa tangki</span>
-                        )}
-                      </div>
                       <button
                         type="button"
-                        onClick={() => handleStartEditWip(w)}
-                        className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-0.5 ml-auto"
-                        title="Kelola / Ubah kode, mesin & tangki untuk WIP ini"
+                        onClick={() => setIsMaterialFormOpen(prev => !prev)}
+                        aria-expanded={isMaterialFormOpen}
+                        className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
                       >
-                        <Edit3 className="w-2.5 h-2.5" />
-                        <span>Kelola WIP</span>
+                        {isMaterialFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        <span>{isMaterialFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
                       </button>
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <p className="text-[11px] text-slate-500 text-center py-3">Belum ada WIP tersimpan.</p>
-            )}
-          </div>
-        </div>
 
-        {/* Column 3: SKU Master Form */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
-              <Box className="w-4 h-4 text-cyan-400" />
-              <span>3. Input SKU (Domestik / KITE)</span>
-            </h3>
-            <div className="flex items-center space-x-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
-                    onOpenAdminModal();
-                    showToast('Otorisasi Administrator diperlukan untuk impor data SKU', true);
-                    return;
-                  }
-                  setIsSkuImportOpen(true);
-                }}
-                className="flex items-center space-x-1 px-2 py-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-lg text-[10px] font-semibold transition active:scale-95 shadow-sm"
-                title="Impor daftar SKU dari Google Drive Spreadsheet atau file lokal (CSV/JSON)"
-              >
-                <UploadCloud className="w-3 h-3 text-cyan-400" />
-                <span>Import Drive / File</span>
-              </button>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {state.master.skus.length} SKU
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsSkuFormOpen(prev => !prev)}
-                aria-expanded={isSkuFormOpen}
-                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
-              >
-                {isSkuFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                <span>{isSkuFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
-              </button>
-            </div>
-          </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Left: Maximized Material Form */}
+                    {isMaterialFormOpen && (
+                      <form
+                        onSubmit={handleMaterialSubmit}
+                        className="lg:col-span-5 space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                            {editingMaterialId ? (
+                              <>
+                                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Edit Data Material</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5 text-rose-400" />
+                                <span>Tambah Material Baru</span>
+                              </>
+                            )}
+                          </span>
+                          {editingMaterialId && (
+                            <button
+                              type="button"
+                              onClick={resetMaterialForm}
+                              className="text-[11px] font-semibold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition"
+                            >
+                              Batal Edit
+                            </button>
+                          )}
+                        </div>
 
-          {isSkuFormOpen && (
-          <form onSubmit={handleSkuSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
-            <input
-              type="text"
-              value={skuName}
-              onChange={(e) => setSkuName(e.target.value)}
-              required
-              placeholder="Nama SKU Produk Jadi"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-            />
-            <div className="flex items-center space-x-2 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700">
-              <input
-                type="checkbox"
-                id="skuIsKiteCheckbox"
-                checked={skuIsKite}
-                onChange={(e) => setSkuIsKite(e.target.checked)}
-                className="w-4 h-4 rounded text-cyan-600 bg-slate-700 border-slate-600 focus:ring-0"
-              />
-              <label htmlFor="skuIsKiteCheckbox" className="text-xs text-slate-300 font-medium cursor-pointer">
-                Tandai sebagai SKU Ekspor (KITE)
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                step="0.0001"
-                value={skuTarget}
-                onChange={(e) => setSkuTarget(e.target.value)}
-                required
-                placeholder="Target Ktn/Jam"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
-              />
-              <input
-                type="number"
-                step="0.0001"
-                value={skuWeight}
-                onChange={(e) => setSkuWeight(e.target.value)}
-                required
-                placeholder="Berat kg/Karton"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-cyan-600/20 transition active:scale-95"
-            >
-              Simpan SKU Produk
-            </button>
-          </form>
-          )}
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                          <div className="sm:col-span-8">
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Nama Material *
+                            </label>
+                            <input
+                              type="text"
+                              value={matName}
+                              onChange={(e) => setMatName(e.target.value)}
+                              required
+                              placeholder="Contoh: Gula Pasir Halus / Minyak Nabati"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                          <div className="sm:col-span-4">
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Kode SAP / Material
+                            </label>
+                            <input
+                              type="text"
+                              value={matCode}
+                              onChange={(e) => setMatCode(e.target.value.toUpperCase())}
+                              placeholder="MAT-GL-01"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                        </div>
 
-          {/* List of SKUs */}
-          <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
-            {state.master.skus.length > 0 ? (
-              state.master.skus.map(s => (
-                <div
-                  key={s.id}
-                  className="bg-slate-800/50 border border-slate-700/60 p-2.5 rounded-xl flex items-center justify-between text-xs hover:bg-slate-800 transition"
-                >
-                  <div className="truncate mr-2">
-                    <div className="flex items-center space-x-1.5">
-                      <span className="font-semibold text-white truncate">{s.name}</span>
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
-                        s.isKite ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'
-                      }`}>
-                        {s.isKite ? 'KITE' : 'DOM'}
-                      </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Tipe Fisik Material
+                            </label>
+                            <select
+                              value={matType}
+                              onChange={(e) => setMatType(e.target.value as MaterialType)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                            >
+                              <option value="bubuk">Bubuk (Powder / Tepung)</option>
+                              <option value="liquid">Liquid (Cair / Tangki)</option>
+                              <option value="padat">Padat (Block / Lemak)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Sumber / Kategori Supplier
+                            </label>
+                            <select
+                              value={matSource}
+                              onChange={(e) => setMatSource(e.target.value as MaterialSource)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                            >
+                              <option value="GDRM">GDRM (Standar Gudang Utama)</option>
+                              <option value="Formulasi">Formulasi (Bahan Racikan/Premix)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Quick Packaging Presets */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-semibold text-slate-300">
+                              Kemasan &amp; Berat Standar *
+                            </label>
+                            <span className="text-[10px] text-slate-400">Klik preset atau ketik manual</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {packagingPresets.map(preset => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => {
+                                  setMatPackaging(preset.pkg);
+                                  setMatWeight(preset.weight);
+                                  setMatType(preset.type);
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition ${
+                                  matPackaging === preset.pkg && matWeight === preset.weight
+                                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                            <div className="sm:col-span-5">
+                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                                Label Kemasan
+                              </label>
+                              <input
+                                type="text"
+                                value={matPackaging}
+                                onChange={(e) => setMatPackaging(e.target.value)}
+                                placeholder="Zak 25 kg / Drum 200 kg"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
+                              />
+                            </div>
+                            <div className="sm:col-span-4">
+                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                                Berat/Kemasan (kg) *
+                              </label>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                min="0.0001"
+                                value={matWeight}
+                                onChange={(e) => setMatWeight(e.target.value)}
+                                required
+                                placeholder="25.0000"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                              />
+                            </div>
+                            <div className="sm:col-span-3">
+                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                                Alert Min (kg)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={matMinStock}
+                                onChange={(e) => setMatMinStock(e.target.value)}
+                                placeholder="100"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Optional Initial Warehouse Stock */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-300">
+                              Saldo Awal Gudang (Opsional, kg)
+                            </span>
+                            <span className="text-[11px] font-mono tabular-nums text-amber-400 font-bold">
+                              Total: {matInitTotalPreview.toFixed(2)} kg
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-0.5">Gudang CK</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={matInitCk}
+                                onChange={(e) => setMatInitCk(e.target.value)}
+                                placeholder="0"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-0.5">Wineroto</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={matInitWr}
+                                onChange={(e) => setMatInitWr(e.target.value)}
+                                placeholder="0"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-0.5">Storage Tank</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={matInitTank}
+                                onChange={(e) => setMatInitTank(e.target.value)}
+                                placeholder="0"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition active:scale-95"
+                        >
+                          {editingMaterialId ? 'Simpan Perubahan Material' : 'Simpan & Autosave Material'}
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Right: Searchable & Filterable Material Database List */}
+                    <div className={`${isMaterialFormOpen ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-3`}>
+                      {/* Search & Filter Controls */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="relative flex-1">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={matSearch}
+                            onChange={(e) => setMatSearch(e.target.value)}
+                            placeholder="Cari kode SAP, nama material, atau kemasan..."
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                          {(['ALL', 'bubuk', 'liquid', 'padat'] as const).map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setMatTypeFilter(t)}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
+                                matTypeFilter === t
+                                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {t === 'ALL' ? 'Semua' : t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                          ))}
+                          <select
+                            value={matSourceFilter}
+                            onChange={(e) => setMatSourceFilter(e.target.value as 'ALL' | MaterialSource)}
+                            aria-label="Filter sumber supplier material"
+                            className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-200"
+                          >
+                            <option value="ALL">Semua Sumber</option>
+                            <option value="GDRM">GDRM</option>
+                            <option value="Formulasi">Formulasi</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Material Table */}
+                      <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[430px] overflow-y-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead className="sticky top-0 z-10 bg-slate-800/90 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                            <tr>
+                              <th className="py-2.5 px-3">Material &amp; Kode</th>
+                              <th className="py-2.5 px-2.5">Tipe / Sumber</th>
+                              <th className="py-2.5 px-2.5 text-right">Berat / Kemasan</th>
+                              <th className="py-2.5 px-2.5 text-right">Saldo Awal (kg)</th>
+                              <th className="py-2.5 px-3 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {filteredMaterials.length > 0 ? (
+                              filteredMaterials.map(m => {
+                                const totalInit = (m.initialStockCk || 0) + (m.initialStockWineroto || 0) + (m.initialStockTank || 0);
+                                const isEditingThis = editingMaterialId === m.id;
+                                return (
+                                  <tr
+                                    key={m.id}
+                                    className={`transition ${
+                                      isEditingThis ? 'bg-amber-950/30' : 'hover:bg-slate-800/40'
+                                    }`}
+                                  >
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {m.code && (
+                                          <span className="font-mono text-sky-950 font-extrabold bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-[10px] shrink-0">
+                                            {m.code}
+                                          </span>
+                                        )}
+                                        <span className="font-semibold text-white">{m.name}</span>
+                                        {isEditingThis && (
+                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
+                                            Sedang Diedit
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                                        Kemasan: {m.packaging}
+                                        {m.minStockAlert ? ` · Min Alert: ${m.minStockAlert} kg` : ''}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-2.5 whitespace-nowrap">
+                                      <span className="text-[11px] font-semibold text-slate-200 block">
+                                        {m.type.toUpperCase()}
+                                      </span>
+                                      <span className={`text-[10px] font-semibold ${m.source === 'Formulasi' ? 'text-purple-300' : 'text-blue-300'}`}>
+                                        {m.source}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-cyan-400 font-semibold whitespace-nowrap">
+                                      {m.weightKg.toFixed(4)} kg
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums whitespace-nowrap">
+                                      <span className="text-amber-300 font-semibold block">
+                                        {totalInit.toFixed(1)} kg
+                                      </span>
+                                      <span className="text-[9px] text-slate-400 block">
+                                        CK:{m.initialStockCk || 0} | WR:{m.initialStockWineroto || 0} | TK:{m.initialStockTank || 0}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                      <div className="inline-flex items-center gap-1.5">
+                                        {onUpdateMaterial && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditMaterial(m)}
+                                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[10px] font-semibold transition"
+                                            title="Edit data material ini"
+                                          >
+                                            Edit
+                                          </button>
+                                        )}
+                                        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+                                          <button
+                                            type="button"
+                                            onClick={() => onOpenStockAdjustment(m.id)}
+                                            className="px-2 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 border border-amber-800 text-amber-300 text-[10px] font-semibold transition"
+                                            title="Sesuaikan Saldo Awal Material Ini"
+                                          >
+                                            Saldo
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => onDeleteMaterial(m.id)}
+                                          className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800 text-rose-300 text-[10px] font-semibold transition"
+                                        >
+                                          Hapus
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan={5} className="py-6 text-center text-slate-400 text-xs">
+                                  {state.master.materials.length === 0
+                                    ? 'Belum ada material tersimpan. Tambahkan material melalui form di samping.'
+                                    : 'Tidak ada material yang cocok dengan pencarian atau filter.'}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono block">
-                      Target: {s.targetHour} ktn/j • {s.cartonWeightKg.toFixed(4)} kg/ktn
-                    </span>
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* STEP 2: INPUT WIP & MESIN/TANGKI (Spacious Split Layout) */}
+            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-base text-white">
+                      2. Input WIP &amp; Tautan Mesin / Tangki Transfer
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {state.master.wips.length} komponen WIP terdaftar (1 Nama WIP = 1 Kode Unik)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 shrink-0">
                   <button
-                    onClick={() => onDeleteSku(s.id)}
-                    className="text-rose-400 hover:text-rose-300 text-[10px] shrink-0"
+                    type="button"
+                    onClick={() => setIsWipFormOpen(prev => !prev)}
+                    aria-expanded={isWipFormOpen}
+                    className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
                   >
-                    Hapus
+                    {isWipFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    <span>{isWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
                   </button>
                 </div>
-              ))
-            ) : (
-              <p className="text-[11px] text-slate-500 text-center py-3">Belum ada SKU tersimpan.</p>
-            )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                {isWipFormOpen && (
+                  <form onSubmit={handleWipSubmit} className="lg:col-span-5 space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4">
+                    {/* 1 WIP = 1 Unique Code */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
+                          Kode WIP:
+                        </label>
+                        <input
+                          type="text"
+                          value={wipCode}
+                          onChange={(e) => setWipCode(e.target.value.toUpperCase())}
+                          required
+                          placeholder="WIP-001"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-cyan-300 font-mono font-bold uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
+                          Nama WIP (1 Nama = 1 Kode):
+                        </label>
+                        <input
+                          type="text"
+                          value={wipName}
+                          onChange={(e) => setWipName(e.target.value)}
+                          required
+                          placeholder="e.g. WIP Sirup Karamel"
+                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Berat 1 Batch WIP (kg, 4 desimal) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={wipBatchWeight}
+                        onChange={(e) => setWipBatchWeight(e.target.value)}
+                        required
+                        placeholder="Berat 1 Batch WIP (kg, 4 desimal)"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
+                      />
+                    </div>
+
+                    {/* Konfigurasi Lama Waktu Produksi WIP (Menit) */}
+                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
+                          <RotateCw className="w-3 h-3 text-amber-400" />
+                          <span>Lama Waktu Produksi WIP:</span>
+                        </label>
+                        <span className="text-[10px] text-amber-400 font-mono font-bold">
+                          {wipDurationMinutes || 30} Menit / Batch
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="720"
+                          value={wipDurationMinutes}
+                          onChange={(e) => setWipDurationMinutes(e.target.value)}
+                          required
+                          placeholder="30"
+                          className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-amber-400 font-bold"
+                        />
+                        <span className="text-slate-400 text-xs">menit</span>
+                        <div className="flex items-center space-x-1 ml-auto">
+                          {['15', '30', '45', '60'].map(mins => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => setWipDurationMinutes(mins)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition ${
+                                wipDurationMinutes === mins
+                                  ? 'bg-amber-500 text-slate-950 font-bold'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {mins}m
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-slate-400 leading-tight">
+                        Batch WIP otomatis terselesaikan saat durasi tercapai & alarm peringatan berbunyi.
+                      </p>
+                    </div>
+
+                    {/* Multi-Mesin Produksi Selector */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
+                          <Cpu className="w-3 h-3 text-cyan-400" />
+                          <span>Mesin Pengolah WIP (Multi-Mesin):</span>
+                        </label>
+                        <div className="flex items-center space-x-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setWipMachineIds(state.master.machines.map(m => m.id))}
+                            className="text-cyan-400 hover:text-cyan-300 font-medium"
+                          >
+                            Semua
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWipMachineIds([])}
+                            className="text-slate-400 hover:text-slate-300 font-medium"
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
+                      </div>
+
+                      {state.master.machines.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
+                          {state.master.machines.map(m => {
+                            const isChecked = wipMachineIds.includes(m.id);
+                            return (
+                              <label
+                                key={m.id}
+                                className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                                  isChecked
+                                    ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 truncate mr-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setWipMachineIds(prev => [...prev, m.id]);
+                                      } else {
+                                        setWipMachineIds(prev => prev.filter(id => id !== m.id));
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded text-cyan-600 bg-slate-800 border-slate-700 focus:ring-0"
+                                  />
+                                  <span className="font-mono font-extrabold text-sky-950 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-xs shrink-0">{m.code}</span>
+                                  <span className="truncate">{m.name}</span>
+                                </div>
+                                <span className="text-[9px] text-slate-500 shrink-0 font-mono">
+                                  {m.line.split('(')[0]}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
+                          Belum ada master mesin produksi. Tambahkan di tab Master Mesin.
+                        </p>
+                      )}
+
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>{wipMachineIds.length} mesin diizinkan memproduksi WIP ini</span>
+                        {wipMachineIds.length > 1 && (
+                          <span className="text-amber-400 font-medium">★ Multi-Mesin Fleksibel</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Multi-Storage / Holding Tanks Selector */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
+                          <Database className="w-3 h-3 text-purple-400" />
+                          <span>Tangki Penampungan / Transfer (Multi-Tank):</span>
+                        </label>
+                        <div className="flex items-center space-x-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setWipTankIds(state.master.tanks.map(t => t.id))}
+                            className="text-purple-400 hover:text-purple-300 font-medium"
+                          >
+                            Semua
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'HOLDING_TANK').map(t => t.id))}
+                            className="text-amber-400 hover:text-amber-300 font-medium"
+                            title="Pilih hanya Holding Tanks"
+                          >
+                            HT
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'STORAGE_TANK').map(t => t.id))}
+                            className="text-cyan-400 hover:text-cyan-300 font-medium"
+                            title="Pilih hanya Storage Tanks"
+                          >
+                            ST
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWipTankIds([])}
+                            className="text-slate-400 hover:text-slate-300 font-medium"
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
+                      </div>
+
+                      {state.master.tanks.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
+                          {state.master.tanks.map(t => {
+                            const isChecked = wipTankIds.includes(t.id);
+                            const isHT = t.type === 'HOLDING_TANK';
+                            return (
+                              <label
+                                key={t.id}
+                                className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
+                                  isChecked
+                                    ? 'bg-purple-500/15 border-purple-500/50 text-white'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 truncate mr-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setWipTankIds(prev => [...prev, t.id]);
+                                      } else {
+                                        setWipTankIds(prev => prev.filter(id => id !== t.id));
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded text-purple-600 bg-slate-800 border-slate-700 focus:ring-0"
+                                  />
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
+                                    isHT
+                                      ? 'bg-amber-950 text-amber-300 border-amber-600/50'
+                                      : 'bg-sky-950 text-sky-300 border-sky-600/50'
+                                  }`}>
+                                    {isHT ? 'HT' : 'ST'}
+                                  </span>
+                                  <span className="font-mono font-bold text-white text-[11px]">{t.code}</span>
+                                  <span className="truncate text-slate-300">{t.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                  {t.capacityKg} kg
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
+                          Belum ada master tangki. Tambahkan di tab Tangki.
+                        </p>
+                      )}
+
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>{wipTankIds.length} tangki penampungan / penyimpanan dipilih</span>
+                        {wipTankIds.length > 1 && (
+                          <span className="text-purple-300 font-medium">★ Multi-Storage/Holding Tank</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95"
+                    >
+                      Simpan WIP &amp; Tautkan Mesin/Tangki
+                    </button>
+                  </form>
+                )}
+
+                {/* Right: List of WIPs */}
+                <div className={`${isWipFormOpen ? 'lg:col-span-7' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[460px] overflow-y-auto no-scrollbar pr-0.5`}>
+                  {state.master.wips.length > 0 ? (
+                    state.master.wips.map(w => {
+                      const assignedMachineIds = w.assignedMachineIds && w.assignedMachineIds.length > 0
+                        ? w.assignedMachineIds
+                        : w.assignedMachineId ? [w.assignedMachineId] : [];
+                      const assignedMachs = state.master.machines.filter(m => assignedMachineIds.includes(m.id));
+
+                      const assignedTankIds = w.targetTankIds && w.targetTankIds.length > 0
+                        ? w.targetTankIds
+                        : w.targetTankId ? [w.targetTankId] : [];
+                      const assignedTnks = state.master.tanks.filter(t => assignedTankIds.includes(t.id));
+
+                      return (
+                        <div
+                          key={w.id}
+                          className="bg-slate-800/50 border border-slate-700/60 p-3 rounded-xl text-xs hover:bg-slate-800 transition space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2 truncate mr-2">
+                              {w.code && (
+                                <span className="font-mono text-amber-950 font-extrabold bg-amber-100 px-2 py-0.5 rounded border border-amber-300 text-[11px] shrink-0">
+                                  {w.code}
+                                </span>
+                              )}
+                              <span className="font-semibold text-white truncate">{w.name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteWip(w.id)}
+                              className="text-rose-400 hover:text-rose-300 text-[11px] font-semibold shrink-0"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-amber-400 font-mono tabular-nums font-semibold">
+                              1 Batch = {w.batchWeightKg.toFixed(4)} kg
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono text-[10px]">
+                              {w.productionDurationMinutes || 30} mnt (Auto-Alarm)
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 text-[10px]">
+                            <div className="flex flex-wrap items-center gap-1">
+                              {assignedMachs.length > 0 ? (
+                                assignedMachs.map(m => (
+                                  <span key={m.id} className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300 font-mono font-bold text-[10px]">
+                                    Mesin: {m.code}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-slate-500 italic">Tanpa mesin</span>
+                              )}
+
+                              {assignedTnks.length > 0 ? (
+                                assignedTnks.map(t => (
+                                  <span
+                                    key={t.id}
+                                    className={`px-1.5 py-0.5 rounded font-mono text-[10px] border ${
+                                      t.type === 'HOLDING_TANK'
+                                        ? 'bg-amber-950 text-amber-300 border-amber-700/60'
+                                        : 'bg-purple-950 text-purple-300 border-purple-700/60'
+                                    }`}
+                                  >
+                                    ➔ {t.code} ({t.type === 'HOLDING_TANK' ? 'HT' : 'ST'})
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-slate-500 italic">Tanpa tangki</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditWip(w)}
+                              className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-1 ml-auto"
+                              title="Kelola / Ubah kode, mesin & tangki untuk WIP ini"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Kelola WIP</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="col-span-full text-xs text-slate-400 text-center py-6 border border-slate-800 rounded-xl bg-slate-950/30">
+                      Belum ada WIP tersimpan.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 3: MAXIMIZED INPUT SKU (DOMESTIK / KITE) */}
+            {(() => {
+              const filteredSkus = state.master.skus.filter(s => {
+                if (skuCategoryFilter === 'DOM' && s.isKite) return false;
+                if (skuCategoryFilter === 'KITE' && !s.isKite) return false;
+                if (skuSearch.trim()) {
+                  const q = skuSearch.trim().toLowerCase();
+                  const hay = `${s.code || ''} ${s.name}`.toLowerCase();
+                  if (!hay.includes(q)) return false;
+                }
+                return true;
+              });
+              const previewTargetH = parseFloat(skuTarget) || 0;
+              const previewWeightKtn = parseFloat(skuWeight) || 0;
+              const previewCartonsPerShift = previewTargetH * 8;
+              const previewKgPerHour = previewTargetH * previewWeightKtn;
+
+              return (
+                <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
+                        <Box className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm sm:text-base text-white">
+                          3. Input SKU Produk Jadi (Domestik / KITE Ekspor)
+                        </h3>
+                        <p className="text-[11px] text-slate-400">
+                          {state.master.skus.length} SKU terdaftar ·{' '}
+                          {state.master.skus.filter(s => !s.isKite).length} Domestik ·{' '}
+                          {state.master.skus.filter(s => s.isKite).length} KITE Ekspor
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                            onOpenAdminModal();
+                            showToast('Otorisasi Administrator diperlukan untuk impor data SKU', true);
+                            return;
+                          }
+                          setIsSkuImportOpen(true);
+                        }}
+                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-xl text-xs font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
+                        title="Impor daftar SKU dari Google Drive Spreadsheet atau file lokal (CSV/JSON)"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Import Drive / File</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsSkuFormOpen(prev => !prev)}
+                        aria-expanded={isSkuFormOpen}
+                        className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
+                      >
+                        {isSkuFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        <span>{isSkuFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Left: Maximized SKU Form */}
+                    {isSkuFormOpen && (
+                      <form
+                        onSubmit={handleSkuSubmit}
+                        className="lg:col-span-5 space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                            {editingSkuId ? (
+                              <>
+                                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Edit Master SKU</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>Tambah SKU Produk Baru</span>
+                              </>
+                            )}
+                          </span>
+                          {editingSkuId && (
+                            <button
+                              type="button"
+                              onClick={resetSkuForm}
+                              className="text-[11px] font-semibold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition"
+                            >
+                              Batal Edit
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                          <div className="sm:col-span-4">
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Kode SKU
+                            </label>
+                            <input
+                              type="text"
+                              value={skuCode}
+                              onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
+                              placeholder="SKU-BSK-01"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                          <div className="sm:col-span-8">
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Nama SKU Produk Jadi *
+                            </label>
+                            <input
+                              type="text"
+                              value={skuName}
+                              onChange={(e) => setSkuName(e.target.value)}
+                              required
+                              placeholder="Contoh: Biskuit Wafer Coklat 120g"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Segmented Facility Category Toggle (DOM vs KITE) */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            Kategori Fasilitas Kepabeanan / Pasar
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              aria-pressed={!skuIsKite}
+                              onClick={() => setSkuIsKite(false)}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                                !skuIsKite
+                                  ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >
+                              Pasar Domestik (DOM)
+                            </button>
+                            <button
+                              type="button"
+                              aria-pressed={skuIsKite}
+                              onClick={() => setSkuIsKite(true)}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                                skuIsKite
+                                  ? 'bg-amber-600 border-amber-500 text-white shadow-sm'
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >
+                              Ekspor Fasilitas KITE
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Target Output (Karton / Jam) *
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={skuTarget}
+                              onChange={(e) => setSkuTarget(e.target.value)}
+                              required
+                              placeholder="Contoh: 180"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Berat Netto per Karton (kg) *
+                            </label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0.0001"
+                              value={skuWeight}
+                              onChange={(e) => setSkuWeight(e.target.value)}
+                              required
+                              placeholder="Contoh: 4.8000"
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Live Production Rate Preview */}
+                        <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                          <span className="text-slate-300">
+                            Target / Shift (8 jam):{' '}
+                            <strong className="font-mono tabular-nums text-cyan-400">
+                              {previewCartonsPerShift.toLocaleString('id-ID')} ktn
+                            </strong>
+                          </span>
+                          <span className="text-slate-300">
+                            Kapasitas Netto:{' '}
+                            <strong className="font-mono tabular-nums text-amber-400">
+                              {previewKgPerHour.toFixed(2)} kg/jam
+                            </strong>
+                          </span>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-600/20 transition active:scale-95"
+                        >
+                          {editingSkuId ? 'Simpan Perubahan SKU' : 'Simpan SKU Produk'}
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Right: Searchable & Filterable SKU Database Table */}
+                    <div className={`${isSkuFormOpen ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-3`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="relative flex-1">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={skuSearch}
+                            onChange={(e) => setSkuSearch(e.target.value)}
+                            placeholder="Cari kode atau nama SKU produk..."
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(['ALL', 'DOM', 'KITE'] as const).map(cat => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setSkuCategoryFilter(cat)}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
+                                skuCategoryFilter === cat
+                                  ? 'bg-cyan-600 border-cyan-500 text-white'
+                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {cat === 'ALL' ? 'Semua' : cat === 'DOM' ? 'Domestik' : 'KITE Ekspor'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[420px] overflow-y-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead className="sticky top-0 z-10 bg-slate-800/90 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                            <tr>
+                              <th className="py-2.5 px-3">SKU &amp; Kode Produk</th>
+                              <th className="py-2.5 px-2.5 text-center">Kategori</th>
+                              <th className="py-2.5 px-2.5 text-right">Target / Jam</th>
+                              <th className="py-2.5 px-2.5 text-right">Target / Shift (8j)</th>
+                              <th className="py-2.5 px-2.5 text-right">Berat / Ktn</th>
+                              <th className="py-2.5 px-2.5 text-center">WIP BOM</th>
+                              <th className="py-2.5 px-3 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {filteredSkus.length > 0 ? (
+                              filteredSkus.map(s => {
+                                const linkedWipCount = state.master.skuWips.filter(sw => sw.skuId === s.id).length;
+                                const isEditingThis = editingSkuId === s.id;
+                                return (
+                                  <tr
+                                    key={s.id}
+                                    className={`transition ${
+                                      isEditingThis ? 'bg-amber-950/30' : 'hover:bg-slate-800/40'
+                                    }`}
+                                  >
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {s.code && (
+                                          <span className="font-mono text-sky-950 font-extrabold bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-[10px] shrink-0">
+                                            {s.code}
+                                          </span>
+                                        )}
+                                        <span className="font-semibold text-white">{s.name}</span>
+                                        {isEditingThis && (
+                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
+                                            Sedang Diedit
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-center whitespace-nowrap">
+                                      <span
+                                        className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
+                                          s.isKite
+                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                        }`}
+                                      >
+                                        {s.isKite ? 'KITE' : 'DOM'}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-200 whitespace-nowrap">
+                                      {s.targetHour.toLocaleString('id-ID')} ktn/j
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-cyan-400 font-semibold whitespace-nowrap">
+                                      {(s.targetHour * 8).toLocaleString('id-ID')} ktn
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                      {s.cartonWeightKg.toFixed(4)} kg
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-center whitespace-nowrap">
+                                      <span
+                                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                                          linkedWipCount > 0
+                                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                                        }`}
+                                      >
+                                        {linkedWipCount} WIP
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                      <div className="inline-flex items-center gap-1.5">
+                                        {onUpdateSku && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditSku(s)}
+                                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[10px] font-semibold transition"
+                                            title="Edit data SKU ini"
+                                          >
+                                            Edit
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => onDeleteSku(s.id)}
+                                          className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800 text-rose-300 text-[10px] font-semibold transition"
+                                        >
+                                          Hapus
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan={7} className="py-6 text-center text-slate-400 text-xs">
+                                  {state.master.skus.length === 0
+                                    ? 'Belum ada SKU tersimpan. Tambahkan SKU melalui form di samping.'
+                                    : 'Tidak ada SKU yang cocok dengan pencarian atau filter.'}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-        </div>
-      </div>
 
       {/* Step 4: BOM Configuration (A. SKU to WIP kg/carton, B. WIP to Material kg with Autofill) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

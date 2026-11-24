@@ -1594,6 +1594,25 @@ export default function App() {
     }));
   };
 
+  // Update Material
+  const handleUpdateMaterial = (materialId: string, updates: Partial<Material>) => {
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        materials: prev.master.materials.map(m =>
+          m.id === materialId
+            ? {
+                ...m,
+                ...updates,
+                code: updates.code !== undefined ? updates.code.trim() || m.code : m.code
+              }
+            : m
+        )
+      }
+    }));
+  };
+
   // Delete Material
   const handleDeleteMaterial = (id: string) => {
     setState(prev => ({
@@ -1800,6 +1819,25 @@ export default function App() {
       master: {
         ...prev.master,
         skus: [...prev.master.skus, newSku]
+      }
+    }));
+  };
+
+  // Update SKU
+  const handleUpdateSku = (skuId: string, updates: Partial<SKU>) => {
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        skus: prev.master.skus.map(s =>
+          s.id === skuId
+            ? {
+                ...s,
+                ...updates,
+                code: updates.code !== undefined ? updates.code.trim() || undefined : s.code
+              }
+            : s
+        )
       }
     }));
   };
@@ -5068,6 +5106,7 @@ export default function App() {
             <MasterBOMView
               state={state}
               onAddMaterial={handleAddMaterial}
+              onUpdateMaterial={handleUpdateMaterial}
               onDeleteMaterial={handleDeleteMaterial}
               onImportMaterials={handleImportMaterials}
               onOpenStockAdjustment={handleOpenStockAdjustment}
@@ -5075,6 +5114,7 @@ export default function App() {
               onUpdateWip={handleUpdateWip}
               onDeleteWip={handleDeleteWip}
               onAddSku={handleAddSku}
+              onUpdateSku={handleUpdateSku}
               onDeleteSku={handleDeleteSku}
               onImportSkus={handleImportSkus}
               onAddSkuWip={handleAddSkuWip}

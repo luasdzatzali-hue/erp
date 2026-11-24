@@ -780,6 +780,10 @@ html[data-theme="daylight"],
 .theme-daylight tbody tr:hover {
   background-color: #e2e8f0 !important;
 }
+.theme-daylight tbody tr[class*="bg-amber-950"],
+.theme-daylight tbody tr[class*="bg-amber-950"]:hover {
+  background-color: #fef3c7 !important;
+}
 .theme-daylight tbody tr.opacity-50 {
   opacity: 1 !important;
   background-color: #f1f5f9 !important;
