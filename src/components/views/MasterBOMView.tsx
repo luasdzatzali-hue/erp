@@ -284,6 +284,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [editingSkuId, setEditingSkuId] = useState<string | null>(null);
   const [skuSearch, setSkuSearch] = useState('');
   const [skuCategoryFilter, setSkuCategoryFilter] = useState<'ALL' | 'DOM' | 'KITE'>('ALL');
+  const [hierarchySkuSearch, setHierarchySkuSearch] = useState('');
+  const [hierarchySkuCategory, setHierarchySkuCategory] = useState<'ALL' | 'DOM' | 'KITE'>('ALL');
+  const [hierarchySelectedSkuId, setHierarchySelectedSkuId] = useState<string>('ALL');
 
   // SkuWip form state
   const [swSkuId, setSwSkuId] = useState('');
@@ -3579,43 +3582,174 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           </span>
         </div>
 
-        {/* Hierarchical Cards */}
-        <div className="space-y-4">
-          {state.master.skus.length > 0 ? (
-            state.master.skus.map(sku => {
-              const skuWipComps = state.master.skuWips.filter(sw => sw.skuId === sku.id);
+        {/* Search & Filter Toolbar for Hierarchy Visualization */}
+        {state.master.skus.length > 0 && (() => {
+          const categoryMatchedSkus = state.master.skus.filter(s => {
+            if (hierarchySkuCategory === 'DOM') return !s.isKite;
+            if (hierarchySkuCategory === 'KITE') return Boolean(s.isKite);
+            return true;
+          });
+          const hasActiveHierarchyFilter =
+            hierarchySkuSearch.trim() !== '' ||
+            hierarchySkuCategory !== 'ALL' ||
+            hierarchySelectedSkuId !== 'ALL';
 
-              return (
-                <div
-                  key={sku.id}
-                  className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-inner"
-                >
-                  {/* SKU Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xs">
-                        SKU
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h4 className="font-bold text-sm text-white">{sku.name}</h4>
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                            sku.isKite
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                          }`}>
-                            {sku.isKite ? 'KITE Ekspor' : 'Domestik'}
+          const q = hierarchySkuSearch.trim().toLowerCase();
+          const filteredHierarchySkus = categoryMatchedSkus.filter(sku => {
+            if (hierarchySelectedSkuId !== 'ALL' && sku.id !== hierarchySelectedSkuId) {
+              return false;
+            }
+            if (!q) return true;
+            const matchesSku =
+              (sku.code || '').toLowerCase().includes(q) ||
+              sku.name.toLowerCase().includes(q);
+            if (matchesSku) return true;
+            const linkedWipIds = state.master.skuWips
+              .filter(sw => sw.skuId === sku.id)
+              .map(sw => sw.wipId);
+            return state.master.wips.some(
+              w =>
+                linkedWipIds.includes(w.id) &&
+                ((w.code || '').toLowerCase().includes(q) || w.name.toLowerCase().includes(q))
+            );
+          });
+
+          const resetHierarchyFilters = () => {
+            setHierarchySkuSearch('');
+            setHierarchySkuCategory('ALL');
+            setHierarchySelectedSkuId('ALL');
+          };
+
+          return (
+            <>
+              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={hierarchySkuSearch}
+                      onChange={(e) => setHierarchySkuSearch(e.target.value)}
+                      placeholder="Cari kode SKU, nama SKU, atau nama WIP..."
+                      aria-label="Cari SKU pada visualisasi BOM hierarki"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    {hierarchySkuSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setHierarchySkuSearch('')}
+                        aria-label="Hapus pencarian SKU"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-white transition"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="sm:min-w-[230px]">
+                    <select
+                      value={hierarchySelectedSkuId}
+                      onChange={(e) => setHierarchySelectedSkuId(e.target.value)}
+                      aria-label="Pilih SKU langsung"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="ALL">Semua SKU ({categoryMatchedSkus.length})</option>
+                      {categoryMatchedSkus.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.code ? `[${s.code}] ${s.name}` : s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                    {(['ALL', 'DOM', 'KITE'] as const).map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setHierarchySkuCategory(cat);
+                          setHierarchySelectedSkuId('ALL');
+                        }}
+                        className={`px-2.5 py-2 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
+                          hierarchySkuCategory === cat
+                            ? 'bg-cyan-600 border-cyan-500 text-white'
+                            : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {cat === 'ALL' ? 'Semua' : cat === 'DOM' ? 'Domestik' : 'KITE Ekspor'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
+                  <span>
+                    Menampilkan{' '}
+                    <strong className="text-white font-mono tabular-nums">
+                      {filteredHierarchySkus.length}
+                    </strong>{' '}
+                    dari{' '}
+                    <strong className="text-slate-200 font-mono tabular-nums">
+                      {state.master.skus.length}
+                    </strong>{' '}
+                    SKU
+                  </span>
+                  {hasActiveHierarchyFilter && (
+                    <button
+                      type="button"
+                      onClick={resetHierarchyFilters}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition whitespace-nowrap shrink-0"
+                    >
+                      <X className="w-3 h-3" />
+                      Reset Filter
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Hierarchical Cards */}
+              <div className="space-y-4">
+                {filteredHierarchySkus.length > 0 ? (
+                  filteredHierarchySkus.map(sku => {
+                    const skuWipComps = state.master.skuWips.filter(sw => sw.skuId === sku.id);
+
+                    return (
+                      <div
+                        key={sku.id}
+                        className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-inner"
+                      >
+                        {/* SKU Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xs shrink-0">
+                              SKU
+                            </div>
+                            <div>
+                              <div className="flex items-center flex-wrap gap-2">
+                                {sku.code && (
+                                  <span className="font-mono text-sky-950 font-extrabold bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-[10px] shrink-0">
+                                    {sku.code}
+                                  </span>
+                                )}
+                                <h4 className="font-bold text-sm text-white">{sku.name}</h4>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold shrink-0 ${
+                                  sku.isKite
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                }`}>
+                                  {sku.isKite ? 'KITE Ekspor' : 'Domestik'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                                Bobot: <strong>{sku.cartonWeightKg.toFixed(4)} kg/karton</strong> • Target Produksi: <strong>{sku.targetHour} karton/jam</strong>
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-500/20 self-start sm:self-auto whitespace-nowrap shrink-0">
+                            Hierarki Induk Tingkat 1
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 font-mono">
-                          Bobot: <strong>{sku.cartonWeightKg.toFixed(4)} kg/karton</strong> • Target Produksi: <strong>{sku.targetHour} karton/jam</strong>
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-500/20 self-start sm:self-auto">
-                      Hierarki Induk Tingkat 1
-                    </span>
-                  </div>
 
                   {/* WIP Components under this SKU */}
                   <div className="space-y-3 pt-1">
@@ -3898,11 +4032,30 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               );
             })
           ) : (
-            <div className="text-center py-10 text-slate-500 text-xs">
-              Belum ada konfigurasi hierarki BOM. Silakan tambahkan SKU, WIP, dan Material melalui form di atas.
+            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
+              <p className="text-slate-400 text-xs">
+                Tidak ada SKU yang cocok dengan pencarian atau filter yang dipilih.
+              </p>
+              <button
+                type="button"
+                onClick={resetHierarchyFilters}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition whitespace-nowrap shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+                Reset Pencarian &amp; Filter
+              </button>
             </div>
           )}
         </div>
+      </>
+    );
+  })()}
+
+  {state.master.skus.length === 0 && (
+    <div className="text-center py-10 text-slate-500 text-xs">
+      Belum ada konfigurasi hierarki BOM. Silakan tambahkan SKU, WIP, dan Material melalui form di atas.
+    </div>
+  )}
       </div>
     </div>
   )}
