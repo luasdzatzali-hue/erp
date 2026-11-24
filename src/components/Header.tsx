@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Menu,
   Droplet,
   Shield,
-  FileText,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
   UserCheck,
   Eye,
   LogOut,
@@ -13,6 +16,11 @@ import {
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
+import {
+  GoogleSheetsSyncSettings,
+  loadSheetsSyncSettings,
+  SHEETS_SYNC_EVENT
+} from '../utils/sheetsSyncStore';
 
 interface HeaderProps {
   state: AppState;
@@ -37,6 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSidebar,
   onOpenTankModal,
   onOpenRoleSwitcher,
+  onSwitchTab,
   onSignOut,
   currentViewTitle
 }) => {
@@ -47,6 +56,77 @@ export const Header: React.FC<HeaderProps> = ({
   const isManagement = role === 'MANAGEMENT';
   const isAdmin = role === 'ADMINISTRATOR';
   const isOperator = role === 'OPERATOR';
+
+  const [syncSettings, setSyncSettings] = useState<GoogleSheetsSyncSettings>(() =>
+    loadSheetsSyncSettings()
+  );
+
+  useEffect(() => {
+    const handleSyncUpdate = (ev: Event) => {
+      const custom = ev as CustomEvent<GoogleSheetsSyncSettings>;
+      if (custom.detail) {
+        setSyncSettings(custom.detail);
+      } else {
+        setSyncSettings(loadSheetsSyncSettings());
+      }
+    };
+    const handleStorage = (ev: StorageEvent) => {
+      if (!ev.key || ev.key === 'prodtrack_gsheets_sync_v1') {
+        setSyncSettings(loadSheetsSyncSettings());
+      }
+    };
+    window.addEventListener(SHEETS_SYNC_EVENT, handleSyncUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(SHEETS_SYNC_EVENT, handleSyncUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  const unsyncedCount = useMemo(() => {
+    const syncedSet = new Set(syncSettings.syncedProductionIds || []);
+    return (state.transactions.cartonProductions || []).filter(cp => !syncedSet.has(cp.id)).length;
+  }, [state.transactions.cartonProductions, syncSettings.syncedProductionIds]);
+
+  const formattedLastSyncTime = useMemo(() => {
+    if (!syncSettings.lastSyncedAt) return null;
+    const d = new Date(syncSettings.lastSyncedAt);
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    const isToday =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    const hhmm = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const full = d.toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    return {
+      short: isToday ? hhmm : full,
+      full: d.toLocaleString('id-ID')
+    };
+  }, [syncSettings.lastSyncedAt]);
+
+  const syncStatus = syncSettings.syncStatus || (syncSettings.lastSyncedAt ? 'Success' : 'Idle');
+
+  const syncTooltip = [
+    `Status Google Sheets: ${syncStatus}`,
+    formattedLastSyncTime
+      ? `Terakhir berhasil dikirim: ${formattedLastSyncTime.full}`
+      : 'Belum pernah dikirim ke Google Sheets',
+    unsyncedCount > 0
+      ? `Antrean belum dikirim: ${unsyncedCount} log produksi`
+      : 'Semua log produksi tersinkron',
+    syncStatus === 'Error' && syncSettings.lastSyncError
+      ? `Kendala: ${syncSettings.lastSyncError}`
+      : null,
+    'Klik untuk membuka panel Sinkronisasi Google Sheets'
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return (
     <header className="bg-[#080c14] border-b border-slate-800 z-20 shrink-0 sticky top-0 text-slate-100">
@@ -77,8 +157,71 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Zone: Live Tank Sensor Readout, Shift, Theme & User Session */}
+        {/* Right Zone: Google Sheets Sync Status, Tank Sensor, Shift, Theme & User Session */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Real-Time Google Sheets Sync Status Indicator */}
+          <button
+            type="button"
+            onClick={() => onSwitchTab?.('sheets-sync')}
+            title={syncTooltip}
+            aria-label={`Status Sinkronisasi Google Sheets: ${syncStatus}`}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-[#0c121d] border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
+              syncStatus === 'Syncing'
+                ? 'border-cyan-500/50 text-cyan-300 hover:border-cyan-400'
+                : syncStatus === 'Success'
+                ? 'border-emerald-500/40 text-slate-200 hover:border-emerald-400'
+                : syncStatus === 'Error'
+                ? 'border-rose-500/50 text-rose-300 hover:border-rose-400'
+                : 'border-slate-800 text-slate-300 hover:border-cyan-500/50'
+            }`}
+          >
+            {syncStatus === 'Syncing' ? (
+              <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin shrink-0" />
+            ) : syncStatus === 'Success' ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            ) : syncStatus === 'Error' ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            )}
+
+            <span
+              className={`font-semibold ${
+                syncStatus === 'Syncing'
+                  ? 'text-cyan-400'
+                  : syncStatus === 'Success'
+                  ? 'text-emerald-400'
+                  : syncStatus === 'Error'
+                  ? 'text-rose-400'
+                  : 'text-slate-300'
+              }`}
+            >
+              {syncStatus}
+            </span>
+
+            {syncStatus === 'Syncing' ? (
+              <span className="text-[11px] text-cyan-300 hidden md:inline">· Sheets</span>
+            ) : syncStatus === 'Error' ? (
+              <span className="text-[11px] text-rose-400 hidden md:inline">
+                {formattedLastSyncTime ? `· ${formattedLastSyncTime.short}` : '· Gagal'}
+              </span>
+            ) : formattedLastSyncTime ? (
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                · {formattedLastSyncTime.short}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 hidden lg:inline">
+                · {unsyncedCount > 0 ? `${unsyncedCount} antrean` : 'Belum sync'}
+              </span>
+            )}
+
+            {syncStatus !== 'Syncing' && unsyncedCount > 0 && (formattedLastSyncTime || syncStatus === 'Error') && (
+              <span className="text-[11px] text-amber-400 font-semibold hidden xl:inline">
+                · {unsyncedCount} baru
+              </span>
+            )}
+          </button>
+
           {/* Storage Tank Liquid Sensor Readout */}
           <button
             onClick={onOpenTankModal}

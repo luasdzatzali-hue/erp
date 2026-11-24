@@ -31,16 +31,13 @@ import {
   StorageLocation,
   ProductionLine,
   ProductionStopLog,
-  ChangeoverType,
-  WeeklyProductionPlan,
-  RequestCartItem
+  ChangeoverType
 } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
 import { calculateMaterialStockBreakdown } from '../../utils/reportBreakdown';
 import { getCurrentShift, formatIndonesianDate, ShiftNumber } from '../../utils/shifts';
 import { DashboardLineStatusSnapshot } from '../../utils/firebaseSync';
 import { ProductionTargetPanel } from '../ProductionTargetPanel';
-import { WeeklyPlanningSection } from '../WeeklyPlanningSection';
 import { WeeklyPlanVsActualChart } from '../WeeklyPlanVsActualChart';
 import { loadSheetsSyncSettings, SHEETS_SYNC_EVENT } from '../../utils/sheetsSyncStore';
 
@@ -108,9 +105,6 @@ interface DashboardViewProps {
       notes?: string;
     }
   ) => void;
-  onSaveWeeklyPlan?: (plan: WeeklyProductionPlan) => void;
-  onSelectWeeklyPlan?: (planId: string) => void;
-  onDeleteWeeklyPlan?: (planId: string) => void;
   liveLineStatus?: DashboardLineStatusSnapshot | null;
   showToast: (msg: string, isError?: boolean) => void;
 }
@@ -139,9 +133,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSetProductionLinesCount,
   onOpenPdfModal,
   onChangeSku,
-  onSaveWeeklyPlan,
-  onSelectWeeklyPlan,
-  onDeleteWeeklyPlan,
   showToast
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -380,29 +371,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const scrollToWeeklyPlanning = () => {
-    const el = document.getElementById('weekly-planning-console');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
-  const handleAddWeeklyItemsToRequestCart = (
-    newItems: RequestCartItem[],
-    mode: 'append' | 'replace'
-  ) => {
-    try {
-      const storageKey = 'prodtrack_request_cart_v1';
-      const existingRaw = localStorage.getItem(storageKey);
-      const existing: RequestCartItem[] = existingRaw ? JSON.parse(existingRaw) : [];
-      const nextCart = mode === 'replace' ? newItems : [...newItems, ...existing];
-      localStorage.setItem(storageKey, JSON.stringify(nextCart));
-    } catch {
-      // ignore storage quota errors
-    }
-    onSwitchTab('permintaan');
-  };
-
   return (
     <div className="space-y-4 max-w-[1440px] mx-auto">
       {/* Printable Header Banner (Only visible in Print view) */}
@@ -473,11 +441,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={scrollToWeeklyPlanning}
+            onClick={() => onSwitchTab('weekly-planning')}
             className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-emerald-300 border border-emerald-500/35 hover:border-emerald-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
             <CalendarRange className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Planning Mingguan</span>
+            <span>Tahap 02: Planning Mingguan</span>
           </button>
           <button
             type="button"
@@ -929,7 +897,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Recharts Weekly Production Plan vs Actual & Per-SKU Variance Visualization */}
       <WeeklyPlanVsActualChart
         state={state}
-        onScrollToWeeklyPlan={scrollToWeeklyPlanning}
+        onScrollToWeeklyPlan={() => onSwitchTab('weekly-planning')}
         onOpenSheetsSync={() => onSwitchTab('sheets-sync')}
       />
 
@@ -959,23 +927,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           showToast={showToast}
         />
       </div>
-
-      {/* Weekly Production Plan Configuration & Primary Material Demand Calculation */}
-      {onSaveWeeklyPlan && onSelectWeeklyPlan && onDeleteWeeklyPlan && (
-        <div id="weekly-planning-console" className="no-print">
-          <WeeklyPlanningSection
-            state={state}
-            onSaveWeeklyPlan={onSaveWeeklyPlan}
-            onSelectWeeklyPlan={onSelectWeeklyPlan}
-            onDeleteWeeklyPlan={onDeleteWeeklyPlan}
-            onAddItemsToCart={handleAddWeeklyItemsToRequestCart}
-            defaultExpanded={false}
-            readOnly={isManagement}
-            cartButtonLabel="Ajukan ke Permintaan Material"
-            showToast={showToast}
-          />
-        </div>
-      )}
 
       {/* Quick Action Toolbar & Search Bar */}
       <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 p-3 sm:p-4 rounded-xl space-y-3 shadow-[0_8px_28px_rgba(0,0,0,0.3)] no-print">

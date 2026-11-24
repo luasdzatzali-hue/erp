@@ -5007,9 +5007,6 @@ export default function App() {
               onSetProductionLinesCount={handleSetProductionLinesCount}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               onChangeSku={handleSkuChangeover}
-              onSaveWeeklyPlan={handleSaveWeeklyPlan}
-              onSelectWeeklyPlan={handleSelectWeeklyPlan}
-              onDeleteWeeklyPlan={handleDeleteWeeklyPlan}
               showToast={showToast}
             />
           )}
@@ -5017,14 +5014,9 @@ export default function App() {
           {state.currentTab === 'tank-monitoring' && (
             <TankMonitoringView
               state={state}
-              onProduceCartons={handleProduceCartons}
               onUpdateTankItem={handleUpdateTankItem}
               onTopUpTank={handleTopUpTank}
               onTransferTanks={handleTransferBetweenTanks}
-              onStartSkuProduction={handleStartSkuProduction}
-              onUpdateRunHoldingTank={handleUpdateRunHoldingTank}
-              onStopSkuProduction={handleStopSkuProduction}
-              onSetRunSpeedMultiplier={handleSetRunSpeedMultiplier}
               showToast={showToast}
               onSwitchTab={handleSwitchTab}
             />
@@ -5038,9 +5030,6 @@ export default function App() {
               onJumpToReceive={handleJumpToReceive}
               onSwitchTab={handleSwitchTab}
               onOpenStockAdjustment={handleOpenStockAdjustment}
-              onSaveWeeklyPlan={handleSaveWeeklyPlan}
-              onSelectWeeklyPlan={handleSelectWeeklyPlan}
-              onDeleteWeeklyPlan={handleDeleteWeeklyPlan}
               deepLinkSlip={deepLinkSlip}
               onClearDeepLinkSlip={() => {
                 setDeepLinkSlip(null);

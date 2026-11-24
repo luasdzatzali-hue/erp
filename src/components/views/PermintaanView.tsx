@@ -30,6 +30,8 @@ import {
   Zap,
   Scale,
   Lock,
+  ArrowLeft,
+  CalendarRange,
   Download
 } from 'lucide-react';
 import {
@@ -37,12 +39,11 @@ import {
   MaterialRequest,
   MaterialSource,
   RequestCartItem,
-  WeeklyProductionPlan,
   WipRecipeItem
 } from '../../types';
 import { calculateStockBalances } from '../../utils/storage';
 import { RequestSlipPdfModal } from '../RequestSlipPdfModal';
-import { WeeklyPlanningSection } from '../WeeklyPlanningSection';
+import { getActiveWeeklyPlan } from '../../utils/weeklyPlanComparison';
 import {
   generateSeparateSupplierSlipsPdf,
   groupCartItemsBySupplierAndWip,
@@ -65,9 +66,6 @@ interface PermintaanViewProps {
   onJumpToReceive: (req: MaterialRequest) => void;
   onSwitchTab: (tab: AppState['currentTab']) => void;
   onOpenStockAdjustment?: (materialId?: string) => void;
-  onSaveWeeklyPlan?: (plan: WeeklyProductionPlan) => void;
-  onSelectWeeklyPlan?: (planId: string) => void;
-  onDeleteWeeklyPlan?: (planId: string) => void;
   deepLinkSlip?: RequestSlipDeepLinkData | null;
   onClearDeepLinkSlip?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
@@ -80,9 +78,6 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   onJumpToReceive,
   onSwitchTab,
   onOpenStockAdjustment,
-  onSaveWeeklyPlan,
-  onSelectWeeklyPlan,
-  onDeleteWeeklyPlan,
   deepLinkSlip,
   onClearDeepLinkSlip,
   showToast
@@ -945,32 +940,66 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         </div>
       </div>
 
-      {/* Acuan Planning Mingguan (PPIC) untuk Pemesanan Material ke Supplier */}
-      <WeeklyPlanningSection
-        state={state}
-        onSaveWeeklyPlan={plan => onSaveWeeklyPlan?.(plan)}
-        onSelectWeeklyPlan={planId => onSelectWeeklyPlan?.(planId)}
-        onDeleteWeeklyPlan={planId => onDeleteWeeklyPlan?.(planId)}
-        onAddItemsToCart={(newItems, mode) => {
-          setCartItems(prev => (mode === 'replace' ? newItems : [...newItems, ...prev]));
-        }}
-        onPrefillSkuFromPlan={(skuId, cartons) => {
-          setSelectedSkuId(skuId);
-          const firstLink = state.master.skuWips.find(sw => sw.skuId === skuId);
-          if (firstLink) {
-            setSelectedWipId(firstLink.wipId);
-            const wip = state.master.wips.find(w => w.id === firstLink.wipId);
-            if (wip && wip.batchWeightKg > 0) {
-              const estBatches = (cartons * firstLink.kgWipPerCartonSku) / wip.batchWeightKg;
-              setBatchCount(Number(Math.max(0.01, estBatches).toFixed(4)));
-            }
-          } else {
-            setSelectedWipId('');
-          }
-          setSelectedMatId('');
-        }}
-        showToast={showToast}
-      />
+      {/* Acuan Ringkas Planning Mingguan (Read-Only) + Shortcut ke Tahap 02 */}
+      {(() => {
+        const activePlan = getActiveWeeklyPlan(state);
+        const totalPlannedCartons = activePlan
+          ? activePlan.items.reduce(
+              (sum, it) =>
+                sum +
+                (it.shifts || []).reduce((sSum, sh) => sSum + (Number(sh.totalOutput) || 0), 0),
+              0
+            )
+          : 0;
+
+        return (
+          <div className="bg-[#0c121d] border border-slate-800 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                <CalendarRange className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-white">Acuan Planning Mingguan (Tahap 02):</span>
+                  {activePlan ? (
+                    <span className="font-mono text-emerald-400 font-semibold tabular-nums">
+                      {activePlan.weekLabel} · {activePlan.items.length} SKU · {totalPlannedCartons.toLocaleString('id-ID')} ktn
+                    </span>
+                  ) : (
+                    <span className="text-amber-300 font-medium">
+                      Belum ada planning mingguan aktif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  {activePlan
+                    ? `Periode ${activePlan.periodStart} s/d ${activePlan.periodEnd}. Gunakan Tahap 02 untuk mengubah jadwal atau kirim otomatis daftar kebutuhan ke keranjang ini.`
+                    : 'Susun jadwal mingguan pada Tahap 02 untuk menghitung kebutuhan material otomatis sebelum membuat bon permintaan.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onSwitchTab('weekly-planning')}
+                className="px-3 py-1.5 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition active:scale-95"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{activePlan ? 'Edit Planning Mingguan (Tahap 02)' : 'Buka Tahap 02: Planning Mingguan'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSwitchTab('bom-calculator')}
+                className="px-3 py-1.5 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              >
+                <Calculator className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Kalkulator BOM</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Request Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">

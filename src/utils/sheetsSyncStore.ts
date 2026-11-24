@@ -3,6 +3,8 @@ import {
   DEFAULT_PRODUCTION_SPREADSHEET_URL
 } from './googleWorkspace';
 
+export type GoogleSheetsSyncStatus = 'Idle' | 'Syncing' | 'Success' | 'Error';
+
 export interface SheetsSyncHistoryEntry {
   id: string;
   timestamp: string;
@@ -23,10 +25,15 @@ export interface GoogleSheetsSyncSettings {
   syncedProductionIds: string[];
   syncHistory: SheetsSyncHistoryEntry[];
   lastSyncedAt?: string;
+  syncStatus: GoogleSheetsSyncStatus;
+  lastSyncError?: string;
 }
 
 const SHEETS_SYNC_STORAGE_KEY = 'prodtrack_gsheets_sync_v1';
 export const SHEETS_SYNC_EVENT = 'prodtrack-sheets-sync-updated';
+
+const VALID_SYNC_STATUSES: GoogleSheetsSyncStatus[] = ['Idle', 'Syncing', 'Success', 'Error'];
+let staleSyncingClearedOnBoot = false;
 
 export function getDefaultSheetsSyncSettings(): GoogleSheetsSyncSettings {
   return {
@@ -35,7 +42,8 @@ export function getDefaultSheetsSyncSettings(): GoogleSheetsSyncSettings {
     selectedSheetName: '',
     autoQueueNewProduction: true,
     syncedProductionIds: [],
-    syncHistory: []
+    syncHistory: [],
+    syncStatus: 'Idle'
   };
 }
 
@@ -46,9 +54,26 @@ export function loadSheetsSyncSettings(): GoogleSheetsSyncSettings {
   }
   try {
     const raw = window.localStorage.getItem(SHEETS_SYNC_STORAGE_KEY);
-    if (!raw) return defaults;
+    if (!raw) {
+      staleSyncingClearedOnBoot = true;
+      return defaults;
+    }
     const parsed = JSON.parse(raw);
-    return {
+    const rawStatus = parsed.syncStatus as GoogleSheetsSyncStatus | undefined;
+    let derivedStatus: GoogleSheetsSyncStatus =
+      rawStatus && VALID_SYNC_STATUSES.includes(rawStatus)
+        ? rawStatus
+        : parsed.lastSyncedAt
+        ? 'Success'
+        : 'Idle';
+
+    const shouldRecoverStaleSyncing = !staleSyncingClearedOnBoot && derivedStatus === 'Syncing';
+    staleSyncingClearedOnBoot = true;
+    if (shouldRecoverStaleSyncing) {
+      derivedStatus = parsed.lastSyncedAt ? 'Success' : 'Idle';
+    }
+
+    const result: GoogleSheetsSyncSettings = {
       spreadsheetUrl: parsed.spreadsheetUrl || defaults.spreadsheetUrl,
       spreadsheetId: parsed.spreadsheetId || defaults.spreadsheetId,
       selectedSheetName: typeof parsed.selectedSheetName === 'string' ? parsed.selectedSheetName : '',
@@ -58,9 +83,22 @@ export function loadSheetsSyncSettings(): GoogleSheetsSyncSettings {
         ? parsed.syncedProductionIds.slice(-1500)
         : [],
       syncHistory: Array.isArray(parsed.syncHistory) ? parsed.syncHistory.slice(0, 30) : [],
-      lastSyncedAt: parsed.lastSyncedAt
+      lastSyncedAt: parsed.lastSyncedAt,
+      syncStatus: derivedStatus,
+      lastSyncError: typeof parsed.lastSyncError === 'string' ? parsed.lastSyncError : undefined
     };
+
+    if (shouldRecoverStaleSyncing) {
+      try {
+        window.localStorage.setItem(SHEETS_SYNC_STORAGE_KEY, JSON.stringify(result));
+      } catch {
+        // ignore
+      }
+    }
+
+    return result;
   } catch {
+    staleSyncingClearedOnBoot = true;
     return defaults;
   }
 }
@@ -78,4 +116,24 @@ export function saveSheetsSyncSettings(next: GoogleSheetsSyncSettings): void {
   } catch {
     // ignore storage quota issues
   }
+}
+
+export function updateSheetsSyncStatus(
+  syncStatus: GoogleSheetsSyncStatus,
+  options?: { lastSyncError?: string; lastSyncedAt?: string }
+): GoogleSheetsSyncSettings {
+  const current = loadSheetsSyncSettings();
+  const next: GoogleSheetsSyncSettings = {
+    ...current,
+    syncStatus,
+    lastSyncError:
+      syncStatus === 'Error'
+        ? options?.lastSyncError || 'Sinkronisasi Google Sheets gagal.'
+        : syncStatus === 'Success' || syncStatus === 'Idle'
+        ? undefined
+        : current.lastSyncError,
+    lastSyncedAt: options?.lastSyncedAt ?? current.lastSyncedAt
+  };
+  saveSheetsSyncSettings(next);
+  return next;
 }

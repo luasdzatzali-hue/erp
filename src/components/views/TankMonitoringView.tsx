@@ -3,66 +3,31 @@ import {
   Cylinder,
   Activity,
   Layers,
-  ArrowDownCircle,
   ArrowUpCircle,
   ArrowRightLeft,
   RotateCw,
   AlertTriangle,
-  CheckCircle2,
-  Package,
-  Plus,
-  Minus,
   Search,
-  Filter,
   Sliders,
   Printer,
-  Sparkles,
-  Info,
   Thermometer,
   ShieldAlert,
-  Flame,
-  Check,
-  Zap,
-  TrendingDown,
   History,
-  Play,
-  Square,
   Eye,
   Lock,
+  ArrowLeft,
   ArrowRight
 } from 'lucide-react';
 import {
   AppState,
   WipTank,
-  WipTankType,
-  SKU,
-  WIP,
-  SkuWip,
-  ShiftNumber,
-  ProductionStopLog
+  WipTankType
 } from '../../types';
 import { getCurrentShift } from '../../utils/shifts';
 import { InterTankTransferModal } from '../InterTankTransferModal';
-import { SixBigLossesModal } from '../SixBigLossesModal';
-import { HoldingTankSelectionModal } from '../HoldingTankSelectionModal';
-import {
-  getAllTanksForWip,
-  getSkusRequiringHoldingTankChoice,
-  pickDefaultHoldingTankId
-} from '../../utils/skuTankHelper';
 
 interface TankMonitoringViewProps {
   state: AppState;
-  onProduceCartons: (
-    skuId: string,
-    cartonCount: number,
-    operatorName?: string,
-    notes?: string,
-    overrideSelectedHoldingTanks?: Record<string, string>,
-    runId?: string,
-    lineId?: string,
-    lineName?: string
-  ) => { success: boolean; message: string };
   onUpdateTankItem: (tankId: string, updates: Partial<WipTank>) => void;
   onTopUpTank: (tankId: string, amountKg: number, notes?: string) => void;
   onTransferTanks?: (
@@ -72,44 +37,21 @@ interface TankMonitoringViewProps {
     notes?: string,
     operatorName?: string
   ) => { success: boolean; message: string };
-  onStartSkuProduction?: (
-    skuId: string,
-    operatorName?: string,
-    speedMultiplier?: number,
-    selectedHoldingTanks?: Record<string, string>,
-    lineId?: string,
-    plannedCartons?: number,
-    shiftOverride?: ShiftNumber
-  ) => void;
-  onUpdateRunHoldingTank?: (skuId: string, wipId: string, tankId: string, runId?: string) => void;
-  onStopSkuProduction?: (stopData: Omit<ProductionStopLog, 'id'>) => void;
-  onSetRunSpeedMultiplier?: (multiplier: number, runIdOrSkuId?: string) => void;
   showToast: (msg: string, isError?: boolean) => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
 }
 
 export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   state,
-  onProduceCartons,
   onUpdateTankItem,
   onTopUpTank,
   onTransferTanks,
-  onStartSkuProduction,
-  onUpdateRunHoldingTank,
-  onStopSkuProduction,
-  onSetRunSpeedMultiplier,
   showToast,
   onSwitchTab
 }) => {
   // Filter state
   const [tankTypeFilter, setTankTypeFilter] = useState<'ALL' | WipTankType | 'LOW_STOCK'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Active SKU for production
-  const defaultSkuId = state.activeSkuRun?.skuId || state.master.skus[0]?.id || '';
-  const [selectedSkuId, setSelectedSkuId] = useState<string>(defaultSkuId);
-  const [customCartons, setCustomCartons] = useState<string>('200');
-  const [operatorName, setOperatorName] = useState<string>('Operator Line Produksi');
 
   // Modal / popover for Refill or Calibration
   const [activeRefillTank, setActiveRefillTank] = useState<WipTank | null>(null);
@@ -123,60 +65,15 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [initialTransferSourceId, setInitialTransferSourceId] = useState<string | undefined>(undefined);
 
-  // Six Big Losses stop modal state
-  const [isStopModalOpen, setIsStopModalOpen] = useState(false);
-
-  // Per-SKU Holding Tank selection state (used when a WIP has >= 2 Holding Tanks configured)
-  const [selectedHoldingTanksBySku, setSelectedHoldingTanksBySku] = useState<Record<string, Record<string, string>>>({});
-  const [pendingHoldingTankSkuId, setPendingHoldingTankSkuId] = useState<string | null>(null);
-
   const isManagement = state.currentUserRole === 'MANAGEMENT';
   const isAdmin = state.currentUserRole === 'ADMINISTRATOR' || state.isAdmin;
   const currentShift = getCurrentShift();
 
-  // Active SKU object
-  const activeSku = useMemo(() => {
-    return state.master.skus.find(s => s.id === selectedSkuId) || state.master.skus[0];
-  }, [state.master.skus, selectedSkuId]);
-
-  const activeRunForSelectedSku = useMemo(() => {
+  // Read-only view of currently running SKUs in Stage 07 (Manufacturing)
+  const activeRuns = useMemo(() => {
     const runs = state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : []);
-    return activeSku ? runs.find(r => r.skuId === activeSku.id) : undefined;
-  }, [state.activeSkuRuns, state.activeSkuRun, activeSku]);
-
-  // Linked WIPs for active SKU
-  const activeSkuWips = useMemo(() => {
-    if (!activeSku) return [];
-    return state.master.skuWips.filter(sw => sw.skuId === activeSku.id);
-  }, [activeSku, state.master.skuWips]);
-
-  // Breakdown of tanks impacted per carton of active SKU
-  const activeSkuTankBreakdown = useMemo(() => {
-    return activeSkuWips.map(sw => {
-      const wip = state.master.wips.find(w => w.id === sw.wipId);
-      const allTanks = getAllTanksForWip(wip, state.master.tanks);
-      const holdingTanks = allTanks.filter(t => t.type === 'HOLDING_TANK');
-      const runHtId = wip ? activeRunForSelectedSku?.selectedHoldingTanks?.[wip.id] : undefined;
-      const manualHtId = wip && activeSku ? selectedHoldingTanksBySku[activeSku.id]?.[wip.id] : undefined;
-      const preferredHtId = (activeRunForSelectedSku?.isRunning ? runHtId : undefined) || manualHtId || runHtId;
-
-      const tank =
-        (preferredHtId ? allTanks.find(t => t.id === preferredHtId) : undefined) ||
-        (holdingTanks.length > 0
-          ? holdingTanks.find(t => t.id === pickDefaultHoldingTankId(holdingTanks)) || holdingTanks[0]
-          : undefined) ||
-        allTanks[0];
-
-      return {
-        skuWip: sw,
-        wip,
-        tank,
-        allTanks,
-        holdingTanks,
-        kgPerCarton: sw.kgWipPerCartonSku
-      };
-    });
-  }, [activeSkuWips, state.master.wips, state.master.tanks, activeRunForSelectedSku, selectedHoldingTanksBySku, activeSku]);
+    return runs.filter(r => r.isRunning);
+  }, [state.activeSkuRuns, state.activeSkuRun]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -226,52 +123,6 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
       return true;
     });
   }, [state.master.tanks, state.master.wips, tankTypeFilter, searchQuery]);
-
-  // Quick Carton Deduction Trigger
-  const handleTriggerProduction = (qty: number) => {
-    if (!activeSku) {
-      showToast('Harap pilih SKU yang sedang diproduksi terlebih dahulu', true);
-      return;
-    }
-    if (qty <= 0) {
-      showToast('Jumlah karton harus lebih dari 0', true);
-      return;
-    }
-
-    const effectiveHtMap: Record<string, string> = {};
-    activeSkuTankBreakdown.forEach(b => {
-      if (b.wip && b.holdingTanks.length >= 2 && b.tank && b.tank.type === 'HOLDING_TANK') {
-        effectiveHtMap[b.wip.id] = b.tank.id;
-      }
-    });
-
-    const result = onProduceCartons(
-      activeSku.id,
-      qty,
-      operatorName,
-      `Output ${qty} karton via Panel Monitoring Tangki`,
-      Object.keys(effectiveHtMap).length > 0 ? effectiveHtMap : undefined,
-      activeRunForSelectedSku?.id,
-      activeRunForSelectedSku?.lineId,
-      activeRunForSelectedSku?.lineName
-    );
-    if (result.success) {
-      showToast(result.message);
-    } else {
-      showToast(result.message, true);
-    }
-  };
-
-  // Submit custom carton count
-  const handleCustomCartonSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const qty = parseInt(customCartons, 10);
-    if (isNaN(qty) || qty <= 0) {
-      showToast('Masukkan jumlah karton valid (angka positif)', true);
-      return;
-    }
-    handleTriggerProduction(qty);
-  };
 
   // Refill Submit
   const handleRefillSubmit = (e: React.FormEvent) => {
@@ -496,261 +347,57 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
         </div>
       </div>
 
-      {/* SECTION: Automated Carton Production Controller & Depletion Mechanism */}
-      <div className="bg-[#0c121d] border border-cyan-500/30 rounded-xl p-4 sm:p-5 space-y-4 relative overflow-hidden text-slate-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[10px] font-mono font-semibold text-cyan-400 uppercase tracking-wider">
-              <Zap className="w-3.5 h-3.5" />
-              <span>Pengurang Tangki Otomatis Per Karton · Real-time Depletion</span>
+      {/* Read-Only Line Readiness & Workflow Bridge to Stage 05 / Stage 07 */}
+      <div className="bg-[#0c121d] border border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-bold text-white">Kesiapan Suplai ke Lini Manufacturing (Tahap 07):</span>
+            {activeRuns.length > 0 ? (
+              <span className="font-mono text-emerald-400 font-semibold tabular-nums">
+                {activeRuns.length} Lini Aktif Berjalan
+              </span>
+            ) : (
+              <span className="font-mono text-slate-400">
+                Belum ada SKU aktif berjalan di Lini Manufacturing
+              </span>
+            )}
+          </div>
+          {activeRuns.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-300 tabular-nums">
+              {activeRuns.map((run, i) => (
+                <span key={run.id || run.skuId} className="inline-flex items-center gap-1.5">
+                  {i > 0 && <span className="text-slate-600" aria-hidden="true">·</span>}
+                  <span className="text-cyan-400 font-semibold">{run.lineName || 'Line'}</span>
+                  <span>{run.skuName}</span>
+                  <span className="text-emerald-400">({run.cartonsProducedTotal} ktn)</span>
+                </span>
+              ))}
             </div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              <Package className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>Simulasi &amp; Monitoring Output Produksi Karton (SKU)</span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              Pengurangan isi (kg) tangki holding &amp; storage tank otomatis berjalan secara real-time berdasarkan Target Master BOM saat tombol Start ditekan.
+          ) : (
+            <p className="text-[11px] text-slate-400">
+              Pastikan massa WIP di Storage &amp; Holding Tank mencukupi, lalu jalankan SKU dan catat output karton di Tahap 07 (Manufacturing).
             </p>
-          </div>
-
-          {/* Active SKU Selector & Start/Stop Controls */}
-          <div className="bg-[#080c14] p-2.5 rounded-xl border border-slate-800 flex flex-wrap items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-300 font-bold shrink-0">SKU Aktif:</span>
-            <select
-              value={selectedSkuId}
-              onChange={(e) => setSelectedSkuId(e.target.value)}
-              className="bg-[#06090f] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-cyan-500"
-            >
-              {state.master.skus.map(s => {
-                const isRun = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).some(r => r.isRunning && r.skuId === s.id);
-                return (
-                  <option key={s.id} value={s.id}>
-                    {isRun ? '● [RUNNING] ' : ''}{s.name} ({s.code || 'SKU'} {s.isKite ? '• KITE' : ''})
-                  </option>
-                );
-              })}
-            </select>
-
-            {/* Speed selector if running */}
-            {(() => {
-              const currentRunForSelected = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).find(r => r.skuId === selectedSkuId);
-              if (!currentRunForSelected?.isRunning) return null;
-              return (
-                <div className="flex items-center space-x-1 bg-[#06090f] px-2 py-1 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-400 font-mono font-medium">Speed:</span>
-                  {[1, 2, 5].map((mult) => (
-                    <button
-                      key={mult}
-                      type="button"
-                      onClick={() => onSetRunSpeedMultiplier && onSetRunSpeedMultiplier(mult, currentRunForSelected.id || selectedSkuId)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition ${
-                        (currentRunForSelected?.speedMultiplier || 1) === mult
-                          ? 'bg-emerald-600 text-white'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {mult}x
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Start / Stop Production Buttons */}
-            {isManagement ? (
-              <div className="px-3 py-1.5 bg-indigo-950/60 border border-indigo-500/40 rounded-lg text-xs text-indigo-300 font-semibold flex items-center space-x-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Mode Management (Pantau Saja)</span>
-              </div>
-            ) : (() => {
-              const isSelectedRunning = (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).some(r => r.isRunning && r.skuId === selectedSkuId);
-              if (isSelectedRunning) {
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setIsStopModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
-                  >
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    <span>Stop SKU Ini (Six Big Losses)</span>
-                  </button>
-                );
-              }
-              return (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedSkuId) {
-                      const multiHtReqs = getSkusRequiringHoldingTankChoice([selectedSkuId], state);
-                      if (multiHtReqs.length > 0) {
-                        setPendingHoldingTankSkuId(selectedSkuId);
-                        return;
-                      }
-                      if (onStartSkuProduction) {
-                        onStartSkuProduction(selectedSkuId, operatorName);
-                      }
-                    }
-                  }}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Mulai SKU Ini (Start)</span>
-                </button>
-              );
-            })()}
-          </div>
+          )}
         </div>
 
-        {/* Formula breakdown card for 1 carton */}
-        {activeSku && (
-          <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3 sm:p-4 space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-300 gap-2">
-              <div className="flex items-center space-x-2">
-                <Info className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span className="font-semibold text-white">
-                  Rasio Kebutuhan BOM untuk 1 Karton [{activeSku.name}]:
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-400 font-mono">
-                Bobot Karton: {activeSku.cartonWeightKg.toFixed(2)} kg/karton • Target: {activeSku.targetHour} karton/jam
-              </span>
-            </div>
-
-            {/* Breakdown of linked WIPs and target tanks */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-              {activeSkuTankBreakdown.map(({ skuWip, wip, tank, holdingTanks, kgPerCarton }) => {
-                const isTankLow = tank ? tank.currentLevelKg < (kgPerCarton * 5) : true;
-                const maxPossibleCartons = tank && kgPerCarton > 0 ? Math.floor(tank.currentLevelKg / kgPerCarton) : 0;
-
-                return (
-                  <div
-                    key={skuWip.id}
-                    className={`p-2.5 rounded-lg border text-xs flex flex-col justify-between ${
-                      tank
-                        ? 'bg-slate-900/90 border-slate-700/80'
-                        : 'bg-rose-950/30 border-rose-500/40 text-rose-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white truncate mr-2">{wip?.name || 'WIP'}</span>
-                        <span className="font-mono text-cyan-400 font-bold shrink-0">
-                          {kgPerCarton.toFixed(4)} kg / ctn
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-1 flex items-center space-x-1.5">
-                        <span>Tangki Sumber:</span>
-                        {tank ? (
-                          <span className="font-semibold text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
-                            {tank.code} ({tank.type === 'HOLDING_TANK' ? 'Holding' : 'Storage'})
-                          </span>
-                        ) : (
-                          <span className="text-rose-400 font-semibold">Belum Ditautkan</span>
-                        )}
-                      </div>
-
-                      {holdingTanks.length >= 2 && wip && activeSku && (
-                        <div className="mt-2 pt-1.5 border-t border-slate-800 space-y-1">
-                          <label className="text-[10px] font-semibold text-cyan-300 block">
-                            Pilih Holding Tank ({holdingTanks.length} Opsi Tersedia):
-                          </label>
-                          <select
-                            disabled={isManagement}
-                            value={tank?.id || ''}
-                            onChange={(e) => {
-                              const newTankId = e.target.value;
-                              setSelectedHoldingTanksBySku(prev => ({
-                                ...prev,
-                                [activeSku.id]: {
-                                  ...(prev[activeSku.id] || {}),
-                                  [wip.id]: newTankId
-                                }
-                              }));
-                              if (activeRunForSelectedSku?.isRunning && onUpdateRunHoldingTank) {
-                                onUpdateRunHoldingTank(activeSku.id, wip.id, newTankId, activeRunForSelectedSku.id);
-                              }
-                            }}
-                            className="w-full bg-slate-950 border border-cyan-500/40 rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-white focus:outline-none focus:border-cyan-400"
-                          >
-                            {holdingTanks.map(ht => (
-                              <option key={ht.id} value={ht.id}>
-                                {ht.code} - {ht.name} ({ht.currentLevelKg.toFixed(1)} kg)
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-
-                    {tank && (
-                      <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">
-                          Isi: <strong className="text-white font-mono">{tank.currentLevelKg.toFixed(1)} kg</strong>
-                        </span>
-                        <span className={`font-mono font-medium ${isTankLow ? 'text-rose-400' : 'text-emerald-400'}`}>
-                          Cukup {maxPossibleCartons} ktn
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Quick Increment Depletion Buttons (Hidden for Management) */}
-        {!isManagement && (
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400 font-semibold mr-1">Aksi Cepat Pengurangan:</span>
-              <button
-                onClick={() => handleTriggerProduction(1)}
-                className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5 text-white" />
-                <span>+1 Karton Selesai</span>
-              </button>
-
-              {[5, 10, 25, 50, 100].map(qty => (
-                <button
-                  key={qty}
-                  onClick={() => handleTriggerProduction(qty)}
-                  className="px-3 py-1.5 bg-[#080c14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono font-bold transition active:scale-95 whitespace-nowrap shrink-0"
-                >
-                  +{qty}
-                </button>
-              ))}
-
-              <button
-                onClick={() => handleTriggerProduction(200)}
-                className="px-3 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-mono font-bold transition active:scale-95 whitespace-nowrap shrink-0"
-              >
-                +200 Ktn
-              </button>
-            </div>
-
-            {/* Custom Carton Input */}
-            <form onSubmit={handleCustomCartonSubmit} className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-[#06090f] rounded-lg border border-slate-700 px-2.5 py-1">
-                <span className="text-xs text-slate-400 font-medium mr-2">Qty Custom:</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={customCartons}
-                  onChange={(e) => setCustomCartons(e.target.value)}
-                  className="w-16 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono font-bold text-center focus:outline-none focus:border-cyan-500"
-                />
-                <span className="text-xs text-slate-400 font-mono ml-1.5">ktn</span>
-              </div>
-              <button
-                type="submit"
-                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition active:scale-95 whitespace-nowrap shrink-0"
-              >
-                Kurangi
-              </button>
-            </form>
+        {onSwitchTab && (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => onSwitchTab('pemakaian')}
+              className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Tahap 05: Work Order WIP</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchTab('dashboard')}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition active:scale-95"
+            >
+              <span>Lanjut Tahap 07: Manufacturing</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </div>
@@ -825,8 +472,16 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           const percent = tank.capacityKg > 0 ? (tank.currentLevelKg / tank.capacityKg) * 100 : 0;
           const isLow = tank.currentLevelKg <= (tank.minAlertKg || tank.capacityKg * 0.2);
 
-          // Calculate how many cartons of active SKU this tank can produce
-          const linkedSkuWip = activeSku ? state.master.skuWips.find(sw => sw.skuId === activeSku.id && sw.wipId === wip?.id) : null;
+          // Read-only estimated cartons for currently active running SKU (if linked to this tank's WIP)
+          const matchingActiveRun = wip
+            ? activeRuns.find(r => state.master.skuWips.some(sw => sw.skuId === r.skuId && sw.wipId === wip.id))
+            : undefined;
+          const targetSkuForEstimate = matchingActiveRun
+            ? state.master.skus.find(s => s.id === matchingActiveRun.skuId)
+            : undefined;
+          const linkedSkuWip = targetSkuForEstimate && wip
+            ? state.master.skuWips.find(sw => sw.skuId === targetSkuForEstimate.id && sw.wipId === wip.id)
+            : null;
           const kgPerCarton = linkedSkuWip?.kgWipPerCartonSku || 0;
           const estimatedCartons = kgPerCarton > 0 ? Math.floor(tank.currentLevelKg / kgPerCarton) : null;
 
@@ -1003,13 +658,13 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
                   </button>
                 </div>
 
-                {/* Carton Production Capability */}
-                {estimatedCartons !== null && (
+                {/* Carton Production Capability for running SKU */}
+                {estimatedCartons !== null && targetSkuForEstimate && (
                   <div className="mt-3 p-2.5 rounded-lg bg-[#06090f] border border-cyan-500/20 text-xs flex items-center justify-between">
-                    <span className="text-slate-300 text-[11px] font-medium">
-                      Kemampuan Produksi [{activeSku?.code || 'SKU'}]:
+                    <span className="text-slate-300 text-[11px] font-medium truncate mr-2">
+                      Estimasi Lini [{targetSkuForEstimate.code || targetSkuForEstimate.name}]:
                     </span>
-                    <span className="font-mono text-cyan-400 font-extrabold tabular-nums">
+                    <span className="font-mono text-cyan-400 font-extrabold tabular-nums shrink-0">
                       {estimatedCartons} Karton
                     </span>
                   </div>
@@ -1344,51 +999,6 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
               return onTransferTanks(srcId, dstId, amt, nts, op);
             }
             return { success: false, message: 'Fungsi transfer antar-tangki belum tersedia' };
-          }}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Holding Tank Selection Modal when starting SKU with multi-Holding-Tank WIP */}
-      <HoldingTankSelectionModal
-        isOpen={Boolean(pendingHoldingTankSkuId)}
-        onClose={() => setPendingHoldingTankSkuId(null)}
-        state={state}
-        pendingSkuIds={pendingHoldingTankSkuId ? [pendingHoldingTankSkuId] : []}
-        initialSelectionsBySku={selectedHoldingTanksBySku}
-        onConfirmStart={(selectionsBySku) => {
-          if (pendingHoldingTankSkuId && onStartSkuProduction) {
-            const htMap = selectionsBySku[pendingHoldingTankSkuId];
-            setSelectedHoldingTanksBySku(prev => ({
-              ...prev,
-              [pendingHoldingTankSkuId]: htMap || {}
-            }));
-            onStartSkuProduction(pendingHoldingTankSkuId, operatorName, 1, htMap);
-          }
-          setPendingHoldingTankSkuId(null);
-        }}
-      />
-
-      {/* Six Big Losses Stop Reason Modal */}
-      {isStopModalOpen && activeSku && (
-        <SixBigLossesModal
-          isOpen={isStopModalOpen}
-          onClose={() => setIsStopModalOpen(false)}
-          skuId={activeSku.id}
-          skuName={activeSku.name}
-          skuCode={activeSku.code}
-          startedAt={
-            (state.activeSkuRuns || []).find(r => r.skuId === activeSku.id)?.startedAt ||
-            state.activeSkuRun?.startedAt
-          }
-          cartonsProducedDuringRun={
-            (state.activeSkuRuns || []).find(r => r.skuId === activeSku.id)?.cartonsProducedTotal ||
-            state.activeSkuRun?.cartonsProducedTotal || 0
-          }
-          onConfirmStop={(stopData) => {
-            if (onStopSkuProduction) {
-              onStopSkuProduction(stopData);
-            }
           }}
           showToast={showToast}
         />

@@ -42,7 +42,8 @@ import {
   GoogleSheetsSyncSettings,
   loadSheetsSyncSettings,
   saveSheetsSyncSettings,
-  SHEETS_SYNC_EVENT
+  SHEETS_SYNC_EVENT,
+  updateSheetsSyncStatus
 } from '../../utils/sheetsSyncStore';
 
 interface GoogleSheetsSyncViewProps {
@@ -144,9 +145,15 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       try {
         const rows = await readSpreadsheetValues(token, spreadsheetId, sheetTitle, 'A1:P25');
         setPreviewRows(rows);
+        updateSettings(prev =>
+          prev.syncStatus === 'Error'
+            ? { ...prev, syncStatus: prev.lastSyncedAt ? 'Success' : 'Idle', lastSyncError: undefined }
+            : prev
+        );
       } catch (err: any) {
         const msg = err?.message || 'Gagal memuat pratinjau sheet.';
         setSheetsError(msg);
+        updateSheetsSyncStatus('Error', { lastSyncError: msg });
         if (isDriveAuthError(err)) {
           clearWorkspaceDriveToken();
           setGoogleToken(null);
@@ -156,7 +163,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         setIsLoadingPreview(false);
       }
     },
-    []
+    [updateSettings]
   );
 
   const loadMetadataAndPreview = useCallback(
@@ -185,10 +192,16 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
           await loadPreviewForTab(token, spreadsheetId, resolvedSheet);
         } else {
           setPreviewRows([]);
+          updateSettings(prev =>
+            prev.syncStatus === 'Error'
+              ? { ...prev, syncStatus: prev.lastSyncedAt ? 'Success' : 'Idle', lastSyncError: undefined }
+              : prev
+          );
         }
       } catch (err: any) {
         const msg = err?.message || 'Gagal membaca metadata spreadsheet.';
         setSheetsError(msg);
+        updateSheetsSyncStatus('Error', { lastSyncError: msg });
         setMetadata(null);
         setPreviewRows([]);
         if (isDriveAuthError(err)) {
@@ -234,6 +247,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     } catch (err: any) {
       const msg = err?.message || 'Gagal menghubungkan akun Google.';
       setSheetsError(msg);
+      updateSheetsSyncStatus('Error', { lastSyncError: msg });
       if (isDrivePopupBlockedError(err) || msg.toLowerCase().includes('popup')) {
         setShowRedirectFallback(true);
       }
@@ -251,6 +265,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     } catch (err: any) {
       const msg = err?.message || 'Gagal memulai login redirect Google.';
       setSheetsError(msg);
+      updateSheetsSyncStatus('Error', { lastSyncError: msg });
       showToast(msg, true);
       setIsConnecting(false);
     }
@@ -263,6 +278,11 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     setMetadata(null);
     setPreviewRows([]);
     setSheetsError(null);
+    updateSettings(prev => ({
+      ...prev,
+      syncStatus: 'Idle',
+      lastSyncError: undefined
+    }));
     showToast('Koneksi Google Sheets diputus.');
   };
 
@@ -703,6 +723,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     if (!pendingMutation || !googleToken) return;
     setIsExecutingSync(true);
     setSheetsError(null);
+    updateSheetsSyncStatus('Syncing');
     try {
       if (pendingMutation.kind === 'APPEND_LOGS') {
         const res = await appendSpreadsheetRows(
@@ -720,6 +741,8 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
             ...prev,
             syncedProductionIds: mergedIds,
             lastSyncedAt: nowIso,
+            syncStatus: 'Success',
+            lastSyncError: undefined,
             syncHistory: [
               {
                 id: `gs_${Date.now()}`,
@@ -754,6 +777,8 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         updateSettings(prev => ({
           ...prev,
           lastSyncedAt: nowIso,
+          syncStatus: 'Success',
+          lastSyncError: undefined,
           syncHistory: [
             {
               id: `gs_${Date.now()}`,
@@ -780,7 +805,12 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         );
         setNewTabInput('');
         setIsCreatingTabOpen(false);
-        updateSettings(prev => ({ ...prev, selectedSheetName: created.title }));
+        updateSettings(prev => ({
+          ...prev,
+          selectedSheetName: created.title,
+          syncStatus: prev.lastSyncedAt ? 'Success' : 'Idle',
+          lastSyncError: undefined
+        }));
         showToast(`Tab baru "${created.title}" berhasil dibuat.`);
         setPendingMutation(null);
         await loadMetadataAndPreview(googleToken, settings.spreadsheetId, created.title);
@@ -798,6 +828,8 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         updateSettings(prev => ({
           ...prev,
           lastSyncedAt: nowIso,
+          syncStatus: 'Success',
+          lastSyncError: undefined,
           syncHistory: [
             {
               id: `gs_${Date.now()}`,
@@ -822,6 +854,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     } catch (err: any) {
       const msg = err?.message || 'Gagal menyinkronkan data ke Google Sheets.';
       setSheetsError(msg);
+      updateSheetsSyncStatus('Error', { lastSyncError: msg });
       showToast(msg, true);
       if (isDriveAuthError(err)) {
         clearWorkspaceDriveToken();
@@ -837,13 +870,21 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
     const allIds = allProductionLogs.map(l => l.id);
     updateSettings(prev => ({
       ...prev,
-      syncedProductionIds: Array.from(new Set([...(prev.syncedProductionIds || []), ...allIds]))
+      syncedProductionIds: Array.from(new Set([...(prev.syncedProductionIds || []), ...allIds])),
+      lastSyncedAt: prev.lastSyncedAt || new Date().toISOString(),
+      syncStatus: 'Success',
+      lastSyncError: undefined
     }));
     showToast('Seluruh log produksi saat ini ditandai sudah tersinkron.');
   };
 
   const handleResetSyncedFlags = () => {
-    updateSettings(prev => ({ ...prev, syncedProductionIds: [] }));
+    updateSettings(prev => ({
+      ...prev,
+      syncedProductionIds: [],
+      syncStatus: 'Idle',
+      lastSyncError: undefined
+    }));
     showToast('Status sinkronisasi log direset. Semua log siap dikirim ulang.');
   };
 
