@@ -74,6 +74,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   const [notes, setNotes] = useState('');
   const [activeTab, setActiveTab] = useState<'batch-order' | 'gantt-schedule' | 'batch-history' | 'material-history' | 'shift-activity'>('batch-order');
   const [showInlineGantt, setShowInlineGantt] = useState<boolean>(true);
+  const [isBatchOrderFormOpen, setIsBatchOrderFormOpen] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // 3-Shift Operator System State (Otomatis mengikuti jam shift berjalan)
@@ -1006,7 +1007,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           )}
 
           <div className="bg-[#0c121d] border border-slate-800 p-4 sm:p-5 rounded-xl shadow-lg space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isBatchOrderFormOpen ? 'pb-3 border-b border-slate-800' : ''}`}>
               <div className="flex items-center space-x-2.5">
                 <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
                   <Cpu className="w-4 h-4" />
@@ -1041,8 +1042,20 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 <span className="text-[11px] font-mono text-slate-400">
                   1 Batch / Mesin
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsBatchOrderFormOpen(prev => !prev)}
+                  aria-expanded={isBatchOrderFormOpen}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                >
+                  {isBatchOrderFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  <span>{isBatchOrderFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                </button>
               </div>
             </div>
+
+          {isBatchOrderFormOpen && (
+            <>
 
           {suggestedWipsFromScan && (
             <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 space-y-2 text-xs">
@@ -1085,7 +1098,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleStartBatchSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleStartBatchSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             {/* Header Form Row: SKU, WIP Selection, Recipe Selection, Machine Selection, Target Tank Selection, Fixed Batch Count */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
               {/* Optional SKU context */}
@@ -1937,6 +1950,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </button>
             </div>
           </form>
+            </>
+          )}
           </div>
         </div>
       )}

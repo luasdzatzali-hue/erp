@@ -22,7 +22,10 @@ import {
   PenSquare,
   Copy,
   RotateCcw,
-  Zap
+  Zap,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 import {
   AppState,
@@ -46,6 +49,22 @@ import {
   WEEKLY_PLAN_DAYS,
   WeeklyPlanParseResult
 } from '../utils/weeklyPlanningParser';
+import {
+  buildOfficialWeekOptions,
+  findDuplicateWeekPlan,
+  formatDateShortId,
+  formatFullDateId,
+  getCurrentYearCalendarBounds,
+  getIsoWeeksInYear,
+  getOfficialIsoWeekFromDate,
+  getOfficialIsoWeekRange,
+  OfficialIsoWeekInfo,
+  parseIsoDateLocal,
+  resolvePlanIsoWeek,
+  shiftIsoWeek,
+  validateProductionDateInCurrentYearWeeks,
+  validateWeeklyPlanSelectionInCurrentYear
+} from '../utils/isoWeekCalendar';
 import { DriveFileItem, getAccessToken } from '../utils/googleWorkspace';
 import { GoogleDriveFileBrowser } from './GoogleDriveFileBrowser';
 
@@ -61,55 +80,6 @@ interface WeeklyPlanningSectionProps {
   cartButtonLabel?: string;
   showToast: (msg: string, isError?: boolean) => void;
 }
-
-const MONTH_SHORT_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-const getMondayOfWeek = (refDate: Date): Date => {
-  const d = new Date(refDate);
-  d.setHours(12, 0, 0, 0);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  return d;
-};
-
-const toIsoDateStr = (d: Date): string => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const addDaysIso = (isoStr: string, offsetDays: number): string => {
-  const parsed = new Date(`${isoStr}T12:00:00`);
-  if (isNaN(parsed.getTime())) return isoStr;
-  parsed.setDate(parsed.getDate() + offsetDays);
-  return toIsoDateStr(parsed);
-};
-
-const getIsoWeekNumber = (d: Date): number => {
-  const copy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = copy.getUTCDay() || 7;
-  copy.setUTCDate(copy.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(copy.getUTCFullYear(), 0, 1));
-  return Math.ceil(((copy.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-};
-
-const buildDayDatesFromStart = (
-  periodStartIso: string
-): Partial<Record<WeeklyPlanDayKey, string>> => {
-  const base = new Date(`${periodStartIso}T12:00:00`);
-  if (isNaN(base.getTime())) return {};
-  const map: Partial<Record<WeeklyPlanDayKey, string>> = {};
-  WEEKLY_PLAN_DAYS.forEach((d, idx) => {
-    const dt = new Date(base);
-    dt.setDate(base.getDate() + idx);
-    const dd = String(dt.getDate()).padStart(2, '0');
-    const mm = MONTH_SHORT_LABELS[dt.getMonth()] || '';
-    map[d.key] = `${dd}-${mm}`;
-  });
-  return map;
-};
 
 const WEEKDAY_KEYS: WeeklyPlanDayKey[] = ['senin', 'selasa', 'rabu', 'kamis', 'jumat'];
 
@@ -139,6 +109,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     defaultExpanded !== undefined ? defaultExpanded : savedPlans.length > 0
   );
   const [activeSubTab, setActiveSubTab] = useState<'materials' | 'schedule'>('materials');
+  const [isQuickAddRowOpen, setIsQuickAddRowOpen] = useState<boolean>(true);
 
   // Auto-expand when user uploads a first plan (unless explicitly starting collapsed)
   useEffect(() => {
@@ -183,11 +154,18 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   // Delete confirmation toggle (avoid window.confirm)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Full Web App Manual Plan Builder Modal State
+  // Full Web App Manual Plan Builder Modal State (synchronized to ISO-8601 Official Calendar)
+  const systemYearBounds = useMemo(() => getCurrentYearCalendarBounds(new Date()), []);
+  const initialWeekInfo = useMemo(() => getOfficialIsoWeekFromDate(new Date()), []);
   const [isManualBuilderOpen, setIsManualBuilderOpen] = useState(false);
   const [manualBuilderMode, setManualBuilderMode] = useState<'create' | 'edit'>('create');
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [draftIsoYear, setDraftIsoYear] = useState<number>(initialWeekInfo.isoYear);
+  const [draftIsoWeek, setDraftIsoWeek] = useState<number>(initialWeekInfo.isoWeek);
+  const [draftAnchorDate, setDraftAnchorDate] = useState<string>(initialWeekInfo.mondayIso);
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
+  const [isTitleCustomized, setIsTitleCustomized] = useState(false);
   const [draftWeekLabel, setDraftWeekLabel] = useState('');
   const [draftPeriodStart, setDraftPeriodStart] = useState('');
   const [draftPeriodEnd, setDraftPeriodEnd] = useState('');
@@ -470,12 +448,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       });
     } else {
       const now = new Date();
+      const officialWeek = getOfficialIsoWeekFromDate(now);
       const newPlan: WeeklyProductionPlan = {
         id: `plan_${Date.now()}`,
-        title: 'RENCANA PRODUKSI MINGGUAN (MANUAL)',
-        weekLabel: `WEEK ${Math.ceil((now.getDate() + 6 - now.getDay()) / 7)}`,
-        periodStart: now.toISOString().split('T')[0],
-        periodEnd: new Date(now.getTime() + 6 * 86400000).toISOString().split('T')[0],
+        title: officialWeek.titleSuggestion,
+        weekLabel: officialWeek.weekLabel,
+        periodStart: officialWeek.mondayIso,
+        periodEnd: officialWeek.sundayIso,
+        dayDates: officialWeek.dayDates,
         department: 'DEPARTEMEN PPIC',
         uploadedAt: now.toISOString(),
         uploadedBy: state.currentSession.name,
@@ -518,7 +498,24 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     showToast('Template CSV Planning Mingguan berhasil diunduh.');
   };
 
-  // --- WEB APP SELF-INPUT BUILDER HANDLERS ---
+  // --- WEB APP SELF-INPUT BUILDER HANDLERS (ISO-8601 CALENDAR SYNCED + CURRENT-YEAR VALIDATED) ---
+  const applyOfficialWeekToDraft = (
+    info: OfficialIsoWeekInfo,
+    options?: { anchorDateIso?: string; preserveCustomTitle?: boolean }
+  ) => {
+    setDraftIsoYear(info.isoYear);
+    setDraftIsoWeek(info.isoWeek);
+    setDraftAnchorDate(options?.anchorDateIso || info.mondayIso);
+    setDraftPeriodStart(info.mondayIso);
+    setDraftPeriodEnd(info.sundayIso);
+    setDraftWeekLabel(info.weekLabel);
+    setDateRangeError(null);
+    if (!options?.preserveCustomTitle) {
+      setDraftTitle(info.titleSuggestion);
+      setIsTitleCustomized(false);
+    }
+  };
+
   const openManualBuilder = (mode: 'create' | 'edit') => {
     const defaultLine =
       state.master.productionLines && state.master.productionLines.length > 0
@@ -528,16 +525,33 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     if (mode === 'edit' && activePlan) {
       setManualBuilderMode('edit');
       setEditingPlanId(activePlan.id);
-      setDraftTitle(activePlan.title || 'RENCANA PRODUKSI MINGGUAN');
-      setDraftWeekLabel(activePlan.weekLabel || 'WEEK 1');
-      const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
-      const mondayIso = toIsoDateStr(getMondayOfWeek(new Date()));
-      const pStart = isoPattern.test(activePlan.periodStart) ? activePlan.periodStart : mondayIso;
-      const pEnd = isoPattern.test(activePlan.periodEnd)
-        ? activePlan.periodEnd
-        : addDaysIso(pStart, 6);
-      setDraftPeriodStart(pStart);
-      setDraftPeriodEnd(pEnd);
+
+      const parsedStart = parseIsoDateLocal(activePlan.periodStart);
+      const resolvedMeta = resolvePlanIsoWeek(activePlan);
+      const official = parsedStart
+        ? getOfficialIsoWeekFromDate(parsedStart)
+        : resolvedMeta
+        ? getOfficialIsoWeekRange(resolvedMeta.isoYear, resolvedMeta.isoWeek)
+        : getOfficialIsoWeekFromDate(new Date());
+
+      const editValidation = validateWeeklyPlanSelectionInCurrentYear(
+        official.isoYear,
+        official.isoWeek,
+        official.mondayIso,
+        official.sundayIso
+      );
+
+      const existingTitle = (activePlan.title || '').trim();
+      const shouldPreserveTitle = Boolean(existingTitle);
+      setIsTitleCustomized(shouldPreserveTitle && existingTitle !== official.titleSuggestion);
+      setDraftTitle(existingTitle || official.titleSuggestion);
+      setDraftIsoYear(official.isoYear);
+      setDraftIsoWeek(official.isoWeek);
+      setDraftAnchorDate(official.mondayIso);
+      setDraftPeriodStart(official.mondayIso);
+      setDraftPeriodEnd(official.sundayIso);
+      setDraftWeekLabel(official.weekLabel);
+      setDateRangeError(editValidation.isValid ? null : editValidation.errorMessage);
       setDraftDepartment(activePlan.department || 'DEPARTEMEN PPIC');
       setDraftItems(
         activePlan.items.map(it => ({
@@ -549,16 +563,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
         }))
       );
     } else {
-      const monday = getMondayOfWeek(new Date());
-      const startIso = toIsoDateStr(monday);
-      const endIso = addDaysIso(startIso, 6);
-      const weekNum = getIsoWeekNumber(monday);
+      const official = getOfficialIsoWeekFromDate(new Date());
       setManualBuilderMode('create');
       setEditingPlanId(null);
-      setDraftTitle(`RENCANA PRODUKSI MINGGUAN - WEEK ${weekNum}`);
-      setDraftWeekLabel(`WEEK ${weekNum}`);
-      setDraftPeriodStart(startIso);
-      setDraftPeriodEnd(endIso);
+      setIsTitleCustomized(false);
+      applyOfficialWeekToDraft(official, { preserveCustomTitle: false });
       setDraftDepartment('DEPARTEMEN PPIC');
       setDraftItems([]);
     }
@@ -570,17 +579,81 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     setIsManualBuilderOpen(true);
   };
 
-  const handleDraftPeriodStartChange = (newStart: string) => {
-    setDraftPeriodStart(newStart);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(newStart)) {
-      setDraftPeriodEnd(addDaysIso(newStart, 6));
-      const dt = new Date(`${newStart}T12:00:00`);
-      if (!isNaN(dt.getTime()) && manualBuilderMode === 'create') {
-        const wk = getIsoWeekNumber(dt);
-        setDraftWeekLabel(`WEEK ${wk}`);
-        setDraftTitle(`RENCANA PRODUKSI MINGGUAN - WEEK ${wk}`);
-      }
+  const handleSelectOfficialYear = (nextYear: number) => {
+    if (!Number.isFinite(nextYear)) return;
+    if (nextYear !== systemYearBounds.currentYear) {
+      const msg = `Tahun jadwal (${nextYear}) ditolak. Hanya minggu kalender resmi tahun berjalan (${systemYearBounds.currentYear}) yang diizinkan.`;
+      setDateRangeError(msg);
+      showToast(msg, true);
+      return;
     }
+    const clampedWeek = Math.max(1, Math.min(systemYearBounds.totalWeeks, draftIsoWeek));
+    const info = getOfficialIsoWeekRange(systemYearBounds.currentYear, clampedWeek);
+    applyOfficialWeekToDraft(info, { preserveCustomTitle: isTitleCustomized });
+  };
+
+  const handleSelectOfficialWeek = (nextWeek: number) => {
+    if (!Number.isFinite(nextWeek)) return;
+    if (nextWeek < 1 || nextWeek > systemYearBounds.totalWeeks) {
+      const msg = `Minggu (${nextWeek}) di luar rentang kalender resmi tahun ${systemYearBounds.currentYear} (Week 01–${String(
+        systemYearBounds.totalWeeks
+      ).padStart(2, '0')}).`;
+      setDateRangeError(msg);
+      showToast(msg, true);
+      return;
+    }
+    const info = getOfficialIsoWeekRange(systemYearBounds.currentYear, nextWeek);
+    applyOfficialWeekToDraft(info, { preserveCustomTitle: isTitleCustomized });
+  };
+
+  const handlePickCalendarDate = (dateIso: string) => {
+    const validation = validateProductionDateInCurrentYearWeeks(dateIso);
+    if (!validation.isValid) {
+      setDraftAnchorDate(dateIso);
+      setDateRangeError(validation.errorMessage);
+      if (validation.errorMessage) {
+        showToast(validation.errorMessage, true);
+      }
+      return;
+    }
+    const parsed = parseIsoDateLocal(dateIso);
+    if (!parsed) return;
+    const info = getOfficialIsoWeekFromDate(parsed);
+    applyOfficialWeekToDraft(info, {
+      anchorDateIso: dateIso,
+      preserveCustomTitle: isTitleCustomized
+    });
+  };
+
+  const handleStepOfficialWeek = (deltaWeeks: number) => {
+    const target = shiftIsoWeek(draftIsoYear, draftIsoWeek, deltaWeeks);
+    if (target.isoYear !== systemYearBounds.currentYear) {
+      const msg = `Pembuatan jadwal dibatasi hanya untuk minggu kalender tahun berjalan ${systemYearBounds.currentYear} (Week 01–${String(
+        systemYearBounds.totalWeeks
+      ).padStart(2, '0')}: ${formatDateShortId(systemYearBounds.minDateIso, true)} – ${formatDateShortId(
+        systemYearBounds.maxDateIso,
+        true
+      )}).`;
+      setDateRangeError(msg);
+      showToast(msg, true);
+      return;
+    }
+    applyOfficialWeekToDraft(target, { preserveCustomTitle: isTitleCustomized });
+  };
+
+  const handleJumpRelativeWeek = (offsetWeeks: 0 | 1) => {
+    const currentWeek = getOfficialIsoWeekFromDate(new Date());
+    const target =
+      offsetWeeks === 0
+        ? currentWeek
+        : shiftIsoWeek(currentWeek.isoYear, currentWeek.isoWeek, offsetWeeks);
+    if (target.isoYear !== systemYearBounds.currentYear) {
+      const msg = `Week ${String(target.isoWeek).padStart(2, '0')} (${target.isoYear}) sudah berada di luar rentang kalender resmi tahun ${systemYearBounds.currentYear}.`;
+      setDateRangeError(msg);
+      showToast(msg, true);
+      return;
+    }
+    applyOfficialWeekToDraft(target, { preserveCustomTitle: isTitleCustomized });
   };
 
   const handleAddSkuToBuilder = (prefillMode: 'zero' | 'shift8h') => {
@@ -779,12 +852,90 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     [draftItems]
   );
 
-  const builderDayDates = useMemo(
-    () => buildDayDatesFromStart(draftPeriodStart),
-    [draftPeriodStart]
+  const selectedOfficialWeekInfo = useMemo(
+    () => getOfficialIsoWeekRange(draftIsoYear, draftIsoWeek),
+    [draftIsoYear, draftIsoWeek]
   );
 
+  const calendarYearOptions = useMemo(() => {
+    const years = new Set<number>([systemYearBounds.currentYear]);
+    if (draftIsoYear !== systemYearBounds.currentYear) {
+      years.add(draftIsoYear);
+    }
+    return Array.from(years).sort((a, b) => a - b);
+  }, [systemYearBounds.currentYear, draftIsoYear]);
+
+  const officialWeekOptions = useMemo(
+    () => buildOfficialWeekOptions(systemYearBounds.currentYear),
+    [systemYearBounds.currentYear]
+  );
+
+  const currentCalendarWeek = useMemo(() => getOfficialIsoWeekFromDate(new Date()), []);
+  const nextCalendarWeek = useMemo(
+    () => shiftIsoWeek(currentCalendarWeek.isoYear, currentCalendarWeek.isoWeek, 1),
+    [currentCalendarWeek]
+  );
+  const isNextWeekInCurrentYear = nextCalendarWeek.isoYear === systemYearBounds.currentYear;
+
+  const canStepPrevWeek =
+    draftIsoYear > systemYearBounds.currentYear ||
+    (draftIsoYear === systemYearBounds.currentYear && draftIsoWeek > 1);
+  const canStepNextWeek =
+    draftIsoYear < systemYearBounds.currentYear ||
+    (draftIsoYear === systemYearBounds.currentYear && draftIsoWeek < systemYearBounds.totalWeeks);
+
+  const builderDateValidation = useMemo(() => {
+    if (dateRangeError) {
+      return {
+        isValid: false,
+        errorMessage: dateRangeError,
+        bounds: systemYearBounds
+      };
+    }
+    const anchorCheck = validateProductionDateInCurrentYearWeeks(draftAnchorDate);
+    if (!anchorCheck.isValid) {
+      return anchorCheck;
+    }
+    return validateWeeklyPlanSelectionInCurrentYear(
+      draftIsoYear,
+      draftIsoWeek,
+      draftPeriodStart,
+      draftPeriodEnd
+    );
+  }, [
+    dateRangeError,
+    draftAnchorDate,
+    draftIsoYear,
+    draftIsoWeek,
+    draftPeriodStart,
+    draftPeriodEnd,
+    systemYearBounds
+  ]);
+
+  const duplicateWeekPlan = useMemo(
+    () =>
+      findDuplicateWeekPlan(
+        savedPlans,
+        draftIsoYear,
+        draftIsoWeek,
+        selectedOfficialWeekInfo.mondayIso,
+        manualBuilderMode === 'edit' ? editingPlanId : null
+      ),
+    [savedPlans, draftIsoYear, draftIsoWeek, selectedOfficialWeekInfo.mondayIso, manualBuilderMode, editingPlanId]
+  );
+
+  const builderDayDates = selectedOfficialWeekInfo.dayDates;
+
   const handleSaveManualBuilder = () => {
+    if (!builderDateValidation.isValid) {
+      showToast(
+        builderDateValidation.errorMessage ||
+          `Tanggal produksi harus berada dalam minggu kalender tahun berjalan (${systemYearBounds.currentYear}).`,
+        true
+      );
+      return;
+    }
+
     if (draftItems.length === 0) {
       showToast('Tambahkan minimal 1 SKU ke tabel planning sebelum menyimpan.', true);
       return;
@@ -802,15 +953,16 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
         ? savedPlans.find(p => p.id === editingPlanId)
         : undefined;
 
+    const canonicalWeek = getOfficialIsoWeekRange(systemYearBounds.currentYear, draftIsoWeek);
+
     const planToSave: WeeklyProductionPlan = {
       id: existingPlan?.id || `plan_web_${Date.now()}`,
-      title: draftTitle.trim() || `RENCANA PRODUKSI MINGGUAN - ${draftWeekLabel || 'MANUAL'}`,
-      weekLabel: draftWeekLabel.trim() || 'WEEK MANUAL',
-      periodStart: draftPeriodStart || toIsoDateStr(new Date()),
-      periodEnd: draftPeriodEnd || addDaysIso(draftPeriodStart || toIsoDateStr(new Date()), 6),
+      title: draftTitle.trim() || canonicalWeek.titleSuggestion,
+      weekLabel: draftWeekLabel.trim() || canonicalWeek.weekLabel,
+      periodStart: canonicalWeek.mondayIso,
+      periodEnd: canonicalWeek.sundayIso,
       department: draftDepartment.trim() || 'DEPARTEMEN PPIC',
-      dayDates:
-        Object.keys(builderDayDates).length > 0 ? builderDayDates : existingPlan?.dayDates,
+      dayDates: canonicalWeek.dayDates,
       uploadedAt: nowIso,
       uploadedBy: state.currentSession.name,
       sourceFileName:
@@ -828,7 +980,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
     setIsExpanded(true);
     setActiveSubTab('materials');
     showToast(
-      `Planning "${planToSave.weekLabel}" (${planToSave.items.length} SKU · ${totalCartons.toLocaleString(
+      `Planning "${planToSave.weekLabel}" (${canonicalWeek.rangeLabelId} · ${planToSave.items.length} SKU · ${totalCartons.toLocaleString(
         'id-ID'
       )} karton) disimpan sebagai acuan order!`
     );
@@ -1644,15 +1796,27 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   <span className="text-[11px] font-bold text-slate-200 block">
                     Tambah Baris SKU Cepat ke Jadwal Aktif
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => openManualBuilder('edit')}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
-                  >
-                    <PenSquare className="w-3 h-3" />
-                    <span>Buka Builder Jadwal Lengkap (7 Hari × 3 Shift) →</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openManualBuilder('edit')}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                    >
+                      <PenSquare className="w-3 h-3" />
+                      <span>Buka Builder Jadwal Lengkap (7 Hari × 3 Shift) →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickAddRowOpen(prev => !prev)}
+                      aria-expanded={isQuickAddRowOpen}
+                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                    >
+                      {isQuickAddRowOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>{isQuickAddRowOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                    </button>
+                  </div>
                 </div>
+                {isQuickAddRowOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-xs items-end">
                   <div className="col-span-2 sm:col-span-3 lg:col-span-2">
                     <label className="block text-[10px] text-slate-400 mb-1">SKU Master BOM</label>
@@ -1735,6 +1899,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     </button>
                   </div>
                 </div>
+                )}
               </div>
               )}
             </div>
@@ -2143,56 +2308,234 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
             {/* Builder Body */}
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              {/* 1. Plan Metadata Bar */}
+              {/* 1. Plan Metadata & Official ISO-8601 Calendar Bar */}
               <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-cyan-400 font-mono">
-                    1. IDENTITAS &amp; PERIODE JADWAL MINGGUAN
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-400 tabular-nums">
-                    {draftItems.length} SKU · {builderTotalCartons.toLocaleString('id-ID')} Karton Total
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold text-cyan-400 font-mono flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                      <span>1. IDENTITAS &amp; KALENDER RESMI MINGGUAN (ISO-8601)</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-[10px] font-mono font-semibold whitespace-nowrap">
+                      Senin–Minggu Tervalidasi
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!canStepPrevWeek}
+                      onClick={() => handleStepOfficialWeek(-1)}
+                      className="px-2 py-1 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={`Mundur 1 minggu kalender (minimal Week 01 ${systemYearBounds.currentYear})`}
+                    >
+                      <ChevronLeft className="w-3 h-3" />
+                      <span>Sebelumnya</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleJumpRelativeWeek(0)}
+                      className={`px-2.5 py-1 border rounded-md text-[10px] font-bold whitespace-nowrap shrink-0 transition ${
+                        !builderDateValidation.isValid
+                          ? 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                          : draftIsoYear === currentCalendarWeek.isoYear &&
+                            draftIsoWeek === currentCalendarWeek.isoWeek
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/45'
+                          : 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      Minggu Ini (W{String(currentCalendarWeek.isoWeek).padStart(2, '0')})
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!isNextWeekInCurrentYear}
+                      onClick={() => handleJumpRelativeWeek(1)}
+                      className={`px-2.5 py-1 border rounded-md text-[10px] font-bold whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                        draftIsoYear === nextCalendarWeek.isoYear &&
+                        draftIsoWeek === nextCalendarWeek.isoWeek &&
+                        builderDateValidation.isValid
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/45'
+                          : 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                      title={
+                        isNextWeekInCurrentYear
+                          ? 'Pilih minggu depan'
+                          : `Minggu depan sudah masuk tahun ${nextCalendarWeek.isoYear}`
+                      }
+                    >
+                      Minggu Depan (W{String(nextCalendarWeek.isoWeek).padStart(2, '0')})
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canStepNextWeek}
+                      onClick={() => handleStepOfficialWeek(1)}
+                      className="px-2 py-1 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={`Maju 1 minggu kalender (maksimal Week ${String(
+                        systemYearBounds.totalWeeks
+                      ).padStart(2, '0')} ${systemYearBounds.currentYear})`}
+                    >
+                      <span>Berikutnya</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-                  <div className="lg:col-span-2">
-                    <label className="block text-[10px] text-slate-400 mb-1">Judul Jadwal</label>
+
+                {/* Official Calendar Pickers + Title */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
+                  <div className="lg:col-span-2 min-w-0">
+                    <label className="block text-[10px] text-slate-400 mb-1">
+                      Tahun Kalender Aktif
+                    </label>
+                    <select
+                      value={draftIsoYear}
+                      onChange={e => handleSelectOfficialYear(Number(e.target.value))}
+                      className={`w-full bg-[#0c121d] border rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none ${
+                        draftIsoYear !== systemYearBounds.currentYear
+                          ? 'border-rose-500 focus:border-rose-400'
+                          : 'border-slate-700 focus:border-cyan-500'
+                      }`}
+                      title={`Dikunci ke tahun kalender sistem (${systemYearBounds.currentYear})`}
+                    >
+                      {calendarYearOptions.map(yr => (
+                        <option key={yr} value={yr}>
+                          {yr} ({getIsoWeeksInYear(yr)} Wk)
+                          {yr !== systemYearBounds.currentYear ? ' · Di Luar Tahun Sistem' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-4 min-w-0">
+                    <label className="block text-[10px] text-slate-400 mb-1">
+                      Minggu Resmi {systemYearBounds.currentYear} (Week 01–{String(systemYearBounds.totalWeeks).padStart(2, '0')})
+                    </label>
+                    <select
+                      value={
+                        draftIsoYear === systemYearBounds.currentYear
+                          ? draftIsoWeek
+                          : currentCalendarWeek.isoWeek
+                      }
+                      onChange={e => handleSelectOfficialWeek(Number(e.target.value))}
+                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
+                    >
+                      {officialWeekOptions.map(opt => (
+                        <option key={opt.isoWeek} value={opt.isoWeek}>
+                          {opt.optionLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-2 min-w-0">
+                    <label
+                      className="block text-[10px] text-slate-400 mb-1"
+                      title={`Rentang valid: ${formatDateShortId(
+                        systemYearBounds.minDateIso,
+                        true
+                      )} s/d ${formatDateShortId(systemYearBounds.maxDateIso, true)}`}
+                    >
+                      Pilih Tanggal ({systemYearBounds.currentYear})
+                    </label>
+                    <input
+                      type="date"
+                      min={systemYearBounds.minDateIso}
+                      max={systemYearBounds.maxDateIso}
+                      value={draftAnchorDate}
+                      onChange={e => handlePickCalendarDate(e.target.value)}
+                      aria-invalid={!builderDateValidation.isValid}
+                      className={`w-full bg-[#0c121d] border rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none ${
+                        !builderDateValidation.isValid
+                          ? 'border-rose-500 focus:border-rose-400'
+                          : 'border-slate-700 focus:border-cyan-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 lg:col-span-4 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] text-slate-400">Judul Jadwal</label>
+                      {isTitleCustomized && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftTitle(selectedOfficialWeekInfo.titleSuggestion);
+                            setIsTitleCustomized(false);
+                          }}
+                          className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold"
+                        >
+                          Reset ke Judul Resmi
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={draftTitle}
-                      onChange={e => setDraftTitle(e.target.value)}
-                      placeholder="RENCANA PRODUKSI MINGGUAN - WEEK 48"
+                      onChange={e => {
+                        setDraftTitle(e.target.value);
+                        setIsTitleCustomized(
+                          e.target.value.trim() !== selectedOfficialWeekInfo.titleSuggestion
+                        );
+                      }}
+                      placeholder={selectedOfficialWeekInfo.titleSuggestion}
                       className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Label Minggu</label>
-                    <input
-                      type="text"
-                      value={draftWeekLabel}
-                      onChange={e => setDraftWeekLabel(e.target.value)}
-                      placeholder="WEEK 48"
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Mulai (Senin)</label>
-                    <input
-                      type="date"
-                      value={draftPeriodStart}
-                      onChange={e => handleDraftPeriodStartChange(e.target.value)}
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Selesai (Minggu)</label>
-                    <input
-                      type="date"
-                      value={draftPeriodEnd}
-                      onChange={e => setDraftPeriodEnd(e.target.value)}
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
                 </div>
+
+                {/* Locked Official Monday–Sunday Confirmation Strip / Strict Date Range Validation Feedback */}
+                {builderDateValidation.isValid ? (
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#0c121d] border border-slate-800 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>Label Resmi:</span>
+                        <span className="font-mono text-white">{draftWeekLabel}</span>
+                      </div>
+                      <div className="text-slate-300 font-mono tabular-nums">
+                        <span className="text-slate-400">Mulai:</span>{' '}
+                        <strong className="text-cyan-300">{formatFullDateId(draftPeriodStart)}</strong>
+                      </div>
+                      <div className="text-slate-300 font-mono tabular-nums">
+                        <span className="text-slate-400">Selesai:</span>{' '}
+                        <strong className="text-cyan-300">{formatFullDateId(draftPeriodEnd)}</strong>
+                      </div>
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-400 tabular-nums shrink-0">
+                      Rentang Sistem {systemYearBounds.currentYear}: {formatDateShortId(systemYearBounds.minDateIso)} –{' '}
+                      {formatDateShortId(systemYearBounds.maxDateIso, true)} · {draftItems.length} SKU ·{' '}
+                      {builderTotalCartons.toLocaleString('id-ID')} Ktn
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-rose-500/15 border border-rose-500/45 text-[11px] text-rose-200">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-rose-300">Validasi Rentang Tanggal Gagal:</strong>{' '}
+                        <span>{builderDateValidation.errorMessage}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleJumpRelativeWeek(0)}
+                      className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-md text-[11px] font-bold whitespace-nowrap shrink-0 transition"
+                    >
+                      Sinkronkan ke Minggu Ini ({systemYearBounds.currentYear})
+                    </button>
+                  </div>
+                )}
+
+                {duplicateWeekPlan && (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/35 text-[11px] text-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      Perhatian: Sudah ada jadwal tersimpan untuk{' '}
+                      <strong className="font-mono">{selectedOfficialWeekInfo.weekLabel}</strong> (
+                      &ldquo;{duplicateWeekPlan.title}&rdquo; · {duplicateWeekPlan.items.length} SKU).
+                      Anda tetap dapat menyimpan sebagai jadwal terpisah jika memang untuk line/revisi berbeda.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* 2. Add SKU Row Bar */}
@@ -2468,7 +2811,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveManualBuilder}
-                  disabled={draftItems.length === 0 || builderTotalCartons <= 0}
+                  disabled={
+                    draftItems.length === 0 ||
+                    builderTotalCartons <= 0 ||
+                    !builderDateValidation.isValid
+                  }
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_14px_rgba(16,185,129,0.28)]"
                 >
                   <Check className="w-4 h-4" />

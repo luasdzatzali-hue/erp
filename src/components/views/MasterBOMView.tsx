@@ -36,7 +36,9 @@ import {
   Square,
   UserPlus,
   Filter,
-  Scale
+  Scale,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { MaterialImportModal } from '../MaterialImportModal';
 import { MachineImportModal } from '../MachineImportModal';
@@ -191,6 +193,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [isChangeoverHistoryOpen, setIsChangeoverHistoryOpen] = useState(false);
   const [historySelectedMachineId, setHistorySelectedMachineId] = useState<string | null>(null);
   const [machineStatusFilter, setMachineStatusFilter] = useState<'ALL' | 'OPERATIONAL' | 'CHANGEOVER' | 'STANDBY' | 'MAINTENANCE'>('ALL');
+
+  // Form collapse states across Master Data & BOM subtabs
+  const [isMaterialFormOpen, setIsMaterialFormOpen] = useState(true);
+  const [isWipFormOpen, setIsWipFormOpen] = useState(true);
+  const [isSkuFormOpen, setIsSkuFormOpen] = useState(true);
+  const [isSkuWipFormOpen, setIsSkuWipFormOpen] = useState(true);
+  const [isRecipeMaterialAddOpen, setIsRecipeMaterialAddOpen] = useState(true);
+  const [isMachineFormOpen, setIsMachineFormOpen] = useState(true);
+  const [isTankFormOpen, setIsTankFormOpen] = useState(true);
+  const [isOperatorFormOpen, setIsOperatorFormOpen] = useState(true);
+  const [isManagementFormOpen, setIsManagementFormOpen] = useState(true);
+  const [isChangePinFormOpen, setIsChangePinFormOpen] = useState(true);
 
   // Material form state
   const [matName, setMatName] = useState('');
@@ -1209,10 +1223,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <span className="text-[10px] text-slate-400 font-mono">
                 {state.master.materials.length} item
               </span>
+              <button
+                type="button"
+                onClick={() => setIsMaterialFormOpen(prev => !prev)}
+                aria-expanded={isMaterialFormOpen}
+                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
+              >
+                {isMaterialFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                <span>{isMaterialFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleMaterialSubmit} className="space-y-2 text-xs">
+          {isMaterialFormOpen && (
+          <form onSubmit={handleMaterialSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 type="text"
@@ -1272,6 +1296,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               Simpan & Autosave Material
             </button>
           </form>
+          )}
 
           {/* List of Materials */}
           <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
@@ -1333,17 +1358,29 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
         {/* Column 2: WIP Master Form */}
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2 gap-2">
             <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
               <Layers className="w-4 h-4 text-amber-400" />
               <span>2. Input WIP & Mesin/Tangki</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-mono">
-              {state.master.wips.length} WIP
-            </span>
+            <div className="flex items-center space-x-2 shrink-0">
+              <span className="text-[10px] text-slate-400 font-mono">
+                {state.master.wips.length} WIP
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsWipFormOpen(prev => !prev)}
+                aria-expanded={isWipFormOpen}
+                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
+              >
+                {isWipFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                <span>{isWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleWipSubmit} className="space-y-2 text-xs">
+          {isWipFormOpen && (
+          <form onSubmit={handleWipSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             {/* 1 WIP = 1 Unique Code */}
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-1">
@@ -1614,6 +1651,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               Simpan WIP & Tautkan Mesin/Tangki
             </button>
           </form>
+          )}
 
           {/* List of WIPs */}
           <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
@@ -1735,10 +1773,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <span className="text-[10px] text-slate-400 font-mono">
                 {state.master.skus.length} SKU
               </span>
+              <button
+                type="button"
+                onClick={() => setIsSkuFormOpen(prev => !prev)}
+                aria-expanded={isSkuFormOpen}
+                className="text-[11px] text-slate-300 hover:text-white flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition whitespace-nowrap shrink-0"
+              >
+                {isSkuFormOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                <span>{isSkuFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleSkuSubmit} className="space-y-2 text-xs">
+          {isSkuFormOpen && (
+          <form onSubmit={handleSkuSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             <input
               type="text"
               value={skuName}
@@ -1786,6 +1834,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               Simpan SKU Produk
             </button>
           </form>
+          )}
 
           {/* List of SKUs */}
           <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-2 border-t border-slate-800">
@@ -1827,7 +1876,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* A. Tentukan WIP (kg/karton) untuk 1 Karton SKU */}
         <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2 gap-2">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isSkuWipFormOpen ? 'border-b border-slate-800 pb-2' : ''}`}>
             <div className="flex items-center space-x-2">
               <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
                 <GitBranch className="w-4 h-4" />
@@ -1849,10 +1898,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 <UploadCloud className="w-3.5 h-3.5" />
                 <span>Import File</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setIsSkuWipFormOpen(prev => !prev)}
+                aria-expanded={isSkuWipFormOpen}
+                className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold transition whitespace-nowrap shrink-0"
+              >
+                {isSkuWipFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isSkuWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleSkuWipSubmit} className="space-y-2.5 text-xs">
+          {isSkuWipFormOpen && (
+          <form onSubmit={handleSkuWipSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             <div>
               <label className="block text-[11px] font-medium text-slate-300 mb-1">
                 Pilih SKU Produk Target
@@ -1913,6 +1972,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               Tautkan WIP ke SKU
             </button>
           </form>
+          )}
         </div>
 
         {/* B. Penentuan Batch WIP dari Resep & Database Material */}
@@ -2371,7 +2431,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                 {/* Pilihan Mode Input: Multi-Select (Pilih Banyak Sekaligus) vs Input Satuan */}
                 <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isRecipeMaterialAddOpen ? 'border-b border-slate-800/80 pb-2.5' : ''}`}>
                     <div className="flex items-center space-x-2">
                       <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
                         <CheckSquare className="w-4 h-4" />
@@ -2386,41 +2446,54 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Mode Toggle Tabs */}
-                    <div className="flex rounded-xl overflow-hidden border border-slate-700 bg-slate-900 p-0.5 text-xs self-start sm:self-auto shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setRecipeInputMode('multi')}
-                        className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
-                          recipeInputMode === 'multi'
-                            ? 'bg-cyan-600 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <CheckSquare className="w-3.5 h-3.5" />
-                        <span>Pilih Banyak (Multi-Select)</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-400/30 hidden sm:inline">
-                          Rekomendasi
-                        </span>
-                      </button>
+                    {/* Mode Toggle Tabs + Collapse */}
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+                      {isRecipeMaterialAddOpen && (
+                        <div className="flex rounded-xl overflow-hidden border border-slate-700 bg-slate-900 p-0.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setRecipeInputMode('multi')}
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+                              recipeInputMode === 'multi'
+                                ? 'bg-cyan-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <CheckSquare className="w-3.5 h-3.5" />
+                            <span>Pilih Banyak (Multi-Select)</span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-400/30 hidden sm:inline">
+                              Rekomendasi
+                            </span>
+                          </button>
 
+                          <button
+                            type="button"
+                            onClick={() => setRecipeInputMode('single')}
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+                              recipeInputMode === 'single'
+                                ? 'bg-slate-700 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Satu per Satu</span>
+                          </button>
+                        </div>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setRecipeInputMode('single')}
-                        className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
-                          recipeInputMode === 'single'
-                            ? 'bg-slate-700 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
+                        onClick={() => setIsRecipeMaterialAddOpen(prev => !prev)}
+                        aria-expanded={isRecipeMaterialAddOpen}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Satu per Satu</span>
+                        {isRecipeMaterialAddOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        <span>{isRecipeMaterialAddOpen ? 'Tutup Form' : 'Buka Form'}</span>
                       </button>
                     </div>
                   </div>
 
                   {/* MODE 1: MULTI-SELECT MATERIAL (PILIH BANYAK SEKALIGUS) */}
-                  {recipeInputMode === 'multi' ? (
+                  {isRecipeMaterialAddOpen && (recipeInputMode === 'multi' ? (
                     <div className="space-y-3">
                       {/* Search, Filter & Quick Action Bar */}
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
@@ -2658,7 +2731,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     </div>
                   ) : (
                     /* MODE 2: SINGLE INPUT FORM (SATU PER SATU) */
-                    <form onSubmit={handleAddMaterialToRecipeSubmit} className="space-y-3 pt-1">
+                    <form onSubmit={handleAddMaterialToRecipeSubmit} className="space-y-3 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
                         {/* Material Select */}
                         <div className="sm:col-span-6">
@@ -2748,7 +2821,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         </button>
                       </div>
                     </form>
-                  )}
+                  ))}
                 </div>
 
                 {/* Table of Materials in this Recipe */}
@@ -3226,15 +3299,27 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
         {/* Form Tambah Mesin */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className={`flex items-center justify-between gap-2 ${isMachineFormOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
             <h3 className="font-bold text-sm text-white flex items-center space-x-2">
               <Wrench className="w-4 h-4 text-cyan-400" />
               <span>Tambah Mesin Produksi Baru</span>
             </h3>
-            <span className="text-xs text-slate-400">Master Plant Machinery</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-slate-400 hidden sm:inline">Master Plant Machinery</span>
+              <button
+                type="button"
+                onClick={() => setIsMachineFormOpen(prev => !prev)}
+                aria-expanded={isMachineFormOpen}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              >
+                {isMachineFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isMachineFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleMachineSubmit} className="space-y-3 text-xs">
+          {isMachineFormOpen && (
+          <form onSubmit={handleMachineSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">Kode Mesin *</label>
@@ -3334,6 +3419,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </button>
             </div>
           </form>
+          )}
         </div>
 
         {/* Header & Changeover Control Bar */}
@@ -3660,15 +3746,27 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
         {/* Form Tambah Tangki */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className={`flex items-center justify-between gap-2 ${isTankFormOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
             <h3 className="font-bold text-sm text-white flex items-center space-x-2">
               <Cylinder className="w-4 h-4 text-cyan-400" />
               <span>Tambah Tangki WIP Baru</span>
             </h3>
-            <span className="text-xs text-slate-400">Master Industrial Vessel</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-slate-400 hidden sm:inline">Master Industrial Vessel</span>
+              <button
+                type="button"
+                onClick={() => setIsTankFormOpen(prev => !prev)}
+                aria-expanded={isTankFormOpen}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              >
+                {isTankFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isTankFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleTankSubmit} className="space-y-3 text-xs">
+          {isTankFormOpen && (
+          <form onSubmit={handleTankSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">Kode Tangki *</label>
@@ -3903,6 +4001,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </button>
             </div>
           </form>
+          )}
         </div>
 
         {/* Daftar Tangki WIP */}
@@ -4187,7 +4286,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           <div className="space-y-5">
             {/* Form Pendaftaran Operator Baru */}
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isOperatorFormOpen ? 'pb-3 mb-4 border-b border-slate-800' : ''}`}>
                 <div className="flex items-center space-x-2.5">
                   <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                     <UserPlus className="w-4 h-4" />
@@ -4199,17 +4298,31 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={generateAutoNik}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono font-semibold border border-slate-700 transition"
-                  title="Generate NIK otomatis"
-                >
-                  ⚡ Auto NIK
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isOperatorFormOpen && (
+                    <button
+                      type="button"
+                      onClick={generateAutoNik}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono font-semibold border border-slate-700 transition"
+                      title="Generate NIK otomatis"
+                    >
+                      ⚡ Auto NIK
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOperatorFormOpen(prev => !prev)}
+                    aria-expanded={isOperatorFormOpen}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  >
+                    {isOperatorFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    <span>{isOperatorFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handleOperatorSubmit} className="space-y-4 text-xs">
+              {isOperatorFormOpen && (
+              <form onSubmit={handleOperatorSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Nama Operator */}
                   <div className="sm:col-span-2">
@@ -4301,6 +4414,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   </button>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Tabel Daftar Operator Terdaftar */}
@@ -4490,19 +4604,31 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
             {/* Form Pendaftaran Akun Management */}
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-              <div className="flex items-center space-x-2.5 pb-3 mb-4 border-b border-slate-800">
-                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  <UserPlus className="w-4 h-4" />
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isManagementFormOpen ? 'pb-3 mb-4 border-b border-slate-800' : ''}`}>
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Formulir Tambah Akun Management</h4>
+                    <p className="text-[11px] text-slate-400">
+                      Daftarkan akun eksekutif (Direktur, Factory Manager, Head of QC, PPIC, Maintenance).
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-white">Formulir Tambah Akun Management</h4>
-                  <p className="text-[11px] text-slate-400">
-                    Daftarkan akun eksekutif (Direktur, Factory Manager, Head of QC, PPIC, Maintenance).
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsManagementFormOpen(prev => !prev)}
+                  aria-expanded={isManagementFormOpen}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                >
+                  {isManagementFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  <span>{isManagementFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                </button>
               </div>
 
-              <form onSubmit={handleManagementSubmit} className="space-y-4 text-xs">
+              {isManagementFormOpen && (
+              <form onSubmit={handleManagementSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Nama Management */}
                   <div>
@@ -4593,6 +4719,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   </button>
                 </div>
               </form>
+              )}
             </div>
 
             {/* Tabel Daftar Akun Management Terdaftar */}
@@ -4742,19 +4869,31 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         {activeUserTab === 'SECURITY' && (
           <div className="max-w-xl mx-auto space-y-4">
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
-              <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-800">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  <KeyRound className="w-5 h-5" />
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isChangePinFormOpen ? 'pb-3 border-b border-slate-800' : ''}`}>
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Ganti PIN Akses Administrator</h4>
+                    <p className="text-[11px] text-slate-400">
+                      PIN ini mengamankan seluruh perubahan formula BOM, mesin, tangki, dan manajemen otoritas pengguna.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-white">Ganti PIN Akses Administrator</h4>
-                  <p className="text-[11px] text-slate-400">
-                    PIN ini mengamankan seluruh perubahan formula BOM, mesin, tangki, dan manajemen otoritas pengguna.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsChangePinFormOpen(prev => !prev)}
+                  aria-expanded={isChangePinFormOpen}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                >
+                  {isChangePinFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  <span>{isChangePinFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+                </button>
               </div>
 
-              <form onSubmit={handleChangePinSubmit} className="space-y-4 text-xs">
+              {isChangePinFormOpen && (
+              <form onSubmit={handleChangePinSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
                     PIN / Password Administrator Baru (Min. 8 Karakter)
@@ -4800,6 +4939,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>
         )}

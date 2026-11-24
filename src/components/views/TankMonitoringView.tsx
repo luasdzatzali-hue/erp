@@ -877,7 +877,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
               </p>
             </div>
 
-            <form onSubmit={handleRefillSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleRefillSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">
                   Jumlah Bobot Batch Ditransfer (kg):
@@ -946,7 +946,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
               <strong className="text-white">{activeCalibrateTank.code}</strong>.
             </p>
 
-            <form onSubmit={handleCalibrateSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleCalibrateSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">
                   Level Aktual Terukur (kg, maks {activeCalibrateTank.capacityKg} kg):

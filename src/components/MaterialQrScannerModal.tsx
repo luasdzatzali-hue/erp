@@ -696,7 +696,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               </div>
 
               {/* Manual Barcode / QR String Input */}
-              <form onSubmit={handleManualSubmit} className="space-y-2.5">
+              <form onSubmit={handleManualSubmit} className="space-y-2.5 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
                 <label className="block text-xs font-semibold text-slate-200">
                   Input Manual Kode Material atau String QR (JSON / Scanner USB)
                 </label>

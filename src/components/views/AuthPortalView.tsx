@@ -1330,7 +1330,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
                   {selectedRole === 'OPERATOR' ? (
                     isWorkspaceSyncedOnDevice && (cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR') ? (
-                      <form onSubmit={handleOperatorSubmit} className="pt-2 space-y-2.5">
+                      <form onSubmit={handleOperatorSubmit} className="bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3 space-y-2.5">
                         {activeOperators.length > 0 ? (
                           <>
                             <div>
@@ -1467,7 +1467,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
                   {selectedRole === 'MANAGEMENT' ? (
                     isWorkspaceSyncedOnDevice && Boolean(cloudAuthRole) ? (
-                      <form onSubmit={handleManagementSubmit} className="pt-2 space-y-2.5">
+                      <form onSubmit={handleManagementSubmit} className="bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3 space-y-2.5">
                         {state.registeredManagement.length > 0 ? (
                           <>
                             <div>

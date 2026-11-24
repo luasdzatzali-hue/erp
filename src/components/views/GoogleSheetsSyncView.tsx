@@ -15,7 +15,9 @@ import {
   RotateCcw,
   ArrowLeft,
   Layers,
-  Zap
+  Zap,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { AppState, CartonProductionLog } from '../../types';
 import { getCurrentShift } from '../../utils/shifts';
@@ -115,6 +117,10 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
 
   const [pendingMutation, setPendingMutation] = useState<PendingSheetMutation | null>(null);
   const [isExecutingSync, setIsExecutingSync] = useState(false);
+
+  const [isConnectionCardOpen, setIsConnectionCardOpen] = useState(true);
+  const [isTargetSheetCardOpen, setIsTargetSheetCardOpen] = useState(true);
+  const [isSyncQueueCardOpen, setIsSyncQueueCardOpen] = useState(true);
 
   // Keep local settings synced with storage updates
   useEffect(() => {
@@ -963,15 +969,31 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       )}
 
       {/* Row 1: Google Connection + Spreadsheet Link Target */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Google Account Sign-In Card */}
         <div className="lg:col-span-5 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 flex flex-col justify-between space-y-4">
           <div className="space-y-2">
-            <h2 className="text-sm font-bold text-white">1. Koneksi Akun Google Sheets</h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Masuk dengan akun Google yang memiliki akses Editor ke spreadsheet tujuan agar aplikasi dapat membaca daftar tab sheet dan menginput hasil produksi.
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-white">1. Koneksi Akun Google Sheets</h2>
+              <button
+                type="button"
+                onClick={() => setIsConnectionCardOpen(prev => !prev)}
+                aria-expanded={isConnectionCardOpen}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              >
+                {isConnectionCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isConnectionCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
+            {isConnectionCardOpen && (
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Masuk dengan akun Google yang memiliki akses Editor ke spreadsheet tujuan agar aplikasi dapat membaca daftar tab sheet dan menginput hasil produksi.
+              </p>
+            )}
           </div>
+
+          {isConnectionCardOpen && (
+            <>
 
           {!googleToken ? (
             <div className="space-y-2.5 pt-1">
@@ -1044,21 +1066,37 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               </button>
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* Spreadsheet Target & Sheet Selector Card */}
         <div className="lg:col-span-7 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-3.5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-white">2. Target Spreadsheet &amp; Pemilihan Tab Sheet</h2>
-            <button
-              type="button"
-              onClick={handleResetDefaultLink}
-              className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Link Utama</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleResetDefaultLink}
+                className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Link Utama</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTargetSheetCardOpen(prev => !prev)}
+                aria-expanded={isTargetSheetCardOpen}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              >
+                {isTargetSheetCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isTargetSheetCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
           </div>
+
+          {isTargetSheetCardOpen && (
+            <>
 
           <div className="flex flex-col sm:flex-row gap-2">
             <input
@@ -1160,12 +1198,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               </button>
             </form>
           )}
+            </>
+          )}
         </div>
       </div>
 
       {/* Row 2: Automated Production Queue & Sync Controls */}
       <div className="bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+        <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isSyncQueueCardOpen ? 'pb-3 border-b border-slate-800/80' : ''}`}>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-white">
               3. Sinkronisasi &amp; Input Hasil Produksi ke Spreadsheet
@@ -1200,10 +1240,19 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 Rekap Plan vs Aktual ({planComparison.rows.length} SKU)
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsSyncQueueCardOpen(prev => !prev)}
+              aria-expanded={isSyncQueueCardOpen}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+            >
+              {isSyncQueueCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{isSyncQueueCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
+            </button>
           </div>
         </div>
 
-        {syncDatasetMode === 'PRODUCTION_LOGS' ? (
+        {isSyncQueueCardOpen && (syncDatasetMode === 'PRODUCTION_LOGS' ? (
           <div className="space-y-3">
             {/* Queue Toolbar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
@@ -1429,7 +1478,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               </table>
             </div>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Row 3: Live Sheet Preview & Sync Execution History */}

@@ -8,6 +8,8 @@ import {
   Send,
   Share2,
   X as CloseIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -166,6 +168,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
   });
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isFormExpanded, setIsFormExpanded] = React.useState(true);
   const [failedIconIds, setFailedIconIds] = React.useState<Record<string, boolean>>({});
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -205,7 +208,10 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
       onCtaClick();
       return;
     }
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setIsFormExpanded(true);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
   };
 
   return (
@@ -216,7 +222,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         style={{ backgroundImage: `url(${backgroundImageSrc})` }}
         aria-hidden="true"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-950/75 to-slate-900/85" />
+        <div className="contact-hero-scrim absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-950/75 to-slate-900/85" />
 
         {/* Deterministic Ambient Bubbles */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -243,7 +249,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
       {/* Main Content Overlay */}
       <div className="relative z-10 flex h-full w-full flex-col items-center justify-between p-4 md:p-8 lg:p-10">
         {/* Top Navigation Bar */}
-        <nav className="mb-6 w-full max-w-7xl rounded-xl border border-white/15 bg-card/85 p-3.5 shadow-lg backdrop-blur-md">
+        <nav className="mb-6 w-full max-w-7xl rounded-xl border border-border bg-card/90 p-3.5 shadow-lg backdrop-blur-md">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center space-x-2.5">
               <span className="h-2.5 w-2.5 rounded-full bg-primary" />
@@ -320,8 +326,8 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         {/* Main Section Grid */}
         <div className="grid w-full max-w-7xl flex-grow grid-cols-1 items-center gap-8 py-2 lg:grid-cols-2 lg:gap-12">
           {/* Left Side: Hero Headline (high-contrast white text over dark slate scrim) */}
-          <div className="flex flex-col justify-end space-y-4 p-2 lg:p-6">
-            <span className="w-fit rounded-md border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-cyan-300">
+          <div className="contact-hero-on-dark flex flex-col justify-end space-y-4 p-2 lg:p-6">
+            <span className="w-fit rounded-md border border-cyan-400/40 bg-cyan-500/20 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-cyan-300">
               Direct Engineering &amp; Support Desk
             </span>
             <h1 className="max-w-lg text-3xl font-extrabold leading-tight tracking-tight text-white drop-shadow-md md:text-5xl">
@@ -334,7 +340,21 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
           {/* Right Side: Contact Form Card */}
           <div className="rounded-2xl border border-border bg-card/95 p-6 shadow-2xl backdrop-blur-md md:p-8">
-            <h2 className="mb-4 text-2xl font-bold text-card-foreground">{mainMessage}</h2>
+            <div className={`flex items-center justify-between gap-3 ${isFormExpanded ? 'mb-4' : ''}`}>
+              <h2 className="text-2xl font-bold text-card-foreground">{mainMessage}</h2>
+              <button
+                type="button"
+                onClick={() => setIsFormExpanded((prev) => !prev)}
+                aria-expanded={isFormExpanded}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/80 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground whitespace-nowrap shrink-0"
+              >
+                {isFormExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                <span>{isFormExpanded ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
+            </div>
+
+            {isFormExpanded && (
+              <>
 
             {/* Email & Socials */}
             <div className="mb-6">
@@ -475,6 +495,8 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                 Send a message
               </Button>
             </form>
+              </>
+            )}
           </div>
         </div>
       </div>

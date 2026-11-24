@@ -38,6 +38,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
   const [roundUpOrders, setRoundUpOrders] = useState<boolean>(true);
   const [planShiftScope, setPlanShiftScope] = useState<'ALL' | ShiftNumber>('ALL');
   const [showWeeklySummary, setShowWeeklySummary] = useState<boolean>(true);
+  const [showSimulatorForm, setShowSimulatorForm] = useState<boolean>(true);
 
   const stockBalances = calculateStockBalances(state);
   const selectedSku = state.master.skus.find(s => s.id === selectedSkuId);
@@ -303,7 +304,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
 
       {/* Target Planning Card (Single SKU Simulator) */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3 mb-4">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${showSimulatorForm ? 'border-b border-slate-800 pb-3 mb-4' : ''}`}>
           <div className="flex items-center space-x-2">
             <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
               <Calculator className="w-5 h-5" />
@@ -318,53 +319,68 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
             </div>
           </div>
 
-          {activeWeeklyPlan && matchedPlanSkus.length > 0 && (
-            <div className="flex items-center space-x-2 text-xs">
-              <CalendarRange className="w-4 h-4 text-cyan-400 shrink-0" />
-              <select
-                defaultValue=""
-                onChange={e => {
-                  const chosen = matchedPlanSkus.find(it => it.id === e.target.value);
-                  if (chosen && chosen.matchedSkuId) {
-                    const shiftsArg: ShiftNumber[] =
-                      planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope];
-                    const totalScoped = getPlannedCartonsForItem(
-                      chosen,
-                      WEEKLY_PLAN_DAYS.map(d => d.key),
-                      shiftsArg
-                    );
-                    setSelectedSkuId(chosen.matchedSkuId);
-                    setCartonTarget(totalScoped);
-                    showToast(
-                      `Target dimuat dari ${activeWeeklyPlan.weekLabel} (${
-                        planShiftScope === 'ALL' ? 'Semua Shift' : `Shift ${planShiftScope}`
-                      }): ${chosen.rawProductName} (${totalScoped.toLocaleString('id-ID')} ktn)`
-                    );
-                  }
-                }}
-                className="bg-slate-800 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-cyan-300 font-semibold"
-              >
-                <option value="">
-                  Muat SKU dari {activeWeeklyPlan.weekLabel} (
-                  {planShiftScope === 'ALL' ? 'S1–S3' : `S${planShiftScope}`})...
-                </option>
-                {matchedPlanSkus.map(it => (
-                  <option key={it.id} value={it.id}>
-                    {it.rawSkuCode} • {it.rawProductName} (
-                    {getPlannedCartonsForItem(
-                      it,
-                      WEEKLY_PLAN_DAYS.map(d => d.key),
-                      planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope]
-                    ).toLocaleString('id-ID')}{' '}
-                    ktn)
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {activeWeeklyPlan && matchedPlanSkus.length > 0 && (
+              <div className="flex items-center space-x-2 text-xs">
+                <CalendarRange className="w-4 h-4 text-cyan-400 shrink-0" />
+                <select
+                  defaultValue=""
+                  onChange={e => {
+                    const chosen = matchedPlanSkus.find(it => it.id === e.target.value);
+                    if (chosen && chosen.matchedSkuId) {
+                      const shiftsArg: ShiftNumber[] =
+                        planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope];
+                      const totalScoped = getPlannedCartonsForItem(
+                        chosen,
+                        WEEKLY_PLAN_DAYS.map(d => d.key),
+                        shiftsArg
+                      );
+                      setSelectedSkuId(chosen.matchedSkuId);
+                      setCartonTarget(totalScoped);
+                      showToast(
+                        `Target dimuat dari ${activeWeeklyPlan.weekLabel} (${
+                          planShiftScope === 'ALL' ? 'Semua Shift' : `Shift ${planShiftScope}`
+                        }): ${chosen.rawProductName} (${totalScoped.toLocaleString('id-ID')} ktn)`
+                      );
+                    }
+                  }}
+                  className="bg-slate-800 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-cyan-300 font-semibold"
+                >
+                  <option value="">
+                    Muat SKU dari {activeWeeklyPlan.weekLabel} (
+                    {planShiftScope === 'ALL' ? 'S1–S3' : `S${planShiftScope}`})...
                   </option>
-                ))}
-              </select>
-            </div>
-          )}
+                  {matchedPlanSkus.map(it => (
+                    <option key={it.id} value={it.id}>
+                      {it.rawSkuCode} • {it.rawProductName} (
+                      {getPlannedCartonsForItem(
+                        it,
+                        WEEKLY_PLAN_DAYS.map(d => d.key),
+                        planShiftScope === 'ALL' ? [1, 2, 3] : [planShiftScope]
+                      ).toLocaleString('id-ID')}{' '}
+                      ktn)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowSimulatorForm(prev => !prev)}
+              aria-expanded={showSimulatorForm}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+            >
+              {showSimulatorForm ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{showSimulatorForm ? 'Tutup Form' : 'Buka Form'}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        {showSimulatorForm && (
+          <>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
           <div>
             <label className="block text-[11px] font-medium text-slate-300 mb-1">
               Pilih Rencana Produksi SKU
@@ -417,6 +433,8 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               {selectedSku.isKite ? 'Fasilitas KITE Ekspor' : 'Pasar Domestik'}
             </span>
           </div>
+        )}
+          </>
         )}
       </div>
 

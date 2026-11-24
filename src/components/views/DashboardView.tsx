@@ -1565,7 +1565,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleExecuteTransfer} className="space-y-3 text-xs">
+            <form onSubmit={handleExecuteTransfer} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
               <div>
                 <label className="block text-[11px] font-medium text-slate-300 mb-1">
                   Pilih Material

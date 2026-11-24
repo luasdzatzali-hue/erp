@@ -268,7 +268,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </div>
 
               {/* Form tambah email admin */}
-              <form onSubmit={handleAddEmail} className="flex space-x-1.5">
+              <form onSubmit={handleAddEmail} className="flex space-x-1.5 bg-slate-950/40 border border-slate-800/90 rounded-xl p-2">
                 <input
                   type="email"
                   value={newAdminEmail}
@@ -444,7 +444,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             )}
 
             {activeTab === 'PIN' && (
-              <form onSubmit={handlePinSubmit} className="space-y-4">
+              <form onSubmit={handlePinSubmit} className="space-y-4 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-medium text-slate-300">

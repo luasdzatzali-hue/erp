@@ -32,7 +32,9 @@ import {
   Lock,
   ArrowLeft,
   CalendarRange,
-  Download
+  Download,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import {
   AppState,
@@ -98,6 +100,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
   const [searchHistory, setSearchHistory] = useState('');
 
   const [selectedRecipeId, setSelectedRecipeId] = useState('');
+  const [isRequestFormOpen, setIsRequestFormOpen] = useState(true);
 
   // Keranjang Permintaan Material (Request Basket / Crosscheck Cart) State
   const [cartItems, setCartItems] = useState<RequestCartItem[]>(() => {
@@ -1003,14 +1006,14 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
       {/* Request Form */}
       <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+        <div className={`flex flex-wrap items-center justify-between gap-2 ${isRequestFormOpen ? 'mb-3 border-b border-slate-800 pb-3' : ''}`}>
           <h3 className="font-bold text-sm text-white flex items-center space-x-2">
             <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
               <FilePlus className="w-4 h-4" />
             </div>
             <span>Form Permintaan Material ke Supplier (GDRM / Formulasi)</span>
           </h3>
-          <div className="flex items-center space-x-2 text-[11px] font-mono">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
             <span className="text-slate-400">
               Saldo Aktual: <strong className="text-cyan-400">{currentSaldoAwal.toFixed(4)} kg</strong>
             </span>
@@ -1024,10 +1027,20 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 (Adjust Saldo Awal)
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setIsRequestFormOpen(prev => !prev)}
+              aria-expanded={isRequestFormOpen}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-sans text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+            >
+              {isRequestFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{isRequestFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
+            </button>
           </div>
         </div>
 
-        <form onSubmit={handleAddToCart} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        {isRequestFormOpen && (
+        <form onSubmit={handleAddToCart} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
           {/* Shift Indicator (Locked to Shift 1 per Factory SOP) */}
           <div className="sm:col-span-2 bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -1615,6 +1628,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
 
       {/* STEP 2: KERANJANG PERMINTAAN MATERIAL & CROSSCHECK SECTION */}

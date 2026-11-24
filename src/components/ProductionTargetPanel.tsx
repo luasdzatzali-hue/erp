@@ -23,7 +23,9 @@ import {
   Droplets,
   ArrowRightLeft,
   MessageCircle,
-  Radio
+  Radio,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import {
   AppState,
@@ -244,6 +246,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   const [draftPlansByLine, setDraftPlansByLine] = useState<Record<string, LineDraftPlan>>({});
   const [operatorInput, setOperatorInput] = useState<string>(defaultOperator);
   const [customCartonsInputByRun, setCustomCartonsInputByRun] = useState<Record<string, string>>({});
+  const [isFlowComposerOpen, setIsFlowComposerOpen] = useState(true);
 
   // Modals State
   const [isLineManagerOpen, setIsLineManagerOpen] = useState(false);
@@ -703,7 +706,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       {!isManagement && (
         <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-4">
           {/* Flow Step Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isFlowComposerOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
             <div>
               <h3 className="text-xs sm:text-sm font-bold text-white flex items-center space-x-2">
                 <span>Alur Mulai Produksi</span>
@@ -737,15 +740,30 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 </span>
               </div>
 
-              <input
-                type="text"
-                value={operatorInput}
-                onChange={(e) => setOperatorInput(e.target.value)}
-                placeholder="Nama Operator..."
-                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-44"
-              />
+              {isFlowComposerOpen && (
+                <input
+                  type="text"
+                  value={operatorInput}
+                  onChange={(e) => setOperatorInput(e.target.value)}
+                  placeholder="Nama Operator..."
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-44"
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsFlowComposerOpen(prev => !prev)}
+                aria-expanded={isFlowComposerOpen}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              >
+                {isFlowComposerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{isFlowComposerOpen ? 'Tutup Form' : 'Buka Form'}</span>
+              </button>
             </div>
           </div>
+
+          {isFlowComposerOpen && (
+            <>
 
           {/* Step 1: Select Production Lines */}
           <div className="space-y-2">
@@ -984,6 +1002,8 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 </button>
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       )}
