@@ -16,7 +16,9 @@ import {
   Eye,
   Lock,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Network,
+  LayoutGrid
 } from 'lucide-react';
 import {
   AppState,
@@ -26,6 +28,8 @@ import {
 import { getCurrentShift } from '../../utils/shifts';
 import { InterTankTransferModal } from '../InterTankTransferModal';
 import { resolveEffectiveRole } from '../../utils/roleAccess';
+import { WipPipingCanvas } from '../scada/WipPipingCanvas';
+import { TankControlDrawer } from '../scada/TankControlDrawer';
 
 interface TankMonitoringViewProps {
   state: AppState;
@@ -50,9 +54,16 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   showToast,
   onSwitchTab
 }) => {
-  // Filter state
+  // Filter state & View Mode (SCADA P&ID vs Grid Detail)
+  const [viewMode, setViewMode] = useState<'SCADA' | 'GRID'>('SCADA');
+  const [selectedDrawerTankId, setSelectedDrawerTankId] = useState<string | null>(null);
   const [tankTypeFilter, setTankTypeFilter] = useState<'ALL' | WipTankType | 'LOW_STOCK'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const selectedDrawerTank = useMemo(
+    () => (selectedDrawerTankId ? state.master.tanks.find(t => t.id === selectedDrawerTankId) || null : null),
+    [selectedDrawerTankId, state.master.tanks]
+  );
 
   // Modal / popover for Refill or Calibration
   const [activeRefillTank, setActiveRefillTank] = useState<WipTank | null>(null);
@@ -450,20 +461,59 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           </button>
         </div>
 
-        {/* Search bar */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari kode/nama tangki..."
-            className="w-full bg-canvas border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary font-medium"
-          />
+        {/* View Mode Toggle & Search bar */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center bg-canvas p-1 rounded-lg border border-border-subtle shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('SCADA')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'SCADA'
+                  ? 'bg-cyan-600 text-white shadow-xs'
+                  : 'text-ink-secondary hover:text-ink-primary'
+              }`}
+            >
+              <Network className="w-3.5 h-3.5" />
+              <span>SCADA P&amp;ID</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('GRID')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'GRID'
+                  ? 'bg-cyan-600 text-white shadow-xs'
+                  : 'text-ink-secondary hover:text-ink-primary'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Grid Detail</span>
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-60">
+            <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari kode/nama tangki..."
+              className="w-full bg-canvas border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary font-medium"
+            />
+          </div>
         </div>
       </div>
 
-      {/* TANKS GRID: Visual Cylinders & Detail Cards */}
+      {/* SCADA P&ID VIEW OR GRID DETAIL VIEW */}
+      {viewMode === 'SCADA' && filteredTanks.length > 0 ? (
+        <WipPipingCanvas
+          state={state}
+          tanks={filteredTanks}
+          activeRuns={activeRuns}
+          selectedTankId={selectedDrawerTankId}
+          onSelectTankSettings={(tank) => setSelectedDrawerTankId(tank.id)}
+        />
+      ) : (
+      /* TANKS GRID: Visual Cylinders & Detail Cards */
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredTanks.map((tank) => {
           const wip = state.master.wips.find(w => w.id === tank.assignedWipId);
@@ -745,6 +795,7 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           );
         })}
       </div>
+      )}
 
       {filteredTanks.length === 0 && (
         <div className="text-center py-12 bg-surface border border-border-subtle rounded-xl">
@@ -1001,6 +1052,22 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
           }
           return { success: false, message: 'Fungsi transfer antar-tangki belum tersedia' };
         }}
+        showToast={showToast}
+      />
+
+      {/* SCADA Tank Control Slide-Over Drawer (via Gear Icon) */}
+      <TankControlDrawer
+        open={Boolean(selectedDrawerTank)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDrawerTankId(null);
+        }}
+        tank={selectedDrawerTank}
+        state={state}
+        isAdmin={isAdmin}
+        isManagement={isManagement}
+        onUpdateTankItem={onUpdateTankItem}
+        onTopUpTank={onTopUpTank}
+        onTransferTanks={onTransferTanks}
         showToast={showToast}
       />
     </div>

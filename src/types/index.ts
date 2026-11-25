@@ -17,7 +17,7 @@ export interface Material {
 }
 
 export type WipTankType = 'HOLDING_TANK' | 'STORAGE_TANK';
-export type WipTankStatus = 'ACTIVE' | 'STANDBY' | 'CLEANING' | 'MAINTENANCE' | 'EMPTY';
+export type WipTankStatus = 'ACTIVE' | 'STANDBY' | 'CLEANING' | 'CIP' | 'MAINTENANCE' | 'EMPTY';
 
 export type MachineStatus = 'OPERATIONAL' | 'STANDBY' | 'MAINTENANCE' | 'CHANGEOVER';
 
@@ -104,7 +104,9 @@ export interface WipTank {
   currentLevelKg: number; // kg aktual saat ini
   assignedWipId?: string; // WIP yang dialokasikan (1 jenis WIP yang sama per tangki)
   assignedMachineId?: string; // Mesin tunggal (backward compatibility)
-  assignedMachineIds?: string[]; // Multi-mesin pengisi asal yang terhubung
+  assignedMachineIds?: string[]; // Multi-mesin pengisi asal yang terhubung (legacy)
+  sourceMachineIds?: string[]; // Daftar mesin proses/pengisi (Premixer, Ball Mill, Conche, dll.) yang menyuplai WIP ke tangki
+  assignedLineIds?: string[]; // Daftar Line Produksi tujuan yang menerima suplai WIP dari tangki
   temp?: number; // Suhu (°C)
   agitatorStatus?: 'ON' | 'OFF';
   status: WipTankStatus;

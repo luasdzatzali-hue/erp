@@ -265,6 +265,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   const [tankInitialLevel, setTankInitialLevel] = useState('400');
   const [tankAssignedWip, setTankAssignedWip] = useState('');
   const [tankAssignedMachines, setTankAssignedMachines] = useState<string[]>([]);
+  const [tankAssignedLines, setTankAssignedLines] = useState<string[]>([]);
   const [tankTemp, setTankTemp] = useState('45.0');
   const [tankAgitator, setTankAgitator] = useState<'ON' | 'OFF'>('ON');
   const [tankMinAlert, setTankMinAlert] = useState('100');
@@ -272,6 +273,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   // Edit Tank Modal State (for updating existing tanks & their multi-machines)
   const [editingTank, setEditingTank] = useState<WipTank | null>(null);
   const [editTankMachines, setEditTankMachines] = useState<string[]>([]);
+  const [editTankLines, setEditTankLines] = useState<string[]>([]);
   const [editTankWip, setEditTankWip] = useState<string>('');
   const [editTankName, setEditTankName] = useState<string>('');
   const [editTankCapacity, setEditTankCapacity] = useState<string>('');
@@ -733,13 +735,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         assignedWipId: tankAssignedWip || undefined,
         assignedMachineId: tankAssignedMachines[0] || undefined,
         assignedMachineIds: tankAssignedMachines,
+        sourceMachineIds: tankAssignedMachines,
+        assignedLineIds: tankAssignedLines,
         temp: tempVal,
         agitatorStatus: tankAgitator,
         status: 'ACTIVE',
         minAlertKg: alertLvl
       });
       showToast(
-        `Tangki ${tankCode} (${tankTypeForm === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}) berhasil disimpan dengan ${tankAssignedMachines.length} mesin pengisi`
+        `Tangki ${tankCode} (${tankTypeForm === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}) berhasil disimpan dengan ${tankAssignedMachines.length} mesin pengisi & ${tankAssignedLines.length} line tujuan`
       );
       setTankCode('');
       setTankName('');
@@ -747,15 +751,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       setTankInitialLevel('400');
       setTankAssignedWip('');
       setTankAssignedMachines([]);
+      setTankAssignedLines([]);
     }
   };
 
   const handleStartEditTank = (tank: WipTank) => {
     setEditingTank(tank);
-    const mIds = tank.assignedMachineIds && tank.assignedMachineIds.length > 0
-      ? tank.assignedMachineIds
-      : tank.assignedMachineId ? [tank.assignedMachineId] : [];
+    const mIds = (tank.sourceMachineIds && tank.sourceMachineIds.length > 0)
+      ? tank.sourceMachineIds
+      : (tank.assignedMachineIds && tank.assignedMachineIds.length > 0)
+        ? tank.assignedMachineIds
+        : tank.assignedMachineId ? [tank.assignedMachineId] : [];
     setEditTankMachines(mIds);
+    setEditTankLines(tank.assignedLineIds || []);
     setEditTankWip(tank.assignedWipId || '');
     setEditTankName(tank.name);
     setEditTankCapacity(String(tank.capacityKg));
@@ -779,12 +787,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         capacityKg: cap,
         assignedWipId: editTankWip || undefined,
         assignedMachineIds: editTankMachines,
+        sourceMachineIds: editTankMachines,
         assignedMachineId: editTankMachines[0] || undefined,
+        assignedLineIds: editTankLines,
         temp: parseFloat(editTankTemp) || 45.0,
         minAlertKg: parseFloat(editTankMinAlert) || cap * 0.2,
         agitatorStatus: editTankAgitator
       });
-      showToast(`Tangki ${editingTank.code} berhasil diperbarui (${editTankMachines.length} mesin pengisi terhubung)`);
+      showToast(`Tangki ${editingTank.code} berhasil diperbarui (${editTankMachines.length} mesin pengisi, ${editTankLines.length} line tujuan)`);
       setEditingTank(null);
     }
   };
@@ -4796,6 +4806,87 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               )}
             </div>
 
+            {/* Row 4: Multi-Line Produksi Tujuan (Pemetaan Pipa SCADA Output) */}
+            <div className="bg-canvas p-3.5 rounded-2xl border border-border-subtle space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <GitBranch className="w-4 h-4 text-ink-emerald" />
+                  <label className="text-xs font-bold text-ink-primary">
+                    Lini Produksi Tujuan Suplai (Pipa Output SCADA)
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-mono font-bold text-ink-emerald bg-tint-emerald px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                    {tankAssignedLines.length} Lini Dipilih
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTankAssignedLines((state.master.productionLines || []).map(l => l.id))}
+                    className="text-[10px] text-ink-emerald hover:underline font-medium"
+                  >
+                    Pilih Semua
+                  </button>
+                  <span className="text-slate-600 text-xs">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setTankAssignedLines([])}
+                    className="text-[10px] text-ink-secondary hover:text-ink-primary underline font-medium"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-ink-secondary">
+                Pilih satu atau lebih Lini Produksi yang menerima aliran pipa WIP dari tangki ini pada diagram SCADA P&amp;ID.
+              </p>
+
+              {(state.master.productionLines || []).length === 0 ? (
+                <div className="p-3 bg-surface border border-border-subtle rounded-xl text-xs text-ink-secondary text-center">
+                  Belum ada master Lini Produksi.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 max-h-40 overflow-y-auto no-scrollbar">
+                  {(state.master.productionLines || []).map((line) => {
+                    const isSelected = tankAssignedLines.includes(line.id);
+                    return (
+                      <div
+                        key={line.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setTankAssignedLines(prev => prev.filter(id => id !== line.id));
+                          } else {
+                            setTankAssignedLines(prev => [...prev, line.id]);
+                          }
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                          isSelected
+                            ? 'bg-tint-emerald border-emerald-500/70 text-ink-primary shadow-md'
+                            : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
+                        }`}
+                      >
+                        <div className="truncate mr-2">
+                          <div className="flex items-center space-x-1.5 truncate">
+                            <span className="font-mono text-ink-emerald font-bold text-xs bg-canvas px-1.5 py-0.5 rounded border border-border-subtle">
+                              {line.code}
+                            </span>
+                            <span className="truncate text-ink-primary font-medium">{line.name}</span>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition ${
+                          isSelected
+                            ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold'
+                            : 'border-border-strong bg-elevated'
+                        }`}>
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="pt-2 flex justify-end">
               <button
                 type="submit"
@@ -4837,10 +4928,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {state.master.tanks.map((tank) => {
               const wip = state.master.wips.find(w => w.id === tank.assignedWipId);
-              const mIds = tank.assignedMachineIds && tank.assignedMachineIds.length > 0
-                ? tank.assignedMachineIds
-                : tank.assignedMachineId ? [tank.assignedMachineId] : [];
+              const mIds = (tank.sourceMachineIds && tank.sourceMachineIds.length > 0)
+                ? tank.sourceMachineIds
+                : (tank.assignedMachineIds && tank.assignedMachineIds.length > 0)
+                  ? tank.assignedMachineIds
+                  : tank.assignedMachineId ? [tank.assignedMachineId] : [];
               const assignedMachines = state.master.machines.filter(m => mIds.includes(m.id));
+              const lIds = tank.assignedLineIds || [];
+              const assignedLines = (state.master.productionLines || []).filter(l => lIds.includes(l.id));
               const percent = tank.capacityKg > 0 ? (tank.currentLevelKg / tank.capacityKg) * 100 : 0;
 
               return (
@@ -4950,6 +5045,36 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         ) : (
                           <span className="text-ink-muted text-[10px] italic block">
                             Belum dihubungkan ke mesin pengisi
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Connected Target Production Lines */}
+                      <div className="pt-1 border-t border-border-subtle space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-ink-secondary text-[11px] flex items-center space-x-1">
+                            <GitBranch className="w-3 h-3 text-ink-emerald" />
+                            <span>Lini Tujuan:</span>
+                          </span>
+                          <span className="font-mono text-[10px] text-ink-emerald font-semibold bg-surface px-1.5 py-0.2 rounded border border-border-subtle">
+                            {assignedLines.length} Lini
+                          </span>
+                        </div>
+                        {assignedLines.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {assignedLines.map(l => (
+                              <span
+                                key={l.id}
+                                className="px-1.5 py-0.5 bg-tint-emerald border border-emerald-500/30 text-ink-primary rounded text-[10px] font-mono flex items-center space-x-1"
+                              >
+                                <span className="font-bold text-ink-emerald">{l.code}</span>
+                                <span className="text-ink-secondary truncate max-w-[85px]">{l.name}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-ink-muted text-[10px] italic block">
+                            Otomatis berdasarkan SKU aktif atau belum diatur
                           </span>
                         )}
                       </div>
@@ -5963,6 +6088,68 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
                         isSelected ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-bold' : 'border-border-strong'
+                      }`}>
+                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Lini Produksi Tujuan Multi-Line */}
+            <div className="bg-canvas p-3.5 rounded-2xl border border-border-subtle space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-ink-primary flex items-center space-x-1.5">
+                  <GitBranch className="w-3.5 h-3.5 text-ink-emerald" />
+                  <span>Lini Produksi Tujuan Suplai ({editTankLines.length} Terpilih)</span>
+                </label>
+                <div className="flex space-x-2 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setEditTankLines((state.master.productionLines || []).map(l => l.id))}
+                    className="text-ink-emerald hover:underline font-medium"
+                  >
+                    Pilih Semua
+                  </button>
+                  <span className="text-slate-600">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditTankLines([])}
+                    className="text-ink-secondary hover:text-ink-primary underline font-medium"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto no-scrollbar pt-1">
+                {(state.master.productionLines || []).map(line => {
+                  const isSelected = editTankLines.includes(line.id);
+                  return (
+                    <div
+                      key={line.id}
+                      onClick={() => {
+                        if (isSelected) {
+                          setEditTankLines(prev => prev.filter(id => id !== line.id));
+                        } else {
+                          setEditTankLines(prev => [...prev, line.id]);
+                        }
+                      }}
+                      className={`p-2 rounded-xl border cursor-pointer flex items-center justify-between transition ${
+                        isSelected
+                          ? 'bg-tint-emerald border-emerald-500 text-ink-primary'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
+                      }`}
+                    >
+                      <div className="truncate mr-2">
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <span className="font-mono text-ink-emerald font-bold text-xs">{line.code}</span>
+                          <span className="truncate text-ink-primary font-medium text-[11px]">{line.name}</span>
+                        </div>
+                      </div>
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold' : 'border-border-strong'
                       }`}>
                         {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
                       </div>
