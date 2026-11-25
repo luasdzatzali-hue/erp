@@ -73,35 +73,35 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
         className={`rounded-lg border px-3.5 py-2.5 shadow-xl text-xs space-y-1.5 min-w-[230px] ${
           isDaylight
             ? 'bg-white border-slate-300 text-slate-900'
-            : 'bg-[#080c14]/95 border-slate-700 text-slate-100 backdrop-blur-md'
+            : 'bg-surface-header border-border-strong text-ink-primary backdrop-blur-md'
         }`}
       >
-        <div className="border-b border-slate-700/40 pb-1.5">
+        <div className="border-b border-border-strong pb-1.5">
           <p className="font-bold text-xs leading-snug">{row.skuName}</p>
-          <p className="text-[11px] font-mono text-slate-400">
+          <p className="text-[11px] font-mono text-ink-secondary">
             {row.skuCode} · Line {row.lines}
           </p>
         </div>
         <div className="space-y-1 font-mono tabular-nums text-[11px]">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-sky-400">Target Weekly Plan:</span>
+            <span className="text-ink-sky">Target Weekly Plan:</span>
             <span className="font-bold">{row.plannedCartons.toLocaleString('id-ID')} ktn</span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-emerald-400">Realisasi Aktual:</span>
+            <span className="text-ink-emerald">Realisasi Aktual:</span>
             <span className="font-bold">{row.actualCartons.toLocaleString('id-ID')} ktn</span>
           </div>
-          <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-700/30">
-            <span className={isSurplus ? 'text-emerald-400' : 'text-rose-400'}>
+          <div className="flex items-center justify-between gap-4 pt-1 border-t border-border-strong">
+            <span className={isSurplus ? 'text-ink-emerald' : 'text-ink-rose'}>
               Varians (Aktual - Plan):
             </span>
-            <span className={`font-bold ${isSurplus ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`font-bold ${isSurplus ? 'text-ink-emerald' : 'text-ink-rose'}`}>
               {row.varianceCartons > 0 ? `+${row.varianceCartons.toLocaleString('id-ID')}` : row.varianceCartons.toLocaleString('id-ID')} ktn
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-slate-400">Capaian:</span>
-            <span className="font-bold text-amber-400">{row.achievementPct.toFixed(1)}%</span>
+            <span className="text-ink-secondary">Capaian:</span>
+            <span className="font-bold text-ink-amber">{row.achievementPct.toFixed(1)}%</span>
           </div>
         </div>
       </div>
@@ -111,22 +111,22 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
   return (
     <section
       aria-label="Visualisasi Progres Planning Mingguan vs Aktual Produksi"
-      className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3)] space-y-4 no-print"
+      className="bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3)] space-y-4 no-print"
     >
       {/* Header Row */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-border-subtle">
         <div className="flex items-start sm:items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/35 text-cyan-400 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/35 text-brand flex items-center justify-center shrink-0">
             <BarChart3 className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+            <h2 className="text-sm sm:text-base font-bold text-ink-primary tracking-tight">
               Progres Planning Mingguan vs Aktual Produksi (Varians per SKU)
             </h2>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400 mt-0.5 tabular-nums">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-secondary mt-0.5 tabular-nums">
               {summary.plan ? (
                 <>
-                  <span className="text-cyan-400 font-semibold">{summary.plan.weekLabel}</span>
+                  <span className="text-brand font-semibold">{summary.plan.weekLabel}</span>
                   <span aria-hidden="true">·</span>
                   <span>
                     {summary.plan.periodStart} – {summary.plan.periodEnd}
@@ -144,14 +144,14 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
         {/* Interactive Controls */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Chart Mode Segmented Buttons */}
-          <div className="flex items-center p-0.5 bg-[#06090f]/90 border border-slate-800 rounded-lg">
+          <div className="flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
             <button
               type="button"
               onClick={() => setChartMode('COMPARE')}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                 chartMode === 'COMPARE'
                   ? 'bg-cyan-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               Plan vs Aktual
@@ -162,7 +162,7 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                 chartMode === 'VARIANCE'
                   ? 'bg-cyan-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               Varians (+/-)
@@ -170,7 +170,7 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
           </div>
 
           {/* Shift Filter */}
-          <div className="flex items-center p-0.5 bg-[#06090f]/90 border border-slate-800 rounded-lg">
+          <div className="flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
             {(['ALL', 1, 2, 3] as const).map(sh => (
               <button
                 key={String(sh)}
@@ -178,8 +178,8 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
                 onClick={() => setShiftScope(sh)}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-mono font-semibold transition whitespace-nowrap shrink-0 ${
                   shiftScope === sh
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-elevated text-ink-primary'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 {sh === 'ALL' ? 'Semua Shift' : `S${sh}`}
@@ -188,14 +188,14 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
           </div>
 
           {/* Actual Period Filter */}
-          <div className="flex items-center p-0.5 bg-[#06090f]/90 border border-slate-800 rounded-lg">
+          <div className="flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
             <button
               type="button"
               onClick={() => setActualWindow('ALL_LOGS')}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                 actualWindow === 'ALL_LOGS'
                   ? 'bg-emerald-600 text-white'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               Akumulasi Log
@@ -206,7 +206,7 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                 actualWindow === 'TODAY'
                   ? 'bg-emerald-600 text-white'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               Hari Ini
@@ -217,9 +217,9 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
             <button
               type="button"
               onClick={onOpenSheetsSync}
-              className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap shrink-0"
+              className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-emerald-500/40 text-ink-emerald rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap shrink-0"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald" />
               <span>Sync Sheets</span>
             </button>
           )}
@@ -228,13 +228,13 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
 
       {/* Empty State when neither plan nor actual logs exist */}
       {!summary.plan && summary.rows.length === 0 ? (
-        <div className="py-10 px-4 text-center bg-[#06090f]/75 border border-slate-800/80 rounded-xl space-y-3">
-          <CalendarRange className="w-9 h-9 text-cyan-400 mx-auto opacity-80" />
+        <div className="py-10 px-4 text-center bg-canvas border border-border-subtle rounded-xl space-y-3">
+          <CalendarRange className="w-9 h-9 text-brand mx-auto opacity-80" />
           <div className="space-y-1 max-w-md mx-auto">
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-sm font-bold text-ink-primary">
               Belum Ada Planning Mingguan Aktif untuk Divisualisasikan
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-ink-secondary">
               Input mandiri atau unggah jadwal Weekly Production Plan terlebih dahulu untuk melihat grafik progres target vs realisasi produksi dan varians per SKU.
             </p>
           </div>
@@ -253,28 +253,28 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
         <>
           {/* 4-Column Quantitative Summary Strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
-              <p className="text-[11px] text-slate-400">Total Target Plan</p>
-              <p className="text-lg font-extrabold font-mono text-sky-400 tabular-nums mt-0.5">
+            <div className="bg-canvas border border-border-subtle rounded-lg p-3">
+              <p className="text-[11px] text-ink-secondary">Total Target Plan</p>
+              <p className="text-lg font-extrabold font-mono text-ink-sky tabular-nums mt-0.5">
                 {summary.totalPlanned.toLocaleString('id-ID')}{' '}
-                <span className="text-xs font-normal text-slate-400">ktn</span>
+                <span className="text-xs font-normal text-ink-secondary">ktn</span>
               </p>
             </div>
 
-            <div className="bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
-              <p className="text-[11px] text-slate-400">Realisasi Produksi Aktual</p>
-              <p className="text-lg font-extrabold font-mono text-emerald-400 tabular-nums mt-0.5">
+            <div className="bg-canvas border border-border-subtle rounded-lg p-3">
+              <p className="text-[11px] text-ink-secondary">Realisasi Produksi Aktual</p>
+              <p className="text-lg font-extrabold font-mono text-ink-emerald tabular-nums mt-0.5">
                 {summary.totalActual.toLocaleString('id-ID')}{' '}
-                <span className="text-xs font-normal text-slate-400">ktn</span>
+                <span className="text-xs font-normal text-ink-secondary">ktn</span>
               </p>
             </div>
 
-            <div className="bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
-              <p className="text-[11px] text-slate-400 flex items-center justify-between">
+            <div className="bg-canvas border border-border-subtle rounded-lg p-3">
+              <p className="text-[11px] text-ink-secondary flex items-center justify-between">
                 <span>Varians Bersih</span>
                 <span
                   className={`font-mono text-[10px] font-bold flex items-center gap-1 ${
-                    summary.netVariance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    summary.netVariance >= 0 ? 'text-ink-emerald' : 'text-ink-rose'
                   }`}
                 >
                   {summary.netVariance >= 0 ? (
@@ -292,31 +292,31 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
               </p>
               <p
                 className={`text-lg font-extrabold font-mono tabular-nums mt-0.5 ${
-                  summary.netVariance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  summary.netVariance >= 0 ? 'text-ink-emerald' : 'text-ink-rose'
                 }`}
               >
                 {summary.netVariance > 0
                   ? `+${summary.netVariance.toLocaleString('id-ID')}`
                   : summary.netVariance.toLocaleString('id-ID')}{' '}
-                <span className="text-xs font-normal text-slate-400">ktn</span>
+                <span className="text-xs font-normal text-ink-secondary">ktn</span>
               </p>
             </div>
 
-            <div className="bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
-              <p className="text-[11px] text-slate-400 flex items-center justify-between">
+            <div className="bg-canvas border border-border-subtle rounded-lg p-3">
+              <p className="text-[11px] text-ink-secondary flex items-center justify-between">
                 <span>Capaian Keseluruhan</span>
-                <span className="font-mono text-[10px] text-cyan-400 tabular-nums">
+                <span className="font-mono text-[10px] text-brand tabular-nums">
                   {summary.completedSkuCount}/{summary.totalActiveSkuCount} SKU Selesai
                 </span>
               </p>
-              <p className="text-lg font-extrabold font-mono text-white tabular-nums mt-0.5">
+              <p className="text-lg font-extrabold font-mono text-ink-primary tabular-nums mt-0.5">
                 {summary.overallPct.toFixed(1)}%
               </p>
             </div>
           </div>
 
           {/* Recharts Canvas */}
-          <div className="bg-[#06090f]/75 border border-slate-800/80 rounded-xl p-3 sm:p-4">
+          <div className="bg-canvas border border-border-subtle rounded-xl p-3 sm:p-4">
             <div className="w-full h-[290px] sm:h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 {chartMode === 'COMPARE' ? (
@@ -414,9 +414,9 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
           </div>
 
           {/* Per-SKU Variance Ledger Table Toggle */}
-          <div className="border-t border-slate-800/80 pt-3">
+          <div className="border-t border-border-subtle pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-300">
+              <span className="text-xs font-semibold text-ink-secondary">
                 Rincian Varians per SKU ({summary.rows.length} Item)
               </span>
               <div className="flex items-center gap-2">
@@ -424,7 +424,7 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
                   <button
                     type="button"
                     onClick={onScrollToWeeklyPlan}
-                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 whitespace-nowrap shrink-0"
+                    className="text-[11px] font-semibold text-brand hover:text-brand whitespace-nowrap shrink-0"
                   >
                     Ubah Target Plan →
                   </button>
@@ -432,7 +432,7 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
                 <button
                   type="button"
                   onClick={() => setShowVarianceTable(prev => !prev)}
-                  className="px-2.5 py-1 bg-[#06090f]/80 hover:bg-slate-800 border border-slate-700/80 rounded-md text-[11px] font-semibold text-slate-300 whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 bg-canvas hover:bg-elevated border border-border-strong rounded-md text-[11px] font-semibold text-ink-secondary whitespace-nowrap shrink-0"
                 >
                   {showVarianceTable ? 'Sembunyikan Tabel' : 'Tampilkan Tabel'}
                 </button>
@@ -440,9 +440,9 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
             </div>
 
             {showVarianceTable && (
-              <div className="overflow-x-auto border border-slate-800/90 rounded-lg">
+              <div className="overflow-x-auto border border-border-subtle rounded-lg">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-900/90 text-[11px] text-slate-300 border-b border-slate-800">
+                  <thead className="bg-surface text-[11px] text-ink-secondary border-b border-border-subtle">
                     <tr>
                       <th className="py-2 px-3">Kode &amp; Nama SKU</th>
                       <th className="py-2 px-3">Line</th>
@@ -453,46 +453,46 @@ export const WeeklyPlanVsActualChart: React.FC<WeeklyPlanVsActualChartProps> = (
                       <th className="py-2 px-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/70">
+                  <tbody className="divide-y divide-border-subtle">
                     {summary.rows.map(row => {
                       const isPositive = row.varianceCartons >= 0;
                       return (
-                        <tr key={row.key} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={row.key} className="hover:bg-elevated transition-colors">
                           <td className="py-2 px-3">
-                            <div className="font-semibold text-white">{row.skuName}</div>
-                            <div className="text-[10px] font-mono text-slate-400">{row.skuCode}</div>
+                            <div className="font-semibold text-ink-primary">{row.skuName}</div>
+                            <div className="text-[10px] font-mono text-ink-secondary">{row.skuCode}</div>
                           </td>
-                          <td className="py-2 px-3 font-mono text-slate-300">{row.lines}</td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums text-sky-400 font-semibold">
+                          <td className="py-2 px-3 font-mono text-ink-secondary">{row.lines}</td>
+                          <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-sky font-semibold">
                             {row.plannedCartons.toLocaleString('id-ID')}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums text-emerald-400 font-semibold">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-emerald font-semibold">
                             {row.actualCartons.toLocaleString('id-ID')}
                           </td>
                           <td
                             className={`py-2 px-3 text-right font-mono tabular-nums font-bold ${
-                              isPositive ? 'text-emerald-400' : 'text-rose-400'
+                              isPositive ? 'text-ink-emerald' : 'text-ink-rose'
                             }`}
                           >
                             {row.varianceCartons > 0
                               ? `+${row.varianceCartons.toLocaleString('id-ID')}`
                               : row.varianceCartons.toLocaleString('id-ID')}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-200 font-semibold">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-primary font-semibold">
                             {row.achievementPct.toFixed(1)}%
                           </td>
                           <td className="py-2 px-3 text-[11px] font-semibold">
                             {row.status === 'TERCAPAI' ? (
-                              <span className="text-emerald-400 inline-flex items-center gap-1">
+                              <span className="text-ink-emerald inline-flex items-center gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>Tercapai</span>
                               </span>
                             ) : row.status === 'PROSES' ? (
-                              <span className="text-amber-400">Berjalan</span>
+                              <span className="text-ink-amber">Berjalan</span>
                             ) : row.status === 'UNPLANNED' ? (
-                              <span className="text-cyan-400">Di Luar Plan</span>
+                              <span className="text-brand">Di Luar Plan</span>
                             ) : (
-                              <span className="text-slate-400">Belum Mulai</span>
+                              <span className="text-ink-secondary">Belum Mulai</span>
                             )}
                           </td>
                         </tr>

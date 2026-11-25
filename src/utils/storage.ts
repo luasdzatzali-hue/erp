@@ -23,6 +23,7 @@ import {
   MaterialStockAdjustment,
   ProductionLine
 } from '../types';
+import { resolveEffectiveRole } from './roleAccess';
 
 export const STORAGE_KEY = 'prodtrack_state_v9';
 
@@ -349,7 +350,6 @@ export const SAMPLE_TANKS: WipTank[] = [
 export const DEFAULT_STATE: AppState = {
   theme: 'midnight',
   isAuthenticated: false,
-  isAdmin: false,
   currentUserRole: 'OPERATOR',
   currentSession: {
     role: 'OPERATOR',
@@ -633,10 +633,9 @@ export function getSampleState(): AppState {
   return {
     theme: 'midnight',
     isAuthenticated: true,
-    isAdmin: true,
-    currentUserRole: 'ADMINISTRATOR' as UserRole,
+    currentUserRole: 'OFFLINE_PIN_ADMIN' as UserRole,
     currentSession: {
-      role: 'ADMINISTRATOR' as UserRole,
+      role: 'OFFLINE_PIN_ADMIN' as UserRole,
       id: 'admin_root',
       name: 'Administrator MES & BOM',
       email: 'luasdzatzali@gmail.com',
@@ -930,10 +929,9 @@ export function getCleanBlankState(): AppState {
   return {
     theme: 'midnight',
     isAuthenticated: false,
-    isAdmin: true,
-    currentUserRole: 'ADMINISTRATOR',
+    currentUserRole: 'OPERATOR',
     currentSession: {
-      role: 'ADMINISTRATOR',
+      role: 'OPERATOR',
       id: 'admin_root',
       name: 'Administrator',
       subtitle: 'Super Administrator'
@@ -1057,13 +1055,31 @@ export function loadStoredState(): AppState {
           rawAdminEmails.unshift('luasdzatzali@gmail.com');
         }
 
-        const currentUserRole: UserRole = parsed.currentUserRole || (parsed.isAdmin ? 'ADMINISTRATOR' : 'OPERATOR');
-        const currentSession: CurrentUserSession = parsed.currentSession || {
-          role: currentUserRole,
-          id: currentUserRole === 'ADMINISTRATOR' ? 'admin_root' : 'opr_1',
-          name: currentUserRole === 'ADMINISTRATOR' ? 'Administrator MES & BOM' : 'Ahmad Fauzi (Operator)',
-          subtitle: currentUserRole === 'ADMINISTRATOR' ? 'Kewenangan Penuh: Master BOM, Mesin, Tangki' : 'Leader Line 1 - Shift 1'
-        };
+        const { isAdmin: legacyIsAdmin, ...cleanParsed } = parsed;
+        const rawUserRole: UserRole =
+          cleanParsed.currentUserRole || (legacyIsAdmin ? 'ADMINISTRATOR' : 'OPERATOR');
+        const resolvedRole = resolveEffectiveRole({
+          currentUserRole: rawUserRole,
+          currentAdminUser: cleanParsed.currentAdminUser || null,
+          adminGoogleEmails: rawAdminEmails,
+          workspaceAccessConfig: cleanParsed.workspaceAccessConfig,
+          cloudOwnerUid: cleanParsed.cloudOwnerUid,
+          cloudWorkspaceId: cleanParsed.cloudWorkspaceId
+        });
+        const currentUserRole: UserRole = resolvedRole.role;
+        const currentSession: CurrentUserSession = cleanParsed.currentSession
+          ? {
+              ...cleanParsed.currentSession,
+              role: currentUserRole
+            }
+          : {
+              role: currentUserRole,
+              id: resolvedRole.isAdmin ? 'admin_root' : 'opr_1',
+              name: resolvedRole.isAdmin ? 'Administrator MES & BOM' : 'Ahmad Fauzi (Operator)',
+              subtitle: resolvedRole.isAdmin
+                ? 'Kewenangan Penuh: Master BOM, Mesin, Tangki'
+                : 'Leader Line 1 - Shift 1'
+            };
 
         // Sanitize and guarantee unique IDs for all transactions and master entities to prevent React duplicate key collisions
         const sanitizeUniqueIds = <T extends { id?: string }>(items: T[] | undefined, prefix: string): T[] => {
@@ -1119,16 +1135,15 @@ export function loadStoredState(): AppState {
 
         return {
           ...DEFAULT_STATE,
-          ...parsed,
-          theme: (parsed.theme === 'daylight' || parsed.theme === 'light') ? 'daylight' : 'midnight',
-          isAuthenticated: typeof parsed.isAuthenticated === 'boolean' ? parsed.isAuthenticated : false,
-          isAdmin: currentUserRole === 'ADMINISTRATOR',
+          ...cleanParsed,
+          theme: (cleanParsed.theme === 'daylight' || cleanParsed.theme === 'light') ? 'daylight' : 'midnight',
+          isAuthenticated: typeof cleanParsed.isAuthenticated === 'boolean' ? cleanParsed.isAuthenticated : false,
           currentUserRole,
           currentSession,
           registeredOperators,
           registeredManagement,
           adminGoogleEmails: rawAdminEmails,
-          currentAdminUser: parsed.currentAdminUser || null,
+          currentAdminUser: resolvedRole.isCloudAdmin ? (cleanParsed.currentAdminUser || null) : null,
           master: {
             ...DEFAULT_STATE.master,
             ...parsed.master,

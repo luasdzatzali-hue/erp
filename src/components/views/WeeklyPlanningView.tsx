@@ -4,6 +4,7 @@ import { AppState, RequestCartItem, WeeklyProductionPlan } from '../../types';
 import { WeeklyPlanningSection } from '../WeeklyPlanningSection';
 import { WeeklyPlanVsActualChart } from '../WeeklyPlanVsActualChart';
 import { getActiveWeeklyPlan } from '../../utils/weeklyPlanComparison';
+import { resolveEffectiveRole } from '../../utils/roleAccess';
 
 interface WeeklyPlanningViewProps {
   state: AppState;
@@ -22,8 +23,9 @@ export const WeeklyPlanningView: React.FC<WeeklyPlanningViewProps> = ({
   onSwitchTab,
   showToast
 }) => {
-  const isAdmin = state.currentUserRole === 'ADMINISTRATOR';
-  const isManagement = state.currentUserRole === 'MANAGEMENT';
+  const effectiveRole = resolveEffectiveRole(state);
+  const isAdmin = effectiveRole.isAdmin;
+  const isManagement = effectiveRole.isManagement;
   const activePlan = getActiveWeeklyPlan(state);
 
   const handleAddWeeklyItemsToRequestCart = (
@@ -45,30 +47,30 @@ export const WeeklyPlanningView: React.FC<WeeklyPlanningViewProps> = ({
   return (
     <div className="max-w-[1440px] mx-auto space-y-4">
       {/* Header Banner: Tahap 2 Penentuan Planning Mingguan */}
-      <div className="bg-[#0c121d] border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-surface border border-border-subtle rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/35 text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/35 text-ink-emerald flex items-center justify-center shrink-0">
             <CalendarRange className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400">
-              <span className="text-emerald-400 font-semibold">Tahap 02 dari 07</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-secondary">
+              <span className="text-ink-emerald font-semibold">Tahap 02 dari 07</span>
               <span aria-hidden="true">·</span>
               <span>Acuan Utama Kebutuhan Material &amp; Lini</span>
               {activePlan && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="text-cyan-400 font-semibold inline-flex items-center gap-1">
+                  <span className="text-brand font-semibold inline-flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
                     {activePlan.weekLabel} ({activePlan.items.length} SKU)
                   </span>
                 </>
               )}
             </div>
-            <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight mt-0.5">
+            <h1 className="text-base sm:text-lg font-extrabold text-ink-primary tracking-tight mt-0.5">
               Penentuan Planning Produksi Mingguan
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-ink-secondary mt-0.5">
               Input manual atau unggah jadwal mingguan (SKU, Shift 1–3, target karton) untuk menjadi dasar pengajuan Permintaan Material pada tahap berikutnya.
             </p>
           </div>
@@ -79,7 +81,7 @@ export const WeeklyPlanningView: React.FC<WeeklyPlanningViewProps> = ({
             <button
               type="button"
               onClick={() => onSwitchTab('master')}
-              className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-ink-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Tahap 01: Master BOM</span>
@@ -89,9 +91,9 @@ export const WeeklyPlanningView: React.FC<WeeklyPlanningViewProps> = ({
             <button
               type="button"
               onClick={() => onSwitchTab('bom-calculator')}
-              className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-ink-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
             >
-              <Calculator className="w-3.5 h-3.5 text-cyan-400" />
+              <Calculator className="w-3.5 h-3.5 text-brand" />
               <span>Kalkulator BOM</span>
             </button>
           )}

@@ -15,6 +15,7 @@ import {
   getDoc,
   getDocFromServer,
   setDoc,
+  updateDoc,
   writeBatch,
   onSnapshot,
   serverTimestamp,
@@ -24,7 +25,16 @@ import {
   DocumentSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { ActiveSkuProductionRun, AppState, ProductionLine, UserRole } from '../types';
+import {
+  ActiveMachineChangeover,
+  ActiveSkuProductionRun,
+  AppState,
+  ProductionLine,
+  ProductionMachine,
+  UserRole,
+  WipTank,
+  WorkspaceAccessConfig
+} from '../types';
 import {
   clearWorkspaceDriveToken,
   consumePendingDriveRedirectFlag,
@@ -37,6 +47,7 @@ import {
   sanitizeTextInput,
   validatePasswordStrength
 } from './security';
+import { resolveEffectiveRole } from './roleAccess';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const FIRESTORE_DATABASE_ID =
@@ -175,7 +186,82 @@ export function stripUndefinedDeep<T>(value: T): T {
   return value;
 }
 
-// Keep operational arrays within blueprint & 1MB Firestore document limits
+export interface ActiveChangeoverSnapshot extends ActiveMachineChangeover {
+  machineId: string;
+  machineCode: string;
+  machineName: string;
+}
+
+export function extractActiveChangeoversFromMachines(
+  machines: ProductionMachine[] = []
+): ActiveChangeoverSnapshot[] {
+  return machines
+    .filter(m => Boolean(m.activeChangeover))
+    .map(m => ({
+      machineId: m.id,
+      machineCode: m.code,
+      machineName: m.name,
+      ...m.activeChangeover!
+    }))
+    .slice(0, 300);
+}
+
+export function mergeMachinesWithActiveChangeovers(
+  machines: ProductionMachine[] = [],
+  activeChangeovers?: ActiveChangeoverSnapshot[]
+): ProductionMachine[] {
+  if (!Array.isArray(activeChangeovers)) return machines;
+  const byMachineId = new Map<string, ActiveChangeoverSnapshot>();
+  activeChangeovers.forEach(co => {
+    if (co && co.machineId) byMachineId.set(co.machineId, co);
+  });
+  return machines.map(m => {
+    const active = byMachineId.get(m.id);
+    if (active) {
+      const { machineId: _mId, machineCode: _mCode, machineName: _mName, ...coData } = active;
+      return {
+        ...m,
+        status: 'CHANGEOVER' as const,
+        activeChangeover: coData
+      };
+    }
+    if (m.activeChangeover) {
+      return {
+        ...m,
+        status: m.status === 'CHANGEOVER' ? ('OPERATIONAL' as const) : m.status,
+        activeChangeover: undefined
+      };
+    }
+    return m;
+  });
+}
+
+export function mergeMasterAndOpsTanks(
+  masterTanks: WipTank[] = [],
+  opsTanks?: WipTank[]
+): WipTank[] {
+  if (!Array.isArray(opsTanks) || opsTanks.length === 0) return masterTanks;
+  if (masterTanks.length === 0) return opsTanks;
+  const opsById = new Map<string, WipTank>();
+  opsTanks.forEach(t => {
+    if (t && t.id) opsById.set(t.id, t);
+  });
+  return masterTanks.map(mt => {
+    const ot = opsById.get(mt.id);
+    if (!ot) return mt;
+    return {
+      ...mt,
+      currentLevelKg: ot.currentLevelKg,
+      status: ot.status ?? mt.status,
+      assignedWipId: ot.assignedWipId !== undefined ? ot.assignedWipId : mt.assignedWipId,
+      temp: ot.temp !== undefined ? ot.temp : mt.temp,
+      agitatorStatus: ot.agitatorStatus !== undefined ? ot.agitatorStatus : mt.agitatorStatus
+    };
+  });
+}
+
+// Keep ONLY active operational state in workspaces/{workspaceId}/data/operations
+// High-volume logs (REQUEST, RECEIPT, USAGE, CARTON_PROD, TANK_LOG, ADJUSTMENT) live in /transactions/{txId}
 export function buildBoundedOperationsPayload(state: AppState) {
   const keepRecent = <T,>(arr: T[] | undefined, max: number): T[] => {
     if (!arr || !Array.isArray(arr)) return [];
@@ -184,20 +270,16 @@ export function buildBoundedOperationsPayload(state: AppState) {
   };
 
   return stripUndefinedDeep({
-    requests: keepRecent(state.transactions.requests, 500),
-    receipts: keepRecent(state.transactions.receipts, 500),
-    usages: keepRecent(state.transactions.usages, 600),
-    wipBatches: keepRecent(state.transactions.wipBatches, 400),
-    cartonProductions: keepRecent(state.transactions.cartonProductions, 600),
-    tankLogs: keepRecent(state.transactions.tankLogs, 600),
-    changeovers: keepRecent(state.transactions.changeovers, 250),
-    productionStops: keepRecent(state.transactions.productionStops, 400),
-    stockAdjustments: keepRecent(state.transactions.stockAdjustments, 250),
     activeSkuRuns: (state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : [])).slice(0, 80),
     tank: state.tank,
+    tanks: (state.master.tanks || []).slice(0, 200),
     lastShiftHandover: state.lastShiftHandover ?? null,
     weeklyPlannings: (state.weeklyPlannings || []).slice(0, 12),
-    activeWeeklyPlanId: state.activeWeeklyPlanId ?? null
+    activeWeeklyPlanId: state.activeWeeklyPlanId ?? null,
+    activeChangeovers: extractActiveChangeoversFromMachines(state.master.machines || []),
+    wipBatches: keepRecent(state.transactions.wipBatches, 200),
+    changeovers: keepRecent(state.transactions.changeovers, 150),
+    productionStops: keepRecent(state.transactions.productionStops, 200)
   });
 }
 
@@ -594,15 +676,27 @@ export async function registerAdministratorWorkspace(params: {
   // First user sets up legacy 'main' & system/bootstrap; subsequent admins get their own isolated workspaceId = uid
   const workspaceId = isSystemBootstrapped ? uid.slice(0, 64) : LEGACY_WORKSPACE_ID;
 
+  const nextAdminEmails = Array.from(
+    new Set([email, ...(initialState.adminGoogleEmails || []).map(e => normalizeEmail(e))].filter(Boolean))
+  );
+  const accessLists = buildAccessEmailLists(
+    { ...initialState, adminGoogleEmails: nextAdminEmails },
+    email
+  );
+  const workspaceAccessConfig: WorkspaceAccessConfig = {
+    workspaceId,
+    ownerUid: uid,
+    ...accessLists
+  };
+
   const nextState: AppState = {
     ...initialState,
     factoryName: cleanFactory,
     cloudWorkspaceId: workspaceId,
     cloudOwnerUid: uid,
     adminPin: hashedPin,
-    adminGoogleEmails: Array.from(
-      new Set([email, ...(initialState.adminGoogleEmails || []).map(e => normalizeEmail(e))].filter(Boolean))
-    ),
+    adminGoogleEmails: nextAdminEmails,
+    workspaceAccessConfig,
     currentAdminUser: {
       email,
       displayName: cleanName,
@@ -611,7 +705,6 @@ export async function registerAdministratorWorkspace(params: {
       role: 'SUPER_ADMIN'
     },
     isAuthenticated: true,
-    isAdmin: true,
     currentUserRole: 'ADMINISTRATOR',
     currentTab: 'admin-portal',
     currentSession: {
@@ -647,7 +740,6 @@ export async function registerAdministratorWorkspace(params: {
     updatedAt: now
   });
 
-  const accessLists = buildAccessEmailLists(nextState, email);
   batch.set(doc(db, 'workspaces', workspaceId, 'config', 'access'), {
     workspaceId,
     ownerUid: uid,
@@ -688,6 +780,7 @@ export async function registerAdministratorWorkspace(params: {
     workspaceId,
     ownerUid: uid,
     ...buildBoundedOperationsPayload(nextState),
+    transactionsMigratedAt: now,
     updatedAt: now,
     updatedByUid: uid
   });
@@ -706,6 +799,15 @@ export async function registerAdministratorWorkspace(params: {
 
 export const registerFirstAdministrator = registerAdministratorWorkspace;
 
+export interface WorkspaceRemotePatch extends Omit<Partial<AppState>, 'transactions' | 'master'> {
+  master?: Partial<AppState['master']>;
+  transactions?: Partial<AppState['transactions']>;
+  opsTanks?: WipTank[];
+  activeChangeovers?: ActiveChangeoverSnapshot[];
+  hasLegacyOperationsTransactions?: boolean;
+  transactionsMigrated?: boolean;
+}
+
 export interface LoadedCloudWorkspace {
   cloudRole: UserRole;
   workspaceId: string;
@@ -714,7 +816,9 @@ export interface LoadedCloudWorkspace {
   matchedProfileName?: string;
   matchedProfileId?: string;
   matchedProfileSubtitle?: string;
-  statePatch: Partial<AppState>;
+  hasLegacyOperationsTransactions: boolean;
+  transactionsMigrated: boolean;
+  statePatch: WorkspaceRemotePatch;
 }
 
 export type LoadCloudWorkspaceOutcome =
@@ -771,14 +875,30 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
   }
 
   let secretPin: string | undefined;
+  let loadedAccessConfig: WorkspaceAccessConfig | undefined;
   if (isAdminUser) {
     try {
-      const secSnap = await getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'config', 'secrets'));
+      const [secSnap, accessSnap] = await Promise.all([
+        getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'config', 'secrets')),
+        getDocServerWithFallback(doc(db, 'workspaces', workspaceId, 'config', 'access'))
+      ]);
       if (secSnap.exists()) {
         secretPin = secSnap.data()?.adminPin;
       }
+      if (accessSnap.exists()) {
+        const ad = accessSnap.data();
+        loadedAccessConfig = {
+          workspaceId,
+          ownerUid: ad?.ownerUid || meta.ownerUid,
+          adminEmails: Array.isArray(ad?.adminEmails)
+            ? ad.adminEmails.map((e: string) => normalizeEmail(e)).filter(Boolean)
+            : adminEmailsList,
+          operatorEmails: Array.isArray(ad?.operatorEmails) ? ad.operatorEmails : undefined,
+          managementEmails: Array.isArray(ad?.managementEmails) ? ad.managementEmails : undefined
+        };
+      }
     } catch {
-      // ignore if secrets missing
+      // ignore if secrets or access doc missing
     }
 
     // Ensure secondary admin gets their /admins/{uid} profile created with workspaceId
@@ -857,12 +977,48 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
     )
   );
 
-  const statePatch: Partial<AppState> = {
+  const hasLegacyOperationsTransactions = Boolean(
+    (Array.isArray(opsData.requests) && opsData.requests.length > 0) ||
+      (Array.isArray(opsData.receipts) && opsData.receipts.length > 0) ||
+      (Array.isArray(opsData.usages) && opsData.usages.length > 0) ||
+      (Array.isArray(opsData.cartonProductions) && opsData.cartonProductions.length > 0) ||
+      (Array.isArray(opsData.tankLogs) && opsData.tankLogs.length > 0) ||
+      (Array.isArray(opsData.stockAdjustments) && opsData.stockAdjustments.length > 0) ||
+      'requests' in opsData ||
+      'receipts' in opsData ||
+      'usages' in opsData ||
+      'cartonProductions' in opsData ||
+      'tankLogs' in opsData ||
+      'stockAdjustments' in opsData
+  );
+  const transactionsMigrated = Boolean(opsData.transactionsMigratedAt) && !hasLegacyOperationsTransactions;
+
+  const opsTanks = Array.isArray(opsData.tanks) ? (opsData.tanks as WipTank[]) : undefined;
+  const activeChangeovers = Array.isArray(opsData.activeChangeovers)
+    ? (opsData.activeChangeovers as ActiveChangeoverSnapshot[])
+    : undefined;
+  const mergedTanks = mergeMasterAndOpsTanks(masterData.tanks || [], opsTanks);
+  const mergedMachines = mergeMachinesWithActiveChangeovers(masterData.machines || [], activeChangeovers);
+
+  const statePatch: WorkspaceRemotePatch = {
     factoryName: meta.factoryName || 'Pabrik ProdTrack',
     cloudWorkspaceId: workspaceId,
     cloudOwnerUid: meta.ownerUid,
     theme: meta.theme || 'midnight',
     adminGoogleEmails: mergedAdminEmails,
+    workspaceAccessConfig: loadedAccessConfig || {
+      workspaceId,
+      ownerUid: meta.ownerUid,
+      adminEmails: mergedAdminEmails,
+      operatorEmails: operators
+        .filter(op => op.status === 'ACTIVE' && op.email)
+        .map(op => normalizeEmail(op.email || ''))
+        .filter(Boolean),
+      managementEmails: managements
+        .filter(m => m.hasViewAccess && m.email)
+        .map(m => normalizeEmail(m.email))
+        .filter(Boolean)
+    },
     registeredOperators: operators,
     registeredManagement: managements,
     ...(isAdminUser
@@ -884,27 +1040,35 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
       skuWips: masterData.skuWips || [],
       wipMats: masterData.wipMats || [],
       recipes: masterData.recipes || [],
-      machines: masterData.machines || [],
-      tanks: masterData.tanks || [],
+      machines: mergedMachines,
+      tanks: mergedTanks,
       productionLines: masterData.productionLines || []
     },
     transactions: {
-      requests: opsData.requests || [],
-      receipts: opsData.receipts || [],
-      usages: opsData.usages || [],
+      ...(hasLegacyOperationsTransactions
+        ? {
+            requests: opsData.requests || [],
+            receipts: opsData.receipts || [],
+            usages: opsData.usages || [],
+            cartonProductions: opsData.cartonProductions || [],
+            tankLogs: opsData.tankLogs || [],
+            stockAdjustments: opsData.stockAdjustments || []
+          }
+        : {}),
       wipBatches: opsData.wipBatches || [],
-      cartonProductions: opsData.cartonProductions || [],
-      tankLogs: opsData.tankLogs || [],
       changeovers: opsData.changeovers || [],
-      productionStops: opsData.productionStops || [],
-      stockAdjustments: opsData.stockAdjustments || []
+      productionStops: opsData.productionStops || []
     },
     activeSkuRuns: activeRuns,
     activeSkuRun: activeRuns[0] || null,
     lastShiftHandover: opsData.lastShiftHandover ?? null,
     weeklyPlannings: Array.isArray(opsData.weeklyPlannings) ? opsData.weeklyPlannings : [],
     activeWeeklyPlanId: opsData.activeWeeklyPlanId ?? null,
-    ...(opsData.tank ? { tank: opsData.tank } : {})
+    ...(opsData.tank ? { tank: opsData.tank } : {}),
+    opsTanks,
+    activeChangeovers,
+    hasLegacyOperationsTransactions,
+    transactionsMigrated
   };
 
   return {
@@ -917,6 +1081,8 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
       matchedProfileName,
       matchedProfileId,
       matchedProfileSubtitle,
+      hasLegacyOperationsTransactions,
+      transactionsMigrated,
       statePatch
     }
   };
@@ -1193,7 +1359,7 @@ export function subscribeToDashboardLineStatus(
 
 export function subscribeToWorkspaceCloud(
   cloudRole: UserRole,
-  onRemoteUpdate: (patch: Partial<AppState>) => void,
+  onRemoteUpdate: (patch: WorkspaceRemotePatch) => void,
   onError?: (err: Error) => void,
   options?: WorkspaceSubscribeOptions
 ): () => void {
@@ -1207,7 +1373,7 @@ export function subscribeToWorkspaceCloud(
   const unsubs: Unsubscribe[] = [];
   let isDisposed = false;
 
-  let pendingPatch: Partial<AppState> = {};
+  let pendingPatch: WorkspaceRemotePatch = {};
   const pendingSections = new Set<WorkspaceCloudSection>();
   let pendingEventCount = 0;
   let pendingCriticalLineChange = false;
@@ -1256,7 +1422,7 @@ export function subscribeToWorkspaceCloud(
 
   const enqueueSectionPatch = (
     section: WorkspaceCloudSection,
-    patch: Partial<AppState>,
+    patch: WorkspaceRemotePatch,
     fingerprintJson: string,
     isCriticalLineChange = false
   ) => {
@@ -1268,7 +1434,13 @@ export function subscribeToWorkspaceCloud(
 
     pendingPatch = {
       ...pendingPatch,
-      ...patch
+      ...patch,
+      ...(pendingPatch.master || patch.master
+        ? { master: { ...(pendingPatch.master || {}), ...(patch.master || {}) } }
+        : {}),
+      ...(pendingPatch.transactions || patch.transactions
+        ? { transactions: { ...(pendingPatch.transactions || {}), ...(patch.transactions || {}) } }
+        : {})
     };
     pendingSections.add(section);
     pendingEventCount += 1;
@@ -1299,12 +1471,28 @@ export function subscribeToWorkspaceCloud(
       snap => {
         if (isDisposed || !snap.exists() || snap.metadata.hasPendingWrites) return;
         const d = snap.data();
+        const remoteAdminEmails = (d.adminGoogleEmails || []).map((e: string) => normalizeEmail(e)).filter(Boolean);
+        const remoteOps = (d.registeredOperators || []) as AppState['registeredOperators'];
+        const remoteMgts = (d.registeredManagement || []) as AppState['registeredManagement'];
         const metaPatch: Partial<AppState> = {
           factoryName: d.factoryName,
           cloudWorkspaceId: workspaceId,
           cloudOwnerUid: d.ownerUid,
           theme: d.theme,
           adminGoogleEmails: d.adminGoogleEmails || [],
+          workspaceAccessConfig: {
+            workspaceId,
+            ownerUid: d.ownerUid,
+            adminEmails: remoteAdminEmails,
+            operatorEmails: remoteOps
+              .filter(op => op.status === 'ACTIVE' && op.email)
+              .map(op => normalizeEmail(op.email || ''))
+              .filter(Boolean),
+            managementEmails: remoteMgts
+              .filter(m => m.hasViewAccess && m.email)
+              .map(m => normalizeEmail(m.email))
+              .filter(Boolean)
+          },
           registeredOperators: d.registeredOperators || [],
           registeredManagement: d.registeredManagement || []
         };
@@ -1328,7 +1516,7 @@ export function subscribeToWorkspaceCloud(
           lastLineAvailSig !== '' && nextLineAvailSig !== lastLineAvailSig;
         lastLineAvailSig = nextLineAvailSig;
 
-        const masterPatch: Partial<AppState> = {
+        const masterPatch: WorkspaceRemotePatch = {
           master: {
             materials: d.materials || [],
             wips: d.wips || [],
@@ -1363,24 +1551,35 @@ export function subscribeToWorkspaceCloud(
           lastLineAvailSig !== '' && nextLineAvailSig !== lastLineAvailSig;
         lastLineAvailSig = nextLineAvailSig;
 
-        const opsPatch: Partial<AppState> = {
+        const opsTanks = Array.isArray(d.tanks) ? (d.tanks as WipTank[]) : undefined;
+        const activeChangeovers = Array.isArray(d.activeChangeovers)
+          ? (d.activeChangeovers as ActiveChangeoverSnapshot[])
+          : undefined;
+        const hasLegacy = Boolean(
+          'requests' in d ||
+            'receipts' in d ||
+            'usages' in d ||
+            'cartonProductions' in d ||
+            'tankLogs' in d ||
+            'stockAdjustments' in d
+        );
+
+        const opsPatch: WorkspaceRemotePatch = {
           transactions: {
-            requests: d.requests || [],
-            receipts: d.receipts || [],
-            usages: d.usages || [],
             wipBatches: d.wipBatches || [],
-            cartonProductions: d.cartonProductions || [],
-            tankLogs: d.tankLogs || [],
             changeovers: d.changeovers || [],
-            productionStops: d.productionStops || [],
-            stockAdjustments: d.stockAdjustments || []
+            productionStops: d.productionStops || []
           },
           activeSkuRuns: activeRuns,
           activeSkuRun: activeRuns[0] || null,
           lastShiftHandover: d.lastShiftHandover ?? null,
           weeklyPlannings: Array.isArray(d.weeklyPlannings) ? d.weeklyPlannings : [],
           activeWeeklyPlanId: d.activeWeeklyPlanId ?? null,
-          ...(d.tank ? { tank: d.tank } : {})
+          ...(d.tank ? { tank: d.tank } : {}),
+          ...(opsTanks ? { opsTanks } : {}),
+          ...(activeChangeovers ? { activeChangeovers } : {}),
+          hasLegacyOperationsTransactions: hasLegacy,
+          transactionsMigrated: Boolean(d.transactionsMigratedAt) && !hasLegacy
         };
         enqueueSectionPatch('operations', opsPatch, JSON.stringify(opsPatch), isCriticalLineChange);
       },
@@ -1424,7 +1623,8 @@ export async function saveWorkspaceSectionsToCloud(
     operations?: boolean;
   },
   state: AppState,
-  cloudRole: UserRole
+  cloudRole: UserRole,
+  options?: { preserveLegacyOperationsKeys?: boolean }
 ): Promise<void> {
   const user = auth.currentUser;
   if (!user || !state.cloudOwnerUid) return;
@@ -1434,9 +1634,16 @@ export async function saveWorkspaceSectionsToCloud(
   const workspaceId = (state.cloudWorkspaceId || LEGACY_WORKSPACE_ID).slice(0, 64);
   const now = serverTimestamp();
 
-  // Strictly enforce role boundaries before attempting writes
-  const canWriteAdminSections = cloudRole === 'ADMINISTRATOR';
-  const canWriteOperations = cloudRole === 'ADMINISTRATOR' || cloudRole === 'OPERATOR';
+  // Strictly enforce role boundaries & resolveEffectiveRole before attempting writes
+  const effective = resolveEffectiveRole(state, {
+    firebaseUserEmail: user.email,
+    firebaseUid: uid,
+    cloudAuthRole: cloudRole
+  });
+  const canWriteAdminSections = effective.canWriteCloudMaster && cloudRole === 'ADMINISTRATOR';
+  const canWriteOperations =
+    effective.canWriteCloudOperations &&
+    (cloudRole === 'ADMINISTRATOR' || cloudRole === 'OPERATOR');
 
   const batch = writeBatch(db);
   const pathsWritten: string[] = [];
@@ -1491,7 +1698,11 @@ export async function saveWorkspaceSectionsToCloud(
     pathsWritten.push(`workspaces/${workspaceId}/data/master`);
   }
 
-  if (sections.operations && canWriteOperations) {
+  const shouldDeferOpsToUpdateDoc = Boolean(
+    sections.operations && canWriteOperations && options?.preserveLegacyOperationsKeys
+  );
+
+  if (sections.operations && canWriteOperations && !shouldDeferOpsToUpdateDoc) {
     batch.set(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
       workspaceId,
       ownerUid,
@@ -1502,12 +1713,27 @@ export async function saveWorkspaceSectionsToCloud(
     pathsWritten.push(`workspaces/${workspaceId}/data/operations`);
   }
 
-  if (pathsWritten.length === 0) return;
+  if (pathsWritten.length > 0) {
+    try {
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, pathsWritten[0]);
+    }
+  }
 
-  try {
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, pathsWritten[0]);
+  // When an Operator saves operations BEFORE an Admin runs one-time migration, update only active fields
+  // so legacy arrays in data/operations remain intact for the Admin migration.
+  if (shouldDeferOpsToUpdateDoc) {
+    const opsPath = `workspaces/${workspaceId}/data/operations`;
+    try {
+      await updateDoc(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
+        ...buildBoundedOperationsPayload(state),
+        updatedAt: now,
+        updatedByUid: uid
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, opsPath);
+    }
   }
 
   if (sections.meta && canWriteAdminSections) {

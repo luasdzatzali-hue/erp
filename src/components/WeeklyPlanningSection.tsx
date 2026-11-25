@@ -1002,30 +1002,30 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
   };
 
   return (
-    <div className="bg-[#0c121d] border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
+    <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
       {/* Header Bar */}
-      <div className="p-4 border-b border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-[#080c14]/80">
+      <div className="p-4 border-b border-border-subtle flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-surface-header">
         <div className="flex items-start sm:items-center space-x-3">
-          <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0 shadow-[0_0_12px_rgba(34,211,238,0.12)]">
+          <div className="p-2 rounded-lg bg-cyan-500/10 text-brand border border-cyan-500/30 shrink-0 shadow-[0_0_12px_rgba(34,211,238,0.12)]">
             <CalendarRange className="w-5 h-5" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-bold text-sm text-white">
+              <h3 className="font-bold text-sm text-ink-primary">
                 Acuan Planning Mingguan (PPIC)
               </h3>
               {activePlan ? (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 tabular-nums">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-brand border border-cyan-500/30 tabular-nums">
                   {activePlan.weekLabel} · {activePlan.periodStart} s/d {activePlan.periodEnd}
                   {activePlan.sourceFileName === 'Input Mandiri Web App' ? ' · Input Web' : ''}
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#06090f]/80 text-slate-400 border border-slate-700">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-canvas text-ink-secondary border border-border-strong">
                   Belum Ada Jadwal
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-ink-secondary mt-0.5">
               Input jadwal produksi mingguan langsung di web app atau unggah Excel/CSV PPIC sebagai acuan kalkulasi order material.
             </p>
           </div>
@@ -1036,7 +1036,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             <select
               value={activePlan?.id || ''}
               onChange={e => onSelectWeeklyPlan(e.target.value)}
-              className="bg-[#06090f]/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-cyan-500"
+              className="bg-canvas border border-border-strong rounded-lg px-2.5 py-1.5 text-xs text-ink-primary font-medium focus:outline-none focus:border-accent-primary"
               title="Pilih Dokumen Planning Mingguan"
             >
               {savedPlans.map(p => (
@@ -1052,9 +1052,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               <button
                 type="button"
                 onClick={() => openManualBuilder('create')}
-                className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/45 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95"
+                className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-ink-emerald border border-emerald-500/45 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95"
               >
-                <PenSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <PenSquare className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>Input Planning Mandiri</span>
               </button>
 
@@ -1062,7 +1062,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => openManualBuilder('edit')}
-                  className="px-3 py-1.5 bg-[#06090f]/85 hover:bg-slate-800 text-cyan-300 border border-cyan-500/35 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  className="px-3 py-1.5 bg-canvas hover:bg-elevated text-brand border border-cyan-500/35 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   title="Edit jadwal & metadata planning aktif langsung di builder web app"
                 >
                   <PenSquare className="w-3.5 h-3.5" />
@@ -1085,7 +1085,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             <button
               type="button"
               onClick={() => setIsExpanded(prev => !prev)}
-              className="px-2.5 py-1.5 bg-[#06090f]/85 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              className="px-2.5 py-1.5 bg-canvas hover:bg-elevated text-ink-secondary border border-border-strong rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{isExpanded ? 'Tutup' : 'Buka'}</span>
@@ -1096,11 +1096,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
       {/* Empty CTA Strip when no weekly plan uploaded yet */}
       {!activePlan && (
-        <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#06090f]/60 text-xs">
-          <div className="flex items-start space-x-2.5 text-slate-400">
-            <FileSpreadsheet className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+        <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-canvas text-xs">
+          <div className="flex items-start space-x-2.5 text-ink-secondary">
+            <FileSpreadsheet className="w-4 h-4 text-brand shrink-0 mt-0.5" />
             <span>
-              Anda dapat membuat jadwal mingguan <strong className="text-emerald-300">langsung di Web App (Input Mandiri)</strong> atau mengunggah file Excel PPIC (<strong className="text-slate-200">.xlsx / .xls</strong>), <strong className="text-slate-200">.csv</strong>, maupun Google Drive Spreadsheet.
+              Anda dapat membuat jadwal mingguan <strong className="text-ink-emerald">langsung di Web App (Input Mandiri)</strong> atau mengunggah file Excel PPIC (<strong className="text-ink-primary">.xlsx / .xls</strong>), <strong className="text-ink-primary">.csv</strong>, maupun Google Drive Spreadsheet.
             </span>
           </div>
           {!readOnly && (
@@ -1116,9 +1116,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               <button
                 type="button"
                 onClick={() => downloadWeeklyPlanningTemplateXlsx(state.master.skus)}
-                className="px-3 py-1.5 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                className="px-3 py-1.5 bg-surface hover:bg-elevated text-ink-primary border border-border-strong rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
               >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <Download className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>Template Excel</span>
               </button>
             </div>
@@ -1131,52 +1131,52 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
         <div className="p-4 space-y-4">
           {/* Top KPI & Action Bar */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block">Total Target Terpilih</span>
-              <span className="font-mono tabular-nums font-bold text-cyan-400 text-base">
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block">Total Target Terpilih</span>
+              <span className="font-mono tabular-nums font-bold text-brand text-base">
                 {(explosion?.totalPlannedCartons || 0).toLocaleString('id-ID')}{' '}
-                <span className="text-[11px] font-normal text-slate-400">Karton</span>
+                <span className="text-[11px] font-normal text-ink-secondary">Karton</span>
               </span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
+              <span className="text-[10px] text-ink-muted block mt-0.5">
                 {explosion?.includedSkuCount || 0} SKU aktif sesuai filter
               </span>
             </div>
 
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block">Kecocokan Master BOM</span>
-              <span className="font-mono tabular-nums font-bold text-white text-base">
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block">Kecocokan Master BOM</span>
+              <span className="font-mono tabular-nums font-bold text-ink-primary text-base">
                 {explosion?.matchedSkuCount || 0} / {explosion?.includedSkuCount || 0}{' '}
-                <span className="text-[11px] font-normal text-slate-400">SKU</span>
+                <span className="text-[11px] font-normal text-ink-secondary">SKU</span>
               </span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
+              <span className="text-[10px] text-ink-muted block mt-0.5">
                 {explosion && explosion.unmatchedItems.length > 0
                   ? `${explosion.unmatchedItems.length} perlu ditautkan`
                   : 'Semua SKU aktif terhubung'}
               </span>
             </div>
 
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block">Kebutuhan WIP &amp; Material</span>
-              <span className="font-mono tabular-nums font-bold text-amber-400 text-base">
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block">Kebutuhan WIP &amp; Material</span>
+              <span className="font-mono tabular-nums font-bold text-ink-amber text-base">
                 {(explosion?.totalTheoreticalKg || 0).toLocaleString('id-ID', {
                   maximumFractionDigits: 2
                 })}{' '}
-                <span className="text-[11px] font-normal text-slate-400">kg</span>
+                <span className="text-[11px] font-normal text-ink-secondary">kg</span>
               </span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
+              <span className="text-[10px] text-ink-muted block mt-0.5">
                 {explosion?.wipNeeds.length || 0} Jenis WIP • {orderableRequirements.length} Material
               </span>
             </div>
 
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block">Total Form Order Supplier</span>
-              <span className="font-mono tabular-nums font-bold text-emerald-400 text-base">
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block">Total Form Order Supplier</span>
+              <span className="font-mono tabular-nums font-bold text-ink-emerald text-base">
                 {(explosion?.totalFinalOrderKg || 0).toLocaleString('id-ID', {
                   maximumFractionDigits: 2
                 })}{' '}
-                <span className="text-[11px] font-normal text-slate-400">kg</span>
+                <span className="text-[11px] font-normal text-ink-secondary">kg</span>
               </span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
+              <span className="text-[10px] text-ink-muted block mt-0.5">
                 {allowancePercent > 0 ? `Allowance +${allowancePercent}% · ` : ''}
                 Pembulatan {explosion?.totalGdrmBags || 0} Kemasan Utuh
               </span>
@@ -1184,12 +1184,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
           </div>
 
           {/* Scope Filters: Hari, Shift, Line, Mode Order */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-3 text-xs">
+          <div className="bg-canvas border border-border-subtle rounded-xl p-3.5 space-y-3 text-xs">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               {/* Day Multi-Select */}
               <div className="space-y-1.5">
                 <div className="flex items-center space-x-2">
-                  <span className="text-[11px] font-semibold text-slate-300">
+                  <span className="text-[11px] font-semibold text-ink-secondary">
                     Rentang Hari Acuan Order:
                   </span>
                   <button
@@ -1198,7 +1198,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition ${
                       selectedDays.length === 7
                         ? 'bg-cyan-600 text-white border-cyan-500'
-                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                        : 'bg-elevated text-ink-secondary border-border-strong hover:bg-accent'
                     }`}
                   >
                     1 Minggu Penuh
@@ -1217,13 +1217,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         title={`Klik untuk pilih/batal ${d.label}. Double-klik untuk fokus ${d.label} saja.`}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition text-center ${
                           isSelected
-                            ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/60 font-bold'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                            ? 'bg-cyan-500/20 text-brand border-cyan-500/60 font-bold'
+                            : 'bg-surface text-ink-secondary border-border-subtle hover:border-border-strong'
                         }`}
                       >
                         <span>{d.shortLabel}</span>
                         {dateSub && (
-                          <span className="text-[9px] text-slate-400 ml-1 font-mono">({dateSub})</span>
+                          <span className="text-[9px] text-ink-secondary ml-1 font-mono">({dateSub})</span>
                         )}
                       </button>
                     );
@@ -1234,7 +1234,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               {/* Shift & Line & Mode */}
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                     Cakupan Shift:
                   </span>
                   <div className="flex items-center space-x-1">
@@ -1244,7 +1244,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
                         selectedShifts.length === 3
                           ? 'bg-cyan-600 text-white border-cyan-500'
-                          : 'bg-slate-900 text-slate-400 border-slate-800'
+                          : 'bg-surface text-ink-secondary border-border-subtle'
                       }`}
                     >
                       Semua
@@ -1258,8 +1258,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                           onClick={() => toggleShift(sh)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition ${
                             active
-                              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/60'
-                              : 'bg-slate-900 text-slate-500 border-slate-800'
+                              ? 'bg-cyan-500/20 text-brand border-cyan-500/60'
+                              : 'bg-surface text-ink-muted border-border-subtle'
                           }`}
                         >
                           S{sh}
@@ -1271,13 +1271,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
                 {availablePlanLines.length > 0 && (
                   <div>
-                    <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                       Filter Line:
                     </span>
                     <select
                       value={lineFilter}
                       onChange={e => setLineFilter(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-white"
+                      className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-[11px] text-ink-primary"
                     >
                       <option value="ALL">Semua Line</option>
                       {availablePlanLines.map(ln => (
@@ -1290,13 +1290,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 )}
 
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                     Basis Kuantitas Order:
                   </span>
                   <select
                     value={orderMode}
                     onChange={e => setOrderMode(e.target.value as 'FULL_NEED' | 'DEFICIT_ONLY')}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-white"
+                    className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-[11px] text-ink-primary"
                   >
                     <option value="FULL_NEED">Kebutuhan Penuh Planning</option>
                     <option value="DEFICIT_ONLY">Hanya Defisit vs Stok Aktual</option>
@@ -1304,13 +1304,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 </div>
 
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                     Batch WIP Desimal:
                   </span>
                   <select
                     value={batchRoundMode}
                     onChange={e => setBatchRoundMode(e.target.value as 'EXACT' | 'CEIL_BATCH')}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-white"
+                    className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-[11px] text-ink-primary"
                   >
                     <option value="CEIL_BATCH">Bulatkan Ke Atas (Rekomendasi)</option>
                     <option value="EXACT">Proporsional Karton (Desimal)</option>
@@ -1318,13 +1318,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 </div>
 
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                     Kemasan Custom / Zak:
                   </span>
                   <select
                     value={packagingRoundMode}
                     onChange={e => setPackagingRoundMode(e.target.value as 'ROUND_UP' | 'EXACT')}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-white"
+                    className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-[11px] text-ink-primary"
                   >
                     <option value="ROUND_UP">Bulatkan Ke Atas (Kemasan Utuh)</option>
                     <option value="EXACT">Berat Eksak (kg)</option>
@@ -1332,7 +1332,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 </div>
 
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <span className="block text-[11px] font-semibold text-ink-secondary mb-1">
                     Allowance Order:
                   </span>
                   <div className="flex items-center space-x-1">
@@ -1346,7 +1346,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             ? pct === 0
                               ? 'bg-cyan-600 text-white border-cyan-500'
                               : 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
-                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
+                            : 'bg-surface text-ink-secondary border-border-strong hover:bg-elevated hover:text-ink-primary'
                         }`}
                       >
                         {pct === 0 ? '0%' : `+${pct}%`}
@@ -1360,9 +1360,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
           {/* Unmatched or Missing BOM Notice */}
           {explosion && (explosion.unmatchedItems.length > 0 || explosion.skusMissingBom.length > 0) && (
-            <div className="p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <div className="flex items-start space-x-2 text-amber-200">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3 bg-tint-amber border border-amber-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-start space-x-2 text-ink-amber">
+                <AlertTriangle className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
                 <div>
                   {explosion.unmatchedItems.length > 0 && (
                     <span>
@@ -1384,7 +1384,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveSubTab('schedule')}
-                className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-semibold shrink-0"
+                className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-ink-amber border border-amber-500/40 rounded-lg text-[11px] font-semibold shrink-0"
               >
                 Tautkan SKU di Jadwal
               </button>
@@ -1392,7 +1392,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
           )}
 
           {/* Sub-Tabs */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-2">
             <div className="flex items-center space-x-2">
               <button
                 type="button"
@@ -1400,7 +1400,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border ${
                   activeSubTab === 'materials'
                     ? 'bg-cyan-600 text-white border-cyan-500'
-                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-elevated text-ink-secondary border-border-strong hover:bg-accent'
                 }`}
               >
                 <Calculator className="w-3.5 h-3.5" />
@@ -1412,7 +1412,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border ${
                   activeSubTab === 'schedule'
                     ? 'bg-cyan-600 text-white border-cyan-500'
-                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    : 'bg-elevated text-ink-secondary border-border-strong hover:bg-accent'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
@@ -1425,14 +1425,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => openManualBuilder('edit')}
-                  className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-ink-emerald border border-emerald-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                 >
                   <PenSquare className="w-3 h-3" />
                   <span>Builder Lengkap</span>
                 </button>
                 {confirmDeleteId === activePlan.id ? (
                   <div className="flex items-center space-x-1.5 text-[11px]">
-                    <span className="text-rose-300">Hapus jadwal ini?</span>
+                    <span className="text-ink-rose">Hapus jadwal ini?</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -1447,7 +1447,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(null)}
-                      className="px-2 py-1 bg-slate-800 text-slate-300 rounded-lg"
+                      className="px-2 py-1 bg-elevated text-ink-secondary rounded-lg"
                     >
                       Batal
                     </button>
@@ -1456,7 +1456,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteId(activePlan.id)}
-                    className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition whitespace-nowrap shrink-0"
+                    className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-ink-rose border border-rose-500/20 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition whitespace-nowrap shrink-0"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>Hapus Plan</span>
@@ -1471,10 +1471,10 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             <div className="space-y-3">
               {orderableRequirements.length > 0 ? (
                 <>
-                  <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                  <div className="overflow-x-auto border border-border-subtle rounded-xl">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                        <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                           <th className="py-2.5 px-3">Line Produksi</th>
                           <th className="py-2.5 px-3">Material &amp; Kode SAP</th>
                           <th className="py-2.5 px-3">Supplier</th>
@@ -1485,17 +1485,17 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                           <th className="py-2.5 px-3 text-right">Qty Order Supplier</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-border-subtle">
                         {orderableRequirements.map(req => (
-                          <tr key={req.key} className="hover:bg-slate-800/40 transition">
+                          <tr key={req.key} className="hover:bg-elevated transition">
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span className="font-mono font-bold text-emerald-300">
+                              <span className="font-mono font-bold text-ink-emerald">
                                 {req.lineName}
                               </span>
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className="font-bold text-white block">{req.materialName}</span>
-                              <span className="text-[10px] font-mono text-cyan-400">
+                              <span className="font-bold text-ink-primary block">{req.materialName}</span>
+                              <span className="text-[10px] font-mono text-brand">
                                 {req.materialCode || req.materialId} • {req.materialType.toUpperCase()}
                               </span>
                             </td>
@@ -1503,39 +1503,39 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                   req.supplier === 'GDRM'
-                                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                                    : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                                    ? 'bg-amber-500/15 text-ink-amber border-amber-500/30'
+                                    : 'bg-purple-500/15 text-ink-purple border-purple-500/30'
                                 }`}
                               >
                                 {req.supplier}
                               </span>
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className="font-medium text-amber-300 block">{req.wipName}</span>
-                              <span className="text-[10px] text-slate-400 block truncate max-w-[220px]" title={req.contributingSkusLabel}>
+                              <span className="font-medium text-ink-amber block">{req.wipName}</span>
+                              <span className="text-[10px] text-ink-secondary block truncate max-w-[220px]" title={req.contributingSkusLabel}>
                                 {req.contributingSkusLabel}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-300">
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-ink-secondary">
                               {Number.isInteger(req.batchCount) ? req.batchCount : req.batchCount.toFixed(2)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-200">
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-ink-primary">
                               <span>{req.theoreticalQtyKg.toFixed(2)} kg</span>
                               {req.allowancePercent && req.allowancePercent > 0 && req.allowanceKg ? (
-                                <span className="text-[10px] text-emerald-400 block">
+                                <span className="text-[10px] text-ink-emerald block">
                                   +{req.allowanceKg.toFixed(2)} kg (+{req.allowancePercent}%)
                                 </span>
                               ) : null}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-400">
+                            <td className="py-2.5 px-3 text-right font-mono tabular-nums text-ink-secondary">
                               {req.currentStockKg.toFixed(2)} kg
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono tabular-nums">
-                              <span className="font-bold text-cyan-400 block">
+                              <span className="font-bold text-brand block">
                                 {req.finalOrderQtyKg.toFixed(2)} kg
                               </span>
                               {(req.isPackagedOrder || req.isGdrmSolid) && req.bagCount && req.bagSizeKg && (
-                                <span className="text-[10px] text-amber-300 block">
+                                <span className="text-[10px] text-ink-amber block">
                                   {req.bagCount} {req.packUnitLabel || 'Zak'} @ {req.bagSizeKg} kg
                                   {req.surplusKg > 0 ? ` (+${req.surplusKg.toFixed(2)}kg)` : ''}
                                 </span>
@@ -1549,11 +1549,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
                   {/* Push to Cart CTA Strip */}
                   {!readOnly && (
-                    <div className="p-3 bg-[#06090f]/80 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="text-[11px] text-slate-300">
+                    <div className="p-3 bg-canvas border border-border-subtle rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="text-[11px] text-ink-secondary">
                         <span>
                           Siap membuat pesanan material untuk{' '}
-                          <strong className="text-cyan-400">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Line Produksi, Supplier &amp; WIP saat cetak Slip PDF.
+                          <strong className="text-brand">{explosion?.scopeSummaryLabel}</strong> — otomatis dipisah per Line Produksi, Supplier &amp; WIP saat cetak Slip PDF.
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1570,7 +1570,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => handlePushToCart('replace')}
-                          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5"
+                          className="px-3 py-2 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded-lg text-xs font-semibold transition flex items-center space-x-1.5"
                           title="Ganti isi keranjang saat ini dengan hasil kalkulasi planning ini"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
@@ -1581,9 +1581,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   )}
                 </>
               ) : (
-                <div className="py-8 px-4 text-center border border-slate-800 rounded-xl bg-slate-950/40 text-xs text-slate-400">
+                <div className="py-8 px-4 text-center border border-border-subtle rounded-xl bg-canvas text-xs text-ink-secondary">
                   {orderMode === 'DEFICIT_ONLY' && (explosion?.totalTheoreticalKg || 0) > 0 ? (
-                    <span className="text-emerald-300 font-semibold">
+                    <span className="text-ink-emerald font-semibold">
                       Stok gudang saat ini sudah mencukupi seluruh kebutuhan planning pada rentang hari &amp; shift terpilih. Ubah mode ke &quot;Kebutuhan Penuh Planning&quot; jika tetap ingin memesan ke supplier.
                     </span>
                   ) : (
@@ -1599,9 +1599,9 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
           {/* SUBTAB 2: EDITABLE WEEKLY SCHEDULE MATRIX (SKU × SHIFT × SENIN–MINGGU) */}
           {activeSubTab === 'schedule' && (
             <div className="space-y-3">
-              <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[460px] overflow-y-auto">
+              <div className="overflow-x-auto border border-border-subtle rounded-xl max-h-[460px] overflow-y-auto">
                 <table className="w-full text-left border-collapse text-[11px]">
-                  <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 text-slate-300">
+                  <thead className="sticky top-0 z-10 bg-surface border-b border-border-subtle text-ink-secondary">
                     <tr>
                       <th className="py-2 px-2.5 text-center">Pakai</th>
                       <th className="py-2 px-2">Line</th>
@@ -1611,7 +1611,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         <th key={d.key} className="py-2 px-1.5 text-right min-w-[66px]">
                           <div>{d.shortLabel}</div>
                           {activePlan.dayDates?.[d.key] && (
-                            <div className="text-[9px] text-slate-500 font-normal">
+                            <div className="text-[9px] text-ink-muted font-normal">
                               {activePlan.dayDates[d.key]}
                             </div>
                           )}
@@ -1621,7 +1621,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       <th className="py-2 px-2 text-right">Total Minggu</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-border-subtle">
                     {activePlan.items.map(item => {
                       const isIncluded = !excludedItemIds.includes(item.id);
                       const scopedCartons = getPlannedCartonsForItem(
@@ -1639,14 +1639,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             <tr
                               key={`${item.id}_s${sh.shift}`}
                               className={`${
-                                item.isOffProduction ? 'opacity-50 bg-slate-950/60' : 'hover:bg-slate-800/30'
+                                item.isOffProduction ? 'opacity-50 bg-canvas' : 'hover:bg-elevated'
                               }`}
                             >
                               {sIdx === 0 && (
                                 <>
                                   <td
                                     rowSpan={item.shifts.length}
-                                    className="py-2 px-2.5 text-center align-top border-r border-slate-800/60"
+                                    className="py-2 px-2.5 text-center align-top border-r border-border-subtle"
                                   >
                                     <input
                                       type="checkbox"
@@ -1658,25 +1658,25 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                             : [...prev, item.id]
                                         )
                                       }
-                                      className="rounded border-slate-600 bg-slate-800 text-cyan-500"
+                                      className="rounded border-border-strong bg-elevated text-cyan-500"
                                       title="Sertakan SKU ini dalam perhitungan order material"
                                     />
                                   </td>
                                   <td
                                     rowSpan={item.shifts.length}
-                                    className="py-2 px-2 font-mono font-bold text-slate-300 align-top border-r border-slate-800/60"
+                                    className="py-2 px-2 font-mono font-bold text-ink-secondary align-top border-r border-border-subtle"
                                   >
                                     {item.line}
                                   </td>
                                   <td
                                     rowSpan={item.shifts.length}
-                                    className="py-2 px-2.5 align-top border-r border-slate-800/60 space-y-1.5"
+                                    className="py-2 px-2.5 align-top border-r border-border-subtle space-y-1.5"
                                   >
                                     <div>
-                                      <span className="font-mono text-cyan-400 font-bold mr-1.5">
+                                      <span className="font-mono text-brand font-bold mr-1.5">
                                         {item.rawSkuCode}
                                       </span>
-                                      <span className="font-semibold text-white">
+                                      <span className="font-semibold text-ink-primary">
                                         {item.rawProductName}
                                       </span>
                                     </div>
@@ -1684,8 +1684,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                       <span
                                         className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-semibold ${
                                           item.isOffProduction
-                                            ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                                            : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                            ? 'bg-rose-500/15 text-ink-rose border border-rose-500/30'
+                                            : 'bg-elevated text-ink-secondary border border-border-strong'
                                         }`}
                                       >
                                         {item.statusNote}
@@ -1699,8 +1699,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                       }
                                       className={`w-full rounded-lg px-2 py-1 text-[10px] border ${
                                         matchedSku
-                                          ? 'bg-slate-900 border-emerald-500/40 text-emerald-300'
-                                          : 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                                          ? 'bg-surface border-emerald-500/40 text-ink-emerald'
+                                          : 'bg-tint-amber border-amber-500/50 text-ink-amber'
                                       }`}
                                     >
                                       <option value="">-- Tautkan ke Master SKU BOM --</option>
@@ -1721,7 +1721,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                               `Formulir diisi acuan ${matchedSku.name} (${scopedCartons.toLocaleString('id-ID')} karton)`
                                             );
                                           }}
-                                          className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 font-semibold"
+                                          className="text-[10px] text-brand hover:text-brand flex items-center space-x-1 font-semibold"
                                         >
                                           <span>Isi Form Batch ({scopedCartons.toLocaleString('id-ID')} ktn)</span>
                                           <ArrowRight className="w-3 h-3" />
@@ -1733,7 +1733,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteActivePlanItem(item.id, item.rawProductName)}
-                                          className="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-semibold"
+                                          className="text-[10px] text-ink-rose hover:text-ink-rose flex items-center gap-1 font-semibold"
                                           title="Hapus baris SKU ini dari jadwal"
                                         >
                                           <Trash2 className="w-3 h-3" />
@@ -1745,7 +1745,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                 </>
                               )}
 
-                              <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-300">
+                              <td className="py-1.5 px-2 text-center font-mono font-bold text-ink-secondary">
                                 S{sh.shift}
                               </td>
 
@@ -1768,20 +1768,20 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                           parseInt(e.target.value || '0', 10)
                                         )
                                       }
-                                      className="w-16 bg-[#06090f]/80 border border-slate-800 focus:border-cyan-500 rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-white disabled:opacity-70"
+                                      className="w-16 bg-canvas border border-border-subtle focus:border-accent-primary rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-ink-primary disabled:opacity-70"
                                     />
                                   </td>
                                 );
                               })}
 
-                              <td className="py-1.5 px-2 text-right font-mono tabular-nums font-bold text-cyan-300">
+                              <td className="py-1.5 px-2 text-right font-mono tabular-nums font-bold text-brand">
                                 {sh.totalOutput.toLocaleString('id-ID')}
                               </td>
 
                               {sIdx === 0 && (
                                 <td
                                   rowSpan={item.shifts.length}
-                                  className="py-2 px-2 text-right font-mono tabular-nums font-bold text-white align-middle border-l border-slate-800/60"
+                                  className="py-2 px-2 text-right font-mono tabular-nums font-bold text-ink-primary align-middle border-l border-border-subtle"
                                 >
                                   {item.totalProduksi.toLocaleString('id-ID')}
                                 </td>
@@ -1797,16 +1797,16 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
               {/* Quick Manual Add SKU Row */}
               {!readOnly && (
-              <div className="p-3 bg-[#06090f]/80 border border-slate-800 rounded-xl space-y-2">
+              <div className="p-3 bg-canvas border border-border-subtle rounded-xl space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-slate-200 block">
+                  <span className="text-[11px] font-bold text-ink-primary block">
                     Tambah Baris SKU Cepat ke Jadwal Aktif
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => openManualBuilder('edit')}
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                      className="text-[11px] text-ink-emerald hover:text-ink-emerald font-semibold flex items-center gap-1"
                     >
                       <PenSquare className="w-3 h-3" />
                       <span>Buka Builder Jadwal Lengkap (7 Hari × 3 Shift) →</span>
@@ -1815,7 +1815,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       type="button"
                       onClick={() => setIsQuickAddRowOpen(prev => !prev)}
                       aria-expanded={isQuickAddRowOpen}
-                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                      className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                     >
                       {isQuickAddRowOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       <span>{isQuickAddRowOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1825,11 +1825,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 {isQuickAddRowOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-xs items-end">
                   <div className="col-span-2 sm:col-span-3 lg:col-span-2">
-                    <label className="block text-[10px] text-slate-400 mb-1">SKU Master BOM</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">SKU Master BOM</label>
                     <select
                       value={manualSkuId}
                       onChange={e => setManualSkuId(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-[11px]"
+                      className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-[11px]"
                     >
                       <option value="">-- Pilih SKU --</option>
                       {state.master.skus.map(s => (
@@ -1841,20 +1841,20 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Line</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Line</label>
                     <input
                       type="text"
                       value={manualLine}
                       onChange={e => setManualLine(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-[11px] font-mono"
+                      className="w-full bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-ink-primary text-[11px] font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Hari</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Hari</label>
                     <select
                       value={manualDay}
                       onChange={e => setManualDay(e.target.value as WeeklyPlanDayKey)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-[11px]"
+                      className="w-full bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-ink-primary text-[11px]"
                     >
                       {WEEKLY_PLAN_DAYS.map(d => (
                         <option key={d.key} value={d.key}>
@@ -1864,24 +1864,24 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Shift 1 (Ktn)</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Shift 1 (Ktn)</label>
                     <input
                       type="number"
                       min="0"
                       value={manualShift1}
                       onChange={e => setManualShift1(parseInt(e.target.value || '0', 10))}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-[11px] font-mono"
+                      className="w-full bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-ink-primary text-[11px] font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Shift 2 / 3 (Ktn)</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Shift 2 / 3 (Ktn)</label>
                     <div className="flex space-x-1">
                       <input
                         type="number"
                         min="0"
                         value={manualShift2}
                         onChange={e => setManualShift2(parseInt(e.target.value || '0', 10))}
-                        className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-[11px] font-mono"
+                        className="w-1/2 bg-elevated border border-border-strong rounded-lg px-1.5 py-1.5 text-ink-primary text-[11px] font-mono"
                         title="Shift 2"
                       />
                       <input
@@ -1889,7 +1889,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         min="0"
                         value={manualShift3}
                         onChange={e => setManualShift3(parseInt(e.target.value || '0', 10))}
-                        className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-[11px] font-mono"
+                        className="w-1/2 bg-elevated border border-border-strong rounded-lg px-1.5 py-1.5 text-ink-primary text-[11px] font-mono"
                         title="Shift 3"
                       />
                     </div>
@@ -1916,18 +1916,18 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       {/* MODAL UPLOAD PLANNING MINGGUAN (Portaled to document.body to avoid parent overflow/backdrop-filter clipping) */}
       {isUploadModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-5 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#0c121d] border border-slate-700/80 rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+          <div className="bg-surface border border-border-strong rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
             {/* Modal Header */}
-            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-border-subtle bg-surface-header">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
+                <div className="p-2.5 bg-cyan-500/10 text-brand rounded-lg border border-cyan-500/20">
                   <CalendarRange className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-white">
+                  <h2 className="text-base sm:text-lg font-bold text-ink-primary">
                     Upload Rencana Produksi Mingguan (PPIC)
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-ink-secondary mt-0.5">
                     Unggah file Excel (.xlsx/.xls), CSV, atau Google Sheet berisi SKU &amp; planning karton per shift per hari (Senin–Minggu)
                   </p>
                 </div>
@@ -1936,7 +1936,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => openManualBuilder('create')}
-                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/45 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-ink-emerald border border-emerald-500/45 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
                 >
                   <PenSquare className="w-3.5 h-3.5" />
                   <span>Atau Input Mandiri di Web App</span>
@@ -1944,7 +1944,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 transition"
+                  className="text-ink-secondary hover:text-ink-primary p-2 rounded-lg bg-elevated hover:bg-elevated transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1952,14 +1952,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Source Tabs */}
-            <div className="shrink-0 flex border-b border-slate-800 bg-slate-900 px-4 sm:px-6 pt-3 gap-2">
+            <div className="shrink-0 flex border-b border-border-subtle bg-surface px-4 sm:px-6 pt-3 gap-2">
               <button
                 type="button"
                 onClick={() => setUploadSourceTab('LOCAL')}
                 className={`flex items-center space-x-2 pb-3 px-3 text-xs font-bold border-b-2 transition ${
                   uploadSourceTab === 'LOCAL'
-                    ? 'border-cyan-400 text-cyan-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-cyan-400 text-brand'
+                    : 'border-transparent text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <HardDrive className="w-4 h-4" />
@@ -1970,13 +1970,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 onClick={() => setUploadSourceTab('DRIVE')}
                 className={`flex items-center space-x-2 pb-3 px-3 text-xs font-bold border-b-2 transition ${
                   uploadSourceTab === 'DRIVE'
-                    ? 'border-cyan-400 text-cyan-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-cyan-400 text-brand'
+                    : 'border-transparent text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <UploadCloud className="w-4 h-4" />
                 <span>2. Google Drive / Spreadsheet</span>
-                {hasDriveToken && <span className="text-[10px] text-emerald-400">• Terhubung</span>}
+                {hasDriveToken && <span className="text-[10px] text-ink-emerald">• Terhubung</span>}
               </button>
             </div>
 
@@ -1999,19 +1999,19 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     }}
                     className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${
                       isDragging
-                        ? 'border-cyan-400 bg-cyan-950/20'
-                        : 'border-slate-700 bg-slate-950/40 hover:border-slate-600'
+                        ? 'border-cyan-400 bg-tint-cyan'
+                        : 'border-border-strong bg-canvas hover:border-border-strong'
                     }`}
                   >
                     <div className="flex flex-col items-center space-y-2">
-                      <div className="p-3 rounded-full bg-slate-800 text-cyan-400">
+                      <div className="p-3 rounded-full bg-elevated text-brand">
                         <UploadCloud className="w-6 h-6" />
                       </div>
                       <div>
-                        <span className="font-semibold text-white block">
+                        <span className="font-semibold text-ink-primary block">
                           Tarik &amp; lepas file Rencana Produksi Mingguan di sini
                         </span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                        <span className="text-[11px] text-ink-secondary block mt-0.5">
                           Mendukung .xlsx, .xls (termasuk sel ter-merge 3 shift), .csv, .tsv, dan .json
                         </span>
                       </div>
@@ -2037,13 +2037,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         </button>
                       </div>
                       {uploadFileName && !uploadError && (
-                        <div className="text-xs font-mono text-cyan-300 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-800">
+                        <div className="text-xs font-mono text-brand bg-tint-cyan px-3 py-1 rounded-lg border border-tint-cyan-border">
                           ✓ File terbaca: {uploadFileName}
                         </div>
                       )}
                       {uploadError && (
-                        <div className="w-full max-w-xl text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
-                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                        <div className="w-full max-w-xl text-left text-[11px] text-ink-rose bg-tint-rose border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
                           <span>{uploadError}</span>
                         </div>
                       )}
@@ -2053,7 +2053,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   {/* Paste CSV / Sample Loader */}
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <label className="text-[11px] font-semibold text-slate-300">
+                      <label className="text-[11px] font-semibold text-ink-secondary">
                         Atau Tempel Data Tabel Planning (Copy dari Excel / CSV):
                       </label>
                       <button
@@ -2064,7 +2064,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             'contoh_rencana_produksi_mingguan_ppic.csv'
                           )
                         }
-                        className="text-[11px] text-cyan-400 hover:underline font-semibold"
+                        className="text-[11px] text-brand hover:underline font-semibold"
                       >
                         Muat Contoh Format PPIC (Week 41 • 3 Shift)
                       </button>
@@ -2074,30 +2074,30 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       onChange={e => handleParsePastedText(e.target.value)}
                       rows={4}
                       placeholder="Tempel baris tabel PPIC di sini (Line, SKU, Produk, Shift, Senin..Minggu)..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-[11px] placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-canvas border border-border-subtle rounded-xl p-3 text-ink-primary font-mono text-[11px] placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   {/* Template Download Strip */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                    <span className="text-[11px] text-slate-400">
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-canvas rounded-xl border border-border-subtle">
+                    <span className="text-[11px] text-ink-secondary">
                       Unduh template resmi berformat PPIC (termasuk sel merge Shift 1, 2, 3):
                     </span>
                     <div className="flex items-center space-x-2">
                       <button
                         type="button"
                         onClick={() => downloadWeeklyPlanningTemplateXlsx(state.master.skus)}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 transition"
+                        className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-xs font-semibold flex items-center space-x-1.5 border border-border-strong transition"
                       >
-                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald" />
                         <span>Template Excel (.xlsx)</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleDownloadCsvTemplate}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 border border-slate-700 transition"
+                        className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-xs font-semibold flex items-center space-x-1.5 border border-border-strong transition"
                       >
-                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        <Download className="w-3.5 h-3.5 text-brand" />
                         <span>Template CSV</span>
                       </button>
                     </div>
@@ -2122,24 +2122,24 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
               {/* Parse Result Preview */}
               {parsePreview?.plan && (
-                <div className="space-y-3 pt-3 border-t border-slate-800">
+                <div className="space-y-3 pt-3 border-t border-border-subtle">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <h4 className="font-bold text-sm text-white">
+                      <CheckCircle2 className="w-4 h-4 text-ink-emerald" />
+                      <h4 className="font-bold text-sm text-ink-primary">
                         Pratinjau: {parsePreview.plan.title}
                       </h4>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-tint-cyan text-brand border border-tint-cyan-border">
                         {parsePreview.plan.weekLabel} • {parsePreview.plan.periodStart} s/d{' '}
                         {parsePreview.plan.periodEnd}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 text-[11px] font-mono">
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-ink-emerald border border-emerald-500/30">
                         Cocok BOM: <strong>{parsePreview.matchedSkuCount}</strong>
                       </span>
                       {parsePreview.unmatchedSkuCount > 0 && (
-                        <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        <span className="px-2 py-0.5 rounded bg-amber-500/15 text-ink-amber border border-amber-500/30">
                           Perlu Tautkan: <strong>{parsePreview.unmatchedSkuCount}</strong>
                         </span>
                       )}
@@ -2147,14 +2147,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   </div>
 
                   {parsePreview.warnings.length > 0 && (
-                    <div className="p-2.5 bg-amber-950/30 border border-amber-500/30 rounded-xl text-[11px] text-amber-200">
+                    <div className="p-2.5 bg-tint-amber border border-amber-500/30 rounded-xl text-[11px] text-ink-amber">
                       {parsePreview.warnings[0]}
                     </div>
                   )}
 
-                  <div className="border border-slate-800 rounded-xl overflow-auto max-h-72 bg-slate-950">
+                  <div className="border border-border-subtle rounded-xl overflow-auto max-h-72 bg-canvas">
                     <table className="w-full text-left text-[11px] border-collapse">
-                      <thead className="bg-slate-900 sticky top-0 text-slate-300 border-b border-slate-800">
+                      <thead className="bg-surface sticky top-0 text-ink-secondary border-b border-border-subtle">
                         <tr>
                           <th className="py-2 px-2">Line</th>
                           <th className="py-2 px-2">SKU &amp; Produk</th>
@@ -2169,7 +2169,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                           <th className="py-2 px-2 text-right">Total</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-border-subtle">
                         {parsePreview.plan.items.map(it => (
                           <React.Fragment key={it.id}>
                             {it.shifts.map((sh, sIdx) => (
@@ -2178,35 +2178,35 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                   <>
                                     <td
                                       rowSpan={it.shifts.length}
-                                      className="py-1.5 px-2 font-mono font-bold text-slate-300 align-top border-r border-slate-800/60"
+                                      className="py-1.5 px-2 font-mono font-bold text-ink-secondary align-top border-r border-border-subtle"
                                     >
                                       {it.line}
                                     </td>
                                     <td
                                       rowSpan={it.shifts.length}
-                                      className="py-1.5 px-2 align-top border-r border-slate-800/60"
+                                      className="py-1.5 px-2 align-top border-r border-border-subtle"
                                     >
-                                      <span className="font-mono font-bold text-cyan-400 mr-1">
+                                      <span className="font-mono font-bold text-brand mr-1">
                                         {it.rawSkuCode}
                                       </span>
-                                      <span className="text-white font-medium">{it.rawProductName}</span>
+                                      <span className="text-ink-primary font-medium">{it.rawProductName}</span>
                                       {it.isOffProduction && (
-                                        <span className="block text-[9px] text-rose-300 font-semibold">
+                                        <span className="block text-[9px] text-ink-rose font-semibold">
                                           OFF PRODUKSI
                                         </span>
                                       )}
                                     </td>
                                     <td
                                       rowSpan={it.shifts.length}
-                                      className="py-1.5 px-2 align-top border-r border-slate-800/60"
+                                      className="py-1.5 px-2 align-top border-r border-border-subtle"
                                     >
                                       <select
                                         value={it.matchedSkuId || ''}
                                         onChange={e => handleUpdatePreviewSkuMatch(it.id, e.target.value)}
                                         className={`w-44 rounded-lg px-1.5 py-1 text-[10px] border ${
                                           it.matchedSkuId
-                                            ? 'bg-slate-900 border-emerald-500/40 text-emerald-300'
-                                            : 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                                            ? 'bg-surface border-emerald-500/40 text-ink-emerald'
+                                            : 'bg-tint-amber border-amber-500/50 text-ink-amber'
                                         }`}
                                       >
                                         <option value="">-- Tautkan SKU --</option>
@@ -2220,26 +2220,26 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                     </td>
                                   </>
                                 )}
-                                <td className="py-1 px-1.5 text-center font-mono text-slate-300">
+                                <td className="py-1 px-1.5 text-center font-mono text-ink-secondary">
                                   {sh.shift}
                                 </td>
                                 {WEEKLY_PLAN_DAYS.map(d => (
                                   <td
                                     key={d.key}
-                                    className="py-1 px-1.5 text-right font-mono tabular-nums text-slate-300"
+                                    className="py-1 px-1.5 text-right font-mono tabular-nums text-ink-secondary"
                                   >
                                     {sh.dailyCartons[d.key] > 0
                                       ? sh.dailyCartons[d.key].toLocaleString('id-ID')
                                       : '-'}
                                   </td>
                                 ))}
-                                <td className="py-1 px-2 text-right font-mono tabular-nums text-cyan-300 font-semibold">
+                                <td className="py-1 px-2 text-right font-mono tabular-nums text-brand font-semibold">
                                   {sh.totalOutput > 0 ? sh.totalOutput.toLocaleString('id-ID') : '-'}
                                 </td>
                                 {sIdx === 0 && (
                                   <td
                                     rowSpan={it.shifts.length}
-                                    className="py-1.5 px-2 text-right font-mono tabular-nums font-bold text-white align-middle border-l border-slate-800/60"
+                                    className="py-1.5 px-2 text-right font-mono tabular-nums font-bold text-ink-primary align-middle border-l border-border-subtle"
                                   >
                                     {it.totalProduksi > 0 ? it.totalProduksi.toLocaleString('id-ID') : '-'}
                                   </td>
@@ -2256,11 +2256,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-800 bg-[#080c14] flex items-center justify-between">
+            <div className="shrink-0 p-4 sm:p-5 border-t border-border-subtle bg-surface-header flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setIsUploadModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
+                className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-lg text-xs font-semibold transition"
               >
                 Batal
               </button>
@@ -2284,20 +2284,20 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
       {/* MODAL INPUT PLANNING MANDIRI DI WEB APP (Portaled to document.body so full viewport is always visible) */}
       {isManualBuilderOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#0c121d] border border-slate-700/80 rounded-xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden my-auto">
+          <div className="bg-surface border border-border-strong rounded-xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.65)] overflow-hidden my-auto">
             {/* Builder Header */}
-            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-800 bg-[#080c14]">
+            <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 sm:p-5 border-b border-border-subtle bg-surface-header">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/30 shrink-0">
+                <div className="p-2.5 bg-emerald-500/10 text-ink-emerald rounded-lg border border-emerald-500/30 shrink-0">
                   <PenSquare className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-white">
+                  <h2 className="text-base sm:text-lg font-bold text-ink-primary">
                     {manualBuilderMode === 'edit'
                       ? 'Edit Planning Mingguan di Web App'
                       : 'Buat Planning Produksi Mingguan Mandiri (Web App)'}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-ink-secondary mt-0.5">
                     Susun target karton per SKU × 3 Shift × Senin–Minggu langsung tanpa perlu file Excel/CSV eksternal.
                   </p>
                 </div>
@@ -2305,7 +2305,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               <button
                 type="button"
                 onClick={() => setIsManualBuilderOpen(false)}
-                className="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 self-end sm:self-center transition shrink-0"
+                className="text-ink-secondary hover:text-ink-primary p-2 rounded-lg bg-elevated hover:bg-elevated self-end sm:self-center transition shrink-0"
                 aria-label="Tutup builder planning mandiri"
               >
                 <X className="w-4 h-4" />
@@ -2315,14 +2315,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
             {/* Builder Body */}
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               {/* 1. Plan Metadata & Official ISO-8601 Calendar Bar */}
-              <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3.5 space-y-3">
+              <div className="bg-canvas border border-border-subtle rounded-xl p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-bold text-cyan-400 font-mono flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-brand font-mono flex items-center gap-1.5">
                       <CalendarDays className="w-3.5 h-3.5 shrink-0" />
                       <span>1. IDENTITAS &amp; KALENDER RESMI MINGGUAN (ISO-8601)</span>
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-[10px] font-mono font-semibold whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-ink-emerald text-[10px] font-mono font-semibold whitespace-nowrap">
                       Senin–Minggu Tervalidasi
                     </span>
                   </div>
@@ -2332,7 +2332,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       type="button"
                       disabled={!canStepPrevWeek}
                       onClick={() => handleStepOfficialWeek(-1)}
-                      className="px-2 py-1 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-2 py-1 bg-surface hover:bg-elevated text-ink-primary border border-border-strong rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       title={`Mundur 1 minggu kalender (minimal Week 01 ${systemYearBounds.currentYear})`}
                     >
                       <ChevronLeft className="w-3 h-3" />
@@ -2343,11 +2343,11 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       onClick={() => handleJumpRelativeWeek(0)}
                       className={`px-2.5 py-1 border rounded-md text-[10px] font-bold whitespace-nowrap shrink-0 transition ${
                         !builderDateValidation.isValid
-                          ? 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                          ? 'bg-surface hover:bg-elevated text-ink-secondary border-border-strong'
                           : draftIsoYear === currentCalendarWeek.isoYear &&
                             draftIsoWeek === currentCalendarWeek.isoWeek
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/45'
-                          : 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                          ? 'bg-cyan-500/20 text-brand border-cyan-500/45'
+                          : 'bg-surface hover:bg-elevated text-ink-secondary border-border-strong'
                       }`}
                     >
                       Minggu Ini (W{String(currentCalendarWeek.isoWeek).padStart(2, '0')})
@@ -2360,8 +2360,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         draftIsoYear === nextCalendarWeek.isoYear &&
                         draftIsoWeek === nextCalendarWeek.isoWeek &&
                         builderDateValidation.isValid
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/45'
-                          : 'bg-[#0c121d] hover:bg-slate-800 text-slate-300 border-slate-700'
+                          ? 'bg-cyan-500/20 text-brand border-cyan-500/45'
+                          : 'bg-surface hover:bg-elevated text-ink-secondary border-border-strong'
                       }`}
                       title={
                         isNextWeekInCurrentYear
@@ -2375,7 +2375,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       type="button"
                       disabled={!canStepNextWeek}
                       onClick={() => handleStepOfficialWeek(1)}
-                      className="px-2 py-1 bg-[#0c121d] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-2 py-1 bg-surface hover:bg-elevated text-ink-primary border border-border-strong rounded-md text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
                       title={`Maju 1 minggu kalender (maksimal Week ${String(
                         systemYearBounds.totalWeeks
                       ).padStart(2, '0')} ${systemYearBounds.currentYear})`}
@@ -2389,16 +2389,16 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 {/* Official Calendar Pickers + Title */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
                   <div className="lg:col-span-2 min-w-0">
-                    <label className="block text-[10px] text-slate-400 mb-1">
+                    <label className="block text-[10px] text-ink-secondary mb-1">
                       Tahun Kalender Aktif
                     </label>
                     <select
                       value={draftIsoYear}
                       onChange={e => handleSelectOfficialYear(Number(e.target.value))}
-                      className={`w-full bg-[#0c121d] border rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none ${
+                      className={`w-full bg-surface border rounded-lg px-2.5 py-1.5 text-ink-primary font-mono focus:outline-none ${
                         draftIsoYear !== systemYearBounds.currentYear
                           ? 'border-rose-500 focus:border-rose-400'
-                          : 'border-slate-700 focus:border-cyan-500'
+                          : 'border-border-strong focus:border-accent-primary'
                       }`}
                       title={`Dikunci ke tahun kalender sistem (${systemYearBounds.currentYear})`}
                     >
@@ -2412,7 +2412,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   </div>
 
                   <div className="lg:col-span-4 min-w-0">
-                    <label className="block text-[10px] text-slate-400 mb-1">
+                    <label className="block text-[10px] text-ink-secondary mb-1">
                       Minggu Resmi {systemYearBounds.currentYear} (Week 01–{String(systemYearBounds.totalWeeks).padStart(2, '0')})
                     </label>
                     <select
@@ -2422,7 +2422,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                           : currentCalendarWeek.isoWeek
                       }
                       onChange={e => handleSelectOfficialWeek(Number(e.target.value))}
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                     >
                       {officialWeekOptions.map(opt => (
                         <option key={opt.isoWeek} value={opt.isoWeek}>
@@ -2434,7 +2434,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
 
                   <div className="lg:col-span-2 min-w-0">
                     <label
-                      className="block text-[10px] text-slate-400 mb-1"
+                      className="block text-[10px] text-ink-secondary mb-1"
                       title={`Rentang valid: ${formatDateShortId(
                         systemYearBounds.minDateIso,
                         true
@@ -2449,17 +2449,17 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                       value={draftAnchorDate}
                       onChange={e => handlePickCalendarDate(e.target.value)}
                       aria-invalid={!builderDateValidation.isValid}
-                      className={`w-full bg-[#0c121d] border rounded-lg px-2.5 py-1.5 text-white font-mono focus:outline-none ${
+                      className={`w-full bg-surface border rounded-lg px-2.5 py-1.5 text-ink-primary font-mono focus:outline-none ${
                         !builderDateValidation.isValid
                           ? 'border-rose-500 focus:border-rose-400'
-                          : 'border-slate-700 focus:border-cyan-500'
+                          : 'border-border-strong focus:border-accent-primary'
                       }`}
                     />
                   </div>
 
                   <div className="sm:col-span-2 lg:col-span-4 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[10px] text-slate-400">Judul Jadwal</label>
+                      <label className="block text-[10px] text-ink-secondary">Judul Jadwal</label>
                       {isTitleCustomized && (
                         <button
                           type="button"
@@ -2467,7 +2467,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             setDraftTitle(selectedOfficialWeekInfo.titleSuggestion);
                             setIsTitleCustomized(false);
                           }}
-                          className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold"
+                          className="text-[10px] text-brand hover:text-brand font-semibold"
                         >
                           Reset ke Judul Resmi
                         </button>
@@ -2483,41 +2483,41 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         );
                       }}
                       placeholder={selectedOfficialWeekInfo.titleSuggestion}
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                 </div>
 
                 {/* Locked Official Monday–Sunday Confirmation Strip / Strict Date Range Validation Feedback */}
                 {builderDateValidation.isValid ? (
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#0c121d] border border-slate-800 text-[11px]">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-surface border border-border-subtle text-[11px]">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                      <div className="flex items-center gap-1.5 text-ink-emerald font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                         <span>Label Resmi:</span>
-                        <span className="font-mono text-white">{draftWeekLabel}</span>
+                        <span className="font-mono text-ink-primary">{draftWeekLabel}</span>
                       </div>
-                      <div className="text-slate-300 font-mono tabular-nums">
-                        <span className="text-slate-400">Mulai:</span>{' '}
-                        <strong className="text-cyan-300">{formatFullDateId(draftPeriodStart)}</strong>
+                      <div className="text-ink-secondary font-mono tabular-nums">
+                        <span className="text-ink-secondary">Mulai:</span>{' '}
+                        <strong className="text-brand">{formatFullDateId(draftPeriodStart)}</strong>
                       </div>
-                      <div className="text-slate-300 font-mono tabular-nums">
-                        <span className="text-slate-400">Selesai:</span>{' '}
-                        <strong className="text-cyan-300">{formatFullDateId(draftPeriodEnd)}</strong>
+                      <div className="text-ink-secondary font-mono tabular-nums">
+                        <span className="text-ink-secondary">Selesai:</span>{' '}
+                        <strong className="text-brand">{formatFullDateId(draftPeriodEnd)}</strong>
                       </div>
                     </div>
-                    <div className="text-[11px] font-mono text-slate-400 tabular-nums shrink-0">
+                    <div className="text-[11px] font-mono text-ink-secondary tabular-nums shrink-0">
                       Rentang Sistem {systemYearBounds.currentYear}: {formatDateShortId(systemYearBounds.minDateIso)} –{' '}
                       {formatDateShortId(systemYearBounds.maxDateIso, true)} · {draftItems.length} SKU ·{' '}
                       {builderTotalCartons.toLocaleString('id-ID')} Ktn
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-rose-500/15 border border-rose-500/45 text-[11px] text-rose-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-rose-500/15 border border-rose-500/45 text-[11px] text-ink-rose">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-rose-300">Validasi Rentang Tanggal Gagal:</strong>{' '}
+                        <strong className="text-ink-rose">Validasi Rentang Tanggal Gagal:</strong>{' '}
                         <span>{builderDateValidation.errorMessage}</span>
                       </div>
                     </div>
@@ -2532,8 +2532,8 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 )}
 
                 {duplicateWeekPlan && (
-                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/35 text-[11px] text-amber-200">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/35 text-[11px] text-ink-amber">
+                    <AlertTriangle className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
                     <span>
                       Perhatian: Sudah ada jadwal tersimpan untuk{' '}
                       <strong className="font-mono">{selectedOfficialWeekInfo.weekLabel}</strong> (
@@ -2545,19 +2545,19 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
               </div>
 
               {/* 2. Add SKU Row Bar */}
-              <div className="bg-[#06090f] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-                <span className="text-[11px] font-bold text-emerald-400 font-mono block">
+              <div className="bg-canvas border border-border-subtle rounded-xl p-3.5 space-y-2.5">
+                <span className="text-[11px] font-bold text-ink-emerald font-mono block">
                   2. TAMBAH BARIS SKU PRODUKSI KE JADWAL
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
                   <div className="sm:col-span-2 lg:col-span-4 min-w-0">
-                    <label className="block text-[10px] text-slate-400 mb-1">
+                    <label className="block text-[10px] text-ink-secondary mb-1">
                       Pilih SKU (Master BOM)
                     </label>
                     <select
                       value={builderSkuId}
                       onChange={e => setBuilderSkuId(e.target.value)}
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value="">-- Pilih SKU Master BOM --</option>
                       {state.master.skus.map(s => (
@@ -2569,14 +2569,14 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     </select>
                   </div>
                   <div className="lg:col-span-2 min-w-0">
-                    <label className="block text-[10px] text-slate-400 mb-1">Line Produksi</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Line Produksi</label>
                     <input
                       type="text"
                       list="builder-lines-list"
                       value={builderLine}
                       onChange={e => setBuilderLine(e.target.value)}
                       placeholder="Line A"
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                     />
                     <datalist id="builder-lines-list">
                       {(state.master.productionLines || []).map(ln => (
@@ -2585,13 +2585,13 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     </datalist>
                   </div>
                   <div className="lg:col-span-2 min-w-0">
-                    <label className="block text-[10px] text-slate-400 mb-1">Catatan (Opsional)</label>
+                    <label className="block text-[10px] text-ink-secondary mb-1">Catatan (Opsional)</label>
                     <input
                       type="text"
                       value={builderNote}
                       onChange={e => setBuilderNote(e.target.value)}
                       placeholder="Reguler / Ekspor"
-                      className="w-full bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                   <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-2 min-w-0">
@@ -2607,10 +2607,10 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     <button
                       type="button"
                       onClick={() => handleAddSkuToBuilder('zero')}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 whitespace-nowrap shrink-0 transition"
+                      className="px-3 py-2 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 whitespace-nowrap shrink-0 transition"
                       title="Tambahkan SKU dengan nilai awal 0 untuk diisi manual per sel"
                     >
-                      <Plus className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <Plus className="w-3.5 h-3.5 text-brand shrink-0" />
                       <span>Kosong (0)</span>
                     </button>
                   </div>
@@ -2627,12 +2627,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                     return (
                       <div
                         key={item.id}
-                        className="bg-[#06090f] border border-slate-800 rounded-xl overflow-hidden"
+                        className="bg-canvas border border-border-subtle rounded-xl overflow-hidden"
                       >
                         {/* SKU Item Subheader */}
-                        <div className="p-3 bg-[#080c14] border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+                        <div className="p-3 bg-surface-header border-b border-border-subtle flex flex-col lg:flex-row lg:items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            <span className="font-mono text-[11px] text-slate-400 font-bold shrink-0">
+                            <span className="font-mono text-[11px] text-ink-secondary font-bold shrink-0">
                               #{idx + 1}
                             </span>
                             <input
@@ -2641,7 +2641,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               onChange={e =>
                                 handleUpdateBuilderItemMeta(item.id, { line: e.target.value })
                               }
-                              className="w-20 bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-[11px] font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500 shrink-0"
+                              className="w-20 bg-surface border border-border-strong rounded px-2 py-1 text-[11px] font-mono font-bold text-brand focus:outline-none focus:border-accent-primary shrink-0"
                               title="Edit Line Produksi"
                             />
                             <select
@@ -2649,7 +2649,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                               onChange={e =>
                                 handleUpdateBuilderItemMeta(item.id, { matchedSkuId: e.target.value })
                               }
-                              className="w-full sm:w-auto max-w-full sm:max-w-[280px] bg-[#0c121d] border border-slate-700 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
+                              className="w-full sm:w-auto max-w-full sm:max-w-[280px] bg-surface border border-border-strong rounded px-2 py-1 text-xs font-semibold text-ink-primary focus:outline-none focus:border-accent-primary"
                             >
                               {!item.matchedSkuId && (
                                 <option value="">
@@ -2663,10 +2663,10 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                 </option>
                               ))}
                             </select>
-                            <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+                            <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
                               Target: {item.targetPerHour || skuInfo?.targetHour || 0} ktn/jam
                             </span>
-                            <span className="text-[11px] font-mono font-bold text-emerald-400 tabular-nums">
+                            <span className="text-[11px] font-mono font-bold text-ink-emerald tabular-nums">
                               · Total: {item.totalProduksi.toLocaleString('id-ID')} Ktn
                             </span>
                           </div>
@@ -2676,7 +2676,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleBuilderFillWeekdaysTarget(item.id)}
-                              className="px-2 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              className="px-2 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-brand border border-cyan-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
                               title="Isi Shift 1–3 Senin s/d Jumat sesuai Target/Jam × 8 jam"
                             >
                               <Zap className="w-3 h-3" />
@@ -2685,25 +2685,25 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleBuilderCopyMonToWeekdays(item.id)}
-                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              className="px-2 py-1 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
                               title="Salin nilai hari Senin ke Selasa–Jumat di setiap shift"
                             >
-                              <Copy className="w-3 h-3 text-cyan-400" />
+                              <Copy className="w-3 h-3 text-brand" />
                               <span>Samakan Sen–Jum</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => handleBuilderCopyShift1ToAll(item.id)}
-                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              className="px-2 py-1 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
                               title="Salin seluruh jadwal Shift 1 ke Shift 2 & Shift 3"
                             >
-                              <Copy className="w-3 h-3 text-amber-400" />
+                              <Copy className="w-3 h-3 text-ink-amber" />
                               <span>S1 → S2 &amp; S3</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => handleBuilderResetZero(item.id)}
-                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              className="px-2 py-1 bg-elevated hover:bg-accent text-ink-secondary border border-border-strong rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
                               title="Kosongkan seluruh sel angka menjadi 0"
                             >
                               <RotateCcw className="w-3 h-3" />
@@ -2712,7 +2712,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveBuilderItem(item.id)}
-                              className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
+                              className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/25 text-ink-rose border border-rose-500/35 rounded text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap"
                               title="Hapus SKU ini dari daftar"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -2725,27 +2725,27 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[680px] text-left border-collapse text-[11px]">
                             <thead>
-                              <tr className="bg-[#0c121d] text-slate-400 border-b border-slate-800">
-                                <th className="sticky left-0 z-10 bg-[#080c14] border-r border-slate-800 py-1.5 px-2.5 w-16 text-center">Shift</th>
+                              <tr className="bg-surface text-ink-secondary border-b border-border-subtle">
+                                <th className="sticky left-0 z-10 bg-surface-header border-r border-border-subtle py-1.5 px-2.5 w-16 text-center">Shift</th>
                                 {WEEKLY_PLAN_DAYS.map(d => (
                                   <th key={d.key} className="py-1.5 px-1.5 text-right min-w-[74px]">
-                                    <div className="text-slate-200">{d.shortLabel}</div>
+                                    <div className="text-ink-primary">{d.shortLabel}</div>
                                     {builderDayDates[d.key] && (
-                                      <div className="text-[9px] font-mono text-slate-500 font-normal">
+                                      <div className="text-[9px] font-mono text-ink-muted font-normal">
                                         {builderDayDates[d.key]}
                                       </div>
                                     )}
                                   </th>
                                 ))}
-                                <th className="py-1.5 px-2.5 text-right min-w-[82px] text-cyan-400">
+                                <th className="py-1.5 px-2.5 text-right min-w-[82px] text-brand">
                                   Total Shift
                                 </th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-800/60">
+                            <tbody className="divide-y divide-border-subtle">
                               {item.shifts.map(sh => (
-                                <tr key={sh.shift} className="hover:bg-slate-800/25">
-                                  <td className="sticky left-0 z-10 bg-[#080c14] border-r border-slate-800 py-1.5 px-2.5 text-center font-mono font-bold text-slate-300">
+                                <tr key={sh.shift} className="hover:bg-elevated">
+                                  <td className="sticky left-0 z-10 bg-surface-header border-r border-border-subtle py-1.5 px-2.5 text-center font-mono font-bold text-ink-secondary">
                                     S{sh.shift}
                                   </td>
                                   {WEEKLY_PLAN_DAYS.map(d => {
@@ -2766,12 +2766,12 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                                               e.target.value
                                             )
                                           }
-                                          className="w-full min-w-[64px] bg-[#0c121d] border border-slate-700/80 focus:border-cyan-500 rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-white focus:outline-none"
+                                          className="w-full min-w-[64px] bg-surface border border-border-strong focus:border-accent-primary rounded px-1.5 py-1 text-right font-mono tabular-nums text-[11px] text-ink-primary focus:outline-none"
                                         />
                                       </td>
                                     );
                                   })}
-                                  <td className="py-1.5 px-2.5 text-right font-mono tabular-nums font-bold text-cyan-300">
+                                  <td className="py-1.5 px-2.5 text-right font-mono tabular-nums font-bold text-brand">
                                     {sh.totalOutput.toLocaleString('id-ID')}
                                   </td>
                                 </tr>
@@ -2784,25 +2784,25 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                   })}
                 </div>
               ) : (
-                <div className="py-10 px-4 text-center border border-dashed border-slate-700 rounded-xl bg-[#06090f]/60 space-y-2">
-                  <CalendarRange className="w-8 h-8 text-cyan-400 mx-auto opacity-80" />
-                  <p className="text-sm font-bold text-white">
+                <div className="py-10 px-4 text-center border border-dashed border-border-strong rounded-xl bg-canvas space-y-2">
+                  <CalendarRange className="w-8 h-8 text-brand mx-auto opacity-80" />
+                  <p className="text-sm font-bold text-ink-primary">
                     Belum Ada Baris SKU di Builder Planning
                   </p>
-                  <p className="text-xs text-slate-400 max-w-lg mx-auto">
+                  <p className="text-xs text-ink-secondary max-w-lg mx-auto">
                     Pilih SKU dari dropdown di panel <strong>Tambah Baris SKU Produksi</strong> di atas lalu klik{' '}
-                    <span className="text-emerald-300 font-semibold">Tambah + Isi Sen–Jum (8j)</span> atau{' '}
-                    <span className="text-slate-200 font-semibold">Kosong (0)</span> untuk mulai mengisi target karton per hari dan shift.
+                    <span className="text-ink-emerald font-semibold">Tambah + Isi Sen–Jum (8j)</span> atau{' '}
+                    <span className="text-ink-primary font-semibold">Kosong (0)</span> untuk mulai mengisi target karton per hari dan shift.
                   </p>
                 </div>
               )}
             </div>
 
             {/* Builder Footer */}
-            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-800 bg-[#080c14] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="text-[11px] font-mono text-slate-400 tabular-nums">
-                Ringkasan Draft: <strong className="text-white">{draftItems.length} SKU</strong> ·{' '}
-                <strong className="text-cyan-400">
+            <div className="shrink-0 p-4 sm:p-5 border-t border-border-subtle bg-surface-header flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="text-[11px] font-mono text-ink-secondary tabular-nums">
+                Ringkasan Draft: <strong className="text-ink-primary">{draftItems.length} SKU</strong> ·{' '}
+                <strong className="text-brand">
                   {builderTotalCartons.toLocaleString('id-ID')} Karton
                 </strong>
               </div>
@@ -2810,7 +2810,7 @@ export const WeeklyPlanningSection: React.FC<WeeklyPlanningSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsManualBuilderOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
+                  className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-lg text-xs font-semibold transition"
                 >
                   Batal
                 </button>

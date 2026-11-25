@@ -492,43 +492,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Odoo MES Management Read-Only Banner */}
       {isManagement && (
-        <div className="bg-[#0c121d] border border-indigo-500/40 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-lg no-print">
+        <div className="bg-surface border border-tint-indigo-border p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm no-print">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-tint-indigo text-ink-indigo border border-tint-indigo-border flex items-center justify-center shrink-0">
               <Eye className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">
+              <p className="text-xs font-bold text-ink-primary">
                 Odoo MRP Portal: Mode Management (Pantau Saja)
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-ink-secondary mt-0.5">
                 Memantau produksi berjalan, saldo stok material di gudang (CK &amp; WINEROTO), serta telemetri tangki WIP. Akses mutasi transaksi dibatasi.
               </p>
             </div>
           </div>
-          <span className="self-start sm:self-center text-[11px] font-mono font-bold text-indigo-300 whitespace-nowrap">
+          <span className="self-start sm:self-center text-[11px] font-mono font-bold text-ink-indigo whitespace-nowrap">
             READ-ONLY VIEW
           </span>
         </div>
       )}
 
       {/* Control Room Header Command Bar */}
-      <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 px-4 py-3.5 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)] no-print">
+      <div className="bg-surface/90 backdrop-blur-md border border-border-subtle px-4 py-3.5 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-sm no-print">
         <div className="flex items-start sm:items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 flex items-center justify-center shrink-0 shadow-[0_0_14px_rgba(34,211,238,0.22)]">
+          <div className="w-9 h-9 rounded-lg bg-tint-cyan border border-tint-cyan-border text-ink-cyan flex items-center justify-center shrink-0">
             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400 tabular-nums">
-              <span className="text-cyan-400 font-semibold">Manufacturing Control Room</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-secondary tabular-nums">
+              <span className="text-accent-primary font-semibold">Manufacturing Control Room</span>
               <span aria-hidden="true">·</span>
               <span>{formatIndonesianDate()}</span>
               <span aria-hidden="true">·</span>
-              <span className="text-amber-300 font-semibold">
+              <span className="text-ink-amber font-semibold">
                 {currentLiveShift.name} ({currentLiveShift.timeRange})
               </span>
             </div>
-            <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight mt-0.5">
+            <h1 className="text-base sm:text-lg font-extrabold text-ink-primary tracking-tight mt-0.5">
               Pusat Komando Produksi, Tangki WIP &amp; Saldo Material
             </h1>
           </div>
@@ -538,17 +538,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onSwitchTab('weekly-planning')}
-            className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-emerald-300 border border-emerald-500/35 hover:border-emerald-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="px-3 py-2 bg-canvas/85 hover:bg-elevated text-ink-emerald border border-tint-emerald-border hover:border-ink-emerald/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <CalendarRange className="w-3.5 h-3.5 text-emerald-400" />
+            <CalendarRange className="w-3.5 h-3.5 text-ink-emerald" />
             <span>Tahap 02: Planning Mingguan</span>
           </button>
           <button
             type="button"
             onClick={() => onSwitchTab('sheets-sync')}
-            className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-emerald-300 border border-emerald-500/35 hover:border-emerald-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="px-3 py-2 bg-canvas/85 hover:bg-elevated text-ink-emerald border border-tint-emerald-border hover:border-ink-emerald/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald" />
             <span>
               Sync Sheets{unsyncedProductionCount > 0 ? ` (${unsyncedProductionCount})` : ''}
             </span>
@@ -556,24 +556,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onSwitchTab('tank-monitoring')}
-            className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/35 hover:border-cyan-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-[0_0_12px_rgba(34,211,238,0.12)]"
+            className="px-3 py-2 bg-canvas/85 hover:bg-elevated text-ink-cyan border border-tint-cyan-border hover:border-accent-primary rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <Cylinder className="w-3.5 h-3.5 text-cyan-400" />
+            <Cylinder className="w-3.5 h-3.5 text-accent-primary" />
             <span>Tangki WIP ({state.master.tanks.length})</span>
           </button>
           <button
             type="button"
             onClick={() => onSwitchTab('pemakaian')}
-            className="px-3 py-2 bg-[#06090f]/80 hover:bg-slate-800 text-amber-300 border border-amber-500/35 hover:border-amber-400/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="px-3 py-2 bg-canvas/85 hover:bg-elevated text-ink-amber border border-tint-amber-border hover:border-ink-amber/60 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <Layers className="w-3.5 h-3.5 text-ink-amber" />
             <span>Gantt &amp; Batch WIP</span>
           </button>
           {onOpenPdfModal && (
             <button
               type="button"
               onClick={onOpenPdfModal}
-              className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-[0_0_14px_rgba(6,182,212,0.28)]"
+              className="px-3.5 py-2 bg-accent-primary hover:bg-accent-primary-hover text-accent-primary-foreground rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm"
             >
               <FileText className="w-3.5 h-3.5" />
               <span>Laporan Shift PDF</span>
@@ -587,27 +587,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Module 01: Line Operations & Output Status */}
         <div
           onClick={scrollToProductionConsole}
-          className={`bg-[#0c121d]/75 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-[0_8px_28px_rgba(0,0,0,0.3)] ${
+          className={`bg-surface/90 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-sm ${
             activeRuns.length > 0
-              ? 'border-emerald-500/45 shadow-[0_0_18px_rgba(16,185,129,0.12)] hover:border-emerald-400/70'
-              : 'border-slate-800/90 hover:border-cyan-500/45'
+              ? 'border-tint-emerald-border hover:border-ink-emerald'
+              : 'border-border-subtle hover:border-accent-primary/60'
           }`}
         >
           <div>
             <div className="flex items-center justify-between gap-2 mb-2.5">
-              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-ink-secondary flex items-center gap-1.5">
                 <span
                   className={`w-2 h-2 rounded-full ${
                     activeRuns.length > 0
-                      ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
-                      : 'bg-slate-500'
+                      ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]'
+                      : 'bg-ink-secondary/60'
                   }`}
                 />
                 <span>Status Line Produksi</span>
               </span>
               <span
                 className={`text-[10px] font-mono font-bold tabular-nums ${
-                  activeRuns.length > 0 ? 'text-emerald-400' : 'text-slate-400'
+                  activeRuns.length > 0 ? 'text-ink-emerald' : 'text-ink-secondary'
                 }`}
               >
                 {activeRuns.length > 0 ? 'OPERATING' : 'STANDBY'}
@@ -616,27 +616,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <div className="flex items-baseline justify-between mb-2.5">
               <div>
-                <span className="text-2xl font-extrabold font-mono text-white tabular-nums">
+                <span className="text-2xl font-extrabold font-mono text-ink-primary tabular-nums">
                   {activeRuns.length}
                 </span>
-                <span className="text-xs font-mono text-slate-400 ml-1 tabular-nums">
+                <span className="text-xs font-mono text-ink-secondary ml-1 tabular-nums">
                   / {effectiveLines.length} Line Aktif
                 </span>
               </div>
               <div className="text-right font-mono tabular-nums">
-                <span className="text-sm font-bold text-cyan-400 block">
+                <span className="text-sm font-bold text-accent-primary block">
                   {todayCartonsTotal.toLocaleString('id-ID')}
                 </span>
-                <span className="text-[10px] text-slate-400">Karton Hari Ini</span>
+                <span className="text-[10px] text-ink-secondary">Karton Hari Ini</span>
               </div>
             </div>
 
-            <div className="w-full bg-[#06090f]/90 border border-slate-800/80 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-canvas border border-border-subtle h-1.5 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
                   activeRuns.length > 0
-                    ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.75)]'
-                    : 'bg-slate-700'
+                    ? 'bg-emerald-500'
+                    : 'bg-elevated'
                 }`}
                 style={{
                   width: `${Math.max(
@@ -648,38 +648,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80 font-mono tabular-nums">
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary mt-3 pt-2 border-t border-border-subtle font-mono tabular-nums">
             <span>{effectiveLines.length - activeRuns.length} Line Siaga</span>
-            <span className="text-cyan-400">Kontrol Line →</span>
+            <span className="text-accent-primary font-semibold">Kontrol Line →</span>
           </div>
         </div>
 
         {/* Module 02: Primary Liquid Tank & WIP Vessel Gauge */}
         <div
           onClick={onOpenTankModal}
-          className={`bg-[#0c121d]/75 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-[0_8px_28px_rgba(0,0,0,0.3)] ${
+          className={`bg-surface/90 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-sm ${
             isTankNormal && lowWipTanksCount === 0
-              ? 'border-cyan-500/35 hover:border-cyan-400/65 shadow-[0_0_18px_rgba(6,182,212,0.1)]'
-              : 'border-amber-500/45 hover:border-amber-400/70 shadow-[0_0_18px_rgba(245,158,11,0.12)]'
+              ? 'border-tint-cyan-border hover:border-accent-primary'
+              : 'border-tint-amber-border hover:border-ink-amber'
           }`}
         >
           <div>
             <div className="flex items-center justify-between gap-2 mb-2.5">
-              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-                <Droplet className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px] font-semibold text-ink-secondary flex items-center gap-1.5">
+                <Droplet className="w-3.5 h-3.5 text-accent-primary" />
                 <span>Tangki Liquid Utama</span>
               </span>
-              <span className="text-[11px] font-mono font-bold text-cyan-400 tabular-nums">
+              <span className="text-[11px] font-mono font-bold text-accent-primary tabular-nums">
                 {tankPercent}% Cap
               </span>
             </div>
 
             <div className="flex items-baseline justify-between mb-2.5">
               <div>
-                <span className="text-2xl font-extrabold font-mono text-white tabular-nums">
+                <span className="text-2xl font-extrabold font-mono text-ink-primary tabular-nums">
                   {state.tank.level.toFixed(1)}
                 </span>
-                <span className="text-xs text-slate-400 font-mono ml-1 tabular-nums">
+                <span className="text-xs text-ink-secondary font-mono ml-1 tabular-nums">
                   / {state.tank.maxCapacity} kg
                 </span>
               </div>
@@ -687,8 +687,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div
                 className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-mono font-bold tabular-nums ${
                   isTankNormal
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/35'
-                    : 'bg-amber-500/15 text-amber-300 border-amber-500/45'
+                    ? 'bg-tint-emerald text-ink-emerald border-tint-emerald-border'
+                    : 'bg-tint-amber text-ink-amber border-tint-amber-border'
                 }`}
               >
                 <Thermometer className="w-3 h-3" />
@@ -696,40 +696,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
 
-            <div className="w-full bg-[#06090f]/90 border border-slate-800/80 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-canvas border border-border-subtle h-1.5 rounded-full overflow-hidden">
               <div
-                className="bg-cyan-400 h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(34,211,238,0.75)]"
+                className="bg-accent-primary h-full rounded-full transition-all duration-500"
                 style={{ width: `${tankPercent}%` }}
               />
             </div>
           </div>
 
-          <div className="flex justify-between items-center text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80 font-mono tabular-nums">
+          <div className="flex justify-between items-center text-[11px] text-ink-secondary mt-3 pt-2 border-t border-border-subtle font-mono tabular-nums">
             <span>
               {state.master.tanks.length} Tangki WIP
               {lowWipTanksCount > 0 ? ` · ${lowWipTanksCount} Menipis` : ''}
             </span>
-            <span className="text-cyan-400">Kalibrasi →</span>
+            <span className="text-accent-primary font-semibold">Kalibrasi →</span>
           </div>
         </div>
 
         {/* Module 03: Batching & WIP Pipeline */}
         <div
           onClick={() => onSwitchTab('pemakaian')}
-          className={`bg-[#0c121d]/75 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-[0_8px_28px_rgba(0,0,0,0.3)] ${
+          className={`bg-surface/90 backdrop-blur-md p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between shadow-sm ${
             latestActiveBatch
-              ? 'border-amber-500/50 hover:border-amber-400/80 shadow-[0_0_18px_rgba(245,158,11,0.14)]'
-              : 'border-slate-800/90 hover:border-cyan-500/45'
+              ? 'border-tint-amber-border hover:border-ink-amber'
+              : 'border-border-subtle hover:border-accent-primary/60'
           }`}
         >
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-ink-secondary flex items-center gap-1.5">
                 <span
                   className={`w-2 h-2 rounded-full ${
                     latestActiveBatch
-                      ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]'
-                      : 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]'
+                      ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.75)]'
+                      : 'bg-accent-primary'
                   }`}
                 />
                 <span>Pipeline Batching WIP</span>
@@ -738,9 +738,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className={`text-[10px] font-mono font-bold tabular-nums ${
                   latestActiveBatch
                     ? activeBatches.every(b => b.status === 'DIJEDA')
-                      ? 'text-sky-400'
-                      : 'text-amber-400'
-                    : 'text-emerald-400'
+                      ? 'text-ink-sky'
+                      : 'text-ink-amber'
+                    : 'text-ink-emerald'
                 }`}
               >
                 {latestActiveBatch
@@ -754,48 +754,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {latestActiveBatch ? (
               <div className="space-y-1">
                 <div className="flex items-center justify-between font-mono text-[11px] tabular-nums">
-                  <span className="font-bold text-amber-300">{latestActiveBatch.batchCode}</span>
-                  <span className="text-slate-400">
+                  <span className="font-bold text-ink-amber">{latestActiveBatch.batchCode}</span>
+                  <span className="text-ink-secondary">
                     {activeBatchMachineCount}/{state.master.machines.length} Mesin
                   </span>
                 </div>
-                <h4 className="font-bold text-white text-sm truncate">
+                <h4 className="font-bold text-ink-primary text-sm truncate">
                   {latestActiveBatch.wipName}
                 </h4>
-                <div className="text-[11px] text-slate-400 flex items-center justify-between font-mono tabular-nums">
+                <div className="text-[11px] text-ink-secondary flex items-center justify-between font-mono tabular-nums">
                   <span>{latestActiveBatch.batchWeightKg.toFixed(1)} kg</span>
                   <span className="truncate ml-2">{latestActiveBatch.operatorName}</span>
                 </div>
               </div>
             ) : (
               <div className="py-1">
-                <p className="text-sm font-bold text-white">Lantai Batching Siaga</p>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                <p className="text-sm font-bold text-ink-primary">Lantai Batching Siaga</p>
+                <p className="text-[11px] text-ink-secondary mt-0.5 leading-snug">
                   {state.master.machines.length} unit mesin mixer &amp; boiler siap dijadwalkan.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80 font-mono">
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary mt-3 pt-2 border-t border-border-subtle font-mono">
             <span>Work Order &amp; Gantt</span>
-            <span className={latestActiveBatch ? 'text-amber-400' : 'text-cyan-400'}>
+            <span className={`font-semibold ${latestActiveBatch ? 'text-ink-amber' : 'text-accent-primary'}`}>
               Buka Jadwal →
             </span>
           </div>
         </div>
 
         {/* Module 04: Material Stock & Warehouse Flow */}
-        <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 hover:border-cyan-500/40 p-4 rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.3)] flex flex-col justify-between transition">
+        <div className="bg-surface/90 backdrop-blur-md border border-border-subtle hover:border-accent-primary/60 p-4 rounded-xl shadow-sm flex flex-col justify-between transition">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-                <Warehouse className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px] font-semibold text-ink-secondary flex items-center gap-1.5">
+                <Warehouse className="w-3.5 h-3.5 text-accent-primary" />
                 <span>Saldo Stok Gudang</span>
               </span>
               <span
                 className={`text-[10px] font-mono font-bold tabular-nums ${
-                  lowStockMaterialCount > 0 ? 'text-rose-400' : 'text-emerald-400'
+                  lowStockMaterialCount > 0 ? 'text-ink-rose' : 'text-ink-emerald'
                 }`}
               >
                 {lowStockMaterialCount > 0 ? `${lowStockMaterialCount} MENIPIS` : 'STOK AMAN'}
@@ -803,49 +803,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="flex items-baseline justify-between mb-2">
-              <span className="text-xl font-extrabold font-mono text-white tabular-nums">
+              <span className="text-xl font-extrabold font-mono text-ink-primary tabular-nums">
                 {grandTotal.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
-                <span className="text-xs font-normal text-slate-400 ml-1">kg Total</span>
+                <span className="text-xs font-normal text-ink-secondary ml-1">kg Total</span>
               </span>
-              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+              <span className="text-[10px] font-mono text-ink-secondary tabular-nums">
                 {stockList.length} Material
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#06090f]/90 border border-slate-800/80 px-2.5 py-1.5 rounded-lg">
+              <div className="bg-canvas border border-border-subtle px-2.5 py-1.5 rounded-lg">
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-cyan-400 font-semibold">CK</span>
-                  <span className="text-slate-400 tabular-nums">
+                  <span className="text-ink-cyan font-semibold">CK</span>
+                  <span className="text-ink-secondary tabular-nums">
                     {grandTotal > 0 ? ((totalStockCk / grandTotal) * 100).toFixed(0) : 0}%
                   </span>
                 </div>
-                <div className="text-xs font-bold font-mono text-white tabular-nums mt-0.5">
+                <div className="text-xs font-bold font-mono text-ink-primary tabular-nums mt-0.5">
                   {totalStockCk.toFixed(1)} kg
                 </div>
               </div>
 
-              <div className="bg-[#06090f]/90 border border-slate-800/80 px-2.5 py-1.5 rounded-lg">
+              <div className="bg-canvas border border-border-subtle px-2.5 py-1.5 rounded-lg">
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-emerald-400 font-semibold">WNR</span>
-                  <span className="text-slate-400 tabular-nums">
+                  <span className="text-ink-emerald font-semibold">WNR</span>
+                  <span className="text-ink-secondary tabular-nums">
                     {grandTotal > 0 ? ((totalStockWineroto / grandTotal) * 100).toFixed(0) : 0}%
                   </span>
                 </div>
-                <div className="text-xs font-bold font-mono text-white tabular-nums mt-0.5">
+                <div className="text-xs font-bold font-mono text-ink-primary tabular-nums mt-0.5">
                   {totalStockWineroto.toFixed(1)} kg
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-between items-center text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+          <div className="flex justify-between items-center text-[11px] text-ink-secondary mt-3 pt-2 border-t border-border-subtle">
             <span className="font-mono">CK · WINEROTO</span>
             {!isManagement && (
               <button
                 type="button"
                 onClick={() => setShowTransferModal(true)}
-                className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="text-accent-primary hover:underline font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <span>Mutasi Stok</span>
                 <ArrowRightLeft className="w-3 h-3" />
@@ -856,21 +856,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Modular Grid: Live Production Line Status Matrix */}
-      <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl p-3.5 sm:p-4 shadow-[0_8px_32px_rgba(0,0,0,0.3)] no-print">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800/80">
+      <div className="bg-surface/90 backdrop-blur-md border border-border-subtle rounded-xl p-3.5 sm:p-4 shadow-sm no-print">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-border-subtle">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-4 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
-            <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+            <span className="w-1.5 h-4 rounded-full bg-accent-primary" />
+            <h2 className="text-xs sm:text-sm font-bold text-ink-primary tracking-tight">
               Matriks Status Lini Produksi Real-Time
             </h2>
-            <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+            <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
               ({activeRuns.length} Jalan · {effectiveLines.length - activeRuns.length} Siaga)
             </span>
           </div>
           <button
             type="button"
             onClick={scrollToProductionConsole}
-            className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 self-start sm:self-auto whitespace-nowrap shrink-0"
+            className="text-[11px] font-semibold text-accent-primary hover:underline flex items-center gap-1 self-start sm:self-auto whitespace-nowrap shrink-0"
           >
             <span>Atur &amp; Jalankan SKU di Konsol Lini</span>
             <ArrowRight className="w-3 h-3" />
@@ -898,39 +898,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div
                 key={line.id}
                 onClick={scrollToProductionConsole}
-                className={`bg-[#06090f]/85 border rounded-lg p-3 transition cursor-pointer flex flex-col justify-between ${
+                className={`bg-canvas/90 border rounded-lg p-3 transition cursor-pointer flex flex-col justify-between ${
                   hasShortage
-                    ? 'border-rose-500/60 shadow-[0_0_14px_rgba(244,63,94,0.18)]'
+                    ? 'border-tint-rose-border'
                     : isSblStopped
-                    ? 'border-amber-500/55 shadow-[0_0_14px_rgba(245,158,11,0.16)]'
+                    ? 'border-tint-amber-border'
                     : run
-                    ? 'border-emerald-500/45 shadow-[0_0_14px_rgba(16,185,129,0.12)] hover:border-emerald-400/70'
-                    : 'border-slate-800/80 hover:border-slate-700'
+                    ? 'border-tint-emerald-border hover:border-ink-emerald'
+                    : 'border-border-subtle hover:border-accent-primary/60'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-xs font-bold text-white">{line.name}</span>
+                    <span className="font-mono text-xs font-bold text-ink-primary">{line.name}</span>
                     <span
                       className={`text-[10px] font-mono font-bold flex items-center gap-1.5 ${
                         hasShortage
-                          ? 'text-rose-400'
+                          ? 'text-ink-rose'
                           : isSblStopped
-                          ? 'text-amber-400'
+                          ? 'text-ink-amber'
                           : run
-                          ? 'text-emerald-400'
-                          : 'text-slate-400'
+                          ? 'text-ink-emerald'
+                          : 'text-ink-secondary'
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
                           hasShortage
-                            ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.9)]'
+                            ? 'bg-rose-500'
                             : isSblStopped
-                            ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]'
+                            ? 'bg-amber-500'
                             : run
-                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]'
-                            : 'bg-slate-600'
+                            ? 'bg-emerald-500'
+                            : 'bg-ink-secondary/60'
                         }`}
                       />
                       <span>
@@ -947,13 +947,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   {run ? (
                     <>
-                      <p className="text-xs font-semibold text-cyan-300 truncate" title={run.skuName}>
+                      <p className="text-xs font-semibold text-ink-cyan truncate" title={run.skuName}>
                         {run.skuName}
                       </p>
                       <div className="flex items-baseline justify-between mt-2 font-mono tabular-nums text-[11px]">
-                        <span className="text-white font-bold">
+                        <span className="text-ink-primary font-bold">
                           {realized.toLocaleString('id-ID')}
-                          <span className="text-slate-400 font-normal">
+                          <span className="text-ink-secondary font-normal">
                             {' '}
                             / {target.toLocaleString('id-ID')} ktn
                           </span>
@@ -961,23 +961,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span
                           className={
                             hasShortage
-                              ? 'text-rose-400 font-bold'
+                              ? 'text-ink-rose font-bold'
                               : isSblStopped
-                              ? 'text-amber-400 font-bold'
-                              : 'text-emerald-400 font-bold'
+                              ? 'text-ink-amber font-bold'
+                              : 'text-ink-emerald font-bold'
                           }
                         >
                           {pct}%
                         </span>
                       </div>
-                      <div className="w-full bg-slate-900 border border-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                      <div className="w-full bg-surface border border-border-subtle h-1.5 rounded-full overflow-hidden mt-1.5">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             hasShortage
-                              ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                              ? 'bg-rose-500'
                               : isSblStopped
-                              ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
-                              : 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
                           }`}
                           style={{ width: `${Math.max(4, pct)}%` }}
                         />
@@ -985,10 +985,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </>
                   ) : (
                     <div className="pt-1.5">
-                      <p className="text-[11px] text-slate-400 truncate">
+                      <p className="text-[11px] text-ink-secondary truncate">
                         {line.description || 'Jalur siap menerima target SKU'}
                       </p>
-                      <div className="w-full bg-slate-900/70 h-1 rounded-full mt-3" />
+                      <div className="w-full bg-elevated h-1 rounded-full mt-3" />
                     </div>
                   )}
                 </div>
@@ -1033,22 +1033,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Quick Action Toolbar & Search Bar */}
-      <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 p-3 sm:p-4 rounded-xl space-y-3 shadow-[0_8px_28px_rgba(0,0,0,0.3)] no-print">
+      <div className="bg-surface/90 backdrop-blur-md border border-border-subtle p-3 sm:p-4 rounded-xl space-y-3 shadow-sm no-print">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cari Material atau SKU berdasarkan nama atau kode (e.g. MAT-01, SKU-01, Tepung, Wafer)..."
-              className="w-full bg-[#06090f]/90 border border-slate-700/80 rounded-lg pl-9 pr-10 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition"
+              className="w-full bg-canvas border border-border-subtle rounded-lg pl-9 pr-10 py-2 text-xs text-ink-primary placeholder:text-ink-secondary focus:outline-none focus:border-accent-primary transition"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-secondary hover:text-ink-primary rounded hover:bg-elevated transition"
                 title="Hapus pencarian"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1070,41 +1070,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
             <button
               onClick={handlePrintReport}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#06090f]/90 border border-slate-700 hover:bg-slate-800 text-slate-200 rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 bg-canvas border border-border-subtle hover:bg-elevated text-ink-primary rounded-lg text-xs font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
               title="Cetak Laporan Stok Printer-Friendly"
             >
-              <Printer className="w-3.5 h-3.5 text-cyan-400" />
+              <Printer className="w-3.5 h-3.5 text-accent-primary" />
               <span className="hidden sm:inline">Cetak Laporan</span>
             </button>
             {!isManagement && (
               <button
                 onClick={() => setShowTransferModal(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-[#06090f]/90 border border-slate-700 hover:bg-slate-800 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap shrink-0"
+                className="flex items-center gap-1.5 px-3 py-2 bg-canvas border border-border-subtle hover:bg-elevated text-ink-primary rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap shrink-0"
               >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400" />
+                <ArrowRightLeft className="w-3.5 h-3.5 text-accent-primary" />
                 <span className="hidden sm:inline">Mutasi Gudang</span>
               </button>
             )}
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#06090f]/90 border border-slate-700 hover:bg-slate-800 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 bg-canvas border border-border-subtle hover:bg-elevated text-ink-primary rounded-lg text-xs font-medium transition active:scale-95 whitespace-nowrap shrink-0"
               title="Unduh CSV"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <Download className="w-3.5 h-3.5 text-ink-emerald" />
               <span className="hidden sm:inline">Export CSV</span>
             </button>
           </div>
         </div>
 
         {/* Filters and View Selectors */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-border-subtle">
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
             <button
               onClick={() => setActiveViewTab('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
                 activeViewTab === 'all'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/45'
-                  : 'bg-[#06090f]/70 text-slate-400 hover:text-white border border-slate-800/80'
+                  ? 'bg-tint-cyan text-ink-cyan border border-tint-cyan-border'
+                  : 'bg-canvas text-ink-secondary hover:text-ink-primary border border-border-subtle'
               }`}
             >
               <span>Semua</span>
@@ -1116,11 +1116,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => setActiveViewTab('materials')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
                 activeViewTab === 'materials'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/45'
-                  : 'bg-[#06090f]/70 text-slate-400 hover:text-white border border-slate-800/80'
+                  ? 'bg-tint-cyan text-ink-cyan border border-tint-cyan-border'
+                  : 'bg-canvas text-ink-secondary hover:text-ink-primary border border-border-subtle'
               }`}
             >
-              <Boxes className="w-3.5 h-3.5 text-cyan-400" />
+              <Boxes className="w-3.5 h-3.5 text-accent-primary" />
               <span>Material Stok</span>
               <span className="text-[10px] font-mono opacity-80 tabular-nums">
                 ({filteredMaterials.length})
@@ -1133,11 +1133,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
                 activeViewTab === 'skus'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/45'
-                  : 'bg-[#06090f]/70 text-slate-400 hover:text-white border border-slate-800/80'
+                  ? 'bg-tint-amber text-ink-amber border border-tint-amber-border'
+                  : 'bg-canvas text-ink-secondary hover:text-ink-primary border border-border-subtle'
               }`}
             >
-              <Package className="w-3.5 h-3.5 text-amber-400" />
+              <Package className="w-3.5 h-3.5 text-ink-amber" />
               <span>SKU Produk</span>
               <span className="text-[10px] font-mono opacity-80 tabular-nums">
                 ({filteredSkus.length})
@@ -1147,7 +1147,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {(activeViewTab === 'all' || activeViewTab === 'materials') && (
             <div className="flex items-center gap-1 self-end sm:self-auto">
-              <span className="text-[10px] text-slate-400 hidden sm:inline mr-1">Tipe:</span>
+              <span className="text-[10px] text-ink-secondary hidden sm:inline mr-1">Tipe:</span>
               {[
                 { id: 'all', label: 'Semua Tipe' },
                 { id: 'bubuk', label: 'Bubuk' },
@@ -1159,8 +1159,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setTypeFilter(tab.id)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition whitespace-nowrap shrink-0 ${
                     typeFilter === tab.id
-                      ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40'
-                      : 'bg-[#06090f]/70 text-slate-400 hover:text-white border border-slate-800/80'
+                      ? 'bg-elevated text-ink-cyan border border-accent-primary/50'
+                      : 'bg-canvas text-ink-secondary hover:text-ink-primary border border-border-subtle'
                   }`}
                 >
                   {tab.label}
@@ -1173,10 +1173,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* SKU Catalog Section (Collapsed by default; expands on click) */}
       {(activeViewTab === 'all' || activeViewTab === 'skus') && (
-        <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)] no-print">
+        <div className="bg-surface/90 backdrop-blur-md border border-border-subtle rounded-xl overflow-hidden shadow-sm no-print">
           <div
             className={`p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${
-              isSkuCatalogExpanded ? 'border-b border-slate-800/80' : ''
+              isSkuCatalogExpanded ? 'border-b border-border-subtle' : ''
             }`}
           >
             <button
@@ -1185,15 +1185,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               aria-expanded={isSkuCatalogExpanded}
               className="flex items-center gap-2.5 text-left flex-1 w-full sm:w-auto group focus:outline-none"
             >
-              <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 group-hover:bg-amber-500/20 transition">
+              <div className="p-1.5 rounded-lg bg-tint-amber border border-tint-amber-border text-ink-amber transition">
                 <Package className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-white group-hover:text-amber-300 transition">
+                  <h3 className="font-bold text-sm text-ink-primary group-hover:text-ink-amber transition">
                     Katalog SKU Produk ({filteredSkus.length} Item)
                   </h3>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#06090f]/80 border border-slate-700 text-[10px] font-semibold text-slate-300 group-hover:border-amber-500/40 group-hover:text-amber-300 transition whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-canvas border border-border-subtle text-[10px] font-semibold text-ink-secondary group-hover:border-tint-amber-border group-hover:text-ink-amber transition whitespace-nowrap">
                     {isSkuCatalogExpanded ? (
                       <>
                         <ChevronUp className="w-3 h-3" />
@@ -1207,7 +1207,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Target kapasitas line &amp; akses cepat kebutuhan BOM · Klik untuk {isSkuCatalogExpanded ? 'menutup' : 'menampilkan'} daftar SKU
                 </p>
               </div>
@@ -1216,7 +1216,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTab('master')}
-                className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="text-xs text-accent-primary hover:underline flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <span>Kelola SKU di Master</span>
                 <ExternalLink className="w-3 h-3" />
@@ -1235,54 +1235,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   return (
                     <div
                       key={sku.id}
-                      className="bg-[#06090f]/80 border border-slate-800 hover:border-cyan-500/35 p-3.5 rounded-lg space-y-3 transition"
+                      className="bg-canvas border border-border-subtle hover:border-accent-primary/50 p-3.5 rounded-lg space-y-3 transition"
                     >
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[11px] text-cyan-400 font-bold">
+                            <span className="font-mono text-[11px] text-accent-primary font-bold">
                               {skuCode}
                             </span>
-                            <span className="text-slate-600">·</span>
-                            <h4 className="font-semibold text-white text-xs sm:text-sm">
+                            <span className="text-ink-secondary">·</span>
+                            <h4 className="font-semibold text-ink-primary text-xs sm:text-sm">
                               {sku.name}
                             </h4>
                           </div>
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 font-mono tabular-nums">
-                            <span className={sku.isKite ? 'text-amber-300 font-semibold' : 'text-cyan-300 font-semibold'}>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-ink-secondary font-mono tabular-nums">
+                            <span className={sku.isKite ? 'text-ink-amber font-semibold' : 'text-ink-cyan font-semibold'}>
                               {sku.isKite ? 'KITE Ekspor' : 'Domestik'}
                             </span>
                             <span>·</span>
                             <span>{sku.cartonWeightKg.toFixed(4)} kg/karton</span>
                             <span>·</span>
                             <span>
-                              Target: <strong className="text-white">{sku.targetHour}</strong> ktn/jam
+                              Target: <strong className="text-ink-primary">{sku.targetHour}</strong> ktn/jam
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-[11px] text-slate-400 bg-[#0c121d]/80 p-2 rounded-lg border border-slate-800/80 flex items-center justify-between">
+                      <div className="text-[11px] text-ink-secondary bg-surface p-2 rounded-lg border border-border-subtle flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5 text-amber-400" />
+                          <Layers className="w-3.5 h-3.5 text-ink-amber" />
                           <span>Komponen WIP:</span>
                         </span>
-                        <span className="font-mono text-slate-200 tabular-nums">
+                        <span className="font-mono text-ink-primary tabular-nums">
                           {linkedWips.length > 0 ? `${linkedWips.length} Jenis WIP Terikat` : 'Belum dihubungkan'}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                      <div className="flex items-center gap-2 pt-1 border-t border-border-subtle">
                         <button
                           onClick={() => onSwitchTab('bom-calculator')}
-                          className="flex-1 py-1.5 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded-lg text-[11px] font-semibold transition active:scale-95 flex items-center justify-center gap-1 whitespace-nowrap"
+                          className="flex-1 py-1.5 bg-tint-indigo hover:opacity-90 border border-tint-indigo-border text-ink-indigo rounded-lg text-[11px] font-semibold transition active:scale-95 flex items-center justify-center gap-1 whitespace-nowrap"
                         >
                           <Calculator className="w-3.5 h-3.5" />
                           <span>Hitung Batch</span>
                         </button>
                         <button
                           onClick={() => onSwitchTab('permintaan')}
-                          className="flex-1 py-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 rounded-lg text-[11px] font-semibold transition active:scale-95 flex items-center justify-center gap-1 whitespace-nowrap"
+                          className="flex-1 py-1.5 bg-tint-cyan hover:opacity-90 border border-tint-cyan-border text-ink-cyan rounded-lg text-[11px] font-semibold transition active:scale-95 flex items-center justify-center gap-1 whitespace-nowrap"
                         >
                           <FilePlus className="w-3.5 h-3.5" />
                           <span>Permintaan</span>
@@ -1293,7 +1293,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 })}
               </div>
             ) : (
-              <div className="text-center py-6 text-slate-500 text-xs">
+              <div className="text-center py-6 text-ink-secondary text-xs">
                 {searchTerm ? (
                   <p>Tidak ada SKU yang cocok dengan pencarian "{searchTerm}".</p>
                 ) : (
@@ -1308,20 +1308,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Main Stock Inventory Table (Printer-friendly layout) */}
       {(activeViewTab === 'all' || activeViewTab === 'materials') && (
-        <div className="bg-[#0c121d]/75 backdrop-blur-md border border-slate-800/90 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
-          <div className="p-4 border-b border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="bg-surface/90 backdrop-blur-md border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-border-subtle flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-400">
+              <div className="p-1.5 rounded-lg bg-tint-cyan border border-tint-cyan-border text-ink-cyan">
                 <Boxes className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <h3 className="font-bold text-sm text-ink-primary flex items-center gap-2">
                   <span>Laporan Saldo Stock Material Aktual</span>
-                  <span className="text-[11px] font-mono text-cyan-400 tabular-nums">
+                  <span className="text-[11px] font-mono text-accent-primary tabular-nums">
                     · {stockViewLayout === 'breakdown-sku-wip' ? `${filteredBreakdownRows.length} Entri (${groupedBreakdownByLine.length} Line)` : `${displayStockMaterials.length} Item`}
                   </span>
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   {stockViewLayout === 'breakdown-sku-wip'
                     ? 'Dipisahkan per Line Produksi, SKU, dan Jenis WIP yang diproduksi (Satuan Batch & kg)'
                     : 'Pembaruan otomatis dari riwayat Penerimaan & Pemakaian (Per Lokasi Gudang)'}
@@ -1332,19 +1332,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Quick Searchbar & Action Buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto no-print">
               <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-accent-primary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={stockTableSearch}
                   onChange={(e) => setStockTableSearch(e.target.value)}
                   placeholder="Cari Line, SKU, WIP, kode/material..."
-                  className="w-full bg-[#06090f]/90 border border-slate-700/80 rounded-lg pl-8 pr-8 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-lg pl-8 pr-8 py-1.5 text-xs text-ink-primary placeholder:text-ink-secondary focus:outline-none focus:border-accent-primary"
                 />
                 {stockTableSearch && (
                   <button
                     type="button"
                     onClick={() => setStockTableSearch('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white rounded"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-ink-secondary hover:text-ink-primary rounded"
                     title="Hapus pencarian stok"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -1355,35 +1355,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-border-subtle text-ink-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                 title="Download laporan saldo stok material dalam format CSV"
               >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <Download className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>CSV</span>
               </button>
 
               <button
                 onClick={handlePrintReport}
-                className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-border-subtle text-ink-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               >
-                <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                <Printer className="w-3.5 h-3.5 text-accent-primary" />
                 <span>Cetak</span>
               </button>
             </div>
           </div>
 
           {/* Subheader bar: View Mode Switch & Filters */}
-          <div className="px-4 py-2.5 bg-[#080c14]/80 border-b border-slate-800/80 space-y-2 text-xs">
+          <div className="px-4 py-2.5 bg-elevated/40 border-b border-border-subtle space-y-2 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               {/* View Mode Selector */}
-              <div className="flex items-center gap-1 bg-[#06090f]/90 p-1 rounded-lg border border-slate-800">
+              <div className="flex items-center gap-1 bg-canvas p-1 rounded-lg border border-border-subtle">
                 <button
                   type="button"
                   onClick={() => setStockViewLayout('breakdown-sku-wip')}
                   className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     stockViewLayout === 'breakdown-sku-wip'
-                      ? 'bg-cyan-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-accent-primary text-accent-primary-foreground'
+                      : 'text-ink-secondary hover:text-ink-primary'
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
@@ -1395,8 +1395,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setStockViewLayout('by-location')}
                   className={`px-2.5 py-1 rounded-md font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     stockViewLayout === 'by-location'
-                      ? 'bg-cyan-600 text-white'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-accent-primary text-accent-primary-foreground'
+                      : 'text-ink-secondary hover:text-ink-primary'
                   }`}
                 >
                   <Warehouse className="w-3.5 h-3.5" />
@@ -1408,11 +1408,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {stockViewLayout === 'breakdown-sku-wip' && (
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-slate-400">SKU:</span>
+                    <span className="text-[11px] text-ink-secondary">SKU:</span>
                     <select
                       value={filterSkuId}
                       onChange={(e) => setFilterSkuId(e.target.value)}
-                      className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
+                      className="bg-canvas border border-border-subtle rounded-lg px-2 py-1 text-[11px] text-ink-primary focus:outline-none focus:border-accent-primary font-medium"
                     >
                       <option value="all">Semua SKU ({state.master.skus.length})</option>
                       {state.master.skus.map(s => (
@@ -1425,11 +1425,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-slate-400">WIP:</span>
+                    <span className="text-[11px] text-ink-secondary">WIP:</span>
                     <select
                       value={filterWipId}
                       onChange={(e) => setFilterWipId(e.target.value)}
-                      className="bg-[#06090f] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500 font-medium"
+                      className="bg-canvas border border-border-subtle rounded-lg px-2 py-1 text-[11px] text-ink-primary focus:outline-none focus:border-accent-primary font-medium"
                     >
                       <option value="all">Semua Jenis WIP ({state.master.wips.length})</option>
                       {state.master.wips.map(w => (
@@ -1445,8 +1445,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* Interactive Production Line Split Filter Bar */}
             {stockViewLayout === 'breakdown-sku-wip' && breakdownLineOptions.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/70">
-                <span className="text-[11px] font-semibold text-slate-300 mr-1">
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-subtle">
+                <span className="text-[11px] font-semibold text-ink-primary mr-1">
                   Pisah Line Produksi:
                 </span>
                 <button
@@ -1454,8 +1454,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setFilterLineId('all')}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 tabular-nums ${
                     filterLineId === 'all'
-                      ? 'bg-cyan-600 text-white border-cyan-500'
-                      : 'bg-[#06090f] text-slate-300 border-slate-700 hover:bg-slate-800'
+                      ? 'bg-accent-primary text-accent-primary-foreground border-accent-primary'
+                      : 'bg-canvas text-ink-primary border-border-subtle hover:bg-elevated'
                   }`}
                 >
                   Semua Line ({stockBreakdownRows.length})
@@ -1467,8 +1467,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onClick={() => setFilterLineId(opt.lineId)}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 tabular-nums ${
                       filterLineId === opt.lineId
-                        ? 'bg-emerald-600 text-white border-emerald-400'
-                        : 'bg-[#06090f] text-slate-300 border-slate-700 hover:bg-slate-800'
+                        ? 'bg-emerald-600 text-white border-emerald-500'
+                        : 'bg-canvas text-ink-primary border-border-subtle hover:bg-elevated'
                     }`}
                   >
                     {opt.lineName} ({opt.count})
@@ -1483,54 +1483,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               /* TABEL BREAKDOWN DIPISAH PER LINE PRODUKSI, SKU & WIP (12 KOLOM) */
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-800/80 text-[11px] font-bold text-slate-300 border-b border-slate-700 whitespace-nowrap">
+                  <tr className="bg-elevated text-[11px] font-bold text-ink-primary border-b border-border-subtle whitespace-nowrap">
                     <th className="py-3 px-3">Line Produksi</th>
                     <th className="py-3 px-3">SKU</th>
                     <th className="py-3 px-3">Jenis WIP</th>
                     <th className="py-3 px-2 text-center">Kode</th>
                     <th className="py-3 px-3">Nama Material</th>
-                    <th className="py-3 px-3 text-right">Saldo Awal<br/><span className="text-[10px] font-normal text-slate-400">(batch & kg)</span></th>
-                    <th className="py-3 px-3 text-right">Pemesanan Material<br/><span className="text-[10px] font-normal text-slate-400">(batch & kg)</span></th>
-                    <th className="py-3 px-3 text-right">Kedatangan Material<br/><span className="text-[10px] font-normal text-slate-400">(batch & kg)</span></th>
-                    <th className="py-3 px-3 text-right text-cyan-300">Total Onhand Material<br/><span className="text-[10px] font-normal text-cyan-400/80">(batch & kg)</span></th>
-                    <th className="py-3 px-3 text-right text-rose-300">Pemakaian Material<br/><span className="text-[10px] font-normal text-rose-400/80">(batch & kg)</span></th>
-                    <th className="py-3 px-3 text-right text-emerald-300">Saldo Akhir Shift<br/><span className="text-[10px] font-normal text-emerald-400/80">(batch & kg)</span></th>
+                    <th className="py-3 px-3 text-right">Saldo Awal<br/><span className="text-[10px] font-normal text-ink-secondary">(batch &amp; kg)</span></th>
+                    <th className="py-3 px-3 text-right">Pemesanan Material<br/><span className="text-[10px] font-normal text-ink-secondary">(batch &amp; kg)</span></th>
+                    <th className="py-3 px-3 text-right">Kedatangan Material<br/><span className="text-[10px] font-normal text-ink-secondary">(batch &amp; kg)</span></th>
+                    <th className="py-3 px-3 text-right text-ink-cyan">Total Onhand Material<br/><span className="text-[10px] font-normal text-ink-cyan/80">(batch &amp; kg)</span></th>
+                    <th className="py-3 px-3 text-right text-ink-rose">Pemakaian Material<br/><span className="text-[10px] font-normal text-ink-rose/80">(batch &amp; kg)</span></th>
+                    <th className="py-3 px-3 text-right text-ink-emerald">Saldo Akhir Shift<br/><span className="text-[10px] font-normal text-ink-emerald/80">(batch &amp; kg)</span></th>
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-border-subtle">
                   {groupedBreakdownByLine.length > 0 ? (
                     groupedBreakdownByLine.map(lineGrp => (
                       <React.Fragment key={lineGrp.lineId}>
-                        <tr className="bg-slate-900/95 border-y border-slate-700/80">
+                        <tr className="bg-elevated/70 border-y border-border-subtle">
                           <td colSpan={12} className="py-2 px-3">
                             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-emerald-300 font-mono">
+                                <span className="font-bold text-ink-emerald font-mono">
                                   LINE PRODUKSI: {lineGrp.lineName.toUpperCase()}
                                 </span>
-                                <span className="text-[11px] text-slate-400 font-mono tabular-nums">
+                                <span className="text-[11px] text-ink-secondary font-mono tabular-nums">
                                   ({lineGrp.rows.length} entri material)
                                 </span>
                               </div>
-                              <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono tabular-nums text-slate-300">
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono tabular-nums text-ink-secondary">
                                 <span>
                                   Pemesanan:{' '}
-                                  <strong className="text-amber-300">
+                                  <strong className="text-ink-amber">
                                     {lineGrp.totalPemesananKg.toFixed(2)} kg
                                   </strong>
                                 </span>
                                 <span aria-hidden="true">·</span>
                                 <span>
                                   Total Onhand:{' '}
-                                  <strong className="text-cyan-300">
+                                  <strong className="text-ink-cyan">
                                     {lineGrp.totalOnhandKg.toFixed(2)} kg
                                   </strong>
                                 </span>
                                 <span aria-hidden="true">·</span>
                                 <span>
                                   Pemakaian:{' '}
-                                  <strong className="text-rose-300">
+                                  <strong className="text-ink-rose">
                                     {lineGrp.totalPemakaianKg.toFixed(2)} kg
                                   </strong>
                                 </span>
@@ -1539,18 +1539,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </td>
                         </tr>
                         {lineGrp.rows.map(row => (
-                          <tr key={row.rowKey} className="hover:bg-slate-800/40 text-xs transition">
+                          <tr key={row.rowKey} className="hover:bg-elevated/45 text-xs transition">
                             {/* Line Produksi */}
-                            <td className="py-3 px-3 font-mono font-bold text-emerald-300 whitespace-nowrap">
+                            <td className="py-3 px-3 font-mono font-bold text-ink-emerald whitespace-nowrap">
                               {row.lineName}
                             </td>
 
                             {/* SKU */}
-                            <td className="py-3 px-3 font-semibold text-white whitespace-nowrap">
+                            <td className="py-3 px-3 font-semibold text-ink-primary whitespace-nowrap">
                               <div className="flex items-center space-x-1.5">
                                 <span className="truncate max-w-[170px]" title={row.skuName}>{row.skuName}</span>
                                 {row.isKite && (
-                                  <span className="px-1 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold shrink-0">
+                                  <span className="px-1 py-0.2 rounded text-[9px] bg-tint-amber text-ink-amber border border-tint-amber-border font-bold shrink-0">
                                     KITE
                                   </span>
                                 )}
@@ -1558,77 +1558,77 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </td>
 
                             {/* Jenis WIP */}
-                            <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
-                              <span className="px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-500/30 text-[11px] font-medium">
+                            <td className="py-3 px-3 text-ink-primary whitespace-nowrap">
+                              <span className="px-1.5 py-0.5 rounded bg-tint-purple text-ink-purple border border-tint-purple-border text-[11px] font-medium">
                                 {row.wipName}
                               </span>
                             </td>
 
                             {/* Kode Material */}
-                            <td className="py-3 px-2 text-center font-mono font-bold text-cyan-400 whitespace-nowrap">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px]">
+                            <td className="py-3 px-2 text-center font-mono font-bold text-ink-cyan whitespace-nowrap">
+                              <span className="px-1.5 py-0.5 rounded bg-elevated border border-border-subtle text-[10px]">
                                 {row.materialCode}
                               </span>
                             </td>
 
                             {/* Nama Material */}
-                            <td className="py-3 px-3 font-medium text-white whitespace-nowrap">
+                            <td className="py-3 px-3 font-medium text-ink-primary whitespace-nowrap">
                               <span>{row.materialName}</span>
-                              <span className="block text-[10px] text-slate-500 font-mono">
+                              <span className="block text-[10px] text-ink-secondary font-mono">
                                 Formula: {row.batchSizeKg.toFixed(2)} kg/batch
                               </span>
                             </td>
 
                             {/* Saldo Awal (batch & kg) */}
                             <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              <div className="text-slate-200 font-semibold">{row.saldoAwalBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-slate-400">({row.saldoAwalKg.toFixed(2)} kg)</div>
+                              <div className="text-ink-primary font-semibold">{row.saldoAwalBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-secondary">({row.saldoAwalKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Pemesanan Material (batch & kg) */}
                             <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              <div className="text-amber-300 font-semibold">{row.pemesananBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-amber-400/80">({row.pemesananKg.toFixed(2)} kg)</div>
+                              <div className="text-ink-amber font-semibold">{row.pemesananBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-amber/80">({row.pemesananKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Kedatangan Material (batch & kg) */}
                             <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                              <div className="text-emerald-300 font-semibold">{row.kedatanganBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-emerald-400/80">({row.kedatanganKg.toFixed(2)} kg)</div>
+                              <div className="text-ink-emerald font-semibold">{row.kedatanganBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-emerald/80">({row.kedatanganKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Total Onhand Material (batch & kg) */}
-                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-cyan-950/20 whitespace-nowrap">
-                              <div className="text-cyan-300 font-bold">{row.totalOnhandBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-cyan-400">({row.totalOnhandKg.toFixed(2)} kg)</div>
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-tint-cyan/35 whitespace-nowrap">
+                              <div className="text-ink-cyan font-bold">{row.totalOnhandBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-cyan">({row.totalOnhandKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Pemakaian Material (batch & kg) */}
-                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-rose-950/20 whitespace-nowrap">
-                              <div className="text-rose-300 font-bold">{row.pemakaianBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-rose-400">({row.pemakaianKg.toFixed(2)} kg)</div>
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-tint-rose/35 whitespace-nowrap">
+                              <div className="text-ink-rose font-bold">{row.pemakaianBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-rose">({row.pemakaianKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Saldo Akhir Shift (batch & kg) */}
-                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-emerald-950/20 whitespace-nowrap">
-                              <div className="text-emerald-300 font-bold">{row.saldoAkhirBatch.toFixed(2)} btc</div>
-                              <div className="text-[10px] text-emerald-400">({row.saldoAkhirKg.toFixed(2)} kg)</div>
+                            <td className="py-3 px-3 text-right font-mono tabular-nums bg-tint-emerald/35 whitespace-nowrap">
+                              <div className="text-ink-emerald font-bold">{row.saldoAkhirBatch.toFixed(2)} btc</div>
+                              <div className="text-[10px] text-ink-emerald">({row.saldoAkhirKg.toFixed(2)} kg)</div>
                             </td>
 
                             {/* Status */}
                             <td className="py-3 px-3 text-center whitespace-nowrap">
                               {row.status === 'KOSONG' ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-elevated text-ink-secondary border border-border-subtle">
                                   KOSONG
                                 </span>
                               ) : row.status === 'MENIPIS' ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-flex items-center space-x-1">
-                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-tint-rose text-ink-rose border border-tint-rose-border inline-flex items-center space-x-1">
+                                  <AlertTriangle className="w-3 h-3 text-ink-rose" />
                                   <span>MENIPIS</span>
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 inline-flex items-center space-x-1">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-tint-emerald text-ink-emerald border border-tint-emerald-border inline-flex items-center space-x-1">
+                                  <CheckCircle2 className="w-3 h-3 text-ink-emerald" />
                                   <span>AMAN</span>
                                 </span>
                               )}
@@ -1639,12 +1639,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={12} className="text-center py-10 px-4 text-slate-400">
-                        <Boxes className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                        <p className="text-sm font-semibold text-white">
+                      <td colSpan={12} className="text-center py-10 px-4 text-ink-secondary">
+                        <Boxes className="w-10 h-10 text-ink-secondary/60 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-ink-primary">
                           Tidak ditemukan data breakdown stok material yang sesuai dengan filter.
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-ink-secondary mt-1">
                           Coba reset filter Line, SKU / WIP, atau kata kunci pencarian.
                         </p>
                       </td>
@@ -1656,65 +1656,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               /* TABEL PER LOKASI GUDANG (CK & WINEROTO) */
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
-                    <th className="py-3 px-4">Kode & Nama Material</th>
+                  <tr className="bg-elevated text-[11px] font-semibold text-ink-primary border-b border-border-subtle">
+                    <th className="py-3 px-4">Kode &amp; Nama Material</th>
                     <th className="py-3 px-3">Tipe / Kemasan</th>
                     <th className="py-3 px-3">Supplier</th>
                     <th className="py-3 px-3 text-right">Stock CK</th>
                     <th className="py-3 px-3 text-right">Stock WINEROTO</th>
-                    <th className="py-3 px-3 text-right font-bold text-cyan-400">Total Aktual</th>
+                    <th className="py-3 px-3 text-right font-bold text-ink-cyan">Total Aktual</th>
                     <th className="py-3 px-4 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-border-subtle">
                   {displayStockMaterials.length > 0 ? (
                     displayStockMaterials.map((item) => (
-                      <tr key={item.materialId} className="hover:bg-slate-800/40 text-xs transition">
-                        <td className="py-3 px-4 font-medium text-white">
+                      <tr key={item.materialId} className="hover:bg-elevated/45 text-xs transition">
+                        <td className="py-3 px-4 font-medium text-ink-primary">
                           <div className="flex items-center space-x-2">
-                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400 font-bold border border-slate-700">
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-elevated text-ink-cyan font-bold border border-border-subtle">
                               {item.materialCode}
                             </span>
                             <span>{item.materialName}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-slate-300">
+                        <td className="py-3 px-3 text-ink-primary">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold mr-1.5 ${
-                            item.type === 'liquid' ? 'bg-cyan-500/15 text-cyan-300' :
-                            item.type === 'bubuk' ? 'bg-amber-500/15 text-amber-300' :
-                            'bg-purple-500/15 text-purple-300'
+                            item.type === 'liquid' ? 'bg-tint-cyan text-ink-cyan' :
+                            item.type === 'bubuk' ? 'bg-tint-amber text-ink-amber' :
+                            'bg-tint-purple text-ink-purple'
                           }`}>
                             {item.type}
                           </span>
-                          <span className="text-[11px] text-slate-400 block sm:inline">{item.packaging}</span>
+                          <span className="text-[11px] text-ink-secondary block sm:inline">{item.packaging}</span>
                         </td>
-                        <td className="py-3 px-3 text-slate-300">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                        <td className="py-3 px-3 text-ink-primary">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-elevated border border-border-subtle text-ink-primary">
                             {item.source}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-200">
-                          {item.stockCk.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
+                        <td className="py-3 px-3 text-right font-mono text-ink-primary tabular-nums">
+                          {item.stockCk.toFixed(4)} <span className="text-[10px] text-ink-secondary">kg</span>
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-200">
-                          {item.stockWineroto.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
+                        <td className="py-3 px-3 text-right font-mono text-ink-primary tabular-nums">
+                          {item.stockWineroto.toFixed(4)} <span className="text-[10px] text-ink-secondary">kg</span>
                         </td>
-                        <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">
-                          {item.totalActual.toFixed(4)} <span className="text-[10px] text-cyan-500/70">kg</span>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-ink-cyan tabular-nums">
+                          {item.totalActual.toFixed(4)} <span className="text-[10px] text-ink-cyan/80">kg</span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {item.totalActual === 0 ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 border border-slate-700">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-elevated text-ink-secondary border border-border-subtle">
                               Kosong
                             </span>
                           ) : item.isLowStock ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center space-x-1">
-                              <AlertTriangle className="w-3 h-3 text-rose-400" />
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-tint-rose text-ink-rose border border-tint-rose-border inline-flex items-center justify-center space-x-1">
+                              <AlertTriangle className="w-3 h-3 text-ink-rose" />
                               <span>Menipis</span>
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center justify-center space-x-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-tint-emerald text-ink-emerald border border-tint-emerald-border inline-flex items-center justify-center space-x-1">
+                              <CheckCircle2 className="w-3 h-3 text-ink-emerald" />
                               <span>Aman</span>
                             </span>
                           )}
@@ -1723,9 +1723,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 px-4 text-slate-400">
-                        <Boxes className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                        <p className="text-sm font-semibold text-white">
+                      <td colSpan={7} className="text-center py-10 px-4 text-ink-secondary">
+                        <Boxes className="w-10 h-10 text-ink-secondary/60 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-ink-primary">
                           {stockTableSearch
                             ? `Tidak ditemukan stok material dengan kata kunci "${stockTableSearch}"`
                             : searchTerm
@@ -1744,33 +1744,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Modal Mutasi / Transfer Stock Antar Gudang */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
-          <div className="bg-[#0c121d]/95 backdrop-blur-md border border-slate-700/80 rounded-xl w-full max-w-md p-5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] relative space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2 text-cyan-400">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-surface border border-border-subtle rounded-xl w-full max-w-md p-5 shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+              <div className="flex items-center space-x-2 text-accent-primary">
                 <ArrowRightLeft className="w-4 h-4" />
-                <h3 className="font-bold text-sm text-white">Mutasi / Pindah Stok Gudang</h3>
+                <h3 className="font-bold text-sm text-ink-primary">Mutasi / Pindah Stok Gudang</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowTransferModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+                className="text-ink-secondary hover:text-ink-primary p-1 rounded-lg hover:bg-elevated transition"
                 aria-label="Tutup modal mutasi stok"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleExecuteTransfer} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
+            <form onSubmit={handleExecuteTransfer} className="space-y-3 text-xs bg-canvas/70 border border-border-subtle rounded-2xl p-3.5">
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-primary mb-1">
                   Pilih Material
                 </label>
                 <select
                   value={transferMatId}
                   onChange={(e) => setTransferMatId(e.target.value)}
                   required
-                  className="w-full bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-surface border border-border-subtle rounded-lg px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="">-- Pilih Material --</option>
                   {state.master.materials.map(m => (
@@ -1783,13 +1783,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-ink-primary mb-1">
                     Dari Lokasi
                   </label>
                   <select
                     value={transferFrom}
                     onChange={(e) => setTransferFrom(e.target.value as StorageLocation)}
-                    className="w-full bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-surface border border-border-subtle rounded-lg px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                   >
                     <option value="CK">Area CK</option>
                     <option value="WINEROTO">Area WINEROTO</option>
@@ -1797,13 +1797,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-ink-primary mb-1">
                     Ke Lokasi
                   </label>
                   <select
                     value={transferTo}
                     onChange={(e) => setTransferTo(e.target.value as StorageLocation)}
-                    className="w-full bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-surface border border-border-subtle rounded-lg px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                   >
                     <option value="WINEROTO">Area WINEROTO</option>
                     <option value="CK">Area CK</option>
@@ -1813,7 +1813,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-primary mb-1">
                   Jumlah Berat Dipindahkan (kg, 4 desimal)
                 </label>
                 <input
@@ -1823,7 +1823,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   value={transferQty}
                   onChange={(e) => setTransferQty(e.target.value)}
                   placeholder="0.0000"
-                  className="w-full bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono tabular-nums focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-surface border border-border-subtle rounded-lg px-3 py-2 text-ink-primary font-mono tabular-nums focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
@@ -1831,13 +1831,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowTransferModal(false)}
-                  className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition"
+                  className="w-1/2 py-2.5 bg-elevated hover:bg-elevated/80 border border-border-subtle text-ink-primary rounded-lg font-medium transition"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg transition shadow-[0_0_14px_rgba(6,182,212,0.28)]"
+                  className="w-1/2 py-2.5 bg-accent-primary hover:bg-accent-primary-hover text-accent-primary-foreground font-semibold rounded-lg transition shadow-sm"
                 >
                   Eksekusi Mutasi
                 </button>

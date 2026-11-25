@@ -232,35 +232,35 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           {activeTab === 'OPERATORS' && (
             <div className="space-y-4">
               {/* Add Operator Form */}
-              <form onSubmit={handleAddOperatorSubmit} className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
-                    <Plus className="w-4 h-4 text-cyan-400" />
+              <form onSubmit={handleAddOperatorSubmit} className="bg-canvas p-4 rounded-2xl border border-border-subtle space-y-3">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                  <h3 className="font-bold text-xs sm:text-sm text-ink-primary flex items-center space-x-1.5">
+                    <Plus className="w-4 h-4 text-brand" />
                     <span>Daftarkan Operator Baru</span>
                   </h3>
-                  <span className="text-[10px] text-slate-500 font-mono">Lantai Produksi & Gudang</span>
+                  <span className="text-[10px] text-ink-muted font-mono">Lantai Produksi & Gudang</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Nama Lengkap Operator:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Nama Lengkap Operator:</label>
                     <input
                       type="text"
                       required
                       value={opName}
                       onChange={(e) => setOpName(e.target.value)}
                       placeholder="e.g. Supriyadi Pratama"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-400 font-medium">Nomor Induk Karyawan (NIK):</label>
+                      <label className="block text-ink-secondary font-medium">Nomor Induk Karyawan (NIK):</label>
                       <button
                         type="button"
                         onClick={handleAutoNik}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono underline"
+                        className="text-[10px] text-brand hover:text-brand font-mono underline"
                       >
                         Auto NIK
                       </button>
@@ -271,16 +271,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       value={opNik}
                       onChange={(e) => setOpNik(e.target.value)}
                       placeholder="e.g. OPR-2026-005"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Line Penugasan:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Line Penugasan:</label>
                     <select
                       value={opLine}
                       onChange={(e) => setOpLine(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value="Line 1 (Biskuit Domestik)">Line 1 (Biskuit Domestik)</option>
                       <option value="Line 2 (Wafer Ekspor KITE)">Line 2 (Wafer Ekspor KITE)</option>
@@ -291,11 +291,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Shift Rutin:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Shift Rutin:</label>
                     <select
                       value={opShift}
                       onChange={(e) => setOpShift(Number(e.target.value) as 1 | 2 | 3)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value={1}>Shift 1 (07:01 - 15:00)</option>
                       <option value={2}>Shift 2 (15:01 - 23:00)</option>
@@ -304,24 +304,24 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Email Google Operator (Opsional - Akses Cloud):</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Email Google Operator (Opsional - Akses Cloud):</label>
                     <input
                       type="email"
                       value={opEmail}
                       onChange={(e) => setOpEmail(e.target.value)}
                       placeholder="e.g. ahmad.fauzi@gmail.com"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Catatan / Sertifikasi Mesin (Opsional):</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Catatan / Sertifikasi Mesin (Opsional):</label>
                     <input
                       type="text"
                       value={opNotes}
                       onChange={(e) => setOpNotes(e.target.value)}
                       placeholder="e.g. Sertifikasi Food Safety & Operator Mixer High-Shear"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                 </div>
@@ -337,17 +337,17 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               {/* Operators List with Search */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-ink-secondary uppercase tracking-wider">
                     Daftar Operator Terdaftar ({state.registeredOperators.length}):
                   </h4>
                   <div className="relative w-44 sm:w-52">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={opSearch}
                       onChange={(e) => setOpSearch(e.target.value)}
                       placeholder="Cari operator..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                      className="w-full bg-canvas border border-border-subtle rounded-lg pl-7 pr-2 py-1 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                 </div>
@@ -361,19 +361,19 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     .map(op => (
                       <div
                         key={op.id}
-                        className="bg-slate-950/40 border border-slate-800 p-3 rounded-2xl flex items-center justify-between text-xs hover:border-slate-700 transition"
+                        className="bg-canvas border border-border-subtle p-3 rounded-2xl flex items-center justify-between text-xs hover:border-border-strong transition"
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center space-x-2">
-                            <span className="font-bold text-white text-sm">{op.name}</span>
-                            <span className="font-mono text-cyan-400 text-[11px] font-semibold">{op.nik}</span>
+                            <span className="font-bold text-ink-primary text-sm">{op.name}</span>
+                            <span className="font-mono text-brand text-[11px] font-semibold">{op.nik}</span>
                             <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold ${
-                              op.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                              op.status === 'ACTIVE' ? 'bg-emerald-500/20 text-ink-emerald' : 'bg-elevated text-ink-secondary'
                             }`}>
                               {op.status === 'ACTIVE' ? 'AKTIF' : 'NON-AKTIF'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-400">
+                          <p className="text-[11px] text-ink-secondary">
                             {op.assignedLine} • <strong>Shift {op.assignedShift}</strong> {op.email ? `• ✉️ ${op.email}` : ''} {op.notes ? `• ${op.notes}` : ''}
                           </p>
                         </div>
@@ -384,7 +384,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             onClick={() => onUpdateOperator(op.id, {
                               status: op.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
                             })}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-[10px] font-medium"
+                            className="px-2.5 py-1 rounded-lg bg-elevated text-ink-secondary hover:text-ink-primary text-[10px] font-medium"
                           >
                             {op.status === 'ACTIVE' ? 'Nonaktifkan' : 'Aktifkan'}
                           </button>
@@ -401,7 +401,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             className="p-1.5 rounded-lg bg-white hover:bg-black text-black hover:text-white border-2 border-black transition shadow-xs flex items-center justify-center shrink-0 group"
                             title="Hapus Operator"
                           >
-                            <Trash2 className="w-4 h-4 text-black group-hover:text-white" />
+                            <Trash2 className="w-4 h-4 text-black group-hover:text-ink-primary" />
                           </button>
                         </div>
                       </div>
@@ -415,69 +415,69 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           {activeTab === 'MANAGEMENT' && (
             <div className="space-y-4">
               {/* Info Box */}
-              <div className="bg-indigo-950/40 border border-indigo-500/40 p-3.5 rounded-2xl text-xs space-y-1">
-                <h4 className="font-bold text-indigo-300 flex items-center space-x-1.5">
+              <div className="bg-tint-indigo border border-indigo-500/40 p-3.5 rounded-2xl text-xs space-y-1">
+                <h4 className="font-bold text-ink-indigo flex items-center space-x-1.5">
                   <Building className="w-4 h-4" />
                   <span>Otorisasi Hak Melihat Management (Read-Only)</span>
                 </h4>
-                <p className="text-slate-300 leading-relaxed text-[11px]">
+                <p className="text-ink-secondary leading-relaxed text-[11px]">
                   Administrator dapat mendaftarkan akun jajaran management (Direktur, Factory Manager, QC, PPIC) dan mengontrol sakelar <strong>"Izin Melihat"</strong>. Pengguna management hanya dapat memantau Dashboard Produksi berjalan, stok material, dan membaca laporan PDF shift tanpa hak mengubah data.
                 </p>
               </div>
 
               {/* Add Management Form */}
-              <form onSubmit={handleAddManagementSubmit} className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h3 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-1.5">
-                    <Plus className="w-4 h-4 text-indigo-400" />
+              <form onSubmit={handleAddManagementSubmit} className="bg-canvas p-4 rounded-2xl border border-border-subtle space-y-3">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                  <h3 className="font-bold text-xs sm:text-sm text-ink-primary flex items-center space-x-1.5">
+                    <Plus className="w-4 h-4 text-ink-indigo" />
                     <span>Tambah Akun Management</span>
                   </h3>
-                  <span className="text-[10px] text-slate-500 font-mono">Akses Eksekutif</span>
+                  <span className="text-[10px] text-ink-muted font-mono">Akses Eksekutif</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Nama Lengkap & Gelar:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Nama Lengkap & Gelar:</label>
                     <input
                       type="text"
                       required
                       value={mgtName}
                       onChange={(e) => setMgtName(e.target.value)}
                       placeholder="e.g. Dr. Ir. Gunawan, M.M."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-indigo-400"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Alamat Email:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Alamat Email:</label>
                     <input
                       type="email"
                       required
                       value={mgtEmail}
                       onChange={(e) => setMgtEmail(e.target.value)}
                       placeholder="e.g. gunawan@factory.co.id"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-indigo-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-indigo-400"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Jabatan / Title:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Jabatan / Title:</label>
                     <input
                       type="text"
                       required
                       value={mgtTitle}
                       onChange={(e) => setMgtTitle(e.target.value)}
                       placeholder="e.g. General Manager / Production Director"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-indigo-400"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Departemen / Divisi:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Departemen / Divisi:</label>
                     <select
                       value={mgtDepartment}
                       onChange={(e) => setMgtDepartment(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-400"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-indigo-400"
                     >
                       <option value="Plant Operations Management">Plant Operations Management</option>
                       <option value="Quality Assurance & QC">Quality Assurance & QC</option>
@@ -495,9 +495,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     id="mgtAccessCheckbox"
                     checked={mgtAccess}
                     onChange={(e) => setMgtAccess(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 bg-slate-800 border-slate-700 focus:ring-0"
+                    className="w-4 h-4 rounded text-indigo-600 bg-elevated border-border-strong focus:ring-0"
                   />
-                  <label htmlFor="mgtAccessCheckbox" className="text-xs text-slate-300 font-medium cursor-pointer">
+                  <label htmlFor="mgtAccessCheckbox" className="text-xs text-ink-secondary font-medium cursor-pointer">
                     Langsung berikan izin akses melihat (Read-Only) pada akun ini
                   </label>
                 </div>
@@ -513,17 +513,17 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               {/* Management List with Access Toggle Switch */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-ink-secondary uppercase tracking-wider">
                     Daftar Management Terdaftar ({state.registeredManagement.length}):
                   </h4>
                   <div className="relative w-44 sm:w-52">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={mgtSearch}
                       onChange={(e) => setMgtSearch(e.target.value)}
                       placeholder="Cari management..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400"
+                      className="w-full bg-canvas border border-border-subtle rounded-lg pl-7 pr-2 py-1 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-indigo-400"
                     />
                   </div>
                 </div>
@@ -537,15 +537,15 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     .map(mgt => (
                       <div
                         key={mgt.id}
-                        className="bg-slate-950/40 border border-slate-800 p-3 rounded-2xl flex items-center justify-between text-xs hover:border-slate-700 transition"
+                        className="bg-canvas border border-border-subtle p-3 rounded-2xl flex items-center justify-between text-xs hover:border-border-strong transition"
                       >
                         <div className="space-y-0.5 max-w-sm">
                           <div className="flex items-center space-x-2">
-                            <span className="font-bold text-white text-sm">{mgt.name}</span>
-                            <span className="text-[11px] text-slate-400 font-mono truncate">{mgt.email}</span>
+                            <span className="font-bold text-ink-primary text-sm">{mgt.name}</span>
+                            <span className="text-[11px] text-ink-secondary font-mono truncate">{mgt.email}</span>
                           </div>
-                          <p className="text-[11px] text-indigo-300 font-medium">
-                            {mgt.title} • <span className="text-slate-400">{mgt.department}</span>
+                          <p className="text-[11px] text-ink-indigo font-medium">
+                            {mgt.title} • <span className="text-ink-secondary">{mgt.department}</span>
                           </p>
                         </div>
 
@@ -557,8 +557,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               onClick={() => onToggleManagementAccess(mgt.id, !mgt.hasViewAccess)}
                               className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition flex items-center space-x-1.5 ${
                                 mgt.hasViewAccess
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30'
+                                  ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 hover:bg-emerald-500/30'
+                                  : 'bg-rose-500/20 text-ink-rose border border-rose-500/40 hover:bg-rose-500/30'
                               }`}
                             >
                               {mgt.hasViewAccess ? (
@@ -588,7 +588,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                             className="p-1.5 rounded-lg bg-white hover:bg-black text-black hover:text-white border-2 border-black transition shadow-xs flex items-center justify-center shrink-0 group"
                             title="Hapus Akun Management"
                           >
-                            <Trash2 className="w-4 h-4 text-black group-hover:text-white" />
+                            <Trash2 className="w-4 h-4 text-black group-hover:text-ink-primary" />
                           </button>
                         </div>
                       </div>
@@ -601,21 +601,21 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           {/* TAB 3: SECURITY & ADMIN PIN */}
           {activeTab === 'SECURITY' && (
             <div className="space-y-4">
-              <form onSubmit={handleChangePinSubmit} className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
-                  <KeyRound className="w-4 h-4 text-amber-400" />
-                  <h3 className="font-bold text-xs sm:text-sm text-white">
+              <form onSubmit={handleChangePinSubmit} className="bg-canvas p-4 rounded-2xl border border-border-subtle space-y-3">
+                <div className="flex items-center space-x-2 border-b border-border-subtle pb-2">
+                  <KeyRound className="w-4 h-4 text-ink-amber" />
+                  <h3 className="font-bold text-xs sm:text-sm text-ink-primary">
                     Ganti PIN Administrator
                   </h3>
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-ink-secondary leading-relaxed">
                   PIN ini digunakan untuk mengamankan akses ke modul Konfigurasi Master BOM, Modifikasi Mesin, Tangki Storage, dan Manajemen Pengguna.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">PIN / Password Baru (Min. 8 karakter):</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">PIN / Password Baru (Min. 8 karakter):</label>
                     <input
                       type="password"
                       required
@@ -624,19 +624,19 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       value={newPin}
                       onChange={(e) => setNewPin(e.target.value)}
                       placeholder="Minimal 8 karakter unik..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-400 tracking-widest"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-amber-400 tracking-widest"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Konfirmasi PIN Baru:</label>
+                    <label className="block text-ink-secondary mb-1 font-medium">Konfirmasi PIN Baru:</label>
                     <input
                       type="password"
                       required
                       value={confirmPin}
                       onChange={(e) => setConfirmPin(e.target.value)}
                       placeholder="Ulangi PIN baru..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-400 tracking-widest"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-amber-400 tracking-widest"
                     />
                   </div>
                 </div>

@@ -16,7 +16,7 @@ import {
   Sparkles,
   Loader2
 } from 'lucide-react';
-import { AdminGoogleUser } from '../types';
+import { AdminGoogleUser, EffectiveRoleResolution } from '../types';
 import { googleSignIn, clearWorkspaceDriveToken } from '../utils/googleWorkspace';
 import {
   normalizeEmail,
@@ -27,7 +27,7 @@ import {
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isAdmin: boolean;
+  effectiveRole: EffectiveRoleResolution;
   adminPin: string;
   adminGoogleEmails?: string[];
   currentAdminUser?: AdminGoogleUser | null;
@@ -42,7 +42,7 @@ interface AdminModalProps {
 export const AdminModal: React.FC<AdminModalProps> = ({
   isOpen,
   onClose,
-  isAdmin,
+  effectiveRole,
   adminPin,
   adminGoogleEmails = [],
   currentAdminUser,
@@ -86,7 +86,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       onLogin();
       setPinInput('');
       onClose();
-      showToast('Akses Administrator Diizinkan (Autentikasi PIN)');
+      if (effectiveRole.hasRegisteredGoogleAdminEmail) {
+        showToast('Akses Administrator Diizinkan (Autentikasi PIN + Google Admin)');
+      } else {
+        showToast('Mode PIN Lokal aktif — perubahan Master hanya tersimpan lokal dan tidak ke Cloud');
+      }
     } else {
       const nextFails = failedAttempts + 1;
       setFailedAttempts(nextFails);
@@ -180,56 +184,96 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl relative space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-md p-5 shadow-2xl relative space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
           <div className="flex items-center space-x-2.5">
-            <div className="p-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl">
+            <div className="p-1.5 bg-amber-500/10 border border-amber-500/20 text-ink-amber rounded-xl">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">
-                {isAdmin ? 'Portal Administrator Aktif' : 'Autentikasi Administrator'}
+              <h3 className="font-bold text-sm text-ink-primary">
+                {effectiveRole.isAdmin ? 'Portal Administrator Aktif' : 'Autentikasi Administrator'}
               </h3>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-ink-secondary">
                 Pendaftaran & login akun Google & PIN darurat
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 hover:bg-slate-700 transition"
+            className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated hover:bg-accent transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {isAdmin ? (
+        {effectiveRole.isAdmin ? (
           /* Logged-In Admin Panel */
           <div className="space-y-4 text-xs">
-            {/* Active Admin Banner */}
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-300 flex items-start space-x-2.5">
-              <Unlock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="font-semibold block text-white text-xs">
-                  Hak Akses Administrator Penuh Aktif
-                </span>
-                <span className="text-[11px] text-emerald-300/90 block">
-                  {currentAdminUser ? (
-                    <>
-                      Login via Google:{' '}
-                      <strong className="text-white font-mono">{currentAdminUser.email}</strong>
-                    </>
+            {/* Offline PIN Local Mode Yellow Warning Badge */}
+            {(effectiveRole.isOfflinePinAdmin || !effectiveRole.canWriteCloudMaster) && (
+              <div className="p-3 bg-amber-500/15 border border-amber-400/50 rounded-xl space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-400/20 border border-amber-400/60 text-ink-amber font-bold text-[11px]">
+                  <AlertCircle className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+                  <span>Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)</span>
+                </div>
+                <p className="text-[11px] text-amber-100/90 leading-relaxed">
+                  Anda masuk menggunakan PIN lokal tanpa email Google Admin yang terdaftar di konfigurasi akses workspace. Perubahan Master BOM hanya tersimpan di perangkat ini (<span className="font-mono">canWriteCloudMaster: false</span>).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-[11px] flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50"
+                >
+                  {isGoogleLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    'Login via PIN Kredensial Sistem Workshop'
+                    <ShieldCheck className="w-3.5 h-3.5" />
                   )}
-                </span>
+                  <span>Login dengan Google Admin Terdaftar untuk Sinkron Cloud</span>
+                </button>
               </div>
-            </div>
+            )}
+
+            {/* Active Admin Banner */}
+            {effectiveRole.canWriteCloudMaster ? (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-ink-emerald flex items-start space-x-2.5">
+                <Unlock className="w-4 h-4 text-ink-emerald shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold block text-ink-primary text-xs">
+                    Hak Akses Administrator Penuh Aktif
+                  </span>
+                  <span className="text-[11px] text-ink-emerald block">
+                    {currentAdminUser ? (
+                      <>
+                        Login via Google:{' '}
+                        <strong className="text-ink-primary font-mono">{currentAdminUser.email}</strong>
+                      </>
+                    ) : (
+                      `Terverifikasi Google Cloud Admin (${effectiveRole.activeGoogleEmail || 'Workspace Admin'})`
+                    )}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-elevated border border-border-strong rounded-xl text-ink-secondary flex items-start space-x-2.5">
+                <KeyRound className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold block text-ink-primary text-xs">
+                    Login via PIN Kredensial Sistem Workshop (Lokal)
+                  </span>
+                  <span className="text-[11px] text-ink-secondary block">
+                    Role aktif: <strong className="font-mono text-ink-amber">{effectiveRole.role}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Google Admin User Profile if logged in */}
             {currentAdminUser && (
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center space-x-3">
+              <div className="bg-elevated border border-border-strong rounded-xl p-3 flex items-center space-x-3">
                 {currentAdminUser.photoURL ? (
                   <img
                     src={currentAdminUser.photoURL}
@@ -237,18 +281,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     className="w-10 h-10 rounded-full border border-cyan-400/40 object-cover"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold">
+                  <div className="w-10 h-10 rounded-full bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center text-brand font-bold">
                     {currentAdminUser.email[0].toUpperCase()}
                   </div>
                 )}
                 <div className="truncate flex-1">
-                  <div className="font-semibold text-white text-xs truncate">
+                  <div className="font-semibold text-ink-primary text-xs truncate">
                     {currentAdminUser.displayName || currentAdminUser.email}
                   </div>
-                  <div className="text-[11px] font-mono text-cyan-300 truncate">
+                  <div className="text-[11px] font-mono text-brand truncate">
                     {currentAdminUser.email}
                   </div>
-                  <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold">
+                  <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-ink-amber rounded font-semibold">
                     {currentAdminUser.role || 'ADMINISTRATOR'}
                   </span>
                 </div>
@@ -256,25 +300,25 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             )}
 
             {/* Management Section: Pendaftaran Administrator Google */}
-            <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-3 space-y-2.5">
+            <div className="bg-elevated border border-border-subtle rounded-xl p-3 space-y-2.5">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-white text-xs flex items-center space-x-1.5">
-                  <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                <h4 className="font-semibold text-ink-primary text-xs flex items-center space-x-1.5">
+                  <Mail className="w-3.5 h-3.5 text-brand" />
                   <span>Daftar Email Administrator Google</span>
                 </h4>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className="text-[10px] text-ink-secondary font-mono">
                   {adminGoogleEmails.length} terdaftar
                 </span>
               </div>
 
               {/* Form tambah email admin */}
-              <form onSubmit={handleAddEmail} className="flex space-x-1.5 bg-slate-950/40 border border-slate-800/90 rounded-xl p-2">
+              <form onSubmit={handleAddEmail} className="flex space-x-1.5 bg-canvas border border-border-subtle rounded-xl p-2">
                 <input
                   type="email"
                   value={newAdminEmail}
                   onChange={(e) => setNewAdminEmail(e.target.value)}
                   placeholder="admin-baru@gmail.com"
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="flex-1 bg-surface border border-border-strong rounded-xl px-2.5 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
                 <button
                   type="submit"
@@ -292,12 +336,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   return (
                     <div
                       key={email}
-                      className="flex items-center justify-between bg-slate-900/60 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs"
+                      className="flex items-center justify-between bg-surface border border-border-subtle px-2.5 py-1.5 rounded-lg text-xs"
                     >
                       <div className="truncate mr-2 flex items-center space-x-1.5">
-                        <span className="font-mono text-slate-200 truncate">{email}</span>
+                        <span className="font-mono text-ink-primary truncate">{email}</span>
                         {idx === 0 && (
-                          <span className="text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold shrink-0">
+                          <span className="text-[9px] px-1 py-0.2 bg-amber-500/20 text-ink-amber rounded font-semibold shrink-0">
                             Super Admin
                           </span>
                         )}
@@ -306,7 +350,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <button
                           type="button"
                           onClick={() => onRemoveAdminEmail(email)}
-                          className="text-rose-400 hover:text-rose-300 p-1 rounded"
+                          className="text-ink-rose hover:text-ink-rose p-1 rounded"
                           title="Hapus hak akses administrator"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -320,8 +364,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
             {/* Change Offline PIN */}
             {isChangingPin ? (
-              <form onSubmit={handleSaveNewPin} className="space-y-2 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
-                <label className="block text-[11px] font-medium text-slate-300">
+              <form onSubmit={handleSaveNewPin} className="space-y-2 bg-elevated p-3 rounded-xl border border-border-strong">
+                <label className="block text-[11px] font-medium text-ink-secondary">
                   Masukkan PIN / Password Baru (Min. 8 Karakter)
                 </label>
                 <input
@@ -331,13 +375,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   value={newPinInput}
                   onChange={(e) => setNewPinInput(e.target.value)}
                   placeholder="PIN baru (min. 8 karakter unik)"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-sm text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
                 <div className="flex space-x-2">
                   <button
                     type="button"
                     onClick={() => setIsChangingPin(false)}
-                    className="w-1/2 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs"
+                    className="w-1/2 py-1.5 bg-elevated text-ink-secondary rounded-xl text-xs"
                   >
                     Batal
                   </button>
@@ -352,9 +396,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             ) : (
               <button
                 onClick={() => setIsChangingPin(true)}
-                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 border border-slate-700"
+                className="w-full py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 border border-border-strong"
               >
-                <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                <KeyRound className="w-3.5 h-3.5 text-ink-secondary" />
                 <span>Ganti PIN Offline Administrator</span>
               </button>
             )}
@@ -411,8 +455,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
             {activeTab === 'GOOGLE' && (
               <div className="space-y-3.5 py-1">
-                <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-3 text-center space-y-2">
-                  <p className="text-xs text-slate-300">
+                <div className="bg-elevated border border-border-strong rounded-xl p-3 text-center space-y-2">
+                  <p className="text-xs text-ink-secondary">
                     Masuk menggunakan akun email Google Anda yang telah didaftarkan sebagai Administrator pada workspace pabrik ini.
                   </p>
                 </div>
@@ -437,17 +481,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <span>Lanjutkan dengan Akun Google</span>
                 </button>
 
-                <div className="text-[10px] text-slate-500 text-center">
+                <div className="text-[10px] text-ink-muted text-center">
                   Otentikasi aman berbasis Google Workspace OAuth & Firebase Auth.
                 </div>
               </div>
             )}
 
             {activeTab === 'PIN' && (
-              <form onSubmit={handlePinSubmit} className="space-y-4 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
+              <form onSubmit={handlePinSubmit} className="space-y-4 bg-canvas border border-border-subtle rounded-2xl p-3.5">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-medium text-slate-300">
+                    <label className="block text-xs font-medium text-ink-secondary">
                       PIN Workshop Administrator
                     </label>
                   </div>
@@ -460,12 +504,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       onChange={(e) => setPinInput(e.target.value)}
                       required
                       placeholder="Masukkan PIN Administrator"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-cyan-500 pr-10"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2.5 text-center text-lg font-mono tracking-widest text-ink-primary focus:outline-none focus:border-accent-primary pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPin(!showPin)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-ink-secondary hover:text-ink-primary"
                     >
                       {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -483,7 +527,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         else if (key === '⌫') handleKeypadPress('BACK');
                         else handleKeypadPress(key);
                       }}
-                      className="py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-sm font-semibold font-mono active:scale-95 transition border border-slate-700/50"
+                      className="py-2.5 rounded-xl bg-elevated hover:bg-accent text-ink-primary text-sm font-semibold font-mono active:scale-95 transition border border-border-strong"
                     >
                       {key}
                     </button>

@@ -74,7 +74,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Konfigurasi Master BOM',
       subtitle: 'Setup Material, WIP, Resep, SKU, Mesin & Tangki',
       icon: Database,
-      accentText: 'text-amber-400',
+      accentText: 'text-ink-amber',
       buttonClass: 'bg-amber-600 hover:bg-amber-500 text-white',
       cta: 'Atur Master BOM',
       ready: state.master.skus.length > 0 && state.master.materials.length > 0,
@@ -91,7 +91,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Penentuan Planning Mingguan',
       subtitle: 'Tetapkan target karton per SKU & shift sebagai acuan order',
       icon: CalendarRange,
-      accentText: 'text-emerald-400',
+      accentText: 'text-ink-emerald',
       buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
       cta: 'Atur Planning Mingguan',
       ready: Boolean(activePlan && activePlan.items.length > 0),
@@ -108,7 +108,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Permintaan Material',
       subtitle: 'Kalkulasi kebutuhan BOM + allowance & cetak slip order',
       icon: FileText,
-      accentText: 'text-sky-400',
+      accentText: 'text-ink-sky',
       buttonClass: 'bg-cyan-600 hover:bg-cyan-500 text-white',
       cta: 'Buat Permintaan',
       ready: state.transactions.requests.length > 0,
@@ -125,7 +125,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Kedatangan & Penerimaan Fisik',
       subtitle: 'Timbang fisik zak/lot, koreksi berat & input saldo gudang',
       icon: Truck,
-      accentText: 'text-emerald-400',
+      accentText: 'text-ink-emerald',
       buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
       cta: 'Catat Penerimaan',
       ready: receiptsCount > 0,
@@ -142,7 +142,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Pembuatan Work Order WIP',
       subtitle: 'Eksekusi batch resep mesin dengan pemotongan pallet FIFO',
       icon: Layers,
-      accentText: 'text-indigo-400',
+      accentText: 'text-ink-indigo',
       buttonClass: 'bg-indigo-600 hover:bg-indigo-500 text-white',
       cta: 'Buka Work Order WIP',
       ready: activeBatches.length > 0 || completedBatches.length > 0,
@@ -159,7 +159,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Transfer WIP ke Storage',
       subtitle: 'Pantau volume tangki & transfer Storage Tank ⇄ Holding Tank',
       icon: Cylinder,
-      accentText: 'text-cyan-400',
+      accentText: 'text-brand',
       buttonClass: 'bg-cyan-600 hover:bg-cyan-500 text-white',
       cta: 'Kelola Storage & Tangki',
       ready: totalTankCurrentKg > 0,
@@ -176,7 +176,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       title: 'Manufacturing',
       subtitle: 'Jalankan lini produksi karton, kontrol OEE, SBL & output akhir',
       icon: Cpu,
-      accentText: 'text-emerald-400',
+      accentText: 'text-ink-emerald',
       buttonClass: 'bg-emerald-600 hover:bg-emerald-500 text-white',
       cta: 'Buka Control Room Manufacturing',
       ready: activeRuns.length > 0 || cartonCount > 0,
@@ -192,23 +192,23 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   return (
     <div className="max-w-[1440px] mx-auto space-y-4 text-xs pb-6">
       {/* Top Cockpit Header */}
-      <div className="bg-[#0c121d] border border-slate-800 p-4 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="bg-surface border border-border-subtle p-4 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-400 shrink-0">
+          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-ink-amber shrink-0">
             <Shield className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400">
-              <span className="text-amber-400 font-semibold">Portal Administrator</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-secondary">
+              <span className="text-ink-amber font-semibold">Portal Administrator</span>
               <span aria-hidden="true">·</span>
               <span>{currentShift.name} ({currentShift.timeRange})</span>
               <span aria-hidden="true">·</span>
               <span className="tabular-nums">{state.master.machines.length} Mesin / {state.master.tanks.length} Tangki</span>
             </div>
-            <h1 className="font-extrabold text-sm sm:text-base text-white tracking-tight mt-0.5">
+            <h1 className="font-extrabold text-sm sm:text-base text-ink-primary tracking-tight mt-0.5">
               Pusat Alur Kerja Operasional Pabrik (7 Tahap Berurutan)
             </h1>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-ink-secondary mt-0.5">
               Ikuti urutan langkah 01 sampai 07 dari persiapan Master BOM hingga eksekusi Manufacturing di lini produksi.
             </p>
           </div>
@@ -219,27 +219,27 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           <button
             type="button"
             onClick={() => onSwitchTab('sheets-sync')}
-            className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+            className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-ink-emerald rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald" />
             <span>Sync Google Sheets</span>
           </button>
           {onOpenStockAdjustment && (
             <button
               type="button"
               onClick={onOpenStockAdjustment}
-              className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-amber-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+              className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-ink-amber rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
             >
-              <Scale className="w-3.5 h-3.5 text-amber-400" />
+              <Scale className="w-3.5 h-3.5 text-ink-amber" />
               <span>Adjust Saldo Awal</span>
             </button>
           )}
           <button
             type="button"
             onClick={onOpenUserManagement}
-            className="px-3 py-2 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+            className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-brand rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
           >
-            <Users className="w-3.5 h-3.5 text-cyan-400" />
+            <Users className="w-3.5 h-3.5 text-brand" />
             <span>Pengguna ({state.registeredOperators.length + state.registeredManagement.length})</span>
           </button>
           <button
@@ -261,47 +261,47 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           return (
             <div
               key={card.tab}
-              className={`bg-[#0c121d] border border-slate-800 hover:border-cyan-500/50 p-4 rounded-xl flex flex-col justify-between gap-3 transition ${
+              className={`bg-surface border border-border-subtle hover:border-cyan-500/50 p-4 rounded-xl flex flex-col justify-between gap-3 transition ${
                 isFinalStep ? 'md:col-span-2 xl:col-span-2' : ''
               }`}
             >
               <div className="space-y-2.5">
-                <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-800/80">
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-border-subtle">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-[#06090f] border border-slate-800 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-canvas border border-border-subtle flex items-center justify-center shrink-0">
                       <Icon className={`w-4 h-4 ${card.accentText}`} />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[10px] font-mono text-slate-400 block">
+                      <span className="text-[10px] font-mono text-ink-secondary block">
                         Tahap {card.step} dari 07
                       </span>
-                      <h2 className="font-bold text-sm text-white truncate">
+                      <h2 className="font-bold text-sm text-ink-primary truncate">
                         {card.title}
                       </h2>
                     </div>
                   </div>
 
                   {card.ready && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-ink-emerald shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Aktif</span>
                     </span>
                   )}
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-ink-secondary leading-relaxed">
                   {card.subtitle}
                 </p>
 
                 <div
-                  className={`grid gap-2 text-[11px] font-mono bg-[#06090f] p-2.5 rounded-lg border border-slate-800/80 tabular-nums ${
+                  className={`grid gap-2 text-[11px] font-mono bg-canvas p-2.5 rounded-lg border border-border-subtle tabular-nums ${
                     isFinalStep ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'
                   }`}
                 >
                   {card.metrics.map(m => (
                     <div key={m.label} className="min-w-0">
-                      <span className="text-slate-400 text-[10px] block truncate">{m.label}</span>
-                      <span className="text-slate-100 font-bold block truncate">{m.value}</span>
+                      <span className="text-ink-secondary text-[10px] block truncate">{m.label}</span>
+                      <span className="text-ink-primary font-bold block truncate">{m.value}</span>
                     </div>
                   ))}
                 </div>

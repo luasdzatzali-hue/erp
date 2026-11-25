@@ -413,18 +413,18 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
       aria-modal="true"
       aria-labelledby="qr-scanner-modal-title"
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-800">
+        <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-border-subtle">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="p-2.5 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shrink-0">
+            <div className="p-2.5 rounded-xl bg-cyan-500/15 text-brand border border-cyan-500/30 shrink-0">
               <QrCode className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 id="qr-scanner-modal-title" className="text-sm sm:text-base font-bold text-white">
+              <h3 id="qr-scanner-modal-title" className="text-sm sm:text-base font-bold text-ink-primary">
                 {title}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{subtitle}</p>
+              <p className="text-xs text-ink-secondary mt-0.5 leading-relaxed">{subtitle}</p>
             </div>
           </div>
 
@@ -434,7 +434,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               stopCameraStream();
               onClose();
             }}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+            className="p-2 rounded-xl text-ink-secondary hover:text-ink-primary hover:bg-elevated transition shrink-0"
             aria-label="Tutup pemindai QR"
           >
             <X className="w-5 h-5" />
@@ -442,15 +442,15 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
         </div>
 
         {/* Mode Tabs & Secondary Actions */}
-        <div className="px-5 pt-3.5 pb-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 bg-slate-950/50">
-          <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-xl border border-slate-700">
+        <div className="px-5 pt-3.5 pb-2 flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle bg-canvas">
+          <div className="flex items-center gap-1 p-1 bg-elevated rounded-xl border border-border-strong">
             <button
               type="button"
               onClick={() => setInputMode('camera')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 inputMode === 'camera'
                   ? 'bg-cyan-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               <Camera className="w-3.5 h-3.5" />
@@ -463,7 +463,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 inputMode === 'manual'
                   ? 'bg-cyan-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               <Keyboard className="w-3.5 h-3.5" />
@@ -473,12 +473,12 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
 
           <div className="flex items-center gap-2">
             {allowContinuous && (
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
+              <label className="flex items-center gap-2 text-xs text-ink-secondary cursor-pointer select-none px-2.5 py-1.5 rounded-lg bg-elevated border border-border-strong">
                 <input
                   type="checkbox"
                   checked={continuousMode}
                   onChange={(e) => setContinuousMode(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-cyan-500 bg-slate-900 border-slate-600"
+                  className="w-3.5 h-3.5 rounded text-cyan-500 bg-surface border-border-strong"
                 />
                 <span className="whitespace-nowrap">Scan Beruntun</span>
               </label>
@@ -488,9 +488,9 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenLabelGenerator}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-elevated hover:bg-accent text-ink-primary border border-border-strong flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
               >
-                <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                <Tag className="w-3.5 h-3.5 text-brand" />
                 <span>Buat Label QR</span>
               </button>
             )}
@@ -504,16 +504,16 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
             <div
               className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
                 lastFeedback.type === 'success'
-                  ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-200'
+                  ? 'bg-tint-emerald border-emerald-500/40 text-ink-emerald'
                   : lastFeedback.type === 'warning'
-                  ? 'bg-amber-950/50 border-amber-500/40 text-amber-200'
-                  : 'bg-rose-950/50 border-rose-500/40 text-rose-200'
+                  ? 'bg-tint-amber border-amber-500/40 text-ink-amber'
+                  : 'bg-tint-rose border-rose-500/40 text-ink-rose'
               }`}
             >
               {lastFeedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-ink-emerald shrink-0 mt-0.5" />
               ) : (
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
               )}
               <div className="min-w-0">
                 <p className="font-bold">{lastFeedback.title}</p>
@@ -526,11 +526,11 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
 
           {/* Unmatched warning */}
           {unmatchedScan && (
-            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-950/40 text-xs text-amber-200 flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-tint-amber text-xs text-ink-amber flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="font-bold">QR Code Tidak Dikenali di Database Material</p>
-                <p className="text-[11px] font-mono text-amber-300/90 break-all mt-0.5">
+                <p className="text-[11px] font-mono text-ink-amber break-all mt-0.5">
                   Isi QR: {unmatchedScan}
                 </p>
               </div>
@@ -540,7 +540,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
           {inputMode === 'camera' ? (
             <div className="space-y-3">
               {/* Camera Viewport */}
-              <div className="relative w-full aspect-video max-h-[340px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+              <div className="relative w-full aspect-video max-h-[340px] bg-canvas rounded-xl overflow-hidden border border-border-subtle flex items-center justify-center">
                 <video
                   ref={videoRef}
                   playsInline
@@ -564,8 +564,8 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
 
                 {cameraState === 'starting' && (
                   <div className="text-center p-6 space-y-2">
-                    <RefreshCw className="w-7 h-7 text-cyan-400 animate-spin mx-auto" />
-                    <p className="text-xs font-medium text-slate-300">
+                    <RefreshCw className="w-7 h-7 text-brand animate-spin mx-auto" />
+                    <p className="text-xs font-medium text-ink-secondary">
                       Menginisialisasi kamera perangkat...
                     </p>
                   </div>
@@ -573,10 +573,10 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
 
                 {cameraState === 'error' && (
                   <div className="text-center p-6 max-w-md space-y-3">
-                    <div className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+                    <div className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 text-ink-rose flex items-center justify-center mx-auto">
                       <Camera className="w-5 h-5" />
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">{cameraError}</p>
+                    <p className="text-xs text-ink-secondary leading-relaxed">{cameraError}</p>
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                       <button
                         type="button"
@@ -589,9 +589,9 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                        className="px-3.5 py-2 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
                       >
-                        <Upload className="w-3.5 h-3.5 text-cyan-400" />
+                        <Upload className="w-3.5 h-3.5 text-brand" />
                         <span>Unggah Gambar QR</span>
                       </button>
                     </div>
@@ -605,9 +605,9 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleSwitchCamera}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                    className="px-3 py-2 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
                   >
-                    <SwitchCamera className="w-3.5 h-3.5 text-cyan-400" />
+                    <SwitchCamera className="w-3.5 h-3.5 text-brand" />
                     <span>Ganti Kamera ({facingMode === 'environment' ? 'Belakang' : 'Depan'})</span>
                   </button>
 
@@ -615,16 +615,16 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsPaused((p) => !p)}
-                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                      className="px-3 py-2 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
                     >
                       {isPaused ? (
                         <>
-                          <Play className="w-3.5 h-3.5 text-emerald-400" />
+                          <Play className="w-3.5 h-3.5 text-ink-emerald" />
                           <span>Lanjutkan</span>
                         </>
                       ) : (
                         <>
-                          <Pause className="w-3.5 h-3.5 text-amber-400" />
+                          <Pause className="w-3.5 h-3.5 text-ink-amber" />
                           <span>Jeda</span>
                         </>
                       )}
@@ -637,8 +637,8 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                       onClick={handleToggleTorch}
                       className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition ${
                         torchOn
-                          ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                          : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                          ? 'bg-amber-500/20 border-amber-400 text-ink-amber'
+                          : 'bg-elevated hover:bg-accent border-border-strong text-ink-primary'
                       }`}
                     >
                       <Flashlight className="w-3.5 h-3.5" />
@@ -650,20 +650,20 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                  className="px-3 py-2 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
                 >
-                  <Upload className="w-3.5 h-3.5 text-cyan-400" />
+                  <Upload className="w-3.5 h-3.5 text-brand" />
                   <span>Scan dari File Gambar</span>
                 </button>
               </div>
 
               {devices.length > 1 && (
                 <div className="flex items-center gap-2 text-xs">
-                  <label className="text-slate-400 whitespace-nowrap">Perangkat Kamera:</label>
+                  <label className="text-ink-secondary whitespace-nowrap">Perangkat Kamera:</label>
                   <select
                     value={selectedDeviceId}
                     onChange={(e) => setSelectedDeviceId(e.target.value)}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-cyan-500"
+                    className="flex-1 bg-elevated border border-border-strong rounded-xl px-3 py-1.5 text-ink-primary text-xs focus:outline-none focus:border-accent-primary"
                   >
                     <option value="">Otomatis ({facingMode === 'environment' ? 'Kamera Belakang' : 'Kamera Depan'})</option>
                     {devices.map((dev, idx) => (
@@ -678,10 +678,10 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
           ) : (
             <div className="space-y-4">
               {/* Upload QR Image */}
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 rounded-xl bg-canvas border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Unggah Foto / Gambar Label QR</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <h4 className="text-xs font-bold text-ink-primary">Unggah Foto / Gambar Label QR</h4>
+                  <p className="text-[11px] text-ink-secondary mt-0.5">
                     Pilih file PNG/JPG/WebP berisi QR Code label material untuk didekode langsung di browser.
                   </p>
                 </div>
@@ -696,8 +696,8 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               </div>
 
               {/* Manual Barcode / QR String Input */}
-              <form onSubmit={handleManualSubmit} className="space-y-2.5 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5">
-                <label className="block text-xs font-semibold text-slate-200">
+              <form onSubmit={handleManualSubmit} className="space-y-2.5 bg-canvas border border-border-subtle rounded-2xl p-3.5">
+                <label className="block text-xs font-semibold text-ink-primary">
                   Input Manual Kode Material atau String QR (JSON / Scanner USB)
                 </label>
                 <div className="flex gap-2">
@@ -706,7 +706,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                     value={manualText}
                     onChange={(e) => setManualText(e.target.value)}
                     placeholder='Contoh: MAT-TP-01 atau {"code":"MAT-TP-01","lot":"LOT-26A","qty":250}'
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    className="flex-1 bg-elevated border border-border-strong rounded-xl px-3.5 py-2 text-xs text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                   />
                   <button
                     type="submit"
@@ -715,7 +715,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                     Identifikasi
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Mendukung barcode/QR scanner hardware (mode keyboard), kode material, maupun format JSON terstruktur.
                 </p>
               </form>
@@ -723,7 +723,7 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
               {/* Quick Lookup Samples from Master Database */}
               {materials.length > 0 && (
                 <div className="space-y-2">
-                  <span className="text-[11px] font-semibold text-slate-400 block">
+                  <span className="text-[11px] font-semibold text-ink-secondary block">
                     Pilih Cepat Material Terdaftar ({materials.length} tersedia):
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
@@ -732,15 +732,15 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
                         key={mat.id}
                         type="button"
                         onClick={() => handleDecodedPayload(mat.code || mat.id)}
-                        className="text-left px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 transition flex items-center justify-between gap-2"
+                        className="text-left px-3 py-2 rounded-xl bg-canvas hover:bg-elevated border border-border-subtle hover:border-cyan-500/50 transition flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-white truncate">{mat.name}</p>
-                          <p className="text-[11px] text-slate-400 font-mono truncate">
+                          <p className="text-xs font-semibold text-ink-primary truncate">{mat.name}</p>
+                          <p className="text-[11px] text-ink-secondary font-mono truncate">
                             {mat.code || mat.id} · {mat.type} · {mat.packaging}
                           </p>
                         </div>
-                        <QrCode className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                        <QrCode className="w-3.5 h-3.5 text-brand shrink-0" />
                       </button>
                     ))}
                   </div>
@@ -751,9 +751,9 @@ export const MaterialQrScannerModal: React.FC<MaterialQrScannerModalProps> = ({
 
           {/* Last scanned raw string footer note */}
           {recentScanText && (
-            <div className="text-[11px] text-slate-400 flex items-center gap-2 pt-1 border-t border-slate-800/80">
+            <div className="text-[11px] text-ink-secondary flex items-center gap-2 pt-1 border-t border-border-subtle">
               <span>Terakhir terbaca:</span>
-              <code className="font-mono text-cyan-300 truncate max-w-md">{recentScanText}</code>
+              <code className="font-mono text-brand truncate max-w-md">{recentScanText}</code>
             </div>
           )}
 

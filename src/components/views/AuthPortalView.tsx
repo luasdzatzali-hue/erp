@@ -286,13 +286,31 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
     if (isMatched) {
       setFailedLoginAttempts(0);
       setPinError('');
-      onLoginSuccess('ADMINISTRATOR', {
-        id: firebaseUser?.uid || 'admin_root',
-        name: state.currentAdminUser?.displayName || firebaseUser?.displayName || 'Administrator MES & BOM',
-        email: firebaseUser?.email || state.adminGoogleEmails?.[0] || '',
-        subtitle: `Akses Penuh: Master BOM, Mesin, Tangki, User Access & MRP (${state.factoryName || 'ProdTrack'})`
+      const activeFirebaseEmail = (firebaseUser?.email || '').trim().toLowerCase();
+      const adminList = (
+        state.workspaceAccessConfig?.adminEmails ||
+        state.adminGoogleEmails ||
+        []
+      ).map(e => e.trim().toLowerCase());
+      const hasCloudAdminAuth =
+        Boolean(activeFirebaseEmail && adminList.includes(activeFirebaseEmail)) ||
+        Boolean(firebaseUser?.uid && state.cloudOwnerUid && firebaseUser.uid === state.cloudOwnerUid);
+
+      onLoginSuccess(hasCloudAdminAuth ? 'ADMINISTRATOR' : 'OFFLINE_PIN_ADMIN', {
+        id: firebaseUser?.uid || 'admin_pin_local',
+        name: hasCloudAdminAuth
+          ? state.currentAdminUser?.displayName || firebaseUser?.displayName || 'Administrator MES & BOM'
+          : 'Administrator (PIN Lokal)',
+        email: activeFirebaseEmail || undefined,
+        subtitle: hasCloudAdminAuth
+          ? `Akses Penuh: Master BOM, Mesin, Tangki, User Access & MRP (${state.factoryName || 'ProdTrack'})`
+          : 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
       });
-      showToast('Berhasil masuk sebagai Administrator (Akses Penuh MRP & WMS)');
+      showToast(
+        hasCloudAdminAuth
+          ? 'Berhasil masuk sebagai Administrator (Akses Penuh MRP & WMS)'
+          : 'Mode PIN Lokal aktif — perubahan Master tidak tersimpan ke Cloud tanpa login Google Admin'
+      );
     } else {
       const nextFail = failedLoginAttempts + 1;
       setFailedLoginAttempts(nextFail);
@@ -340,12 +358,12 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   ) => {
     if (!detail) return null;
     return (
-      <div className="max-w-2xl mx-auto w-full bg-rose-950/60 border border-rose-500/50 rounded-2xl p-3.5 text-xs text-rose-100 space-y-2.5 shadow-lg">
+      <div className="max-w-2xl mx-auto w-full bg-tint-rose border border-rose-500/50 rounded-2xl p-3.5 text-xs text-rose-100 space-y-2.5 shadow-lg">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start space-x-2">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <div className="font-bold text-rose-200">
+              <div className="font-bold text-ink-rose">
                 Autentikasi Google Memerlukan Tindakan
                 {detail.code ? ` (${detail.code})` : ''}
               </div>
@@ -356,7 +374,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
             <button
               type="button"
               onClick={onDismiss}
-              className="p-1 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/50 transition shrink-0"
+              className="p-1 rounded-lg text-ink-rose hover:text-ink-primary hover:bg-tint-rose transition shrink-0"
               title="Tutup pesan"
             >
               <X className="w-3.5 h-3.5" />
@@ -365,17 +383,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         </div>
 
         {detail.domain && (
-          <div className="bg-slate-950/80 border border-rose-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-canvas border border-rose-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
             <div className="space-y-0.5">
-              <div className="text-[10px] text-slate-400 uppercase font-mono">
+              <div className="text-[10px] text-ink-secondary uppercase font-mono">
                 Tambahkan Domain Ini di Firebase Authorized Domains:
               </div>
-              <div className="text-xs font-mono font-bold text-amber-300">{detail.domain}</div>
+              <div className="text-xs font-mono font-bold text-ink-amber">{detail.domain}</div>
             </div>
             <button
               type="button"
               onClick={() => handleCopyHostname(detail.domain!)}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-semibold flex items-center space-x-1 transition"
+              className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent text-ink-primary text-[11px] font-semibold flex items-center space-x-1 transition"
             >
               <Copy className="w-3 h-3" />
               <span>Salin Domain</span>
@@ -458,25 +476,25 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
   const selectedMgtUser = state.registeredManagement.find(m => m.id === selectedManagementId);
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col justify-between p-3 sm:p-5 lg:p-6 relative selection:bg-cyan-500/30 selection:text-cyan-200 overflow-y-auto">
+    <div className="min-h-screen w-full bg-canvas text-ink-primary flex flex-col justify-between p-3 sm:p-5 lg:p-6 relative selection:bg-cyan-500/30 selection:text-brand overflow-y-auto">
       {/* Top Bar: Brand, Cloud Status, Theme Toggle & Shift Status */}
-      <header className="relative z-10 max-w-6xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between pb-4 sm:pb-5 border-b border-slate-800/80 gap-3 shrink-0">
+      <header className="relative z-10 max-w-6xl w-full mx-auto flex flex-col sm:flex-row items-center justify-between pb-4 sm:pb-5 border-b border-border-subtle gap-3 shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 p-0.5 shadow-lg shadow-cyan-900/30">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-              <PackageOpen className="w-5 h-5 text-cyan-400" />
+            <div className="w-full h-full bg-canvas rounded-[14px] flex items-center justify-center">
+              <PackageOpen className="w-5 h-5 text-brand" />
             </div>
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="font-extrabold text-base sm:text-lg text-white tracking-tight">
+              <h1 className="font-extrabold text-base sm:text-lg text-ink-primary tracking-tight">
                 ProdTrack MES
               </h1>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-tint-cyan text-brand border border-tint-cyan-border font-bold">
                 CLOUD SYNC
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-ink-secondary">
               {cloudFactoryName || state.factoryName || 'Sistem Eksekusi Manufaktur & Manajemen Pergudangan Terintegrasi'}
             </p>
           </div>
@@ -485,14 +503,14 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         {/* Top Right: Cloud Connection, Theme Toggle, Clock & Shift Status */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           {firebaseUser && (
-            <div className="flex items-center space-x-2 bg-emerald-950/50 border border-emerald-500/40 px-2.5 py-1.5 rounded-xl text-[11px] text-emerald-300">
-              <Cloud className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <div className="flex items-center space-x-2 bg-tint-emerald border border-emerald-500/40 px-2.5 py-1.5 rounded-xl text-[11px] text-ink-emerald">
+              <Cloud className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
               <span className="font-mono truncate max-w-[160px]">{firebaseUser.email}</span>
               <button
                 type="button"
                 onClick={onFirebaseSignOut}
                 title="Putuskan sesi akun Google dari perangkat ini"
-                className="text-slate-400 hover:text-rose-300 transition p-0.5"
+                className="text-ink-secondary hover:text-ink-rose transition p-0.5"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -509,27 +527,27 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   : 'Beralih ke Tema Daylight (Cerah Terang Pabrik)'
               }
               aria-label="Toggle Theme"
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-750 hover:border-slate-600 text-xs font-medium text-slate-200 hover:text-white transition active:scale-95 shadow-sm"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-surface border border-border-strong hover:border-border-strong text-xs font-medium text-ink-primary hover:text-ink-primary transition active:scale-95 shadow-sm"
             >
               {theme === 'daylight' || theme === 'light' ? (
                 <>
-                  <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <Moon className="w-3.5 h-3.5 text-ink-indigo" />
                   <span className="text-[11px] font-semibold">Midnight</span>
                 </>
               ) : (
                 <>
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <Sun className="w-3.5 h-3.5 text-ink-amber" />
                   <span className="text-[11px] font-semibold">Daylight</span>
                 </>
               )}
             </button>
           )}
 
-          <div className="flex items-center space-x-2 text-xs font-mono bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-xl shadow-inner text-slate-300">
+          <div className="flex items-center space-x-2 text-xs font-mono bg-surface border border-border-subtle px-3 py-1.5 rounded-xl shadow-inner text-ink-secondary">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-emerald-400 font-bold">{currentShift.name}</span>
+            <span className="text-ink-emerald font-bold">{currentShift.name}</span>
             <span className="text-slate-600">|</span>
-            <span className="text-white font-semibold">{clockTime}</span>
+            <span className="text-ink-primary font-semibold">{clockTime}</span>
           </div>
         </div>
       </header>
@@ -538,13 +556,13 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       <main className="relative z-10 max-w-6xl w-full mx-auto py-4 sm:py-6 flex-1 flex flex-col justify-center">
         {/* STATE 1: CHECKING FIRESTORE SETUP STATUS */}
         {setupStatus === 'checking' && (
-          <div className="max-w-md mx-auto w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <div className="max-w-md mx-auto w-full bg-surface border border-border-subtle rounded-3xl p-8 text-center space-y-4 shadow-2xl">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
-              <Loader2 className="w-7 h-7 text-cyan-400 animate-spin" />
+              <Loader2 className="w-7 h-7 text-brand animate-spin" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-bold text-white">Memeriksa Database Cloud...</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-lg font-bold text-ink-primary">Memeriksa Database Cloud...</h2>
+              <p className="text-xs text-ink-secondary">
                 Mengecek status pendaftaran Administrator pertama &amp; sinkronisasi Master BOM pabrik.
               </p>
             </div>
@@ -553,13 +571,13 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
         {/* STATE 2: CONNECTION ERROR */}
         {setupStatus === 'error' && (
-          <div className="max-w-md mx-auto w-full bg-slate-900/90 border border-rose-500/40 rounded-3xl p-7 text-center space-y-4 shadow-2xl">
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+          <div className="max-w-md mx-auto w-full bg-surface border border-rose-500/40 rounded-3xl p-7 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-ink-rose">
               <CloudOff className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-base font-bold text-white">Gagal Terhubung ke Cloud Database</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-bold text-ink-primary">Gagal Terhubung ke Cloud Database</h2>
+              <p className="text-xs text-ink-secondary">
                 Periksa koneksi internet Anda lalu coba periksa ulang status pendaftaran Administrator.
               </p>
             </div>
@@ -577,34 +595,34 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         {setupStatus === 'needs_setup' && (
           <div className="max-w-2xl mx-auto w-full space-y-5">
             <div className="text-center space-y-1.5">
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-mono font-bold uppercase">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-ink-amber text-[11px] font-mono font-bold uppercase">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>First-Time Setup Wizard</span>
               </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-ink-primary tracking-tight">
                 Pendaftaran Akun Administrator Pertama
               </h2>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
+              <p className="text-xs sm:text-sm text-ink-secondary max-w-xl mx-auto">
                 Website baru pertama kali dibuka dan belum memiliki Administrator terdaftar. Akun Administrator ini akan menyimpan seluruh Master BOM, lini produksi, serta hak akses Operator &amp; Manajemen secara permanen di Cloud agar dapat diakses dari perangkat dan jaringan mana saja.
               </p>
             </div>
 
             <form
               onSubmit={handleSetupWizardSubmit}
-              className="bg-slate-900/90 border border-amber-500/40 rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl shadow-amber-950/20"
+              className="bg-surface border border-amber-500/40 rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl shadow-amber-950/20"
             >
               {/* Step 1: Google Auth Connection */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center space-x-2.5">
                     <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
                       1
                     </span>
                     <div>
-                      <h3 className="text-sm font-bold text-white">
+                      <h3 className="text-sm font-bold text-ink-primary">
                         Hubungkan Akun Google Administrator Utama
                       </h3>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-ink-secondary">
                         Digunakan sebagai identitas Cloud untuk login kembali dari perangkat &amp; internet mana saja.
                       </p>
                     </div>
@@ -612,14 +630,14 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 </div>
 
                 {setupUser ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-tint-emerald border border-emerald-500/40 rounded-xl p-3">
                     <div className="flex items-center space-x-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="w-5 h-5 text-ink-emerald shrink-0" />
                       <div>
-                        <div className="text-xs font-bold text-white">
+                        <div className="text-xs font-bold text-ink-primary">
                           {setupUser.displayName || 'Administrator'}
                         </div>
-                        <div className="text-[11px] font-mono text-emerald-300">
+                        <div className="text-[11px] font-mono text-ink-emerald">
                           {setupUser.email}
                         </div>
                       </div>
@@ -628,7 +646,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       type="button"
                       onClick={() => handleConnectGoogleForSetup(false)}
                       disabled={isGoogleLoading}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition"
+                      className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-[11px] font-semibold transition"
                     >
                       Ganti Akun Google
                     </button>
@@ -656,7 +674,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       type="button"
                       onClick={() => handleConnectGoogleForSetup(true)}
                       disabled={isGoogleLoading}
-                      className="w-full py-1.5 text-[11px] text-cyan-300 hover:text-cyan-200 underline transition disabled:opacity-50"
+                      className="w-full py-1.5 text-[11px] text-brand hover:text-brand underline transition disabled:opacity-50"
                     >
                       Popup terblokir? Hubungkan via Redirect
                     </button>
@@ -670,16 +688,16 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
               </div>
 
               {/* Step 2: Factory & Security Profile */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+              <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3.5">
                 <div className="flex items-center space-x-2.5">
                   <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
                     2
                   </span>
                   <div>
-                    <h3 className="text-sm font-bold text-white">
+                    <h3 className="text-sm font-bold text-ink-primary">
                       Identitas Pabrik, Keamanan PIN &amp; Data Awal BOM
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-ink-secondary">
                       Konfigurasi workspace Cloud pertama Anda.
                     </p>
                   </div>
@@ -687,8 +705,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      <Factory className="w-3.5 h-3.5 inline mr-1 text-cyan-400" />
+                    <label className="block text-ink-secondary font-medium mb-1">
+                      <Factory className="w-3.5 h-3.5 inline mr-1 text-brand" />
                       Nama Pabrik / Perusahaan:
                     </label>
                     <input
@@ -697,13 +715,13 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       value={setupFactoryName}
                       onChange={e => setSetupFactoryName(e.target.value)}
                       placeholder="cth: PT ProdTrack Foods Indonesia"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      <Shield className="w-3.5 h-3.5 inline mr-1 text-amber-400" />
+                    <label className="block text-ink-secondary font-medium mb-1">
+                      <Shield className="w-3.5 h-3.5 inline mr-1 text-ink-amber" />
                       Nama Lengkap Administrator:
                     </label>
                     <input
@@ -712,13 +730,13 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       value={setupAdminName}
                       onChange={e => setSetupAdminName(e.target.value)}
                       placeholder="Nama Super Administrator..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      <Lock className="w-3.5 h-3.5 inline mr-1 text-amber-400" />
+                    <label className="block text-ink-secondary font-medium mb-1">
+                      <Lock className="w-3.5 h-3.5 inline mr-1 text-ink-amber" />
                       Buat PIN / Password Administrator (Min. 8 karakter):
                     </label>
                     <div className="relative">
@@ -730,12 +748,12 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                         value={setupPin}
                         onChange={e => setSetupPin(e.target.value)}
                         placeholder="Minimal 8 karakter unik..."
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono tracking-widest focus:outline-none focus:border-amber-500"
+                        className="w-full bg-surface border border-border-strong rounded-xl pl-3 pr-9 py-2 text-ink-primary font-mono tracking-widest focus:outline-none focus:border-amber-500"
                       />
                       <button
                         type="button"
                         onClick={() => setShowSetupPin(!showSetupPin)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-secondary hover:text-ink-primary"
                       >
                         {showSetupPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -743,7 +761,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">
+                    <label className="block text-ink-secondary font-medium mb-1">
                       Konfirmasi PIN / Password Administrator:
                     </label>
                     <input
@@ -754,15 +772,15 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       value={setupPinConfirm}
                       onChange={e => setSetupPinConfirm(e.target.value)}
                       placeholder="Ulangi PIN / Password..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tracking-widest focus:outline-none focus:border-amber-500"
+                      className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono tracking-widest focus:outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
 
                 {/* Initial Data Choice */}
                 <div className="pt-1 space-y-2">
-                  <label className="block text-xs text-slate-300 font-medium">
-                    <Database className="w-3.5 h-3.5 inline mr-1 text-cyan-400" />
+                  <label className="block text-xs text-ink-secondary font-medium">
+                    <Database className="w-3.5 h-3.5 inline mr-1 text-brand" />
                     Pilihan Inisialisasi Data BOM &amp; Master Awal:
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
@@ -771,17 +789,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       onClick={() => setSetupInitMode('template')}
                       className={`p-3 rounded-xl border text-left transition ${
                         setupInitMode === 'template'
-                          ? 'bg-cyan-950/50 border-cyan-500 text-white ring-1 ring-cyan-500/40'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-tint-cyan border-cyan-500 text-ink-primary ring-1 ring-cyan-500/40'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                       }`}
                     >
-                      <div className="font-bold text-white flex items-center justify-between">
+                      <div className="font-bold text-ink-primary flex items-center justify-between">
                         <span>Template Data Pabrik Siap Pakai</span>
                         {setupInitMode === 'template' && (
-                          <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
+                      <p className="text-[11px] text-ink-secondary mt-1">
                         Berisi contoh Bahan Baku, WIP, SKU, Mesin, Tangki, Operator &amp; Manajemen yang dapat langsung diedit.
                       </p>
                     </button>
@@ -791,17 +809,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       onClick={() => setSetupInitMode('blank')}
                       className={`p-3 rounded-xl border text-left transition ${
                         setupInitMode === 'blank'
-                          ? 'bg-amber-950/40 border-amber-500 text-white ring-1 ring-amber-500/40'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-tint-amber border-amber-500 text-ink-primary ring-1 ring-amber-500/40'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                       }`}
                     >
-                      <div className="font-bold text-white flex items-center justify-between">
+                      <div className="font-bold text-ink-primary flex items-center justify-between">
                         <span>Mulai Bersih (Master BOM Kosong)</span>
                         {setupInitMode === 'blank' && (
-                          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-ink-amber shrink-0" />
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
+                      <p className="text-[11px] text-ink-secondary mt-1">
                         Mulai dari nol agar Administrator menginput sendiri seluruh BOM, Material, Operator &amp; Manajemen.
                       </p>
                     </button>
@@ -812,7 +830,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
               <button
                 type="submit"
                 disabled={isSubmittingSetup || !setupUser}
-                className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl text-sm shadow-xl shadow-amber-600/20 transition active:scale-95 flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-elevated disabled:text-ink-muted text-white font-bold rounded-2xl text-sm shadow-xl shadow-amber-600/20 transition active:scale-95 flex items-center justify-center space-x-2"
               >
                 {isSubmittingSetup ? (
                   <>
@@ -835,14 +853,14 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
         {setupStatus === 'ready' && (
           <div className="space-y-5">
             {/* Top Auth Mode Tabs (Login vs Sign Up) */}
-            <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex items-center shadow-lg">
+            <div className="max-w-md mx-auto bg-surface border border-border-subtle p-1.5 rounded-2xl flex items-center shadow-lg">
               <button
                 type="button"
                 onClick={() => setAuthMode('login')}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
                   authMode === 'login'
                     ? 'bg-cyan-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -855,7 +873,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
                   authMode === 'signup'
                     ? 'bg-amber-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -866,43 +884,43 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
             {authMode === 'signup' ? (
               <div className="max-w-2xl mx-auto w-full space-y-4">
                 <div className="text-center space-y-1">
-                  <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-ink-primary tracking-tight">
                     Pendaftaran Akun Administrator &amp; Pabrik Baru
                   </h2>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-ink-secondary">
                     Buat akun administrator baru dan workspace pabrik terisolasi dengan BOM mandiri.
                   </p>
                 </div>
 
                 <form
                   onSubmit={handleSetupWizardSubmit}
-                  className="bg-slate-900/90 border border-amber-500/40 rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl"
+                  className="bg-surface border border-amber-500/40 rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl"
                 >
                   {/* Step 1: Google Auth Connection */}
-                  <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3">
                     <div className="flex items-center space-x-2.5">
                       <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
                         1
                       </span>
                       <div>
-                        <h3 className="text-sm font-bold text-white">
+                        <h3 className="text-sm font-bold text-ink-primary">
                           Hubungkan Akun Google untuk Pendaftaran
                         </h3>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ink-secondary">
                           Identitas akun Google untuk autentikasi aman.
                         </p>
                       </div>
                     </div>
 
                     {setupUser ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-tint-emerald border border-emerald-500/40 rounded-xl p-3">
                         <div className="flex items-center space-x-3">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <CheckCircle2 className="w-5 h-5 text-ink-emerald shrink-0" />
                           <div>
-                            <div className="text-xs font-bold text-white">
+                            <div className="text-xs font-bold text-ink-primary">
                               {setupUser.displayName || 'Administrator'}
                             </div>
-                            <div className="text-[11px] font-mono text-emerald-300">
+                            <div className="text-[11px] font-mono text-ink-emerald">
                               {setupUser.email}
                             </div>
                           </div>
@@ -911,7 +929,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           type="button"
                           onClick={() => handleConnectGoogleForSetup(false)}
                           disabled={isGoogleLoading}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition"
+                          className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-[11px] font-semibold transition"
                         >
                           Ganti Akun Google
                         </button>
@@ -935,7 +953,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           type="button"
                           onClick={() => handleConnectGoogleForSetup(true)}
                           disabled={isGoogleLoading}
-                          className="w-full py-1.5 text-[11px] text-cyan-300 hover:text-cyan-200 underline transition disabled:opacity-50"
+                          className="w-full py-1.5 text-[11px] text-brand hover:text-brand underline transition disabled:opacity-50"
                         >
                           Popup terblokir? Hubungkan via Redirect
                         </button>
@@ -946,16 +964,16 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   </div>
 
                   {/* Step 2: Factory & Security Profile */}
-                  <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                  <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3.5">
                     <div className="flex items-center space-x-2.5">
                       <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
                         2
                       </span>
                       <div>
-                        <h3 className="text-sm font-bold text-white">
+                        <h3 className="text-sm font-bold text-ink-primary">
                           Identitas Pabrik, PIN Keamanan &amp; Pilihan BOM Awal
                         </h3>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ink-secondary">
                           Data BOM, Operator, dan Management terisolasi khusus untuk akun pabrik Anda.
                         </p>
                       </div>
@@ -963,7 +981,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div>
-                        <label className="block text-slate-300 font-medium mb-1">Nama Pabrik / Perusahaan:</label>
+                        <label className="block text-ink-secondary font-medium mb-1">Nama Pabrik / Perusahaan:</label>
                         <input
                           type="text"
                           required
@@ -971,11 +989,11 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           value={setupFactoryName}
                           onChange={e => setSetupFactoryName(e.target.value)}
                           placeholder="cth: PT Manufaktur Baru Nusantara"
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                          className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-300 font-medium mb-1">Nama Administrator:</label>
+                        <label className="block text-ink-secondary font-medium mb-1">Nama Administrator:</label>
                         <input
                           type="text"
                           required
@@ -983,11 +1001,11 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           value={setupAdminName}
                           onChange={e => setSetupAdminName(e.target.value)}
                           placeholder="Nama lengkap..."
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                          className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-300 font-medium mb-1">PIN / Password (Min. 8 Karakter):</label>
+                        <label className="block text-ink-secondary font-medium mb-1">PIN / Password (Min. 8 Karakter):</label>
                         <div className="relative">
                           <input
                             type={showSetupPin ? 'text' : 'password'}
@@ -997,19 +1015,19 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             value={setupPin}
                             onChange={e => setSetupPin(e.target.value)}
                             placeholder="Min. 8 karakter unik..."
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                            className="w-full bg-surface border border-border-strong rounded-xl pl-3 pr-9 py-2 text-ink-primary font-mono focus:outline-none focus:border-amber-500"
                           />
                           <button
                             type="button"
                             onClick={() => setShowSetupPin(!showSetupPin)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-secondary hover:text-ink-primary"
                           >
                             {showSetupPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
                       </div>
                       <div>
-                        <label className="block text-slate-300 font-medium mb-1">Konfirmasi PIN / Password:</label>
+                        <label className="block text-ink-secondary font-medium mb-1">Konfirmasi PIN / Password:</label>
                         <input
                           type={showSetupPin ? 'text' : 'password'}
                           required
@@ -1018,15 +1036,15 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           value={setupPinConfirm}
                           onChange={e => setSetupPinConfirm(e.target.value)}
                           placeholder="Ulangi PIN / Password..."
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                          className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-amber-500"
                         />
                       </div>
                     </div>
 
                     {/* Initial Data Choice for isolated tenant */}
                     <div className="pt-1 space-y-2">
-                      <label className="block text-xs text-slate-300 font-medium">
-                        <Database className="w-3.5 h-3.5 inline mr-1 text-cyan-400" />
+                      <label className="block text-xs text-ink-secondary font-medium">
+                        <Database className="w-3.5 h-3.5 inline mr-1 text-brand" />
                         Pilihan Inisialisasi Data BOM &amp; Master Awal:
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
@@ -1035,17 +1053,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           onClick={() => setSetupInitMode('template')}
                           className={`p-3 rounded-xl border text-left transition ${
                             setupInitMode === 'template'
-                              ? 'bg-cyan-950/50 border-cyan-500 text-white ring-1 ring-cyan-500/40'
-                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                              ? 'bg-tint-cyan border-cyan-500 text-ink-primary ring-1 ring-cyan-500/40'
+                              : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                           }`}
                         >
-                          <div className="font-bold text-white flex items-center justify-between">
+                          <div className="font-bold text-ink-primary flex items-center justify-between">
                             <span>Template Data Pabrik Siap Pakai</span>
                             {setupInitMode === 'template' && (
-                              <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                              <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400 mt-1">
+                          <p className="text-[11px] text-ink-secondary mt-1">
                             Berisi contoh Bahan Baku, WIP, SKU, Mesin, Tangki yang dapat disesuaikan.
                           </p>
                         </button>
@@ -1055,17 +1073,17 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                           onClick={() => setSetupInitMode('blank')}
                           className={`p-3 rounded-xl border text-left transition ${
                             setupInitMode === 'blank'
-                              ? 'bg-amber-950/40 border-amber-500 text-white ring-1 ring-amber-500/40'
-                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                              ? 'bg-tint-amber border-amber-500 text-ink-primary ring-1 ring-amber-500/40'
+                              : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                           }`}
                         >
-                          <div className="font-bold text-white flex items-center justify-between">
+                          <div className="font-bold text-ink-primary flex items-center justify-between">
                             <span>Mulai Bersih (Master BOM Kosong)</span>
                             {setupInitMode === 'blank' && (
-                              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                              <CheckCircle2 className="w-4 h-4 text-ink-amber shrink-0" />
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400 mt-1">
+                          <p className="text-[11px] text-ink-secondary mt-1">
                             Mulai dari nol agar Anda menginput sendiri BOM, Operator &amp; Management.
                           </p>
                         </button>
@@ -1076,7 +1094,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmittingSetup || !setupUser}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl text-sm shadow-xl transition active:scale-95 flex items-center justify-center space-x-2"
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-elevated disabled:text-ink-muted text-white font-bold rounded-2xl text-sm shadow-xl transition active:scale-95 flex items-center justify-center space-x-2"
                   >
                     {isSubmittingSetup ? (
                       <>
@@ -1096,7 +1114,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setAuthMode('login')}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium"
+                      className="text-xs text-brand hover:text-brand underline font-medium"
                     >
                       Sudah punya akun? Masuk ke sistem (Login)
                     </button>
@@ -1106,7 +1124,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
             ) : (
               <div className="space-y-4 sm:space-y-5">
                 <div className="text-center max-w-2xl mx-auto space-y-1">
-                  <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono font-semibold mb-1">
+                  <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-ink-emerald text-[11px] font-mono font-semibold mb-1">
                     <Cloud className="w-3.5 h-3.5" />
                     <span>
                       {isSyncingCloud
@@ -1116,10 +1134,10 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                         : 'Pilih Peran & Masuk dengan Akun Google Anda (Atau Daftar Akun Baru)'}
                     </span>
                   </div>
-                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-ink-primary tracking-tight">
                     Pilih Jenis Pengguna untuk Masuk
                   </h2>
-                  <p className="text-xs sm:text-sm text-slate-400">
+                  <p className="text-xs sm:text-sm text-ink-secondary">
                     Seluruh Master BOM, Resep, Line Produksi, serta hak akses Operator &amp; Manajemen tersinkronisasi aman di Cloud.
                   </p>
                 </div>
@@ -1139,26 +1157,26 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 }}
                 className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between relative overflow-hidden ${
                   selectedRole === 'ADMINISTRATOR'
-                    ? 'bg-slate-900/90 border-amber-500/60 shadow-xl shadow-amber-950/20 ring-1 ring-amber-500/30'
-                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/80'
+                    ? 'bg-surface border-amber-500/60 shadow-xl shadow-amber-950/20 ring-1 ring-amber-500/30'
+                    : 'bg-surface border-border-subtle hover:border-border-strong hover:bg-surface'
                 }`}
               >
                 {selectedRole === 'ADMINISTRATOR' && (
-                  <div className="absolute top-0 right-0 bg-amber-500/20 text-amber-300 border-b border-l border-amber-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
+                  <div className="absolute top-0 right-0 bg-amber-500/20 text-ink-amber border-b border-l border-amber-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
                     Aktif Dipilih
                   </div>
                 )}
 
                 <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-ink-amber flex items-center justify-center">
                     <Shield className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-white">Administrator</h3>
-                    <p className="text-xs text-amber-400/90 font-mono mt-0.5">
+                    <h3 className="font-bold text-base text-ink-primary">Administrator</h3>
+                    <p className="text-xs text-ink-amber font-mono mt-0.5">
                       Akses Penuh Modul MRP &amp; WMS
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                    <p className="text-[11px] text-ink-secondary mt-2 leading-relaxed">
                       Mengelola Master BOM, resep formulasi, mesin, tangki WIP, serta hak akses Operator dan Management lintas perangkat.
                     </p>
                   </div>
@@ -1191,7 +1209,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                               handleGoogleCloudSignIn('ADMINISTRATOR', { forceAccountSelect: true })
                             }
                             disabled={isGoogleLoading || isSyncingCloud}
-                            className="w-full py-1.5 px-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-medium transition disabled:opacity-50"
+                            className="w-full py-1.5 px-3 bg-elevated hover:bg-elevated border border-border-strong text-ink-secondary hover:text-ink-primary rounded-xl text-[11px] font-medium transition disabled:opacity-50"
                           >
                             Ganti Akun Google Admin Lain
                           </button>
@@ -1199,9 +1217,9 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       ) : (
                         <>
                           {firebaseUser && (
-                            <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300">
+                            <div className="p-2.5 rounded-xl bg-canvas border border-border-subtle text-[11px] text-ink-secondary">
                               Terhubung sebagai{' '}
-                              <span className="font-mono text-amber-300 font-semibold">
+                              <span className="font-mono text-ink-amber font-semibold">
                                 {firebaseUser.email}
                               </span>
                               {cloudAuthRole
@@ -1240,7 +1258,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                               handleGoogleCloudSignIn('ADMINISTRATOR', { useRedirect: true })
                             }
                             disabled={isGoogleLoading || isSyncingCloud}
-                            className="w-full py-1 text-[11px] text-amber-300/90 hover:text-amber-200 underline transition disabled:opacity-50"
+                            className="w-full py-1 text-[11px] text-ink-amber hover:text-ink-amber underline transition disabled:opacity-50"
                           >
                             Popup gagal? Login via Redirect (Vercel/Mobile)
                           </button>
@@ -1248,8 +1266,8 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                       )}
 
                       {isWorkspaceSyncedOnDevice && cloudAuthRole === 'ADMINISTRATOR' && (
-                        <form onSubmit={handleAdminPinSubmit} className="pt-2 border-t border-slate-800 space-y-2">
-                          <label className="block text-[11px] font-medium text-slate-300">
+                        <form onSubmit={handleAdminPinSubmit} className="pt-2 border-t border-border-subtle space-y-2">
+                          <label className="block text-[11px] font-medium text-ink-secondary">
                             Atau Buka Cepat dengan PIN Admin:
                           </label>
                           <div className="relative">
@@ -1263,20 +1281,20 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                               autoComplete="off"
                               placeholder="Masukkan PIN Administrator..."
                               required
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono tracking-widest text-sm focus:outline-none focus:border-amber-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl pl-3 pr-9 py-2 text-ink-primary font-mono tracking-widest text-sm focus:outline-none focus:border-amber-500"
                             />
                             <button
                               type="button"
                               onClick={() => setShowPin(!showPin)}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-secondary hover:text-ink-primary"
                             >
                               {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
-                          {pinError && <p className="text-[10px] text-rose-400">{pinError}</p>}
+                          {pinError && <p className="text-[10px] text-ink-rose">{pinError}</p>}
                           <button
                             type="submit"
-                            className="w-full py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-amber-300 font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
+                            className="w-full py-2 bg-elevated hover:bg-accent border border-border-strong text-ink-amber font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
                           >
                             <span>Masuk via PIN Administrator</span>
                             <ArrowRight className="w-3.5 h-3.5" />
@@ -1286,7 +1304,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     </div>
                   ) : (
                     <div className="pt-3">
-                      <span className="text-xs text-amber-400 font-medium flex items-center space-x-1">
+                      <span className="text-xs text-ink-amber font-medium flex items-center space-x-1">
                         <span>Klik untuk memilih Administrator</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </span>
@@ -1294,7 +1312,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
+                <div className="mt-4 pt-3 border-t border-border-subtle text-[10px] text-ink-muted font-mono">
                   Role: SUPER_ADMIN &amp; Cloud Master BOM
                 </div>
               </div>
@@ -1304,44 +1322,44 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 onClick={() => setSelectedRole('OPERATOR')}
                 className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between relative overflow-hidden ${
                   selectedRole === 'OPERATOR'
-                    ? 'bg-slate-900/90 border-cyan-500/60 shadow-xl shadow-cyan-950/20 ring-1 ring-cyan-500/30'
-                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/80'
+                    ? 'bg-surface border-cyan-500/60 shadow-xl shadow-cyan-950/20 ring-1 ring-cyan-500/30'
+                    : 'bg-surface border-border-subtle hover:border-border-strong hover:bg-surface'
                 }`}
               >
                 {selectedRole === 'OPERATOR' && (
-                  <div className="absolute top-0 right-0 bg-cyan-500/20 text-cyan-300 border-b border-l border-cyan-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
+                  <div className="absolute top-0 right-0 bg-cyan-500/20 text-brand border-b border-l border-cyan-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
                     Aktif Dipilih
                   </div>
                 )}
 
                 <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-brand flex items-center justify-center">
                     <UserCheck className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-white">Operator Produksi</h3>
-                    <p className="text-xs text-cyan-400/90 font-mono mt-0.5">
+                    <h3 className="font-bold text-base text-ink-primary">Operator Produksi</h3>
+                    <p className="text-xs text-brand font-mono mt-0.5">
                       Operasional Lini &amp; Gudang
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                    <p className="text-[11px] text-ink-secondary mt-2 leading-relaxed">
                       Menjalankan Perintah Kerja Batch WIP, penerimaan bahan baku CK &amp; Wineroto, serta monitoring output line tanpa izin pengaturan Master.
                     </p>
                   </div>
 
                   {selectedRole === 'OPERATOR' ? (
                     isWorkspaceSyncedOnDevice && (cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR') ? (
-                      <form onSubmit={handleOperatorSubmit} className="bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3 space-y-2.5">
+                      <form onSubmit={handleOperatorSubmit} className="bg-canvas border border-border-subtle rounded-2xl p-3 space-y-2.5">
                         {activeOperators.length > 0 ? (
                           <>
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                                 Pilih Operator Terdaftar ({activeOperators.length}):
                               </label>
                               <select
                                 value={selectedOperatorId}
                                 onChange={e => setSelectedOperatorId(e.target.value)}
                                 required
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary text-xs focus:outline-none focus:border-accent-primary"
                               >
                                 {activeOperators.map(op => (
                                   <option key={op.id} value={op.id}>
@@ -1352,7 +1370,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             </div>
 
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                                 Pilih Shift Pengerjaan:
                               </label>
                               <div className="grid grid-cols-3 gap-1.5">
@@ -1364,7 +1382,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                                     className={`py-1.5 rounded-xl text-xs font-semibold font-mono transition border ${
                                       selectedShift === sNum
                                         ? 'bg-cyan-600 border-cyan-500 text-white shadow-xs'
-                                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                                        : 'bg-elevated border-border-strong text-ink-secondary hover:text-ink-primary'
                                     }`}
                                   >
                                     Shift {sNum}
@@ -1382,14 +1400,14 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             </button>
                           </>
                         ) : (
-                          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-amber-300">
+                          <div className="p-3 rounded-xl bg-canvas border border-border-subtle text-[11px] text-ink-amber">
                             Belum ada Operator aktif terdaftar. Hubungi Administrator untuk mendaftarkan akun Operator di menu Manajemen Pengguna.
                           </div>
                         )}
                       </form>
                     ) : (
                       <div className="pt-2 space-y-2" onClick={e => e.stopPropagation()}>
-                        <p className="text-[11px] text-slate-300 bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
+                        <p className="text-[11px] text-ink-secondary bg-canvas border border-border-subtle p-2.5 rounded-xl">
                           Login dengan email Google Operator yang telah didaftarkan oleh Admin (atau login Admin untuk menghubungkan terminal produksi ini).
                         </p>
                         <button
@@ -1415,7 +1433,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             handleGoogleCloudSignIn('OPERATOR', { useRedirect: true })
                           }
                           disabled={isGoogleLoading || isSyncingCloud}
-                          className="w-full py-1 text-[11px] text-cyan-300/90 hover:text-cyan-200 underline transition disabled:opacity-50"
+                          className="w-full py-1 text-[11px] text-brand hover:text-brand underline transition disabled:opacity-50"
                         >
                           Popup gagal? Login via Redirect
                         </button>
@@ -1423,7 +1441,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     )
                   ) : (
                     <div className="pt-3">
-                      <span className="text-xs text-cyan-400 font-medium flex items-center space-x-1">
+                      <span className="text-xs text-brand font-medium flex items-center space-x-1">
                         <span>Klik untuk memilih Operator</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </span>
@@ -1431,7 +1449,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
+                <div className="mt-4 pt-3 border-t border-border-subtle text-[10px] text-ink-muted font-mono">
                   Role: OPERATOR (Perintah Kerja &amp; Penerimaan)
                 </div>
               </div>
@@ -1441,44 +1459,44 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                 onClick={() => setSelectedRole('MANAGEMENT')}
                 className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between relative overflow-hidden ${
                   selectedRole === 'MANAGEMENT'
-                    ? 'bg-slate-900/90 border-indigo-500/60 shadow-xl shadow-indigo-950/20 ring-1 ring-indigo-500/30'
-                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/80'
+                    ? 'bg-surface border-indigo-500/60 shadow-xl shadow-indigo-950/20 ring-1 ring-indigo-500/30'
+                    : 'bg-surface border-border-subtle hover:border-border-strong hover:bg-surface'
                 }`}
               >
                 {selectedRole === 'MANAGEMENT' && (
-                  <div className="absolute top-0 right-0 bg-indigo-500/20 text-indigo-300 border-b border-l border-indigo-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
+                  <div className="absolute top-0 right-0 bg-indigo-500/20 text-ink-indigo border-b border-l border-indigo-500/40 text-[10px] font-semibold px-2.5 py-0.5 rounded-bl-xl font-mono uppercase">
                     Aktif Dipilih
                   </div>
                 )}
 
                 <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-ink-indigo flex items-center justify-center">
                     <Building className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-white">Executive Management</h3>
-                    <p className="text-xs text-indigo-400/90 font-mono mt-0.5">
+                    <h3 className="font-bold text-base text-ink-primary">Executive Management</h3>
+                    <p className="text-xs text-ink-indigo font-mono mt-0.5">
                       Pemantauan Eksekutif (Read-Only)
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                    <p className="text-[11px] text-ink-secondary mt-2 leading-relaxed">
                       Memantau ringkasan produksi per shift, level tangki WIP, dan saldo persediaan dari perangkat mana pun tanpa izin ubah data.
                     </p>
                   </div>
 
                   {selectedRole === 'MANAGEMENT' ? (
                     isWorkspaceSyncedOnDevice && Boolean(cloudAuthRole) ? (
-                      <form onSubmit={handleManagementSubmit} className="bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3 space-y-2.5">
+                      <form onSubmit={handleManagementSubmit} className="bg-canvas border border-border-subtle rounded-2xl p-3 space-y-2.5">
                         {state.registeredManagement.length > 0 ? (
                           <>
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                                 Pilih Profil Manajemen ({state.registeredManagement.length}):
                               </label>
                               <select
                                 value={selectedManagementId}
                                 onChange={e => setSelectedManagementId(e.target.value)}
                                 required
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary text-xs focus:outline-none focus:border-indigo-500"
                               >
                                 {state.registeredManagement.map(mgt => (
                                   <option key={mgt.id} value={mgt.id}>
@@ -1489,15 +1507,15 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             </div>
 
                             {selectedMgtUser && (
-                              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
-                                <span className="text-[11px] text-slate-400 font-medium">Status Akses:</span>
+                              <div className="p-2 rounded-xl bg-canvas border border-border-subtle flex items-center justify-between text-xs">
+                                <span className="text-[11px] text-ink-secondary font-medium">Status Akses:</span>
                                 {selectedMgtUser.hasViewAccess ? (
-                                  <span className="text-[10px] font-semibold text-emerald-400 flex items-center space-x-1">
+                                  <span className="text-[10px] font-semibold text-ink-emerald flex items-center space-x-1">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     <span>Izin Aktif</span>
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-semibold text-rose-400 flex items-center space-x-1">
+                                  <span className="text-[10px] font-semibold text-ink-rose flex items-center space-x-1">
                                     <AlertCircle className="w-3.5 h-3.5" />
                                     <span>Perlu Otorisasi Admin</span>
                                   </span>
@@ -1514,14 +1532,14 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             </button>
                           </>
                         ) : (
-                          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-amber-300">
+                          <div className="p-3 rounded-xl bg-canvas border border-border-subtle text-[11px] text-ink-amber">
                             Belum ada akun Management terdaftar. Administrator dapat menambahkannya di menu Manajemen Pengguna.
                           </div>
                         )}
                       </form>
                     ) : (
                       <div className="pt-2 space-y-2" onClick={e => e.stopPropagation()}>
-                        <p className="text-[11px] text-slate-300 bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
+                        <p className="text-[11px] text-ink-secondary bg-canvas border border-border-subtle p-2.5 rounded-xl">
                           Masuk menggunakan akun Google email Management Anda yang sudah diberi izin melihat oleh Administrator.
                         </p>
                         <button
@@ -1547,7 +1565,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                             handleGoogleCloudSignIn('MANAGEMENT', { useRedirect: true })
                           }
                           disabled={isGoogleLoading || isSyncingCloud}
-                          className="w-full py-1 text-[11px] text-indigo-300/90 hover:text-indigo-200 underline transition disabled:opacity-50"
+                          className="w-full py-1 text-[11px] text-ink-indigo hover:text-ink-indigo underline transition disabled:opacity-50"
                         >
                           Popup gagal? Login via Redirect
                         </button>
@@ -1555,7 +1573,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                     )
                   ) : (
                     <div className="pt-3">
-                      <span className="text-xs text-indigo-400 font-medium flex items-center space-x-1">
+                      <span className="text-xs text-ink-indigo font-medium flex items-center space-x-1">
                         <span>Klik untuk memilih Management</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </span>
@@ -1563,23 +1581,23 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 font-mono">
+                <div className="mt-4 pt-3 border-t border-border-subtle text-[10px] text-ink-muted font-mono">
                   Role: MANAGEMENT (Executive Read-Only)
                 </div>
               </div>
             </div>
 
                 {/* Sign Up CTA Banner for New Users / Other Companies */}
-                <div className="bg-slate-900/80 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="bg-surface border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                   <div className="flex items-center space-x-3 text-center sm:text-left">
-                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0 hidden sm:flex">
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-ink-amber shrink-0 hidden sm:flex">
                       <Factory className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="font-bold text-white">
+                      <div className="font-bold text-ink-primary">
                         Pabrik / Administrator Baru yang Belum Terdaftar?
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-[11px] text-ink-secondary mt-0.5">
                         Daftar akun Administrator baru untuk membuat workspace terisolasi dengan Master BOM, akun Operator, &amp; Manajemen milik Anda sendiri.
                       </p>
                     </div>
@@ -1603,7 +1621,7 @@ export const AuthPortalView: React.FC<AuthPortalViewProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 max-w-6xl w-full mx-auto pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+      <footer className="relative z-10 max-w-6xl w-full mx-auto pt-6 border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between text-xs text-ink-muted gap-2">
         <div className="flex items-center space-x-2">
           <span>ProdTrack MES &amp; WMS Cloud</span>
           <span>•</span>

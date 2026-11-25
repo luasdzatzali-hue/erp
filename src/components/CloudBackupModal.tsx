@@ -219,38 +219,38 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-5 shadow-2xl relative space-y-4 my-auto">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-2xl p-5 shadow-2xl relative space-y-4 my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div className="p-2 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20">
               <Cloud className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-white flex items-center space-x-2">
+              <h3 className="font-bold text-sm sm:text-base text-ink-primary flex items-center space-x-2">
                 <span>Penyimpanan Cloud & Google Drive (Mode Admin)</span>
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Penyimpanan Master Data, BOM Hierarki, & Log Riwayat Transaksi ke Cloud
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 hover:bg-slate-700 transition"
+            className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated hover:bg-accent transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex space-x-1.5 border-b border-slate-800 pb-2 text-xs">
+        <div className="flex space-x-1.5 border-b border-border-subtle pb-2 text-xs">
           <button
             onClick={() => setActiveTab('export')}
             className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center space-x-1.5 ${
               activeTab === 'export'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-cyan-500/20 text-brand border border-cyan-500/40'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Download className="w-3.5 h-3.5" />
@@ -260,19 +260,19 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
             onClick={() => setActiveTab('recommendations')}
             className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center space-x-1.5 ${
               activeTab === 'recommendations'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-ink-amber" />
             <span>Rekomendasi Keamanan Data Sensitif</span>
           </button>
           <button
             onClick={() => setActiveTab('restore')}
             className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center space-x-1.5 ${
               activeTab === 'restore'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-purple-500/20 text-ink-purple border border-purple-500/40'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
@@ -285,7 +285,7 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
           <div className="space-y-4 text-xs">
             {/* Scope Selection */}
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1.5">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">
                 Pilih Kategori Data yang Ingin Disimpan:
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -312,25 +312,25 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
                     onClick={() => setBackupScope(opt.id as any)}
                     className={`p-3 rounded-xl border text-left transition ${
                       backupScope === opt.id
-                        ? 'bg-cyan-500/10 border-cyan-500/50 text-white ring-1 ring-cyan-500/30'
-                        : 'bg-slate-800/60 border-slate-700/70 text-slate-300 hover:bg-slate-800'
+                        ? 'bg-cyan-500/10 border-cyan-500/50 text-ink-primary ring-1 ring-cyan-500/30'
+                        : 'bg-elevated border-border-strong text-ink-secondary hover:bg-elevated'
                     }`}
                   >
                     <span className="font-semibold block text-xs">{opt.title}</span>
-                    <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">{opt.desc}</span>
+                    <span className="text-[10px] text-ink-secondary mt-1 block leading-relaxed">{opt.desc}</span>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Security / Encryption Option */}
-            <div className="p-3 bg-slate-800/60 border border-slate-700 rounded-xl space-y-2.5">
+            <div className="p-3 bg-elevated border border-border-strong rounded-xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Lock className="w-4 h-4 text-amber-400" />
+                  <Lock className="w-4 h-4 text-ink-amber" />
                   <div>
-                    <span className="font-semibold text-white block">Enkripsi Berkas Sensitif (Proteksi Sandi)</span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="font-semibold text-ink-primary block">Enkripsi Berkas Sensitif (Proteksi Sandi)</span>
+                    <span className="text-[10px] text-ink-secondary">
                       Direkomendasikan untuk formula rahasia dagang KITE agar tidak bisa dibaca tanpa PIN
                     </span>
                   </div>
@@ -339,13 +339,13 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
                   type="checkbox"
                   checked={encryptWithPin}
                   onChange={(e) => setEncryptWithPin(e.target.checked)}
-                  className="w-4 h-4 rounded text-cyan-600 bg-slate-900 border-slate-700 focus:ring-cyan-500"
+                  className="w-4 h-4 rounded text-cyan-600 bg-surface border-border-strong focus:ring-cyan-500"
                 />
               </div>
 
               {encryptWithPin && (
-                <div className="pt-2 border-t border-slate-700/60">
-                  <label className="block text-[10px] text-slate-300 mb-1">
+                <div className="pt-2 border-t border-border-strong">
+                  <label className="block text-[10px] text-ink-secondary mb-1">
                     Kunci Sandi Enkripsi Backup (Minimal 8 karakter)
                   </label>
                   <input
@@ -354,31 +354,31 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
                     value={customPassphrase}
                     onChange={(e) => setCustomPassphrase(e.target.value)}
                     placeholder="Masukkan sandi enkripsi unik (min. 8 karakter)..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono"
+                    className="w-full bg-surface border border-border-strong rounded-lg px-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted font-mono"
                   />
                 </div>
               )}
             </div>
 
             {/* Quick Summary of Data being backed up */}
-            <div className="bg-slate-950/60 border border-slate-800 p-3 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
-              <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-500 block">Master Material</span>
-                <span className="text-white font-bold text-sm">{state.master.materials.length}</span>
+            <div className="bg-canvas border border-border-subtle p-3 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+              <div className="p-2 bg-surface rounded-lg border border-border-subtle">
+                <span className="text-[10px] text-ink-muted block">Master Material</span>
+                <span className="text-ink-primary font-bold text-sm">{state.master.materials.length}</span>
               </div>
-              <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-500 block">WIP & Hierarki BOM</span>
-                <span className="text-amber-400 font-bold text-sm">
+              <div className="p-2 bg-surface rounded-lg border border-border-subtle">
+                <span className="text-[10px] text-ink-muted block">WIP & Hierarki BOM</span>
+                <span className="text-ink-amber font-bold text-sm">
                   {state.master.wips.length} WIP / {state.master.wipMats.length} Relasi
                 </span>
               </div>
-              <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-500 block">Total SKU Produk</span>
-                <span className="text-cyan-400 font-bold text-sm">{state.master.skus.length}</span>
+              <div className="p-2 bg-surface rounded-lg border border-border-subtle">
+                <span className="text-[10px] text-ink-muted block">Total SKU Produk</span>
+                <span className="text-brand font-bold text-sm">{state.master.skus.length}</span>
               </div>
-              <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-500 block">Riwayat Transaksi</span>
-                <span className="text-emerald-400 font-bold text-sm">
+              <div className="p-2 bg-surface rounded-lg border border-border-subtle">
+                <span className="text-[10px] text-ink-muted block">Riwayat Transaksi</span>
+                <span className="text-ink-emerald font-bold text-sm">
                   {state.transactions.requests.length + state.transactions.receipts.length + state.transactions.usages.length} Log
                 </span>
               </div>
@@ -389,9 +389,9 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
               <button
                 type="button"
                 onClick={handleDownloadForDrive}
-                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition active:scale-95 shadow-md"
+                className="py-3 px-4 bg-elevated hover:bg-accent border border-border-strong text-ink-primary font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition active:scale-95 shadow-md"
               >
-                <Download className="w-4 h-4 text-cyan-400" />
+                <Download className="w-4 h-4 text-brand" />
                 <span>Unduh File Format Google Drive (.json)</span>
               </button>
 
@@ -410,9 +410,9 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
         {/* TAB 2: INDUSTRIAL SECURITY RECOMMENDATIONS */}
         {activeTab === 'recommendations' && (
           <div className="space-y-3.5 text-xs">
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 space-y-1">
-              <div className="flex items-center space-x-2 font-bold text-amber-300">
-                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-ink-amber space-y-1">
+              <div className="flex items-center space-x-2 font-bold text-ink-amber">
+                <ShieldAlert className="w-4 h-4 text-ink-amber shrink-0" />
                 <span>Rekomendasi Lokasi Penyimpanan Aman untuk Data Sensitif (Formula KITE & BOM)</span>
               </div>
               <p className="text-[11px] leading-relaxed">
@@ -422,17 +422,17 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
 
             <div className="space-y-3">
               {/* Recommendation 1: Google Cloud Storage */}
-              <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl space-y-2">
+              <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-cyan-400 flex items-center space-x-1.5">
-                    <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px]">1</span>
+                  <span className="font-bold text-brand flex items-center space-x-1.5">
+                    <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-brand flex items-center justify-center text-[10px]">1</span>
                     <span>Tingkat 1 (Paling Aman): Google Cloud Storage (GCS) Private Bucket</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-ink-emerald border border-emerald-500/30 font-semibold">
                     ISO 27001 / SOC 2
                   </span>
                 </div>
-                <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px] pl-1">
+                <ul className="list-disc list-inside space-y-1 text-ink-secondary text-[11px] pl-1">
                   <li><strong>Enkripsi CMEK (Customer-Managed Encryption Keys)</strong>: Gunakan Google Cloud KMS dengan rotasi kunci otomatis tiap 90 hari.</li>
                   <li><strong>Cloud IAM Least-Privilege</strong>: Akses bucket hanya diberikan ke service account backend dan administrator pabrik bersertifikat.</li>
                   <li><strong>Audit Logging & Object Versioning</strong>: Setiap download/akses data formulasi terekam permanen di Cloud Audit Logs untuk audit kepatuhan bea cukai KITE.</li>
@@ -440,17 +440,17 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
               </div>
 
               {/* Recommendation 2: Google Workspace Enterprise Shared Drive */}
-              <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl space-y-2">
+              <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-400 flex items-center space-x-1.5">
-                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-[10px]">2</span>
+                  <span className="font-bold text-ink-amber flex items-center space-x-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-ink-amber flex items-center justify-center text-[10px]">2</span>
                     <span>Tingkat 2: Google Workspace Enterprise (Restricted Shared Drive)</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-blue-500/20 text-ink-blue border border-blue-500/30 font-semibold">
                     Workspace Business
                   </span>
                 </div>
-                <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px] pl-1">
+                <ul className="list-disc list-inside space-y-1 text-ink-secondary text-[11px] pl-1">
                   <li>Gunakan <strong>Google Workspace Shared Drive</strong> (bukan Personal Drive gratis karyawan).</li>
                   <li>Aktifkan <strong>Restricted Drive</strong>: Matikan opsi "Allow external sharing" dan "Allow viewers to download/print/copy".</li>
                   <li>Terapkan aturan <strong>DLP (Data Loss Prevention)</strong> agar dokumen BOM yang diunggah tidak dapat diteruskan ke luar domain perusahaan.</li>
@@ -458,9 +458,9 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
               </div>
 
               {/* Security Don'ts */}
-              <div className="bg-rose-950/30 border border-rose-500/30 p-3 rounded-xl space-y-1 text-rose-200">
-                <span className="font-semibold text-rose-300 flex items-center space-x-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+              <div className="bg-tint-rose border border-rose-500/30 p-3 rounded-xl space-y-1 text-ink-rose">
+                <span className="font-semibold text-ink-rose flex items-center space-x-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-ink-rose" />
                   <span>Hal yang Harus Dihindari:</span>
                 </span>
                 <p className="text-[11px] leading-relaxed">
@@ -474,29 +474,29 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
         {/* TAB 3: RESTORE FROM BACKUP */}
         {activeTab === 'restore' && (
           <div className="space-y-3.5 text-xs">
-            <div className="p-3 bg-slate-800/60 border border-slate-700 rounded-xl space-y-2">
-              <label className="block text-[11px] font-semibold text-white">
+            <div className="p-3 bg-elevated border border-border-strong rounded-xl space-y-2">
+              <label className="block text-[11px] font-semibold text-ink-primary">
                 Unggah File Cadangan (.json) dari Google Drive / Cloud:
               </label>
               <input
                 type="file"
                 accept=".json"
                 onChange={handleFileUpload}
-                className="w-full text-slate-400 text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 file:cursor-pointer cursor-pointer"
+                className="w-full text-ink-secondary text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cyan-600 file:text-ink-primary hover:file:bg-cyan-500 file:cursor-pointer cursor-pointer"
               />
             </div>
 
             {restorePreview && (
-              <div className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl space-y-2">
-                <h4 className="font-bold text-white flex items-center space-x-1.5">
-                  <FileCheck className="w-4 h-4 text-emerald-400" />
+              <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl space-y-2">
+                <h4 className="font-bold text-ink-primary flex items-center space-x-1.5">
+                  <FileCheck className="w-4 h-4 text-ink-emerald" />
                   <span>Pratinjau Data Cadangan:</span>
                 </h4>
 
                 {restorePreview.isEncrypted ? (
-                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-200 space-y-2">
+                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-ink-amber space-y-2">
                     <span className="font-semibold block">Berkas Terenkripsi!</span>
-                    <label className="block text-[10px] text-slate-300">
+                    <label className="block text-[10px] text-ink-secondary">
                       Masukkan Kunci Sandi / PIN Administrator untuk membuka data:
                     </label>
                     <input
@@ -504,17 +504,17 @@ export const CloudBackupModal: React.FC<CloudBackupModalProps> = ({
                       value={customPassphrase}
                       onChange={(e) => setCustomPassphrase(e.target.value)}
                       placeholder="Masukkan PIN / Passphrase"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono"
+                      className="w-full bg-surface border border-border-strong rounded-lg px-3 py-1.5 text-xs text-ink-primary font-mono"
                     />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-300 font-mono text-[11px]">
-                    <div>Scope: <strong className="text-cyan-400">{restorePreview.scope}</strong></div>
-                    <div>Material: <strong className="text-white">{restorePreview.materialsCount}</strong></div>
-                    <div>WIP: <strong className="text-white">{restorePreview.wipsCount}</strong></div>
-                    <div>SKU: <strong className="text-white">{restorePreview.skusCount}</strong></div>
-                    <div>Permintaan: <strong className="text-white">{restorePreview.requestsCount}</strong></div>
-                    <div>Pemakaian: <strong className="text-white">{restorePreview.usagesCount}</strong></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-ink-secondary font-mono text-[11px]">
+                    <div>Scope: <strong className="text-brand">{restorePreview.scope}</strong></div>
+                    <div>Material: <strong className="text-ink-primary">{restorePreview.materialsCount}</strong></div>
+                    <div>WIP: <strong className="text-ink-primary">{restorePreview.wipsCount}</strong></div>
+                    <div>SKU: <strong className="text-ink-primary">{restorePreview.skusCount}</strong></div>
+                    <div>Permintaan: <strong className="text-ink-primary">{restorePreview.requestsCount}</strong></div>
+                    <div>Pemakaian: <strong className="text-ink-primary">{restorePreview.usagesCount}</strong></div>
                   </div>
                 )}
 

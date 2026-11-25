@@ -77,18 +77,18 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
       aria-modal="true"
       aria-labelledby="pause-batch-modal-title"
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-border-subtle bg-canvas flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-sky-950 border border-sky-700 text-sky-300 shrink-0">
+            <div className="p-2 rounded-xl bg-tint-sky border border-sky-700 text-ink-sky shrink-0">
               <PauseCircle className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 id="pause-batch-modal-title" className="text-sm font-bold text-white truncate">
+              <h3 id="pause-batch-modal-title" className="text-sm font-bold text-ink-primary truncate">
                 Pause Sementara Perintah Kerja WIP
               </h3>
-              <p className="text-[11px] text-slate-400 truncate">
+              <p className="text-[11px] text-ink-secondary truncate">
                 Timer estimasi akan dihentikan dan alasan dicatat di audit trail
               </p>
             </div>
@@ -96,7 +96,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+            className="p-1.5 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-elevated transition shrink-0"
             aria-label="Tutup modal pause"
           >
             <X className="w-4 h-4" />
@@ -106,23 +106,23 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
           {/* Batch Summary & Frozen Timer Preview */}
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 rounded-xl bg-canvas border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2 text-[11px] font-mono">
-                <span className="font-bold text-cyan-400">{batch.batchCode}</span>
-                {batch.recipeCode && <span className="text-slate-400">· {batch.recipeCode}</span>}
+                <span className="font-bold text-brand">{batch.batchCode}</span>
+                {batch.recipeCode && <span className="text-ink-secondary">· {batch.recipeCode}</span>}
               </div>
-              <p className="font-bold text-white text-sm truncate">{batch.wipName}</p>
-              <p className="text-[11px] text-slate-400 truncate">
+              <p className="font-bold text-ink-primary text-sm truncate">{batch.wipName}</p>
+              <p className="text-[11px] text-ink-secondary truncate">
                 {machineLabel || batch.targetMachineName || 'Mesin Produksi'} · {batch.batchWeightKg.toFixed(1)} kg
               </p>
             </div>
-            <div className="px-3 py-2 rounded-xl bg-sky-950/60 border border-sky-700 text-right shrink-0">
-              <span className="text-[10px] text-sky-300 block font-medium">
+            <div className="px-3 py-2 rounded-xl bg-tint-sky border border-sky-700 text-right shrink-0">
+              <span className="text-[10px] text-ink-sky block font-medium">
                 Sisa Waktu Dibekukan
               </span>
-              <span className="font-mono tabular-nums text-sm font-extrabold text-white inline-flex items-center gap-1 mt-0.5">
-                <Clock className="w-3.5 h-3.5 text-sky-300" />
+              <span className="font-mono tabular-nums text-sm font-extrabold text-ink-primary inline-flex items-center gap-1 mt-0.5">
+                <Clock className="w-3.5 h-3.5 text-ink-sky" />
                 <span>{remMins}m {String(remSecs).padStart(2, '0')}s</span>
               </span>
             </div>
@@ -130,7 +130,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
 
           {/* Downtime Category Selector */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-300 mb-1.5">
+            <label className="block text-[11px] font-semibold text-ink-secondary mb-1.5">
               Kategori Penghentian Sementara
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
@@ -142,7 +142,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
                   className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border text-left truncate transition ${
                     category === cat
                       ? 'bg-sky-600 border-sky-500 text-white shadow-sm'
-                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                      : 'bg-elevated hover:bg-accent border-border-strong text-ink-secondary'
                   }`}
                 >
                   {cat}
@@ -153,7 +153,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
 
           {/* Quick Reason Templates */}
           <div>
-            <span className="block text-[11px] font-medium text-slate-400 mb-1.5">
+            <span className="block text-[11px] font-medium text-ink-secondary mb-1.5">
               Template Alasan Cepat (Klik untuk mengisi):
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -165,7 +165,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
                     setReason(tpl);
                     setErrorMsg('');
                   }}
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 transition text-left"
+                  className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-[10px] text-ink-secondary transition text-left"
                 >
                   {tpl}
                 </button>
@@ -175,7 +175,7 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
 
           {/* Mandatory Reason Input */}
           <div>
-            <label htmlFor="wip-pause-reason" className="block text-[11px] font-semibold text-slate-200 mb-1">
+            <label htmlFor="wip-pause-reason" className="block text-[11px] font-semibold text-ink-primary mb-1">
               Alasan Penghentian Sementara (Wajib untuk Audit Trail) *
             </label>
             <textarea
@@ -188,10 +188,10 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
                 if (errorMsg) setErrorMsg('');
               }}
               placeholder="Jelaskan secara spesifik alasan penghentian sementara batch WIP ini..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 resize-none"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-sky-500 resize-none"
             />
             {errorMsg && (
-              <p className="mt-1.5 text-[11px] text-rose-400 flex items-center gap-1">
+              <p className="mt-1.5 text-[11px] text-ink-rose flex items-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{errorMsg}</span>
               </p>
@@ -199,10 +199,10 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
           </div>
 
           {/* Audit Accountability Footer */}
-          <div className="px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+          <div className="px-3 py-2 rounded-xl bg-canvas border border-border-subtle flex items-center justify-between gap-2 text-[11px] text-ink-secondary">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>Dicatat oleh: <strong className="text-slate-200">{actorName}</strong></span>
+              <ShieldCheck className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
+              <span>Dicatat oleh: <strong className="text-ink-primary">{actorName}</strong></span>
             </span>
             <span className="font-mono tabular-nums">
               {new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -210,11 +210,11 @@ export const WipBatchPauseModal: React.FC<WipBatchPauseModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold transition"
+              className="px-4 py-2 rounded-xl bg-elevated hover:bg-accent border border-border-strong text-ink-secondary font-semibold transition"
             >
               Batal
             </button>

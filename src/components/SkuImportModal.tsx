@@ -131,21 +131,21 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header Modal */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border-subtle bg-canvas">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+            <div className="p-2.5 bg-cyan-500/10 text-brand rounded-xl border border-cyan-500/20">
               <Box className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+              <h2 className="text-base sm:text-lg font-bold text-ink-primary flex items-center space-x-2">
                 <span>Import Master SKU (Domestik / KITE Ekspor)</span>
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-brand">
                   Google Drive &amp; CSV / JSON
                 </span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-ink-secondary mt-0.5">
                 Impor daftar SKU produk jadi langsung dari Google Drive Spreadsheet atau unggah file CSV / JSON lokal
               </p>
             </div>
@@ -153,21 +153,21 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition"
+            className="text-ink-secondary hover:text-ink-primary p-2 rounded-xl bg-elevated hover:bg-elevated transition"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Source Selector Tabs */}
-        <div className="flex border-b border-slate-800 bg-slate-900 px-4 sm:px-6 pt-3 gap-2">
+        <div className="flex border-b border-border-subtle bg-surface px-4 sm:px-6 pt-3 gap-2">
           <button
             type="button"
             onClick={() => setActiveSource('STORAGE')}
             className={`flex items-center space-x-2 pb-3 px-3 text-xs font-bold border-b-2 transition ${
               activeSource === 'STORAGE'
-                ? 'border-cyan-400 text-cyan-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-cyan-400 text-brand'
+                : 'border-transparent text-ink-secondary hover:text-ink-primary'
             }`}
           >
             <HardDrive className="w-4 h-4" />
@@ -178,8 +178,8 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
             onClick={() => setActiveSource('DRIVE')}
             className={`flex items-center space-x-2 pb-3 px-3 text-xs font-bold border-b-2 transition ${
               activeSource === 'DRIVE'
-                ? 'border-cyan-400 text-cyan-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-cyan-400 text-brand'
+                : 'border-transparent text-ink-secondary hover:text-ink-primary'
             }`}
           >
             <UploadCloud className="w-4 h-4" />
@@ -212,17 +212,17 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                 }}
                 className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${
                   isDragging
-                    ? 'border-cyan-400 bg-cyan-950/20'
-                    : 'border-slate-700 bg-slate-950/40 hover:border-slate-600'
+                    ? 'border-cyan-400 bg-tint-cyan'
+                    : 'border-border-strong bg-canvas hover:border-border-strong'
                 }`}
               >
                 <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="p-3 rounded-full bg-slate-800 text-cyan-400">
+                  <div className="p-3 rounded-full bg-elevated text-brand">
                     <UploadCloud className="w-6 h-6" />
                   </div>
                   <div>
-                    <span className="font-semibold text-white">Tarik &amp; lepas file SKU di sini</span>
-                    <span className="text-slate-400 text-[11px] block mt-0.5">
+                    <span className="font-semibold text-ink-primary">Tarik &amp; lepas file SKU di sini</span>
+                    <span className="text-ink-secondary text-[11px] block mt-0.5">
                       Mendukung format .xlsx, .xls, .csv, .tsv, .json, atau .txt
                     </span>
                   </div>
@@ -248,13 +248,13 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                     </button>
                   </div>
                   {fileName && !localFileError && (
-                    <div className="mt-2 text-xs font-mono text-cyan-300 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-800">
+                    <div className="mt-2 text-xs font-mono text-brand bg-tint-cyan px-3 py-1 rounded-lg border border-tint-cyan-border">
                       ✓ File terpilih: {fileName}
                     </div>
                   )}
                   {localFileError && (
-                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-ink-rose bg-tint-rose border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
                       <span>{localFileError}</span>
                     </div>
                   )}
@@ -264,7 +264,7 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
               {/* Paste Text / Quick Editor Option */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-slate-300">
+                  <label className="text-[11px] font-semibold text-ink-secondary">
                     Atau Tempel / Ketik Konten Data SKU (CSV / JSON):
                   </label>
                   <div className="flex items-center space-x-2 text-[10px]">
@@ -275,7 +275,7 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                         setFileName('contoh_sku.csv');
                         setFileContent(SAMPLE_SKU_CSV_TEMPLATE);
                       }}
-                      className="text-cyan-400 hover:underline"
+                      className="text-brand hover:underline"
                     >
                       Muat Contoh CSV
                     </button>
@@ -287,7 +287,7 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                         setFileName('contoh_sku.json');
                         setFileContent(SAMPLE_SKU_JSON_TEMPLATE);
                       }}
-                      className="text-cyan-400 hover:underline"
+                      className="text-brand hover:underline"
                     >
                       Muat Contoh JSON
                     </button>
@@ -302,30 +302,30 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                   }}
                   rows={4}
                   placeholder="Tempel teks CSV atau JSON SKU di sini..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-[11px] placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-canvas border border-border-subtle rounded-xl p-3 text-ink-primary font-mono text-[11px] placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               {/* Download Template Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                <div className="text-[11px] text-slate-400">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-canvas rounded-xl border border-border-subtle">
+                <div className="text-[11px] text-ink-secondary">
                   <span>Butuh acuan format file? Unduh template resmi SKU:</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={() => handleDownloadTemplate('csv')}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border border-slate-700"
+                    className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border border-border-strong"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald" />
                     <span>Download Template CSV</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDownloadTemplate('json')}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border border-slate-700"
+                    className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border border-border-strong"
                   >
-                    <FileCode className="w-3.5 h-3.5 text-amber-400" />
+                    <FileCode className="w-3.5 h-3.5 text-ink-amber" />
                     <span>Download Template JSON</span>
                   </button>
                 </div>
@@ -353,24 +353,24 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
 
           {/* PARSE RESULT PREVIEW TABLE */}
           {parseResult && (
-            <div className="space-y-3 pt-2 border-t border-slate-800">
+            <div className="space-y-3 pt-2 border-t border-border-subtle">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center space-x-2">
-                  <h4 className="font-bold text-sm text-white flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <h4 className="font-bold text-sm text-ink-primary flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-ink-emerald" />
                     <span>Hasil Pembacaan Data SKU:</span>
                   </h4>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-tint-cyan text-brand border border-tint-cyan-border">
                     {validCount} SKU Terbaca Valid
                   </span>
                 </div>
 
                 {/* Domestik vs KITE Breakdown Chips */}
                 <div className="flex items-center space-x-2 text-[11px] font-mono">
-                  <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                  <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-brand border border-cyan-500/30">
                     Domestik: <strong>{domCount}</strong>
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded bg-amber-500/10 text-ink-amber border border-amber-500/30">
                     KITE Ekspor: <strong>{kiteCount}</strong>
                   </span>
                 </div>
@@ -378,12 +378,12 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
 
               {/* Warnings / Errors */}
               {parseResult.errors.length > 0 && (
-                <div className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl space-y-1 text-xs">
-                  <span className="font-bold text-rose-300 flex items-center space-x-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <div className="p-3 bg-tint-rose border border-rose-500/40 rounded-xl space-y-1 text-xs">
+                  <span className="font-bold text-ink-rose flex items-center space-x-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-ink-rose" />
                     <span>{parseResult.errors.length} Baris Tidak Valid (Dilewati):</span>
                   </span>
-                  <ul className="list-disc list-inside text-rose-200/80 text-[11px] max-h-24 overflow-y-auto no-scrollbar space-y-0.5">
+                  <ul className="list-disc list-inside text-ink-rose text-[11px] max-h-24 overflow-y-auto no-scrollbar space-y-0.5">
                     {parseResult.errors.map((err, idx) => (
                       <li key={idx}>{err}</li>
                     ))}
@@ -392,8 +392,8 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
               )}
 
               {parseResult.warnings.length > 0 && (
-                <div className="p-2.5 bg-amber-950/30 border border-amber-500/30 rounded-xl space-y-1 text-[11px] text-amber-200/90">
-                  <span className="font-semibold text-amber-300">Pemberitahuan Otomatis:</span>
+                <div className="p-2.5 bg-tint-amber border border-amber-500/30 rounded-xl space-y-1 text-[11px] text-ink-amber">
+                  <span className="font-semibold text-ink-amber">Pemberitahuan Otomatis:</span>
                   <ul className="list-disc list-inside text-[10px] max-h-16 overflow-y-auto no-scrollbar">
                     {parseResult.warnings.slice(0, 3).map((w, idx) => (
                       <li key={idx}>{w}</li>
@@ -404,9 +404,9 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
 
               {/* Data Preview Table */}
               {validCount > 0 && (
-                <div className="border border-slate-800 rounded-xl overflow-hidden max-h-60 overflow-y-auto no-scrollbar bg-slate-950">
+                <div className="border border-border-subtle rounded-xl overflow-hidden max-h-60 overflow-y-auto no-scrollbar bg-canvas">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-900 sticky top-0 text-[11px] text-slate-400 border-b border-slate-800">
+                    <thead className="bg-surface sticky top-0 text-[11px] text-ink-secondary border-b border-border-subtle">
                       <tr>
                         <th className="py-2 px-3">Kode SKU</th>
                         <th className="py-2 px-3">Nama Produk SKU</th>
@@ -415,30 +415,30 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                         <th className="py-2 px-3 text-right">Berat kg/Ktn</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                    <tbody className="divide-y divide-border-subtle font-mono">
                       {parseResult.valid.map((s, idx) => (
-                        <tr key={idx} className="hover:bg-slate-900/50">
-                          <td className="py-2 px-3 font-bold text-cyan-400">
+                        <tr key={idx} className="hover:bg-surface">
+                          <td className="py-2 px-3 font-bold text-brand">
                             {s.code || '-'}
                           </td>
-                          <td className="py-2 px-3 text-white font-sans font-medium">
+                          <td className="py-2 px-3 text-ink-primary font-sans font-medium">
                             {s.name}
                           </td>
                           <td className="py-2 px-3 text-center font-sans">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                                 s.isKite
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  ? 'bg-amber-500/20 text-ink-amber border-amber-500/40'
+                                  : 'bg-cyan-500/20 text-brand border-cyan-500/40'
                               }`}
                             >
                               {s.isKite ? '★ KITE Ekspor' : 'Domestik'}
                             </span>
                           </td>
-                          <td className="py-2 px-3 text-right text-slate-300">
+                          <td className="py-2 px-3 text-right text-ink-secondary">
                             {s.targetHour} ktn/j
                           </td>
-                          <td className="py-2 px-3 text-right text-amber-300 font-bold">
+                          <td className="py-2 px-3 text-right text-ink-amber font-bold">
                             {s.cartonWeightKg.toFixed(4)} kg
                           </td>
                         </tr>
@@ -449,10 +449,10 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
               )}
 
               {/* Import Mode Selector */}
-              <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-3 bg-canvas rounded-xl border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="font-semibold text-white block text-xs">Pilih Mode Impor SKU:</span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="font-semibold text-ink-primary block text-xs">Pilih Mode Impor SKU:</span>
+                  <span className="text-[11px] text-ink-secondary">
                     Tentukan bagaimana data baru digabungkan dengan {existingSkus.length} SKU yang sudah ada di database.
                   </span>
                 </div>
@@ -460,8 +460,8 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                   <label
                     className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
                       importMode === 'append'
-                        ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-300 font-bold'
-                        : 'bg-slate-900 border-slate-800 text-slate-400'
+                        ? 'bg-cyan-500/20 border-cyan-500/60 text-brand font-bold'
+                        : 'bg-surface border-border-subtle text-ink-secondary'
                     }`}
                   >
                     <input
@@ -478,8 +478,8 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
                   <label
                     className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition ${
                       importMode === 'replace'
-                        ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 font-bold'
-                        : 'bg-slate-900 border-slate-800 text-slate-400'
+                        ? 'bg-rose-500/20 border-rose-500/60 text-ink-rose font-bold'
+                        : 'bg-surface border-border-subtle text-ink-secondary'
                     }`}
                   >
                     <input
@@ -499,11 +499,11 @@ export const SkuImportModal: React.FC<SkuImportModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-t border-border-subtle bg-canvas flex items-center justify-between">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
+            className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl text-xs font-semibold transition"
           >
             Batal
           </button>

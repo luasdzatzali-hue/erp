@@ -126,18 +126,18 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-ink-primary">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border-subtle bg-canvas">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+            <div className="p-2.5 rounded-xl bg-cyan-500/15 text-brand border border-cyan-500/30">
               <Factory className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white">
+              <h2 className="text-base sm:text-lg font-bold text-ink-primary">
                 Kustomisasi Line Produksi
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-secondary">
                 Atur jumlah dan ubah nama line produksi (Line A, B, C, D, dan seterusnya).
               </p>
             </div>
@@ -145,7 +145,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+            className="p-2 rounded-xl bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary transition"
             aria-label="Tutup"
           >
             <X className="w-4 h-4" />
@@ -157,13 +157,13 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
           {/* Quick Set Line Count */}
           <form
             onSubmit={handleApplyLineCount}
-            className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            className="bg-canvas border border-border-subtle rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
             <div className="flex items-center space-x-2.5">
-              <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
+              <Layers className="w-4 h-4 text-brand shrink-0" />
               <div>
-                <p className="font-semibold text-white">Atur Jumlah Line Cepat (A, B, C, D...)</p>
-                <p className="text-[11px] text-slate-400">
+                <p className="font-semibold text-ink-primary">Atur Jumlah Line Cepat (A, B, C, D...)</p>
+                <p className="text-[11px] text-ink-secondary">
                   Otomatis menambah atau menyesuaikan jumlah line aktif tanpa mengganggu line yang sedang berjalan.
                 </p>
               </div>
@@ -175,7 +175,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                 max={26}
                 value={targetCount}
                 onChange={(e) => setTargetCount(e.target.value)}
-                className="w-20 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-center font-mono font-bold text-white focus:outline-none focus:border-cyan-500 tabular-nums"
+                className="w-20 bg-elevated border border-border-strong rounded-xl px-3 py-2 text-center font-mono font-bold text-ink-primary focus:outline-none focus:border-accent-primary tabular-nums"
               />
               <button
                 type="submit"
@@ -189,39 +189,39 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
           {/* Add Custom Line Form */}
           <form
             onSubmit={handleCreateLine}
-            className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 space-y-3"
+            className="bg-canvas border border-border-subtle rounded-xl p-3.5 space-y-3"
           >
-            <p className="font-semibold text-white">Tambah Line Produksi Baru</p>
+            <p className="font-semibold text-ink-primary">Tambah Line Produksi Baru</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Nama Line</label>
+                <label className="block text-[11px] text-ink-secondary mb-1">Nama Line</label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="e.g. Line E / Line Wafer 1"
                   required
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Kode Line</label>
+                <label className="block text-[11px] text-ink-secondary mb-1">Kode Line</label>
                 <input
                   type="text"
                   value={newCode}
                   onChange={(e) => setNewCode(e.target.value)}
                   placeholder="e.g. LINE-E"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 font-mono text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 font-mono text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Keterangan (Opsional)</label>
+                <label className="block text-[11px] text-ink-secondary mb-1">Keterangan (Opsional)</label>
                 <input
                   type="text"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="e.g. Biskuit & Coating"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
@@ -239,15 +239,15 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
           {/* Existing Lines List */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="font-semibold text-white">
+              <p className="font-semibold text-ink-primary">
                 Daftar Line Produksi Terdaftar ({productionLines.length})
               </p>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-ink-secondary">
                 Klik ikon edit untuk mengubah nama line
               </span>
             </div>
 
-            <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
+            <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl overflow-hidden bg-canvas">
               {productionLines.map((line) => {
                 const activeRun = runningRuns.find(r => r.lineId === line.id && r.isRunning);
                 const isEditing = editingId === line.id;
@@ -255,7 +255,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                 return (
                   <div
                     key={line.id}
-                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-800/30 transition"
+                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-elevated transition"
                   >
                     {isEditing ? (
                       <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -263,31 +263,31 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="bg-slate-800 border border-cyan-500/60 rounded-lg px-2.5 py-1.5 text-white font-semibold focus:outline-none"
+                          className="bg-elevated border border-cyan-500/60 rounded-lg px-2.5 py-1.5 text-ink-primary font-semibold focus:outline-none"
                           placeholder="Nama Line"
                         />
                         <input
                           type="text"
                           value={editCode}
                           onChange={(e) => setEditCode(e.target.value)}
-                          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-white focus:outline-none"
+                          className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 font-mono text-ink-primary focus:outline-none"
                           placeholder="Kode Line"
                         />
                         <input
                           type="text"
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}
-                          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none"
+                          className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary focus:outline-none"
                           placeholder="Deskripsi"
                         />
                       </div>
                     ) : (
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2">
-                          <span className="font-bold text-white text-sm">{line.name}</span>
-                          <span className="text-[11px] font-mono text-slate-400">· {line.code}</span>
+                          <span className="font-bold text-ink-primary text-sm">{line.name}</span>
+                          <span className="text-[11px] font-mono text-ink-secondary">· {line.code}</span>
                           {activeRun && (
-                            <span className="text-[11px] font-medium text-emerald-400 flex items-center space-x-1">
+                            <span className="text-[11px] font-medium text-ink-emerald flex items-center space-x-1">
                               <span>·</span>
                               <Lock className="w-3 h-3" />
                               <span>Sedang Jalan: {activeRun.skuName}</span>
@@ -295,7 +295,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                           )}
                         </div>
                         {line.description && (
-                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{line.description}</p>
+                          <p className="text-[11px] text-ink-secondary mt-0.5 truncate">{line.description}</p>
                         )}
                       </div>
                     )}
@@ -314,7 +314,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                           <button
                             type="button"
                             onClick={() => setEditingId(null)}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold"
+                            className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary rounded-lg font-semibold"
                           >
                             Batal
                           </button>
@@ -324,7 +324,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                           <button
                             type="button"
                             onClick={() => handleStartEdit(line)}
-                            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                            className="p-2 rounded-lg bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary transition"
                             title="Ubah nama line"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -333,7 +333,7 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
                             type="button"
                             disabled={Boolean(activeRun) || productionLines.length <= 1}
                             onClick={() => onDeleteLine(line.id)}
-                            className="p-2 rounded-lg bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-400 disabled:opacity-35 disabled:cursor-not-allowed transition"
+                            className="p-2 rounded-lg bg-elevated hover:bg-rose-600/20 text-ink-secondary hover:text-ink-rose disabled:opacity-35 disabled:cursor-not-allowed transition"
                             title={
                               activeRun
                                 ? 'Tidak dapat menghapus line yang sedang berjalan'
@@ -355,11 +355,11 @@ export const ProductionLineManagerModal: React.FC<ProductionLineManagerModalProp
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex justify-end">
+        <div className="p-4 border-t border-border-subtle bg-canvas flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition"
+            className="px-5 py-2 bg-elevated hover:bg-accent text-ink-primary rounded-xl text-xs font-bold transition"
           >
             Selesai
           </button>

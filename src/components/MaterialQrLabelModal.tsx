@@ -88,17 +88,17 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
       aria-modal="true"
       aria-labelledby="qr-label-modal-title"
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+            <div className="p-2 rounded-xl bg-cyan-500/15 text-brand border border-cyan-500/30">
               <QrCode className="w-5 h-5" />
             </div>
             <div>
-              <h3 id="qr-label-modal-title" className="text-sm sm:text-base font-bold text-white">
+              <h3 id="qr-label-modal-title" className="text-sm sm:text-base font-bold text-ink-primary">
                 Generator Label QR Material
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-secondary">
                 Unduh gambar QR untuk ditempel pada kemasan bahan baku atau uji pemindaian.
               </p>
             </div>
@@ -106,7 +106,7 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-2 rounded-xl text-ink-secondary hover:text-ink-primary hover:bg-elevated transition"
             aria-label="Tutup generator label QR"
           >
             <X className="w-5 h-5" />
@@ -115,13 +115,13 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
 
         <div className="p-5 space-y-4 text-xs">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
               Pilih Material Database
             </label>
             <select
               value={selectedMatId}
               onChange={(e) => setSelectedMatId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
             >
               {materials.length === 0 ? (
                 <option value="">-- Belum ada material di Master Data --</option>
@@ -137,7 +137,7 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 No. Lot (Opsional)
               </label>
               <input
@@ -145,12 +145,12 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
                 value={lotNumber}
                 onChange={(e) => setLotNumber(e.target.value)}
                 placeholder="LOT-2026-01"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Berat / Qty kg (Opsional)
               </label>
               <input
@@ -159,18 +159,18 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
                 value={qtyKg}
                 onChange={(e) => setQtyKg(e.target.value)}
                 placeholder="25"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Lokasi (Opsional)
               </label>
               <select
                 value={location}
                 onChange={(e) => setLocation(e.target.value as StorageLocation | '')}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary"
               >
                 <option value="">Otomatis</option>
                 <option value="CK">Area CK</option>
@@ -210,12 +210,12 @@ export const MaterialQrLabelModal: React.FC<MaterialQrLabelModalProps> = ({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border-subtle">
             <button
               type="button"
               onClick={() => window.print()}
               disabled={!qrDataUrl}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 disabled:opacity-40 transition"
+              className="px-3.5 py-2 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 disabled:opacity-40 transition"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak Halaman</span>

@@ -133,37 +133,37 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/80 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle bg-surface shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl">
+            <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 text-brand rounded-xl">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">Import Master Mesin Produksi</h3>
-              <p className="text-[11px] text-slate-400">
+              <h3 className="font-bold text-sm text-ink-primary">Import Master Mesin Produksi</h3>
+              <p className="text-[11px] text-ink-secondary">
                 Muat daftar mesin dari file lokal perangkat (CSV/JSON) atau Google Drive Cloud
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 hover:bg-slate-700 transition"
+            className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated hover:bg-accent transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Source Navigation Tabs */}
-        <div className="px-5 pt-3 pb-2 border-b border-slate-800/80 bg-slate-950/40 flex items-center justify-between shrink-0">
+        <div className="px-5 pt-3 pb-2 border-b border-border-subtle bg-canvas flex items-center justify-between shrink-0">
           <div className="flex space-x-2">
             <button
               onClick={() => setActiveSource('STORAGE')}
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                 activeSource === 'STORAGE'
                   ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               <HardDrive className="w-4 h-4" />
@@ -174,7 +174,7 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
               className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                 activeSource === 'DRIVE'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               <svg className="w-4 h-4" viewBox="0 0 87.3 78" fill="currentColor">
@@ -192,11 +192,11 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
+          <div className="flex items-center space-x-1.5 text-[11px] text-ink-secondary">
             <span>Template Mesin:</span>
             <button
               onClick={() => downloadTemplate('csv')}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg flex items-center space-x-1"
+              className="px-2 py-1 bg-elevated hover:bg-accent text-brand rounded-lg flex items-center space-x-1"
               title="Unduh format tabel CSV"
             >
               <FileSpreadsheet className="w-3 h-3" />
@@ -204,7 +204,7 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
             </button>
             <button
               onClick={() => downloadTemplate('json')}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg flex items-center space-x-1"
+              className="px-2 py-1 bg-elevated hover:bg-accent text-ink-amber rounded-lg flex items-center space-x-1"
               title="Unduh format JSON"
             >
               <FileCode className="w-3 h-3" />
@@ -226,19 +226,19 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
                 onDrop={handleDrop}
                 className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${
                   isDragging
-                    ? 'border-cyan-400 bg-cyan-950/20'
-                    : 'border-slate-700 hover:border-slate-600 bg-slate-800/40'
+                    ? 'border-cyan-400 bg-tint-cyan'
+                    : 'border-border-strong hover:border-border-strong bg-elevated'
                 }`}
               >
                 <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-cyan-400 border border-slate-700">
+                  <div className="w-12 h-12 rounded-2xl bg-elevated flex items-center justify-center text-brand border border-border-strong">
                     <UploadCloud className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-white">
+                    <p className="text-xs font-semibold text-ink-primary">
                       Tarik dan letakkan file Excel (.xlsx/.xls), CSV, atau JSON mesin produksi di sini
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-ink-secondary mt-0.5">
                       Kolom: Kode Mesin, Nama Mesin, Jalur (Line), Kapasitas (kg/jam), Status, Operator, Catatan
                     </p>
                   </div>
@@ -264,13 +264,13 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
                     <span>{isReadingFile ? 'Membaca file...' : 'Pilih File dari Komputer'}</span>
                   </button>
                   {fileName && !localFileError && (
-                    <div className="mt-2 text-xs font-mono text-cyan-300 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-800">
+                    <div className="mt-2 text-xs font-mono text-brand bg-tint-cyan px-3 py-1 rounded-lg border border-tint-cyan-border">
                       File terpilih: {fileName}
                     </div>
                   )}
                   {localFileError && (
-                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-rose-200 bg-rose-950/50 border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="mt-2 w-full max-w-lg text-left text-[11px] text-ink-rose bg-tint-rose border border-rose-500/40 px-3 py-2 rounded-xl flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
                       <span>{localFileError}</span>
                     </div>
                   )}
@@ -278,8 +278,8 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
               </div>
 
               {/* Paste Direct Text */}
-              <details className="bg-slate-800/40 border border-slate-800 rounded-xl p-3 text-xs">
-                <summary className="font-semibold text-slate-300 cursor-pointer hover:text-white">
+              <details className="bg-elevated border border-border-subtle rounded-xl p-3 text-xs">
+                <summary className="font-semibold text-ink-secondary cursor-pointer hover:text-ink-primary">
                   Opsi Cepat: Tempel Teks CSV/JSON Mesin Langsung
                 </summary>
                 <div className="mt-2 space-y-2">
@@ -292,7 +292,7 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
                       setFileContent(e.target.value);
                     }}
                     placeholder="Tempel baris CSV (Kode,Nama,Line,Kapasitas,Status,Operator,Catatan) atau JSON array di sini..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-surface border border-border-strong rounded-xl p-2.5 text-xs text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                   />
                 </div>
               </details>
@@ -318,30 +318,30 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
 
           {/* Validation & Preview Section */}
           {parseResult && (
-            <div className="border border-slate-800 rounded-2xl bg-slate-950/60 p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+            <div className="border border-border-subtle rounded-2xl bg-canvas p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-2">
                 <div className="flex items-center space-x-2">
-                  <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                  <div className="p-1.5 bg-emerald-500/10 text-ink-emerald rounded-lg">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-white">
+                    <h4 className="font-bold text-xs text-ink-primary">
                       Hasil Analisis Mesin ({parseResult.valid.length} Item Valid Ditemukan)
                     </h4>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-ink-secondary">
                       Sumber: {fileName || 'Data Terpilih'}
                     </p>
                   </div>
                 </div>
 
                 {/* Import Mode Selector */}
-                <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
-                  <label className="text-[11px] text-slate-400 px-1 font-medium">Metode Impor:</label>
+                <div className="flex items-center space-x-2 bg-surface border border-border-subtle p-1 rounded-xl text-xs">
+                  <label className="text-[11px] text-ink-secondary px-1 font-medium">Metode Impor:</label>
                   <button
                     type="button"
                     onClick={() => setImportMode('append')}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
-                      importMode === 'append' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'
+                      importMode === 'append' ? 'bg-cyan-600 text-white' : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     Gabungkan (Append)
@@ -350,7 +350,7 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
                     type="button"
                     onClick={() => setImportMode('replace')}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
-                      importMode === 'replace' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'
+                      importMode === 'replace' ? 'bg-rose-600 text-white' : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     Gantikan Semua (Replace)
@@ -359,8 +359,8 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
               </div>
 
               {parseResult.errors.length > 0 && (
-                <div className="bg-amber-950/30 border border-amber-900/50 p-2.5 rounded-xl text-[11px] text-amber-300 space-y-1">
-                  <div className="flex items-center space-x-1 font-semibold text-amber-200">
+                <div className="bg-tint-amber border border-tint-amber-border p-2.5 rounded-xl text-[11px] text-ink-amber space-y-1">
+                  <div className="flex items-center space-x-1 font-semibold text-ink-amber">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                     <span>Catatan Validasi ({parseResult.errors.length} baris dilewati):</span>
                   </div>
@@ -373,9 +373,9 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
               )}
 
               {/* Preview Table */}
-              <div className="max-h-48 overflow-y-auto border border-slate-800 rounded-xl bg-slate-900">
+              <div className="max-h-48 overflow-y-auto border border-border-subtle rounded-xl bg-surface">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-800/80 text-[10px] text-slate-400 uppercase tracking-wider sticky top-0">
+                  <thead className="bg-elevated text-[10px] text-ink-secondary uppercase tracking-wider sticky top-0">
                     <tr>
                       <th className="px-3 py-2">Kode</th>
                       <th className="px-3 py-2">Nama Mesin</th>
@@ -385,27 +385,27 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
                       <th className="px-3 py-2">Operator</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 text-[11px]">
+                  <tbody className="divide-y divide-border-subtle text-[11px]">
                     {parseResult.valid.map((m, idx) => (
-                      <tr key={m.id || idx} className="hover:bg-slate-800/40">
-                        <td className="px-3 py-2 font-mono text-cyan-300 font-bold">{m.code}</td>
-                        <td className="px-3 py-2 font-medium text-white">{m.name}</td>
-                        <td className="px-3 py-2 text-slate-300">{m.line}</td>
-                        <td className="px-3 py-2 text-right font-mono text-emerald-400 font-semibold">
+                      <tr key={m.id || idx} className="hover:bg-elevated">
+                        <td className="px-3 py-2 font-mono text-brand font-bold">{m.code}</td>
+                        <td className="px-3 py-2 font-medium text-ink-primary">{m.name}</td>
+                        <td className="px-3 py-2 text-ink-secondary">{m.line}</td>
+                        <td className="px-3 py-2 text-right font-mono text-ink-emerald font-semibold">
                           {m.capacityKgPerHour} kg/jam
                         </td>
                         <td className="px-3 py-2">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                             m.status === 'OPERATIONAL'
-                              ? 'bg-emerald-500/20 text-emerald-300'
+                              ? 'bg-emerald-500/20 text-ink-emerald'
                               : m.status === 'STANDBY'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : 'bg-rose-500/20 text-rose-300'
+                              ? 'bg-amber-500/20 text-ink-amber'
+                              : 'bg-rose-500/20 text-ink-rose'
                           }`}>
                             {m.status}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-slate-400">{m.operatorAssigned || '-'}</td>
+                        <td className="px-3 py-2 text-ink-secondary">{m.operatorAssigned || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -416,14 +416,14 @@ export const MachineImportModal: React.FC<MachineImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between shrink-0">
-          <div className="text-[11px] text-slate-400">
-            Mesin aktif saat ini: <strong className="text-white font-mono">{existingMachines.length}</strong> unit
+        <div className="px-5 py-3 border-t border-border-subtle bg-surface flex items-center justify-between shrink-0">
+          <div className="text-[11px] text-ink-secondary">
+            Mesin aktif saat ini: <strong className="text-ink-primary font-mono">{existingMachines.length}</strong> unit
           </div>
           <div className="flex space-x-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+              className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl text-xs font-medium transition"
             >
               Batal
             </button>

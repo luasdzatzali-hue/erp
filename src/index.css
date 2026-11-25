@@ -1,6 +1,50 @@
 @import "tailwindcss";
 
 @theme inline {
+  /* Core Semantic Palette Tokens */
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-ink-primary: var(--text-primary);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+  --color-brand: var(--text-brand);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-primary-hover: var(--accent-primary-hover);
+  --color-accent-primary-foreground: var(--accent-primary-foreground);
+  --color-surface-header: var(--surface-header);
+
+  /* Semantic Status & Accent Ink Tokens */
+  --color-ink-cyan: var(--ink-cyan);
+  --color-ink-sky: var(--ink-sky);
+  --color-ink-blue: var(--ink-blue);
+  --color-ink-amber: var(--ink-amber);
+  --color-ink-emerald: var(--ink-emerald);
+  --color-ink-indigo: var(--ink-indigo);
+  --color-ink-purple: var(--ink-purple);
+  --color-ink-rose: var(--ink-rose);
+
+  /* Semantic Tinted Surface & Border Tokens */
+  --color-tint-cyan: var(--tint-cyan-bg);
+  --color-tint-cyan-border: var(--tint-cyan-border);
+  --color-tint-sky: var(--tint-sky-bg);
+  --color-tint-sky-border: var(--tint-sky-border);
+  --color-tint-blue: var(--tint-blue-bg);
+  --color-tint-blue-border: var(--tint-blue-border);
+  --color-tint-emerald: var(--tint-emerald-bg);
+  --color-tint-emerald-border: var(--tint-emerald-border);
+  --color-tint-amber: var(--tint-amber-bg);
+  --color-tint-amber-border: var(--tint-amber-border);
+  --color-tint-rose: var(--tint-rose-bg);
+  --color-tint-rose-border: var(--tint-rose-border);
+  --color-tint-indigo: var(--tint-indigo-bg);
+  --color-tint-indigo-border: var(--tint-indigo-border);
+  --color-tint-purple: var(--tint-purple-bg);
+  --color-tint-purple-border: var(--tint-purple-border);
+
+  /* UI & SCADA Component Aliases */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -20,59 +64,240 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scada-bg: var(--scada-bg);
+  --color-scada-panel: var(--scada-panel);
+  --color-scada-surface: var(--scada-surface);
+  --color-scada-border: var(--scada-border);
+  --color-scada-text: var(--scada-text);
+  --color-scada-muted: var(--scada-muted);
+  --color-scada-cyan: var(--scada-cyan);
+  --color-scada-emerald: var(--scada-emerald);
+  --color-scada-amber: var(--scada-amber);
+  --color-scada-rose: var(--scada-rose);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 }
 
 :root {
-  --background: #06090f;
-  --foreground: #f1f5f9;
-  --card: #0c121d;
-  --card-foreground: #f1f5f9;
-  --popover: #0c121d;
-  --popover-foreground: #f1f5f9;
-  --primary: #06b6d4;
-  --primary-foreground: #04080e;
-  --secondary: #151e2e;
-  --secondary-foreground: #f1f5f9;
-  --muted: #151e2e;
-  --muted-foreground: #94a3b8;
-  --accent: #1a2436;
-  --accent-foreground: #f1f5f9;
+  /* Core Semantic Palette — Midnight Control Room (Default) */
+  --bg-canvas: #06090f;
+  --bg-surface: #0c121d;
+  --bg-elevated: #151e2e;
+  --border-subtle: #1e293b;
+  --border-strong: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-brand: #22d3ee;
+  --accent-primary: #06b6d4;
+  --accent-primary-hover: #22d3ee;
+  --accent-primary-foreground: #04080e;
+  --surface-header: #080c14;
+
+  /* UI Primitive Aliases synced to Core Semantic Palette */
+  --background: var(--bg-canvas);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-primary-foreground);
+  --secondary: var(--bg-elevated);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-elevated);
+  --muted-foreground: var(--text-secondary);
+  --accent: #1e293b;
+  --accent-foreground: var(--text-primary);
   --destructive: #e11d48;
   --destructive-foreground: #ffffff;
-  --border: #1e293b;
+  --border: var(--border-subtle);
   --input: #334155;
-  --ring: #06b6d4;
+  --ring: var(--accent-primary);
   --radius: 0.625rem;
+
+  /* SCADA Control Room Tokens */
+  --scada-bg: var(--bg-canvas);
+  --scada-panel: var(--bg-surface);
+  --scada-surface: #131b2b;
+  --scada-border: var(--border-subtle);
+  --scada-text: var(--text-primary);
+  --scada-muted: var(--text-secondary);
+  --scada-cyan: #06b6d4;
+  --scada-emerald: #10b981;
+  --scada-amber: #f59e0b;
+  --scada-rose: #f43f5e;
+
+  /* Scrollbar & Grid Tokens */
+  --scrollbar-track: #090d16;
+  --scrollbar-thumb: #1e293b;
+  --scrollbar-thumb-hover: #334155;
+  --grid-line: rgba(148, 163, 184, 0.05);
+
+  /* Accent Ink Tokens (Midnight) */
+  --ink-cyan: #22d3ee;
+  --ink-sky: #38bdf8;
+  --ink-blue: #60a5fa;
+  --ink-amber: #fbbf24;
+  --ink-emerald: #34d399;
+  --ink-indigo: #818cf8;
+  --ink-purple: #c084fc;
+  --ink-rose: #fb7185;
+
+  /* Tinted Surface & Border Tokens (Midnight) */
+  --tint-cyan-bg: rgba(8, 51, 68, 0.4);
+  --tint-cyan-border: rgba(6, 182, 212, 0.38);
+  --tint-sky-bg: rgba(12, 74, 110, 0.38);
+  --tint-sky-border: rgba(56, 189, 248, 0.38);
+  --tint-blue-bg: rgba(30, 58, 138, 0.38);
+  --tint-blue-border: rgba(96, 165, 250, 0.38);
+  --tint-emerald-bg: rgba(6, 78, 59, 0.35);
+  --tint-emerald-border: rgba(16, 185, 129, 0.38);
+  --tint-amber-bg: rgba(69, 26, 3, 0.38);
+  --tint-amber-border: rgba(245, 158, 11, 0.42);
+  --tint-rose-bg: rgba(76, 5, 25, 0.38);
+  --tint-rose-border: rgba(244, 63, 94, 0.42);
+  --tint-indigo-bg: rgba(30, 27, 75, 0.45);
+  --tint-indigo-border: rgba(99, 102, 241, 0.38);
+  --tint-purple-bg: rgba(59, 7, 100, 0.45);
+  --tint-purple-border: rgba(168, 85, 247, 0.38);
+
+  /* Gantt Bar Tokens (Midnight) */
+  --gantt-active-bg: rgba(69, 26, 3, 0.9);
+  --gantt-active-border: rgba(245, 158, 11, 0.8);
+  --gantt-active-text: #fef3c7;
+  --gantt-pause-bg: rgba(8, 47, 73, 0.9);
+  --gantt-pause-border: rgba(14, 165, 233, 0.8);
+  --gantt-pause-text: #e0f2fe;
+  --gantt-done-bg: rgba(2, 44, 34, 0.85);
+  --gantt-done-border: rgba(16, 185, 129, 0.6);
+  --gantt-done-text: #d1fae5;
+  --gantt-co-bg: rgba(30, 27, 75, 0.85);
+  --gantt-co-border: rgba(129, 140, 248, 0.6);
+  --gantt-co-text: #e0e7ff;
+  --gantt-proj-bg: rgba(8, 51, 68, 0.5);
+  --gantt-proj-border: rgba(6, 182, 212, 0.5);
+  --gantt-proj-text: #a5f3fc;
+  --gantt-cancel-bg: rgba(76, 5, 25, 0.6);
+  --gantt-cancel-border: rgba(244, 63, 94, 0.5);
+  --gantt-cancel-text: #fecdd3;
 }
 
 html.theme-daylight,
-html[data-theme="daylight"] {
-  --background: #f1f5f9;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0369a1;
-  --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #0f172a;
+html[data-theme="daylight"],
+.theme-daylight {
+  /* Core Semantic Palette — Daylight Factory Floor */
+  --bg-canvas: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-elevated: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  --border-strong: #94a3b8;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #475569;
+  --text-brand: #0369a1;
+  --accent-primary: #0369a1;
+  --accent-primary-hover: #075985;
+  --accent-primary-foreground: #ffffff;
+  --surface-header: #ffffff;
+
+  /* UI Primitive Aliases synced to Daylight Palette */
+  --background: var(--bg-canvas);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--accent-primary-foreground);
+  --secondary: var(--bg-elevated);
+  --secondary-foreground: var(--text-primary);
   --muted: #f8fafc;
-  --muted-foreground: #475569;
-  --accent: #e2e8f0;
-  --accent-foreground: #0f172a;
+  --muted-foreground: var(--text-secondary);
+  --accent: #cbd5e1;
+  --accent-foreground: var(--text-primary);
   --destructive: #be123c;
   --destructive-foreground: #ffffff;
-  --border: #cbd5e1;
+  --border: var(--border-subtle);
   --input: #788ba3;
-  --ring: #0369a1;
+  --ring: var(--accent-primary);
+
+  /* SCADA Control Room Tokens (Daylight Mapping) */
+  --scada-bg: var(--bg-canvas);
+  --scada-panel: var(--bg-surface);
+  --scada-surface: #f8fafc;
+  --scada-border: var(--border-subtle);
+  --scada-text: var(--text-primary);
+  --scada-muted: var(--text-secondary);
+  --scada-cyan: #0369a1;
+  --scada-emerald: #047857;
+  --scada-amber: #b45309;
+  --scada-rose: #be123c;
+
+  /* Scrollbar & Grid Tokens */
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --grid-line: rgba(15, 23, 42, 0.05);
+
+  /* Accessible WCAG AA Accent Ink Tokens (Daylight) */
+  --ink-cyan: #155e75;
+  --ink-sky: #0369a1;
+  --ink-blue: #1d4ed8;
+  --ink-amber: #92400e;
+  --ink-emerald: #065f46;
+  --ink-indigo: #4338ca;
+  --ink-purple: #7e22ce;
+  --ink-rose: #be123c;
+
+  /* Daylight Tinted Surface & Border Tokens */
+  --tint-cyan-bg: #e0f2fe;
+  --tint-cyan-border: #7dd3fc;
+  --tint-sky-bg: #e0f2fe;
+  --tint-sky-border: #7dd3fc;
+  --tint-blue-bg: #dbeafe;
+  --tint-blue-border: #93c5fd;
+  --tint-emerald-bg: #d1fae5;
+  --tint-emerald-border: #6ee7b7;
+  --tint-amber-bg: #fef3c7;
+  --tint-amber-border: #fcd34d;
+  --tint-rose-bg: #ffe4e6;
+  --tint-rose-border: #fda4af;
+  --tint-indigo-bg: #e0e7ff;
+  --tint-indigo-border: #a5b4fc;
+  --tint-purple-bg: #f3e8ff;
+  --tint-purple-border: #d8b4fe;
+
+  /* Gantt Bar Tokens (Daylight) */
+  --gantt-active-bg: #fef3c7;
+  --gantt-active-border: #d97706;
+  --gantt-active-text: #78350f;
+  --gantt-pause-bg: #e0f2fe;
+  --gantt-pause-border: #0369a1;
+  --gantt-pause-text: #0c4a6e;
+  --gantt-done-bg: #d1fae5;
+  --gantt-done-border: #059669;
+  --gantt-done-text: #065f46;
+  --gantt-co-bg: #e0e7ff;
+  --gantt-co-border: #4f46e5;
+  --gantt-co-text: #312e81;
+  --gantt-proj-bg: #e0f2fe;
+  --gantt-proj-border: #0284c7;
+  --gantt-proj-text: #0c4a6e;
+  --gantt-cancel-bg: #ffe4e6;
+  --gantt-cancel-border: #e11d48;
+  --gantt-cancel-text: #881337;
 }
 
 @layer base {
+  html {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+  }
   body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     letter-spacing: -0.005em;
   }
@@ -82,37 +307,31 @@ html[data-theme="daylight"] {
   }
 }
 
-/* Oil & Gas Distribution Control Room hairline coordinate grid */
+/* Industrial Control Room hairline coordinate grid */
 .scada-grid-surface {
   background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
-.theme-daylight .scada-grid-surface {
-  background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
-}
-
-/* Custom scrollbar - dark industrial theme */
+/* Custom scrollbar backed by theme variables */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -121,6 +340,114 @@ html[data-theme="daylight"] {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Semantic Gantt Chart Bars (CSS variable-driven across Midnight & Daylight) */
+.gantt-bar-active {
+  background-color: var(--gantt-active-bg);
+  border-color: var(--gantt-active-border);
+  color: var(--gantt-active-text);
+}
+.gantt-bar-pause {
+  background-color: var(--gantt-pause-bg);
+  border-color: var(--gantt-pause-border);
+  color: var(--gantt-pause-text);
+}
+.gantt-bar-done {
+  background-color: var(--gantt-done-bg);
+  border-color: var(--gantt-done-border);
+  color: var(--gantt-done-text);
+}
+.gantt-bar-co {
+  background-color: var(--gantt-co-bg);
+  border-color: var(--gantt-co-border);
+  color: var(--gantt-co-text);
+}
+.gantt-bar-proj {
+  background-color: var(--gantt-proj-bg);
+  border-color: var(--gantt-proj-border);
+  color: var(--gantt-proj-text);
+}
+.gantt-bar-cancel {
+  background-color: var(--gantt-cancel-bg);
+  border-color: var(--gantt-cancel-border);
+  color: var(--gantt-cancel-text);
+}
+
+/* Always-crisp Paper Preview for Slip PDF Modal */
+.slip-paper-preview {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Dark Hero Scrim Copy Preservation */
+.contact-hero-on-dark h1 {
+  color: #ffffff;
+}
+.contact-hero-on-dark p {
+  color: #e2e8f0;
+}
+
+/* Slide-Over Drawer Animations */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes drawerFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawerFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.drawer-overlay[data-state="open"] {
+  animation: drawerFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-overlay[data-state="closed"] {
+  animation: drawerFadeOut 150ms ease-in;
+}
+
+.drawer-content[data-state="open"] {
+  animation: slideInFromRight 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-content[data-state="closed"] {
+  animation: slideOutToRight 180ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-overlay[data-state="open"],
+  .drawer-overlay[data-state="closed"],
+  .drawer-content[data-state="open"],
+  .drawer-content[data-state="closed"] {
+    animation: none;
+  }
 }
 
 /* Print Styles */
@@ -187,822 +514,6 @@ html[data-theme="daylight"] {
   }
 }
 
-/* ==========================================================================
-   DAYLIGHT THEME (White / Slate-50 Clean High-Contrast for Factory Floors)
-   Activated when html has class 'theme-daylight' or data-theme="daylight"
-   ========================================================================== */
-html.theme-daylight,
-html[data-theme="daylight"],
-.theme-daylight body {
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-}
-
-.theme-daylight ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-.theme-daylight ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-.theme-daylight ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Top Sticky Navigation & Stepper Bars */
-.theme-daylight header.bg-\[\#080c14\],
-.theme-daylight section.bg-\[\#080c14\] {
-  background-color: #ffffff !important;
-}
-
-/* Primary Canvas & Dark Background Surfaces (All Opacity Variants) */
-.theme-daylight .bg-slate-950,
-.theme-daylight .bg-slate-950\/30,
-.theme-daylight .bg-slate-950\/40,
-.theme-daylight .bg-slate-950\/50,
-.theme-daylight .bg-slate-950\/60,
-.theme-daylight .bg-slate-950\/70,
-.theme-daylight .bg-slate-950\/75,
-.theme-daylight .bg-slate-950\/80,
-.theme-daylight .bg-slate-950\/85,
-.theme-daylight .bg-slate-950\/88,
-.theme-daylight .bg-slate-950\/90,
-.theme-daylight .bg-\[\#06090f\],
-.theme-daylight .bg-\[\#06090f\]\/60,
-.theme-daylight .bg-\[\#06090f\]\/70,
-.theme-daylight .bg-\[\#06090f\]\/75,
-.theme-daylight .bg-\[\#06090f\]\/80,
-.theme-daylight .bg-\[\#06090f\]\/85,
-.theme-daylight .bg-\[\#06090f\]\/90,
-.theme-daylight .bg-\[\#080c14\],
-.theme-daylight .bg-\[\#080c14\]\/70,
-.theme-daylight .bg-\[\#080c14\]\/80,
-.theme-daylight .bg-\[\#080c14\]\/90,
-.theme-daylight .bg-\[\#080c14\]\/95 {
-  background-color: #f1f5f9 !important;
-}
-
-/* Primary Cards & Elevated Panels -> Pure White */
-.theme-daylight .bg-slate-900,
-.theme-daylight .bg-slate-900\/40,
-.theme-daylight .bg-slate-900\/50,
-.theme-daylight .bg-slate-900\/60,
-.theme-daylight .bg-slate-900\/70,
-.theme-daylight .bg-slate-900\/80,
-.theme-daylight .bg-slate-900\/90,
-.theme-daylight .bg-slate-900\/95,
-.theme-daylight .bg-slate-850,
-.theme-daylight .bg-\[\#0c121d\],
-.theme-daylight .bg-\[\#0c121d\]\/70,
-.theme-daylight .bg-\[\#0c121d\]\/75,
-.theme-daylight .bg-\[\#0c121d\]\/80,
-.theme-daylight .bg-\[\#0c121d\]\/90,
-.theme-daylight .bg-\[\#0c121d\]\/95,
-.theme-daylight .bg-\[\#0b111c\] {
-  background-color: #ffffff !important;
-}
-
-/* Nested Wells & Interactive Controls -> Slate-50 */
-.theme-daylight .bg-slate-800,
-.theme-daylight .bg-slate-800\/25,
-.theme-daylight .bg-slate-800\/30,
-.theme-daylight .bg-slate-800\/35,
-.theme-daylight .bg-slate-800\/40,
-.theme-daylight .bg-slate-800\/50,
-.theme-daylight .bg-slate-800\/60,
-.theme-daylight .bg-slate-800\/70,
-.theme-daylight .bg-slate-800\/80,
-.theme-daylight .bg-slate-800\/90,
-.theme-daylight .bg-\[\#131b2b\] {
-  background-color: #f8fafc !important;
-}
-
-.theme-daylight .bg-slate-750,
-.theme-daylight .bg-slate-700,
-.theme-daylight .bg-slate-700\/50 {
-  background-color: #e2e8f0 !important;
-}
-
-/* Dark Panel Gradients -> Crisp Light Tinted Surfaces (excluding Contact Hero Scrim) */
-.theme-daylight [class*="bg-gradient-"][class*="from-slate-9"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="via-slate-9"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="via-slate-8"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="to-slate-9"]:not(.contact-hero-scrim) {
-  background-image: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  background-color: #ffffff !important;
-}
-.theme-daylight [class*="bg-gradient-"][class*="from-cyan-950"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="to-cyan-950"]:not(.contact-hero-scrim) {
-  background-image: linear-gradient(135deg, #f0f9ff 0%, #ffffff 55%, #e0f2fe 100%) !important;
-  background-color: #f0f9ff !important;
-}
-.theme-daylight [class*="bg-gradient-"][class*="from-amber-950"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="to-amber-950"]:not(.contact-hero-scrim) {
-  background-image: linear-gradient(135deg, #fffbeb 0%, #ffffff 55%, #fef3c7 100%) !important;
-  background-color: #fffbeb !important;
-}
-.theme-daylight [class*="bg-gradient-"][class*="to-indigo-950"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="via-purple-950"]:not(.contact-hero-scrim),
-.theme-daylight [class*="bg-gradient-"][class*="to-purple-950"]:not(.contact-hero-scrim) {
-  background-image: linear-gradient(135deg, #f8fafc 0%, #ffffff 55%, #eef2ff 100%) !important;
-  background-color: #f8fafc !important;
-}
-
-/* Gantt Chart Bars in Daylight Theme (High-Contrast) */
-.theme-daylight .gantt-bar-active {
-  background-color: #fef3c7 !important;
-  border-color: #d97706 !important;
-  color: #78350f !important;
-}
-.theme-daylight .gantt-bar-pause {
-  background-color: #e0f2fe !important;
-  border-color: #0369a1 !important;
-  color: #0c4a6e !important;
-}
-.theme-daylight .gantt-bar-done {
-  background-color: #d1fae5 !important;
-  border-color: #059669 !important;
-  color: #064e3b !important;
-}
-.theme-daylight .gantt-bar-co {
-  background-color: #e0e7ff !important;
-  border-color: #4f46e5 !important;
-  color: #312e81 !important;
-}
-.theme-daylight .gantt-bar-proj {
-  background-color: #e0f2fe !important;
-  border-color: #0284c7 !important;
-  color: #0c4a6e !important;
-}
-.theme-daylight .gantt-bar-cancel {
-  background-color: #ffe4e6 !important;
-  border-color: #e11d48 !important;
-  color: #881337 !important;
-}
-.theme-daylight .gantt-bar-active .text-cyan-300,
-.theme-daylight .gantt-bar-pause .text-cyan-300,
-.theme-daylight .gantt-bar-done .text-cyan-300,
-.theme-daylight .gantt-bar-co .text-cyan-300,
-.theme-daylight .gantt-bar-proj .text-cyan-300 {
-  color: #0369a1 !important;
-}
-
-/* Borders & Dividers */
-.theme-daylight .border-slate-900,
-.theme-daylight .border-slate-850,
-.theme-daylight .border-slate-800,
-.theme-daylight .border-slate-800\/60,
-.theme-daylight .border-slate-800\/70,
-.theme-daylight .border-slate-800\/80,
-.theme-daylight .border-slate-800\/90,
-.theme-daylight .border-slate-750,
-.theme-daylight .border-slate-700,
-.theme-daylight .border-slate-700\/30,
-.theme-daylight .border-slate-700\/40,
-.theme-daylight .border-slate-700\/50,
-.theme-daylight .border-slate-700\/60,
-.theme-daylight .border-slate-700\/70,
-.theme-daylight .border-slate-700\/80,
-.theme-daylight .border-slate-600 {
-  border-color: #cbd5e1 !important;
-}
-
-.theme-daylight .divide-slate-800 > :not(:last-child),
-.theme-daylight .divide-slate-800\/60 > :not(:last-child),
-.theme-daylight .divide-slate-800\/70 > :not(:last-child),
-.theme-daylight .divide-slate-800\/80 > :not(:last-child) {
-  border-color: #cbd5e1 !important;
-}
-
-.theme-daylight .border-cyan-800,
-.theme-daylight .border-cyan-800\/40,
-.theme-daylight .border-cyan-700,
-.theme-daylight .border-cyan-700\/60,
-.theme-daylight .border-sky-800 {
-  border-color: #7dd3fc !important;
-}
-.theme-daylight .border-amber-800,
-.theme-daylight .border-amber-900\/50,
-.theme-daylight .border-amber-700\/60 {
-  border-color: #fcd34d !important;
-}
-.theme-daylight .border-emerald-800 {
-  border-color: #6ee7b7 !important;
-}
-.theme-daylight .border-indigo-800,
-.theme-daylight .border-indigo-700 {
-  border-color: #a5b4fc !important;
-}
-.theme-daylight .border-purple-700\/60 {
-  border-color: #d8b4fe !important;
-}
-.theme-daylight .border-rose-800,
-.theme-daylight .border-rose-800\/50,
-.theme-daylight .border-rose-700,
-.theme-daylight .border-rose-700\/60 {
-  border-color: #fda4af !important;
-}
-.theme-daylight .border-blue-900\/40 {
-  border-color: #93c5fd !important;
-}
-
-/* Text Hierarchy (High-Contrast Dark Ink on Light Surfaces) */
-.theme-daylight .text-white,
-.theme-daylight .text-slate-100,
-.theme-daylight .text-slate-200,
-.theme-daylight .text-slate-300 {
-  color: #0f172a !important;
-}
-.theme-daylight .text-slate-400,
-.theme-daylight .text-slate-500,
-.theme-daylight .text-slate-600 {
-  color: #475569 !important;
-}
-
-/* Accent Text Colors -> >= 4.5:1 WCAG AA Contrast on ALL Daylight Surfaces (White, Slate-50/100/200 & All Tints) */
-.theme-daylight .text-cyan-100,
-.theme-daylight .text-cyan-200,
-.theme-daylight .text-cyan-200\/80,
-.theme-daylight .text-cyan-300,
-.theme-daylight .text-cyan-300\/80,
-.theme-daylight .text-cyan-300\/90,
-.theme-daylight .text-cyan-400,
-.theme-daylight .text-cyan-400\/80,
-.theme-daylight .text-cyan-400\/90,
-.theme-daylight .text-cyan-500,
-.theme-daylight .text-cyan-500\/70 {
-  color: #155e75 !important;
-}
-
-.theme-daylight .text-sky-200,
-.theme-daylight .text-sky-300,
-.theme-daylight .text-sky-400 {
-  color: #0369a1 !important;
-}
-
-.theme-daylight .text-blue-300,
-.theme-daylight .text-blue-400 {
-  color: #1d4ed8 !important;
-}
-
-.theme-daylight .text-amber-100,
-.theme-daylight .text-amber-200,
-.theme-daylight .text-amber-200\/80,
-.theme-daylight .text-amber-200\/90,
-.theme-daylight .text-amber-300,
-.theme-daylight .text-amber-300\/80,
-.theme-daylight .text-amber-300\/90,
-.theme-daylight .text-amber-400,
-.theme-daylight .text-amber-400\/70,
-.theme-daylight .text-amber-400\/80,
-.theme-daylight .text-amber-400\/90,
-.theme-daylight .text-amber-500,
-.theme-daylight .text-amber-500\/80,
-.theme-daylight .text-amber-500\/90 {
-  color: #92400e !important;
-}
-
-.theme-daylight .text-emerald-100,
-.theme-daylight .text-emerald-200,
-.theme-daylight .text-emerald-200\/80,
-.theme-daylight .text-emerald-300,
-.theme-daylight .text-emerald-300\/90,
-.theme-daylight .text-emerald-400,
-.theme-daylight .text-emerald-400\/80,
-.theme-daylight .text-emerald-500,
-.theme-daylight .text-green-300 {
-  color: #065f46 !important;
-}
-
-.theme-daylight .text-indigo-100,
-.theme-daylight .text-indigo-200,
-.theme-daylight .text-indigo-200\/80,
-.theme-daylight .text-indigo-300,
-.theme-daylight .text-indigo-300\/90,
-.theme-daylight .text-indigo-400,
-.theme-daylight .text-indigo-400\/90 {
-  color: #4338ca !important;
-}
-
-.theme-daylight .text-purple-200,
-.theme-daylight .text-purple-300,
-.theme-daylight .text-purple-300\/80,
-.theme-daylight .text-purple-400,
-.theme-daylight .text-purple-400\/80 {
-  color: #7e22ce !important;
-}
-
-.theme-daylight .text-rose-100,
-.theme-daylight .text-rose-100\/90,
-.theme-daylight .text-rose-200,
-.theme-daylight .text-rose-200\/80,
-.theme-daylight .text-rose-200\/90,
-.theme-daylight .text-rose-300,
-.theme-daylight .text-rose-400,
-.theme-daylight .text-rose-400\/80,
-.theme-daylight .text-rose-400\/90 {
-  color: #be123c !important;
-}
-
-/* Tinted 950 / 900 / 800 Colored Panels & Badges (All Opacity Variants) */
-.theme-daylight .bg-cyan-950,
-.theme-daylight .bg-cyan-950\/20,
-.theme-daylight .bg-cyan-950\/30,
-.theme-daylight .bg-cyan-950\/40,
-.theme-daylight .bg-cyan-950\/50,
-.theme-daylight .bg-cyan-950\/60,
-.theme-daylight .bg-cyan-950\/70,
-.theme-daylight .bg-cyan-950\/80,
-.theme-daylight .bg-cyan-900,
-.theme-daylight .bg-cyan-900\/30,
-.theme-daylight .bg-cyan-900\/40,
-.theme-daylight .bg-cyan-900\/60,
-.theme-daylight .bg-sky-950,
-.theme-daylight .bg-sky-950\/40,
-.theme-daylight .bg-sky-950\/60,
-.theme-daylight .bg-sky-950\/80 {
-  background-color: #e0f2fe !important;
-  border-color: #7dd3fc !important;
-}
-.theme-daylight .bg-blue-950\/20,
-.theme-daylight .bg-blue-900\/40,
-.theme-daylight .bg-blue-800\/50 {
-  background-color: #dbeafe !important;
-  border-color: #93c5fd !important;
-}
-.theme-daylight .bg-amber-950,
-.theme-daylight .bg-amber-950\/20,
-.theme-daylight .bg-amber-950\/30,
-.theme-daylight .bg-amber-950\/40,
-.theme-daylight .bg-amber-950\/50,
-.theme-daylight .bg-amber-950\/60,
-.theme-daylight .bg-amber-950\/90,
-.theme-daylight .bg-amber-900\/60 {
-  background-color: #fef3c7 !important;
-  border-color: #fcd34d !important;
-}
-.theme-daylight .bg-emerald-950,
-.theme-daylight .bg-emerald-950\/15,
-.theme-daylight .bg-emerald-950\/20,
-.theme-daylight .bg-emerald-950\/30,
-.theme-daylight .bg-emerald-950\/40,
-.theme-daylight .bg-emerald-950\/50,
-.theme-daylight .bg-emerald-950\/60,
-.theme-daylight .bg-emerald-950\/85,
-.theme-daylight .bg-emerald-900\/60 {
-  background-color: #d1fae5 !important;
-  border-color: #6ee7b7 !important;
-}
-.theme-daylight .bg-indigo-950,
-.theme-daylight .bg-indigo-950\/40,
-.theme-daylight .bg-indigo-950\/60,
-.theme-daylight .bg-indigo-950\/85,
-.theme-daylight .bg-indigo-900\/60 {
-  background-color: #e0e7ff !important;
-  border-color: #a5b4fc !important;
-}
-.theme-daylight .bg-purple-950,
-.theme-daylight .bg-purple-950\/30,
-.theme-daylight .bg-purple-950\/40,
-.theme-daylight .bg-purple-950\/60,
-.theme-daylight .bg-purple-950\/80,
-.theme-daylight .bg-purple-900\/60 {
-  background-color: #f3e8ff !important;
-  border-color: #d8b4fe !important;
-}
-.theme-daylight .bg-rose-950,
-.theme-daylight .bg-rose-950\/20,
-.theme-daylight .bg-rose-950\/30,
-.theme-daylight .bg-rose-950\/40,
-.theme-daylight .bg-rose-950\/50,
-.theme-daylight .bg-rose-950\/60,
-.theme-daylight .bg-rose-950\/90,
-.theme-daylight .bg-rose-900\/50,
-.theme-daylight .bg-rose-900\/80 {
-  background-color: #ffe4e6 !important;
-  border-color: #fda4af !important;
-}
-
-/* Hover, Focus & Disabled States in Daylight (Prevent Dark-on-Dark or White-on-White Hover) */
-.theme-daylight .hover\:bg-slate-900:hover,
-.theme-daylight .hover\:bg-slate-900\/40:hover,
-.theme-daylight .hover\:bg-slate-900\/50:hover,
-.theme-daylight .hover\:bg-slate-900\/80:hover,
-.theme-daylight .hover\:bg-slate-850:hover,
-.theme-daylight .hover\:bg-slate-800:hover,
-.theme-daylight .hover\:bg-slate-800\/25:hover,
-.theme-daylight .hover\:bg-slate-800\/30:hover,
-.theme-daylight .hover\:bg-slate-800\/35:hover,
-.theme-daylight .hover\:bg-slate-800\/40:hover,
-.theme-daylight .hover\:bg-slate-800\/50:hover,
-.theme-daylight .hover\:bg-slate-800\/60:hover,
-.theme-daylight .hover\:bg-slate-800\/80:hover,
-.theme-daylight .hover\:bg-slate-750:hover,
-.theme-daylight .hover\:bg-slate-700:hover {
-  background-color: #e2e8f0 !important;
-}
-
-.theme-daylight .hover\:bg-cyan-900:hover,
-.theme-daylight .hover\:bg-cyan-900\/30:hover,
-.theme-daylight .hover\:bg-cyan-900\/40:hover,
-.theme-daylight .hover\:bg-cyan-900\/60:hover {
-  background-color: #bae6fd !important;
-}
-.theme-daylight .hover\:bg-amber-900\/60:hover {
-  background-color: #fde68a !important;
-}
-.theme-daylight .hover\:bg-emerald-900\/60:hover {
-  background-color: #a7f3d0 !important;
-}
-.theme-daylight .hover\:bg-indigo-900\/60:hover {
-  background-color: #c7d2fe !important;
-}
-.theme-daylight .hover\:bg-blue-800\/50:hover {
-  background-color: #bfdbfe !important;
-}
-.theme-daylight .hover\:bg-rose-950:hover,
-.theme-daylight .hover\:bg-rose-950\/40:hover,
-.theme-daylight .hover\:bg-rose-950\/60:hover,
-.theme-daylight .hover\:bg-rose-900\/50:hover,
-.theme-daylight .hover\:bg-rose-900\/80:hover {
-  background-color: #fecdd3 !important;
-}
-
-.theme-daylight .hover\:text-white:not([class~="hover:bg-black"]):hover,
-.theme-daylight .hover\:text-slate-200:hover,
-.theme-daylight .hover\:text-slate-300:hover,
-.theme-daylight .group:hover .group-hover\:text-white {
-  color: #0f172a !important;
-}
-.theme-daylight .hover\:text-cyan-200:hover,
-.theme-daylight .hover\:text-cyan-300:hover,
-.theme-daylight .group:hover .group-hover\:text-cyan-300 {
-  color: #0e7490 !important;
-}
-.theme-daylight .hover\:text-amber-200:hover,
-.theme-daylight .hover\:text-amber-300:hover,
-.theme-daylight .group:hover .group-hover\:text-amber-300 {
-  color: #92400e !important;
-}
-.theme-daylight .hover\:text-emerald-300:hover {
-  color: #047857 !important;
-}
-.theme-daylight .hover\:text-indigo-200:hover,
-.theme-daylight .hover\:text-indigo-300:hover {
-  color: #3730a3 !important;
-}
-.theme-daylight .hover\:text-purple-300:hover {
-  color: #6b21a8 !important;
-}
-.theme-daylight .hover\:text-sky-300:hover {
-  color: #0369a1 !important;
-}
-.theme-daylight .hover\:text-rose-300:hover,
-.theme-daylight .hover\:text-rose-400:hover {
-  color: #9f1239 !important;
-}
-
-.theme-daylight .disabled\:bg-slate-800:disabled {
-  background-color: #e2e8f0 !important;
-}
-.theme-daylight .disabled\:text-slate-500:disabled {
-  color: #334155 !important;
-}
-
-/* Form Containers, Field Labels & Controls in Daylight (WCAG 1.4.11 >= 3:1 Borders + Distinct Elevation over White) */
-.theme-daylight form[class*="bg-slate-9"],
-.theme-daylight form[class*="border"]:not([class~="border-t"]) {
-  background-color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
-}
-
-.theme-daylight label.text-slate-400,
-.theme-daylight label.text-slate-500,
-.theme-daylight label.text-slate-600 {
-  color: #334155 !important;
-}
-
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-.theme-daylight select,
-.theme-daylight textarea {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-width: 1px !important;
-  border-style: solid !important;
-  border-color: #788ba3 !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
-}
-
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-cyan-"],
-.theme-daylight select[class*="border-cyan-"],
-.theme-daylight textarea[class*="border-cyan-"] {
-  border-color: #0369a1 !important;
-}
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-amber-"],
-.theme-daylight select[class*="border-amber-"],
-.theme-daylight textarea[class*="border-amber-"] {
-  border-color: #b45309 !important;
-}
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-purple-"],
-.theme-daylight select[class*="border-purple-"],
-.theme-daylight textarea[class*="border-purple-"] {
-  border-color: #7e22ce !important;
-}
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-indigo-"],
-.theme-daylight select[class*="border-indigo-"],
-.theme-daylight textarea[class*="border-indigo-"] {
-  border-color: #4338ca !important;
-}
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-emerald-"],
-.theme-daylight select[class*="border-emerald-"],
-.theme-daylight textarea[class*="border-emerald-"] {
-  border-color: #047857 !important;
-}
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[class*="border-rose-"],
-.theme-daylight select[class*="border-rose-"],
-.theme-daylight textarea[class*="border-rose-"] {
-  border-color: #be123c !important;
-}
-
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover:not(:disabled),
-.theme-daylight select:hover:not(:disabled),
-.theme-daylight textarea:hover:not(:disabled) {
-  border-color: #475569 !important;
-}
-
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
-.theme-daylight select:focus,
-.theme-daylight select:focus-visible,
-.theme-daylight textarea:focus,
-.theme-daylight textarea:focus-visible {
-  border-color: #0369a1 !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.18) !important;
-}
-
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):disabled,
-.theme-daylight input:not([type="checkbox"]):not([type="radio"]):not([type="file"])[readonly],
-.theme-daylight select:disabled,
-.theme-daylight textarea:disabled {
-  background-color: #f1f5f9 !important;
-  color: #334155 !important;
-  border-color: #94a3b8 !important;
-  opacity: 1 !important;
-}
-
-.theme-daylight input[type="checkbox"],
-.theme-daylight input[type="radio"] {
-  accent-color: #0369a1 !important;
-  border-color: #64748b !important;
-  background-color: #ffffff !important;
-}
-
-.theme-daylight select option,
-.theme-daylight select optgroup {
-  background-color: #ffffff;
-  color: #0f172a;
-}
-.theme-daylight input::placeholder,
-.theme-daylight textarea::placeholder,
-.theme-daylight .placeholder-slate-400::placeholder,
-.theme-daylight .placeholder-slate-500::placeholder,
-.theme-daylight .placeholder-slate-600::placeholder {
-  color: #475569 !important;
-  opacity: 1 !important;
-}
-
-/* Tables in Daylight (>= 4.5:1 Text, Crisp Header & Row Borders) */
-.theme-daylight thead th {
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-  border-color: #94a3b8 !important;
-  border-bottom-width: 1.5px !important;
-}
-.theme-daylight tbody tr:nth-child(even) {
-  background-color: #f8fafc !important;
-}
-.theme-daylight tbody tr:nth-child(odd) {
-  background-color: #ffffff !important;
-}
-.theme-daylight tbody tr:hover {
-  background-color: #e2e8f0 !important;
-}
-.theme-daylight tbody tr[class*="bg-amber-950"],
-.theme-daylight tbody tr[class*="bg-amber-950"]:hover {
-  background-color: #fef3c7 !important;
-}
-.theme-daylight tbody tr.opacity-50 {
-  opacity: 1 !important;
-  background-color: #f1f5f9 !important;
-  color: #334155 !important;
-}
-.theme-daylight td {
-  border-color: #cbd5e1 !important;
-}
-
-/* High-Contrast Accessible Buttons & Interactive States in Daylight (>= 4.5:1 Rest & Hover) */
-.theme-daylight [class~="bg-cyan-600"],
-.theme-daylight [class~="bg-sky-600"] {
-  background-color: #0369a1 !important;
-}
-.theme-daylight [class~="bg-emerald-600"] {
-  background-color: #047857 !important;
-}
-.theme-daylight [class~="bg-amber-600"]:not([class~="text-slate-950"]) {
-  background-color: #92400e !important;
-}
-.theme-daylight [class~="bg-indigo-500"],
-.theme-daylight [class~="bg-indigo-600"] {
-  background-color: #4338ca !important;
-}
-.theme-daylight [class~="bg-blue-600"] {
-  background-color: #1d4ed8 !important;
-}
-.theme-daylight [class~="bg-rose-600"] {
-  background-color: #be123c !important;
-}
-.theme-daylight [class~="bg-purple-600"] {
-  background-color: #7e22ce !important;
-}
-
-/* Hover states on solid & accent buttons */
-.theme-daylight .hover\:bg-cyan-500:hover,
-.theme-daylight .hover\:bg-cyan-600:hover,
-.theme-daylight .hover\:bg-cyan-700:hover,
-.theme-daylight .hover\:bg-sky-500:hover,
-.theme-daylight .hover\:bg-sky-600:hover {
-  background-color: #155e75 !important;
-}
-.theme-daylight .hover\:bg-emerald-500:hover {
-  background-color: #065f46 !important;
-}
-.theme-daylight .hover\:bg-amber-500:not([class~="text-slate-950"]):hover,
-.theme-daylight .hover\:bg-amber-600:not([class~="text-slate-950"]):hover {
-  background-color: #78350f !important;
-}
-.theme-daylight .hover\:bg-blue-500:hover {
-  background-color: #1e40af !important;
-}
-.theme-daylight .hover\:bg-indigo-500:hover,
-.theme-daylight .hover\:bg-indigo-700:hover {
-  background-color: #3730a3 !important;
-}
-.theme-daylight .hover\:bg-rose-500:hover,
-.theme-daylight .hover\:bg-rose-700:hover {
-  background-color: #9f1239 !important;
-}
-.theme-daylight .hover\:bg-purple-500:hover {
-  background-color: #6b21a8 !important;
-}
-
-/* Gradient CTA stops & hover stops -> >= 5.4:1 white ink at rest AND hover */
-.theme-daylight .from-cyan-600 {
-  --tw-gradient-from: #0369a1 !important;
-}
-.theme-daylight .to-cyan-600 {
-  --tw-gradient-to: #0369a1 !important;
-}
-.theme-daylight .hover\:from-cyan-500:hover {
-  --tw-gradient-from: #155e75 !important;
-}
-.theme-daylight .hover\:to-cyan-500:hover {
-  --tw-gradient-to: #155e75 !important;
-}
-.theme-daylight .from-blue-600 {
-  --tw-gradient-from: #1d4ed8 !important;
-}
-.theme-daylight .to-blue-600 {
-  --tw-gradient-to: #1d4ed8 !important;
-}
-.theme-daylight .hover\:from-blue-500:hover {
-  --tw-gradient-from: #1e40af !important;
-}
-.theme-daylight .hover\:to-blue-500:hover {
-  --tw-gradient-to: #1e40af !important;
-}
-.theme-daylight .from-emerald-600 {
-  --tw-gradient-from: #047857 !important;
-}
-.theme-daylight .to-emerald-600 {
-  --tw-gradient-to: #047857 !important;
-}
-.theme-daylight .hover\:from-emerald-500:hover {
-  --tw-gradient-from: #065f46 !important;
-}
-.theme-daylight .hover\:to-emerald-500:hover {
-  --tw-gradient-to: #065f46 !important;
-}
-.theme-daylight .to-teal-600 {
-  --tw-gradient-to: #0f766e !important;
-}
-.theme-daylight .hover\:to-teal-500:hover {
-  --tw-gradient-to: #115e59 !important;
-}
-.theme-daylight .from-amber-600 {
-  --tw-gradient-from: #92400e !important;
-}
-.theme-daylight .to-amber-600 {
-  --tw-gradient-to: #92400e !important;
-}
-.theme-daylight .hover\:from-amber-500:not([class~="text-slate-950"]):hover {
-  --tw-gradient-from: #78350f !important;
-}
-.theme-daylight .hover\:to-amber-500:not([class~="text-slate-950"]):hover {
-  --tw-gradient-to: #78350f !important;
-}
-.theme-daylight .from-indigo-600 {
-  --tw-gradient-from: #4338ca !important;
-}
-.theme-daylight .to-indigo-600 {
-  --tw-gradient-to: #4338ca !important;
-}
-.theme-daylight .hover\:from-indigo-500:hover {
-  --tw-gradient-from: #3730a3 !important;
-}
-.theme-daylight .hover\:to-indigo-500:hover {
-  --tw-gradient-to: #3730a3 !important;
-}
-
-.theme-daylight button:disabled[class*="bg-slate-"],
-.theme-daylight button:disabled.opacity-60 {
-  background-color: #e2e8f0 !important;
-  color: #334155 !important;
-  border-color: #94a3b8 !important;
-  opacity: 1 !important;
-}
-
-.theme-daylight button:focus-visible,
-.theme-daylight a:focus-visible {
-  outline: 2px solid #0369a1 !important;
-  outline-offset: 2px !important;
-}
-
-.theme-daylight [class~="bg-cyan-600"],
-.theme-daylight [class~="bg-cyan-700"],
-.theme-daylight [class~="bg-amber-600"]:not([class~="text-slate-950"]),
-.theme-daylight [class~="bg-emerald-600"],
-.theme-daylight [class~="bg-indigo-600"],
-.theme-daylight [class~="bg-indigo-700"],
-.theme-daylight [class~="bg-indigo-500"],
-.theme-daylight [class~="bg-rose-600"],
-.theme-daylight [class~="bg-rose-700"],
-.theme-daylight [class~="bg-blue-600"],
-.theme-daylight [class~="bg-sky-600"],
-.theme-daylight [class~="bg-purple-600"],
-.theme-daylight [class~="bg-cyan-600"] *,
-.theme-daylight [class~="bg-cyan-700"] *,
-.theme-daylight [class~="bg-amber-600"]:not([class~="text-slate-950"]) *,
-.theme-daylight [class~="bg-emerald-600"] *,
-.theme-daylight [class~="bg-indigo-600"] *,
-.theme-daylight [class~="bg-indigo-700"] *,
-.theme-daylight [class~="bg-indigo-500"] *,
-.theme-daylight [class~="bg-rose-600"] *,
-.theme-daylight [class~="bg-rose-700"] *,
-.theme-daylight [class~="bg-blue-600"] *,
-.theme-daylight [class~="bg-sky-600"] *,
-.theme-daylight [class~="bg-purple-600"] *,
-.theme-daylight button[class~="bg-gradient-to-r"]:not([class~="text-slate-950"]),
-.theme-daylight button[class~="bg-gradient-to-r"]:not([class~="text-slate-950"]) *,
-.theme-daylight a[class~="bg-gradient-to-r"]:not([class~="text-slate-950"]),
-.theme-daylight a[class~="bg-gradient-to-r"]:not([class~="text-slate-950"]) * {
-  color: #ffffff !important;
-}
-
-/* Preserve Dark Ink on Bright Solid Amber/Cyan -500 Pills & Buttons (9.4:1 contrast) */
-.theme-daylight [class~="bg-amber-500"],
-.theme-daylight [class~="bg-amber-500"] *,
-.theme-daylight [class~="bg-cyan-500"],
-.theme-daylight [class~="bg-cyan-500"] *,
-.theme-daylight [class~="text-slate-950"],
-.theme-daylight [class~="text-slate-950"] * {
-  color: #020617 !important;
-}
-
-/* Restore Dark Hero Copy over Contact Section Backdrop Scrim */
-.theme-daylight .contact-hero-on-dark h1 {
-  color: #ffffff !important;
-}
-.theme-daylight .contact-hero-on-dark p {
-  color: #e2e8f0 !important;
-}
-.theme-daylight .contact-hero-on-dark span {
-  color: #7dd3fc !important;
-}
-
-/* Crisp Paper Preview Override (consistent across Midnight & Daylight themes) */
-.slip-paper-preview,
-.slip-paper-preview table,
-.slip-paper-preview thead th,
-.slip-paper-preview tbody tr,
-.slip-paper-preview td,
-.slip-paper-preview th {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #0f172a !important;
-}
-
 @keyframes bubble {
   0% {
     transform: translateY(0) translateX(0) scale(0.5);
@@ -1024,8 +535,7 @@ html[data-theme="daylight"],
 
 @media (prefers-reduced-motion: reduce) {
   .animate-bubble {
-    animation: none !important;
-    opacity: 0.15 !important;
+    animation: none;
+    opacity: 0.15;
   }
 }
-

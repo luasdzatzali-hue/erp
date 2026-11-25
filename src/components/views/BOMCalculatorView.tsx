@@ -47,10 +47,10 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
   // If no master data
   if (state.master.skus.length === 0) {
     return (
-      <div className="max-w-md mx-auto text-center py-12 px-4 bg-slate-900 border border-slate-800 rounded-2xl mt-8">
-        <Calculator className="w-10 h-10 text-indigo-400 mx-auto mb-3" />
-        <h3 className="font-bold text-sm text-white mb-1">Belum Ada SKU Terdaftar</h3>
-        <p className="text-xs text-slate-400 mb-4">
+      <div className="max-w-md mx-auto text-center py-12 px-4 bg-surface border border-border-subtle rounded-2xl mt-8">
+        <Calculator className="w-10 h-10 text-ink-indigo mx-auto mb-3" />
+        <h3 className="font-bold text-sm text-ink-primary mb-1">Belum Ada SKU Terdaftar</h3>
+        <p className="text-xs text-ink-secondary mb-4">
           Silakan konfigurasikan SKU dan hierarki BOM pada menu Master Data untuk menggunakan kalkulator ini.
         </p>
         <button
@@ -183,23 +183,23 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
     <div className="max-w-5xl mx-auto space-y-4">
       {/* Consolidated Weekly Production Plan Primary Demand Source Card */}
       {activeWeeklyPlan && (
-        <div className="bg-[#0c121d]/80 backdrop-blur-md border border-cyan-500/35 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
-          <div className="p-4 border-b border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#080c14]/80">
+        <div className="bg-surface backdrop-blur-md border border-cyan-500/35 rounded-xl overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
+          <div className="p-4 border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-3 bg-surface-header">
             <div className="flex items-start sm:items-center gap-3">
-              <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0">
+              <div className="p-2 rounded-lg bg-cyan-500/10 text-brand border border-cyan-500/30 shrink-0">
                 <CalendarRange className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-bold text-sm text-white">
+                  <h3 className="font-bold text-sm text-ink-primary">
                     Sumber Utama: Planning Mingguan Aktif ({activeWeeklyPlan.weekLabel})
                   </h3>
-                  <span className="text-[11px] font-mono text-cyan-300 tabular-nums">
+                  <span className="text-[11px] font-mono text-brand tabular-nums">
                     {(weeklyPlanDemand?.totalPlannedCartons || 0).toLocaleString('id-ID')} Karton ·{' '}
                     {(weeklyPlanDemand?.totalTheoreticalKg || 0).toFixed(2)} kg Kebutuhan
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-ink-secondary mt-0.5">
                   Perhitungan kebutuhan material seluruh SKU &amp; Shift berdasarkan jadwal mingguan aktif.
                 </p>
               </div>
@@ -213,7 +213,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                     e.target.value === 'ALL' ? 'ALL' : (Number(e.target.value) as ShiftNumber)
                   )
                 }
-                className="bg-[#06090f]/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-semibold"
+                className="bg-canvas border border-border-strong rounded-lg px-2.5 py-1.5 text-xs text-ink-primary font-semibold"
               >
                 <option value="ALL">Semua Shift (S1–S3)</option>
                 <option value={1}>Shift 1 Saja</option>
@@ -223,7 +223,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTab('dashboard')}
-                className="px-3 py-1.5 bg-[#06090f]/90 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
+                className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-emerald-500/40 text-ink-emerald rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
               >
                 <span>Edit di Dashboard</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -231,7 +231,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowWeeklySummary(prev => !prev)}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
+                className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary border border-border-strong rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap"
               >
                 {showWeeklySummary ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{showWeeklySummary ? 'Tutup Rekap' : 'Lihat Rekap'}</span>
@@ -242,9 +242,9 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
           {showWeeklySummary && weeklyPlanDemand && (
             <div className="p-4 space-y-3">
               {weeklyPlanDemand.materialRequirements.length > 0 ? (
-                <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-72 overflow-y-auto">
+                <div className="overflow-x-auto border border-border-subtle rounded-lg max-h-72 overflow-y-auto">
                   <table className="w-full text-left border-collapse text-xs">
-                    <thead className="sticky top-0 bg-slate-900 text-[11px] text-slate-300 border-b border-slate-800">
+                    <thead className="sticky top-0 bg-surface text-[11px] text-ink-secondary border-b border-border-subtle">
                       <tr>
                         <th className="py-2 px-3">Material</th>
                         <th className="py-2 px-3">WIP &amp; SKU Terkait</th>
@@ -254,40 +254,40 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                         <th className="py-2 px-3 text-right">Defisit / Order</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-border-subtle">
                       {weeklyPlanDemand.materialRequirements.map(req => {
                         const deficit = Math.max(0, req.theoreticalQtyKg - req.currentStockKg);
                         return (
-                          <tr key={req.key} className="hover:bg-slate-800/35">
+                          <tr key={req.key} className="hover:bg-elevated">
                             <td className="py-2 px-3">
-                              <span className="font-semibold text-white block">{req.materialName}</span>
-                              <span className="text-[10px] font-mono text-cyan-400">
+                              <span className="font-semibold text-ink-primary block">{req.materialName}</span>
+                              <span className="text-[10px] font-mono text-brand">
                                 {req.materialCode || req.materialId} · {req.supplier}
                               </span>
                             </td>
                             <td className="py-2 px-3">
-                              <span className="text-emerald-300 font-mono text-[10px] font-bold block">
+                              <span className="text-ink-emerald font-mono text-[10px] font-bold block">
                                 {req.lineName}
                               </span>
-                              <span className="text-amber-300 font-medium block">{req.wipName}</span>
-                              <span className="text-[10px] text-slate-400 block truncate max-w-[210px]">
+                              <span className="text-ink-amber font-medium block">{req.wipName}</span>
+                              <span className="text-[10px] text-ink-secondary block truncate max-w-[210px]">
                                 {req.contributingSkusLabel}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-300">
+                            <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-secondary">
                               {Number.isInteger(req.batchCount) ? req.batchCount : req.batchCount.toFixed(2)}
                             </td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-cyan-300">
+                            <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-brand">
                               {req.theoreticalQtyKg.toFixed(2)} kg
                             </td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-400">
+                            <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-secondary">
                               {req.currentStockKg.toFixed(2)} kg
                             </td>
                             <td className="py-2 px-3 text-right font-mono tabular-nums font-bold">
                               {deficit > 0.0001 ? (
-                                <span className="text-rose-400">-{deficit.toFixed(2)} kg</span>
+                                <span className="text-ink-rose">-{deficit.toFixed(2)} kg</span>
                               ) : (
-                                <span className="text-emerald-400">Cukup</span>
+                                <span className="text-ink-emerald">Cukup</span>
                               )}
                             </td>
                           </tr>
@@ -297,7 +297,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                   </table>
                 </div>
               ) : (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-ink-secondary">
                   Belum ada material BOM terhitung pada scope shift ini. Pastikan SKU di planning sudah tertaut ke Master SKU &amp; BOM.
                 </p>
               )}
@@ -307,17 +307,17 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
       )}
 
       {/* Target Planning Card (Single SKU Simulator) */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${showSimulatorForm ? 'border-b border-slate-800 pb-3 mb-4' : ''}`}>
+      <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${showSimulatorForm ? 'border-b border-border-subtle pb-3 mb-4' : ''}`}>
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-ink-indigo">
               <Calculator className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">
+              <h3 className="font-bold text-sm text-ink-primary">
                 Kalkulator Kebutuhan Produksi & Formulasi BOM
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Simulasi cepat kebutuhan WIP dan bahan baku langsung dibandingkan dengan stok aktual pabrik
               </p>
             </div>
@@ -326,7 +326,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {activeWeeklyPlan && matchedPlanSkus.length > 0 && (
               <div className="flex items-center space-x-2 text-xs">
-                <CalendarRange className="w-4 h-4 text-cyan-400 shrink-0" />
+                <CalendarRange className="w-4 h-4 text-brand shrink-0" />
                 <select
                   defaultValue=""
                   onChange={e => {
@@ -348,7 +348,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                       );
                     }
                   }}
-                  className="bg-slate-800 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-cyan-300 font-semibold"
+                  className="bg-elevated border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-[11px] text-brand font-semibold"
                 >
                   <option value="">
                     Muat SKU dari {activeWeeklyPlan.weekLabel} (
@@ -373,7 +373,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               type="button"
               onClick={() => setShowSimulatorForm(prev => !prev)}
               aria-expanded={showSimulatorForm}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary border border-border-strong rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {showSimulatorForm ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{showSimulatorForm ? 'Tutup Form' : 'Buka Form'}</span>
@@ -384,15 +384,15 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
         {showSimulatorForm && (
           <>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Pilih Rencana Produksi SKU
             </label>
             <select
               value={selectedSkuId}
               onChange={(e) => setSelectedSkuId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-indigo-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-medium focus:outline-none focus:border-indigo-500"
             >
               {state.master.skus.map(s => (
                 <option key={s.id} value={s.id}>
@@ -403,7 +403,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Target Jumlah Produksi (Karton)
             </label>
             <input
@@ -412,27 +412,27 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
               step="1"
               value={cartonTarget}
               onChange={(e) => setCartonTarget(parseInt(e.target.value) || 0)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-indigo-400 focus:outline-none focus:border-indigo-500 text-sm"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono font-bold text-ink-indigo focus:outline-none focus:border-indigo-500 text-sm"
             />
           </div>
         </div>
 
         {selectedSku && (
-          <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/60 flex flex-wrap items-center justify-between text-xs gap-2">
-            <span className="text-slate-300">
+          <div className="mt-3 p-3 bg-elevated rounded-xl border border-border-strong flex flex-wrap items-center justify-between text-xs gap-2">
+            <span className="text-ink-secondary">
               Total Berat Produk Jadi:{' '}
-              <strong className="text-cyan-400 font-mono">
+              <strong className="text-brand font-mono">
                 {(cartonTarget * selectedSku.cartonWeightKg).toFixed(4)} kg
               </strong>
             </span>
-            <span className="text-slate-300">
+            <span className="text-ink-secondary">
               Estimasi Durasi Line (Target: {selectedSku.targetHour} ktn/jam):{' '}
-              <strong className="text-amber-400 font-mono">
+              <strong className="text-ink-amber font-mono">
                 {selectedSku.targetHour > 0 ? (cartonTarget / selectedSku.targetHour).toFixed(1) : 0} Jam
               </strong>
             </span>
             <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-              selectedSku.isKite ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300'
+              selectedSku.isKite ? 'bg-amber-500/20 text-ink-amber' : 'bg-cyan-500/20 text-brand'
             }`}>
               {selectedSku.isKite ? 'Fasilitas KITE Ekspor' : 'Pasar Domestik'}
             </span>
@@ -443,9 +443,9 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
       </div>
 
       {/* Step 1: Breakdown WIP */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">
-        <h4 className="font-bold text-xs sm:text-sm text-white flex items-center space-x-2">
-          <Layers className="w-4 h-4 text-amber-400" />
+      <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl space-y-3">
+        <h4 className="font-bold text-xs sm:text-sm text-ink-primary flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-ink-amber" />
           <span>1. Kebutuhan Komponen WIP Terpisah (Untuk {cartonTarget} Karton)</span>
         </h4>
 
@@ -454,29 +454,29 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
             wipCalculations.map(w => (
               <div
                 key={w.wipId}
-                className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl space-y-2 shadow-inner"
+                className="bg-canvas border border-border-subtle p-3.5 rounded-xl space-y-2 shadow-inner"
               >
                 <div className="flex justify-between items-start">
-                  <span className="font-semibold text-white text-xs">{w.wipName}</span>
-                  <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  <span className="font-semibold text-ink-primary text-xs">{w.wipName}</span>
+                  <span className="text-[10px] text-ink-amber font-mono bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                     {w.kgPerCarton.toFixed(4)} kg/ktn
                   </span>
                 </div>
                 <div className="pt-1">
-                  <div className="text-lg font-bold font-mono text-cyan-400">
-                    {w.totalKgNeeded.toFixed(4)} <span className="text-xs text-slate-400">kg WIP</span>
+                  <div className="text-lg font-bold font-mono text-brand">
+                    {w.totalKgNeeded.toFixed(4)} <span className="text-xs text-ink-secondary">kg WIP</span>
                   </div>
-                  <div className="text-xs font-mono text-amber-400 mt-0.5">
+                  <div className="text-xs font-mono text-ink-amber mt-0.5">
                     = {roundUpOrders && hasDecimalPart(w.batchesNeeded)
                       ? `${w.effectiveBatches} Batch (dari ${w.batchesNeeded.toFixed(2)})`
                       : `${w.batchesNeeded.toFixed(2)} Batch`}{' '}
-                    <span className="text-[10px] text-slate-500">(@ {w.batchWeightKg.toFixed(1)} kg)</span>
+                    <span className="text-[10px] text-ink-muted">(@ {w.batchWeightKg.toFixed(1)} kg)</span>
                   </div>
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-xs text-slate-500 py-3 col-span-3">
+            <p className="text-xs text-ink-muted py-3 col-span-3">
               Belum ada komponen WIP yang dihubungkan ke SKU ini di menu Master Data.
             </p>
           )}
@@ -484,27 +484,27 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
       </div>
 
       {/* Step 2: Breakdown Material Database with Stock Comparison */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-brand">
               <Boxes className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-bold text-sm text-white">
+              <h4 className="font-bold text-sm text-ink-primary">
                 2. Breakdown Kebutuhan Bahan Baku vs Stok Gudang Aktual
               </h4>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Pengecekan kecukupan stok otomatis untuk mencegah hambatan jalannya line
               </p>
             </div>
           </div>
-          <label className="inline-flex items-center space-x-2 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-xl cursor-pointer select-none">
+          <label className="inline-flex items-center space-x-2 text-[11px] text-ink-amber bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-xl cursor-pointer select-none">
             <input
               type="checkbox"
               checked={roundUpOrders}
               onChange={e => setRoundUpOrders(e.target.checked)}
-              className="rounded border-slate-600 bg-slate-800 text-amber-500"
+              className="rounded border-border-strong bg-elevated text-amber-500"
             />
             <span className="font-semibold">Bulatkan Batch Desimal &amp; Kemasan Custom ke Atas</span>
           </label>
@@ -513,7 +513,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+              <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                 <th className="py-3 px-4">Nama Material</th>
                 <th className="py-3 px-3">Supplier</th>
                 <th className="py-3 px-3 text-right">Dibutuhkan (kg)</th>
@@ -523,46 +523,46 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                 <th className="py-3 px-4 text-center">Aksi Cepat</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-border-subtle">
               {materialList.length > 0 ? (
                 materialList.map(m => {
                   const hasDeficit = m.deficitKg > 0.0001;
 
                   return (
-                    <tr key={m.materialId} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-medium text-white">
+                    <tr key={m.materialId} className="hover:bg-elevated transition">
+                      <td className="py-3 px-4 font-medium text-ink-primary">
                         <span>{m.materialName}</span>
-                        <span className="text-[10px] text-slate-400 block font-normal">
+                        <span className="text-[10px] text-ink-secondary block font-normal">
                           {m.materialType.toUpperCase()} • {m.packaging}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-[10px]">
+                      <td className="py-3 px-3 text-ink-secondary">
+                        <span className="px-1.5 py-0.5 rounded bg-elevated border border-border-strong text-ink-secondary text-[10px]">
                           {m.supplier}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">
+                      <td className="py-3 px-3 text-right font-mono font-bold text-brand">
                         {m.totalKgNeeded.toFixed(4)} kg
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
+                      <td className="py-3 px-3 text-right font-mono text-ink-secondary">
                         {m.currentStock.toFixed(4)} kg
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold">
                         {hasDeficit ? (
-                          <span className="text-rose-400">-{m.deficitKg.toFixed(4)} kg</span>
+                          <span className="text-ink-rose">-{m.deficitKg.toFixed(4)} kg</span>
                         ) : (
-                          <span className="text-emerald-400">Cukup (+{(m.currentStock - m.totalKgNeeded).toFixed(2)} kg)</span>
+                          <span className="text-ink-emerald">Cukup (+{(m.currentStock - m.totalKgNeeded).toFixed(2)} kg)</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         {hasDeficit ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 font-medium inline-flex items-center space-x-1">
-                            <AlertTriangle className="w-3 h-3 text-rose-400" />
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-ink-rose border border-rose-500/30 font-medium inline-flex items-center space-x-1">
+                            <AlertTriangle className="w-3 h-3 text-ink-rose" />
                             <span>Kurang</span>
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium inline-flex items-center space-x-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 text-ink-emerald border border-emerald-500/30 font-medium inline-flex items-center space-x-1">
+                            <CheckCircle2 className="w-3 h-3 text-ink-emerald" />
                             <span>Tersedia</span>
                           </span>
                         )}
@@ -620,7 +620,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                                       : `Permintaan defisit ${m.materialName} (${orderQty} kg) berhasil diajukan`
                                   );
                                 }}
-                                className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
+                                className="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-ink-rose rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
                               >
                                 <FilePlus className="w-3 h-3" />
                                 <span>
@@ -632,14 +632,14 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                                 </span>
                               </button>
                               {usePackCeil && (
-                                <span className="text-[9px] text-amber-400 font-mono">
+                                <span className="text-[9px] text-ink-amber font-mono">
                                   Bulat: @{bagSize}kg (+{surplusKg.toFixed(2)}kg)
                                 </span>
                               )}
                             </div>
                           );
                         })() : (
-                          <span className="text-[10px] text-slate-500">Stok Siap</span>
+                          <span className="text-[10px] text-ink-muted">Stok Siap</span>
                         )}
                       </td>
                     </tr>
@@ -647,7 +647,7 @@ export const BOMCalculatorView: React.FC<BOMCalculatorViewProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-500 text-xs">
+                  <td colSpan={7} className="text-center py-8 text-ink-muted text-xs">
                     Belum ada material yang terhubung ke relasi BOM SKU ini.
                   </td>
                 </tr>

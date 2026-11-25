@@ -49,6 +49,7 @@ import { validatePasswordStrength } from '../../utils/security';
 import { RecipeImportModal } from '../RecipeImportModal';
 import { SkuImportModal } from '../SkuImportModal';
 import { SkuWipImportModal } from '../SkuWipImportModal';
+import { resolveEffectiveRole } from '../../utils/roleAccess';
 import {
   AppState,
   Material,
@@ -186,6 +187,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   onSwitchTab,
   showToast
 }) => {
+  const effectiveRole = resolveEffectiveRole(state);
+  const isAdmin = effectiveRole.isAdmin;
+
   // Master sub-tab selection
   const [activeSubTab, setActiveSubTab] = useState<'BOM' | 'MACHINES' | 'TANKS' | 'USERS'>('BOM');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -467,14 +471,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   };
 
   // Access check
-  if (!state.isAdmin) {
+  if (!isAdmin) {
     return (
-      <div className="max-w-md mx-auto text-center py-14 px-4 bg-slate-900 border border-slate-800 rounded-2xl mt-8 shadow-2xl">
-        <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto mb-4">
+      <div className="max-w-md mx-auto text-center py-14 px-4 bg-surface border border-border-subtle rounded-2xl mt-8 shadow-2xl">
+        <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-ink-rose flex items-center justify-center mx-auto mb-4">
           <Lock className="w-7 h-7" />
         </div>
-        <h3 className="font-bold text-base text-white mb-2">Akses Administrator Diperlukan</h3>
-        <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+        <h3 className="font-bold text-base text-ink-primary mb-2">Akses Administrator Diperlukan</h3>
+        <p className="text-xs text-ink-secondary mb-6 leading-relaxed">
           Modul Master Data & Bill of Materials (BOM) memengaruhi perhitungan formula resep dan seluruh inventaris pabrik. Harap login dengan PIN Administrator untuk melanjutkan.
         </p>
         <button
@@ -1194,13 +1198,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto space-y-5 pb-8">
       {/* Sub-tab Navigation: BOM Hierarki, Master Mesin, Master Tangki */}
-      <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 shadow-xl">
+      <div className="bg-surface border border-border-subtle p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 shadow-xl">
         <button
           onClick={() => setActiveSubTab('BOM')}
           className={`flex-1 min-w-[150px] flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
             activeSubTab === 'BOM'
               ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}
         >
           <Database className="w-4 h-4" />
@@ -1212,7 +1216,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           className={`flex-1 min-w-[150px] flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
             activeSubTab === 'MACHINES'
               ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}
         >
           <Settings className="w-4 h-4" />
@@ -1224,7 +1228,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           className={`flex-1 min-w-[150px] flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
             activeSubTab === 'TANKS'
               ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}
         >
           <Cylinder className="w-4 h-4" />
@@ -1236,7 +1240,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           className={`flex-1 min-w-[170px] flex items-center justify-center space-x-2 py-2 px-3 rounded-xl text-xs font-bold transition ${
             activeSubTab === 'USERS'
               ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 ring-1 ring-amber-400'
-              : 'text-amber-400 hover:text-amber-300 hover:bg-slate-800'
+              : 'text-ink-amber hover:text-ink-amber hover:bg-elevated'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -1247,14 +1251,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       {activeSubTab === 'BOM' && (
         <div className="space-y-5">
           {/* Auto-saved Database Notification Banner */}
-          <div className="bg-gradient-to-r from-cyan-950/60 via-slate-900 to-cyan-950/40 border border-cyan-500/30 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-cyan-300 shadow-xl">
+          <div className="bg-gradient-to-r from-tint-cyan via-surface to-tint-cyan border border-cyan-500/30 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-brand shadow-xl">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 shrink-0">
+              <div className="p-2 rounded-xl bg-cyan-500/20 text-brand shrink-0">
                 <Database className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-white text-xs sm:text-sm">Database Material Aktif (Autosave Standar Industri)</h4>
-                <p className="text-[11px] text-cyan-200/80">
+                <h4 className="font-bold text-ink-primary text-xs sm:text-sm">Database Material Aktif (Autosave Standar Industri)</h4>
+                <p className="text-[11px] text-brand">
                   Semua material yang diinput tersimpan otomatis & langsung menjadi acuan dropdown batch WIP dengan autofill bobot kilogram (presisi 4 desimal).
                 </p>
               </div>
@@ -1263,7 +1267,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                  if (!isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
                     return;
@@ -1275,7 +1279,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 <UploadCloud className="w-3.5 h-3.5" />
                 <span>Import / Muat Material (Drive & Storage)</span>
               </button>
-              <span className="px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-semibold rounded-lg text-[10px]">
+              <span className="px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/40 text-brand font-semibold rounded-lg text-[10px]">
                 Auto-Saved System
               </span>
               {onSwitchTab && (
@@ -1320,17 +1324,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               ];
 
               return (
-                <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-3">
+                <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border-subtle pb-3">
                     <div className="flex items-center space-x-2.5">
-                      <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                      <div className="p-2 rounded-xl bg-rose-500/10 text-ink-rose border border-rose-500/20 shrink-0">
                         <Database className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-sm sm:text-base text-white">
+                        <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                           1. Input Material &amp; Database Bahan Baku
                         </h3>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ink-secondary">
                           {state.master.materials.length} material terdaftar ·{' '}
                           {state.master.materials.filter(m => m.type === 'bubuk').length} Bubuk ·{' '}
                           {state.master.materials.filter(m => m.type === 'liquid').length} Liquid ·{' '}
@@ -1340,37 +1344,37 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+                      {isAdmin && onOpenStockAdjustment && (
                         <button
                           type="button"
                           onClick={() => onOpenStockAdjustment()}
-                          className="text-xs text-amber-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800 hover:bg-amber-900/60 font-semibold transition whitespace-nowrap shrink-0"
+                          className="text-xs text-ink-amber hover:text-ink-primary flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-tint-amber border border-tint-amber-border hover:bg-tint-amber font-semibold transition whitespace-nowrap shrink-0"
                           title="Kalibrasi dan Sesuaikan Saldo Awal Material (Akses Administrator)"
                         >
-                          <Scale className="w-3.5 h-3.5 text-amber-400" />
+                          <Scale className="w-3.5 h-3.5 text-ink-amber" />
                           <span>Adjust Saldo Awal</span>
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => {
-                          if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                          if (!isAdmin) {
                             showToast('Otorisasi Administrator diperlukan untuk impor data material', true);
                             return;
                           }
                           setIsImportModalOpen(true);
                         }}
-                        className="text-xs text-cyan-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/60 border border-cyan-800 hover:bg-cyan-900/60 font-semibold transition whitespace-nowrap shrink-0"
+                        className="text-xs text-brand hover:text-ink-primary flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-tint-cyan border border-tint-cyan-border hover:bg-tint-cyan font-semibold transition whitespace-nowrap shrink-0"
                         title="Impor dari penyimpanan lokal atau Google Drive"
                       >
-                        <UploadCloud className="w-3.5 h-3.5 text-cyan-400" />
+                        <UploadCloud className="w-3.5 h-3.5 text-brand" />
                         <span>Import File / Drive</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsMaterialFormOpen(prev => !prev)}
                         aria-expanded={isMaterialFormOpen}
-                        className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
+                        className="text-xs text-ink-secondary hover:text-ink-primary flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-elevated border border-border-strong hover:bg-accent font-semibold transition whitespace-nowrap shrink-0"
                       >
                         {isMaterialFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         <span>{isMaterialFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1383,18 +1387,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {isMaterialFormOpen && (
                       <form
                         onSubmit={handleMaterialSubmit}
-                        className="lg:col-span-5 space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4"
+                        className="lg:col-span-5 space-y-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-4"
                       >
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                          <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                        <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                          <span className="font-bold text-xs text-ink-primary flex items-center gap-1.5">
                             {editingMaterialId ? (
                               <>
-                                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                                <Edit3 className="w-3.5 h-3.5 text-ink-amber" />
                                 <span>Edit Data Material</span>
                               </>
                             ) : (
                               <>
-                                <Plus className="w-3.5 h-3.5 text-rose-400" />
+                                <Plus className="w-3.5 h-3.5 text-ink-rose" />
                                 <span>Tambah Material Baru</span>
                               </>
                             )}
@@ -1403,7 +1407,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             <button
                               type="button"
                               onClick={resetMaterialForm}
-                              className="text-[11px] font-semibold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition"
+                              className="text-[11px] font-semibold text-ink-secondary hover:text-ink-primary px-2 py-0.5 rounded-lg bg-elevated border border-border-strong transition"
                             >
                               Batal Edit
                             </button>
@@ -1412,7 +1416,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                           <div className="sm:col-span-8">
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Nama Material *
                             </label>
                             <input
@@ -1421,11 +1425,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               onChange={(e) => setMatName(e.target.value)}
                               required
                               placeholder="Contoh: Gula Pasir Halus / Minyak Nabati"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                             />
                           </div>
                           <div className="sm:col-span-4">
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Kode SAP / Material
                             </label>
                             <input
@@ -1433,20 +1437,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               value={matCode}
                               onChange={(e) => setMatCode(e.target.value.toUpperCase())}
                               placeholder="MAT-GL-01"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono uppercase placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Tipe Fisik Material
                             </label>
                             <select
                               value={matType}
                               onChange={(e) => setMatType(e.target.value as MaterialType)}
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary"
                             >
                               <option value="bubuk">Bubuk (Powder / Tepung)</option>
                               <option value="liquid">Liquid (Cair / Tangki)</option>
@@ -1454,13 +1458,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             </select>
                           </div>
                           <div>
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Sumber / Kategori Supplier
                             </label>
                             <select
                               value={matSource}
                               onChange={(e) => setMatSource(e.target.value as MaterialSource)}
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary"
                             >
                               <option value="GDRM">GDRM (Standar Gudang Utama)</option>
                               <option value="Formulasi">Formulasi (Bahan Racikan/Premix)</option>
@@ -1471,10 +1475,10 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         {/* Quick Packaging Presets */}
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="text-[11px] font-semibold text-slate-300">
+                            <label className="text-[11px] font-semibold text-ink-secondary">
                               Kemasan &amp; Berat Standar *
                             </label>
-                            <span className="text-[10px] text-slate-400">Klik preset atau ketik manual</span>
+                            <span className="text-[10px] text-ink-secondary">Klik preset atau ketik manual</span>
                           </div>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {packagingPresets.map(preset => (
@@ -1489,7 +1493,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 className={`px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition ${
                                   matPackaging === preset.pkg && matWeight === preset.weight
                                     ? 'bg-cyan-600 border-cyan-500 text-white'
-                                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                    : 'bg-elevated hover:bg-accent border-border-strong text-ink-secondary'
                                 }`}
                               >
                                 {preset.label}
@@ -1498,7 +1502,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                             <div className="sm:col-span-5">
-                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                              <label className="block text-[10px] font-medium text-ink-secondary mb-1">
                                 Label Kemasan
                               </label>
                               <input
@@ -1506,11 +1510,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 value={matPackaging}
                                 onChange={(e) => setMatPackaging(e.target.value)}
                                 placeholder="Zak 25 kg / Drum 200 kg"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted"
                               />
                             </div>
                             <div className="sm:col-span-4">
-                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                              <label className="block text-[10px] font-medium text-ink-secondary mb-1">
                                 Berat/Kemasan (kg) *
                               </label>
                               <input
@@ -1521,11 +1525,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 onChange={(e) => setMatWeight(e.target.value)}
                                 required
                                 placeholder="25.0000"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                               />
                             </div>
                             <div className="sm:col-span-3">
-                              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                              <label className="block text-[10px] font-medium text-ink-secondary mb-1">
                                 Alert Min (kg)
                               </label>
                               <input
@@ -1535,25 +1539,25 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 value={matMinStock}
                                 onChange={(e) => setMatMinStock(e.target.value)}
                                 placeholder="100"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-2.5 py-2 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                               />
                             </div>
                           </div>
                         </div>
 
                         {/* Optional Initial Warehouse Stock */}
-                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                        <div className="pt-2 border-t border-border-subtle space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold text-slate-300">
+                            <span className="text-[11px] font-semibold text-ink-secondary">
                               Saldo Awal Gudang (Opsional, kg)
                             </span>
-                            <span className="text-[11px] font-mono tabular-nums text-amber-400 font-bold">
+                            <span className="text-[11px] font-mono tabular-nums text-ink-amber font-bold">
                               Total: {matInitTotalPreview.toFixed(2)} kg
                             </span>
                           </div>
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className="block text-[10px] text-slate-400 mb-0.5">Gudang CK</label>
+                              <label className="block text-[10px] text-ink-secondary mb-0.5">Gudang CK</label>
                               <input
                                 type="number"
                                 step="0.01"
@@ -1561,11 +1565,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 value={matInitCk}
                                 onChange={(e) => setMatInitCk(e.target.value)}
                                 placeholder="0"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                               />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-slate-400 mb-0.5">Wineroto</label>
+                              <label className="block text-[10px] text-ink-secondary mb-0.5">Wineroto</label>
                               <input
                                 type="number"
                                 step="0.01"
@@ -1573,11 +1577,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 value={matInitWr}
                                 onChange={(e) => setMatInitWr(e.target.value)}
                                 placeholder="0"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                               />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-slate-400 mb-0.5">Storage Tank</label>
+                              <label className="block text-[10px] text-ink-secondary mb-0.5">Storage Tank</label>
                               <input
                                 type="number"
                                 step="0.01"
@@ -1585,7 +1589,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 value={matInitTank}
                                 onChange={(e) => setMatInitTank(e.target.value)}
                                 placeholder="0"
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono tabular-nums placeholder-slate-500"
+                                className="w-full bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                               />
                             </div>
                           </div>
@@ -1605,13 +1609,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       {/* Search & Filter Controls */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="relative flex-1">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           <input
                             type="text"
                             value={matSearch}
                             onChange={(e) => setMatSearch(e.target.value)}
                             placeholder="Cari kode SAP, nama material, atau kemasan..."
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -1623,7 +1627,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
                                 matTypeFilter === t
                                   ? 'bg-cyan-600 border-cyan-500 text-white'
-                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                  : 'bg-elevated hover:bg-accent border-border-strong text-ink-secondary'
                               }`}
                             >
                               {t === 'ALL' ? 'Semua' : t.charAt(0).toUpperCase() + t.slice(1)}
@@ -1633,7 +1637,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             value={matSourceFilter}
                             onChange={(e) => setMatSourceFilter(e.target.value as 'ALL' | MaterialSource)}
                             aria-label="Filter sumber supplier material"
-                            className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-200"
+                            className="bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-[11px] font-semibold text-ink-primary"
                           >
                             <option value="ALL">Semua Sumber</option>
                             <option value="GDRM">GDRM</option>
@@ -1643,9 +1647,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
 
                       {/* Material Table */}
-                      <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[430px] overflow-y-auto">
+                      <div className="overflow-x-auto border border-border-subtle rounded-xl max-h-[430px] overflow-y-auto">
                         <table className="w-full text-left border-collapse text-xs">
-                          <thead className="sticky top-0 z-10 bg-slate-800/90 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                          <thead className="sticky top-0 z-10 bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                             <tr>
                               <th className="py-2.5 px-3">Material &amp; Kode</th>
                               <th className="py-2.5 px-2.5">Tipe / Sumber</th>
@@ -1654,7 +1658,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               <th className="py-2.5 px-3 text-right">Aksi</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/60">
+                          <tbody className="divide-y divide-border-subtle">
                             {filteredMaterials.length > 0 ? (
                               filteredMaterials.map(m => {
                                 const totalInit = (m.initialStockCk || 0) + (m.initialStockWineroto || 0) + (m.initialStockTank || 0);
@@ -1663,7 +1667,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   <tr
                                     key={m.id}
                                     className={`transition ${
-                                      isEditingThis ? 'bg-amber-950/30' : 'hover:bg-slate-800/40'
+                                      isEditingThis ? 'bg-tint-amber' : 'hover:bg-elevated'
                                     }`}
                                   >
                                     <td className="py-2.5 px-3">
@@ -1673,34 +1677,34 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                             {m.code}
                                           </span>
                                         )}
-                                        <span className="font-semibold text-white">{m.name}</span>
+                                        <span className="font-semibold text-ink-primary">{m.name}</span>
                                         {isEditingThis && (
-                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
+                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-ink-amber border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
                                             Sedang Diedit
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                                      <span className="text-[10px] text-ink-secondary block mt-0.5">
                                         Kemasan: {m.packaging}
                                         {m.minStockAlert ? ` · Min Alert: ${m.minStockAlert} kg` : ''}
                                       </span>
                                     </td>
                                     <td className="py-2.5 px-2.5 whitespace-nowrap">
-                                      <span className="text-[11px] font-semibold text-slate-200 block">
+                                      <span className="text-[11px] font-semibold text-ink-primary block">
                                         {m.type.toUpperCase()}
                                       </span>
-                                      <span className={`text-[10px] font-semibold ${m.source === 'Formulasi' ? 'text-purple-300' : 'text-blue-300'}`}>
+                                      <span className={`text-[10px] font-semibold ${m.source === 'Formulasi' ? 'text-ink-purple' : 'text-ink-blue'}`}>
                                         {m.source}
                                       </span>
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-cyan-400 font-semibold whitespace-nowrap">
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-brand font-semibold whitespace-nowrap">
                                       {m.weightKg.toFixed(4)} kg
                                     </td>
                                     <td className="py-2.5 px-2.5 text-right font-mono tabular-nums whitespace-nowrap">
-                                      <span className="text-amber-300 font-semibold block">
+                                      <span className="text-ink-amber font-semibold block">
                                         {totalInit.toFixed(1)} kg
                                       </span>
-                                      <span className="text-[9px] text-slate-400 block">
+                                      <span className="text-[9px] text-ink-secondary block">
                                         CK:{m.initialStockCk || 0} | WR:{m.initialStockWineroto || 0} | TK:{m.initialStockTank || 0}
                                       </span>
                                     </td>
@@ -1710,17 +1714,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                           <button
                                             type="button"
                                             onClick={() => handleStartEditMaterial(m)}
-                                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[10px] font-semibold transition"
+                                            className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-brand text-[10px] font-semibold transition"
                                             title="Edit data material ini"
                                           >
                                             Edit
                                           </button>
                                         )}
-                                        {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+                                        {isAdmin && onOpenStockAdjustment && (
                                           <button
                                             type="button"
                                             onClick={() => onOpenStockAdjustment(m.id)}
-                                            className="px-2 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 border border-amber-800 text-amber-300 text-[10px] font-semibold transition"
+                                            className="px-2 py-1 rounded-lg bg-tint-amber hover:bg-tint-amber border border-tint-amber-border text-ink-amber text-[10px] font-semibold transition"
                                             title="Sesuaikan Saldo Awal Material Ini"
                                           >
                                             Saldo
@@ -1729,7 +1733,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => onDeleteMaterial(m.id)}
-                                          className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800 text-rose-300 text-[10px] font-semibold transition"
+                                          className="px-2 py-1 rounded-lg bg-tint-rose hover:bg-tint-rose border border-tint-rose-border text-ink-rose text-[10px] font-semibold transition"
                                         >
                                           Hapus
                                         </button>
@@ -1740,7 +1744,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               })
                             ) : (
                               <tr>
-                                <td colSpan={5} className="py-6 text-center text-slate-400 text-xs">
+                                <td colSpan={5} className="py-6 text-center text-ink-secondary text-xs">
                                   {state.master.materials.length === 0
                                     ? 'Belum ada material tersimpan. Tambahkan material melalui form di samping.'
                                     : 'Tidak ada material yang cocok dengan pencarian atau filter.'}
@@ -1757,17 +1761,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             })()}
 
             {/* STEP 2: INPUT WIP & MESIN/TANGKI (Spacious Split Layout) */}
-            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle pb-3">
                 <div className="flex items-center space-x-2.5">
-                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-ink-amber border border-amber-500/20 shrink-0">
                     <Layers className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm sm:text-base text-white">
+                    <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                       2. Input WIP &amp; Tautan Mesin / Tangki Transfer
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-ink-secondary">
                       {state.master.wips.length} komponen WIP terdaftar (1 Nama WIP = 1 Kode Unik)
                     </p>
                   </div>
@@ -1777,7 +1781,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     type="button"
                     onClick={() => setIsWipFormOpen(prev => !prev)}
                     aria-expanded={isWipFormOpen}
-                    className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
+                    className="text-xs text-ink-secondary hover:text-ink-primary flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-elevated border border-border-strong hover:bg-accent font-semibold transition whitespace-nowrap shrink-0"
                   >
                     {isWipFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     <span>{isWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1787,11 +1791,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                 {isWipFormOpen && (
-                  <form onSubmit={handleWipSubmit} className="lg:col-span-5 space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4">
+                  <form onSubmit={handleWipSubmit} className="lg:col-span-5 space-y-2.5 text-xs bg-canvas border border-border-subtle rounded-2xl p-4">
                     {/* 1 WIP = 1 Unique Code */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-1">
-                        <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
+                        <label className="block text-[10px] text-ink-secondary font-semibold uppercase mb-0.5">
                           Kode WIP:
                         </label>
                         <input
@@ -1800,11 +1804,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           onChange={(e) => setWipCode(e.target.value.toUpperCase())}
                           required
                           placeholder="WIP-001"
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-cyan-300 font-mono font-bold uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                          className="w-full bg-elevated border border-border-strong rounded-xl px-2.5 py-2 text-brand font-mono font-bold uppercase placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                         />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-[10px] text-slate-300 font-semibold uppercase mb-0.5">
+                        <label className="block text-[10px] text-ink-secondary font-semibold uppercase mb-0.5">
                           Nama WIP (1 Nama = 1 Kode):
                         </label>
                         <input
@@ -1813,13 +1817,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           onChange={(e) => setWipName(e.target.value)}
                           required
                           placeholder="e.g. WIP Sirup Karamel"
-                          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                          className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                         Berat 1 Batch WIP (kg, 4 desimal) *
                       </label>
                       <input
@@ -1829,18 +1833,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         onChange={(e) => setWipBatchWeight(e.target.value)}
                         required
                         placeholder="Berat 1 Batch WIP (kg, 4 desimal)"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
+                        className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted"
                       />
                     </div>
 
                     {/* Konfigurasi Lama Waktu Produksi WIP (Menit) */}
-                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                    <div className="bg-canvas p-2.5 rounded-xl border border-border-subtle space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                          <RotateCw className="w-3 h-3 text-amber-400" />
+                        <label className="text-[10px] text-ink-secondary font-semibold uppercase flex items-center space-x-1">
+                          <RotateCw className="w-3 h-3 text-ink-amber" />
                           <span>Lama Waktu Produksi WIP:</span>
                         </label>
-                        <span className="text-[10px] text-amber-400 font-mono font-bold">
+                        <span className="text-[10px] text-ink-amber font-mono font-bold">
                           {wipDurationMinutes || 30} Menit / Batch
                         </span>
                       </div>
@@ -1853,9 +1857,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           onChange={(e) => setWipDurationMinutes(e.target.value)}
                           required
                           placeholder="30"
-                          className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-amber-400 font-bold"
+                          className="w-24 bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-ink-primary font-mono text-xs focus:outline-none focus:border-amber-400 font-bold"
                         />
-                        <span className="text-slate-400 text-xs">menit</span>
+                        <span className="text-ink-secondary text-xs">menit</span>
                         <div className="flex items-center space-x-1 ml-auto">
                           {['15', '30', '45', '60'].map(mins => (
                             <button
@@ -1865,7 +1869,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition ${
                                 wipDurationMinutes === mins
                                   ? 'bg-amber-500 text-slate-950 font-bold'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                  : 'bg-elevated hover:bg-accent text-ink-secondary'
                               }`}
                             >
                               {mins}m
@@ -1873,7 +1877,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           ))}
                         </div>
                       </div>
-                      <p className="text-[9px] text-slate-400 leading-tight">
+                      <p className="text-[9px] text-ink-secondary leading-tight">
                         Batch WIP otomatis terselesaikan saat durasi tercapai & alarm peringatan berbunyi.
                       </p>
                     </div>
@@ -1881,15 +1885,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {/* Multi-Mesin Produksi Selector */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                          <Cpu className="w-3 h-3 text-cyan-400" />
+                        <label className="text-[10px] text-ink-secondary font-semibold uppercase flex items-center space-x-1">
+                          <Cpu className="w-3 h-3 text-brand" />
                           <span>Mesin Pengolah WIP (Multi-Mesin):</span>
                         </label>
                         <div className="flex items-center space-x-1 text-[10px]">
                           <button
                             type="button"
                             onClick={() => setWipMachineIds(state.master.machines.map(m => m.id))}
-                            className="text-cyan-400 hover:text-cyan-300 font-medium"
+                            className="text-brand hover:text-brand font-medium"
                           >
                             Semua
                           </button>
@@ -1897,7 +1901,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setWipMachineIds([])}
-                            className="text-slate-400 hover:text-slate-300 font-medium"
+                            className="text-ink-secondary hover:text-ink-secondary font-medium"
                           >
                             Kosongkan
                           </button>
@@ -1905,7 +1909,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
 
                       {state.master.machines.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
+                        <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto no-scrollbar bg-canvas p-2 rounded-xl border border-border-strong">
                           {state.master.machines.map(m => {
                             const isChecked = wipMachineIds.includes(m.id);
                             return (
@@ -1913,8 +1917,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 key={m.id}
                                 className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
                                   isChecked
-                                    ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
-                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                    ? 'bg-cyan-500/10 border-cyan-500/40 text-ink-primary'
+                                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                                 }`}
                               >
                                 <div className="flex items-center space-x-2 truncate mr-2">
@@ -1928,12 +1932,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         setWipMachineIds(prev => prev.filter(id => id !== m.id));
                                       }
                                     }}
-                                    className="w-3.5 h-3.5 rounded text-cyan-600 bg-slate-800 border-slate-700 focus:ring-0"
+                                    className="w-3.5 h-3.5 rounded text-cyan-600 bg-elevated border-border-strong focus:ring-0"
                                   />
                                   <span className="font-mono font-extrabold text-sky-950 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-xs shrink-0">{m.code}</span>
                                   <span className="truncate">{m.name}</span>
                                 </div>
-                                <span className="text-[9px] text-slate-500 shrink-0 font-mono">
+                                <span className="text-[9px] text-ink-muted shrink-0 font-mono">
                                   {m.line.split('(')[0]}
                                 </span>
                               </label>
@@ -1941,15 +1945,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           })}
                         </div>
                       ) : (
-                        <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
+                        <p className="text-[11px] text-ink-muted italic p-2 bg-canvas rounded-xl">
                           Belum ada master mesin produksi. Tambahkan di tab Master Mesin.
                         </p>
                       )}
 
-                      <div className="flex justify-between text-[10px] text-slate-400">
+                      <div className="flex justify-between text-[10px] text-ink-secondary">
                         <span>{wipMachineIds.length} mesin diizinkan memproduksi WIP ini</span>
                         {wipMachineIds.length > 1 && (
-                          <span className="text-amber-400 font-medium">★ Multi-Mesin Fleksibel</span>
+                          <span className="text-ink-amber font-medium">★ Multi-Mesin Fleksibel</span>
                         )}
                       </div>
                     </div>
@@ -1957,15 +1961,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {/* Multi-Storage / Holding Tanks Selector */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-slate-300 font-semibold uppercase flex items-center space-x-1">
-                          <Database className="w-3 h-3 text-purple-400" />
+                        <label className="text-[10px] text-ink-secondary font-semibold uppercase flex items-center space-x-1">
+                          <Database className="w-3 h-3 text-ink-purple" />
                           <span>Tangki Penampungan / Transfer (Multi-Tank):</span>
                         </label>
                         <div className="flex items-center space-x-1 text-[10px]">
                           <button
                             type="button"
                             onClick={() => setWipTankIds(state.master.tanks.map(t => t.id))}
-                            className="text-purple-400 hover:text-purple-300 font-medium"
+                            className="text-ink-purple hover:text-ink-purple font-medium"
                           >
                             Semua
                           </button>
@@ -1973,7 +1977,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'HOLDING_TANK').map(t => t.id))}
-                            className="text-amber-400 hover:text-amber-300 font-medium"
+                            className="text-ink-amber hover:text-ink-amber font-medium"
                             title="Pilih hanya Holding Tanks"
                           >
                             HT
@@ -1982,7 +1986,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setWipTankIds(state.master.tanks.filter(t => t.type === 'STORAGE_TANK').map(t => t.id))}
-                            className="text-cyan-400 hover:text-cyan-300 font-medium"
+                            className="text-brand hover:text-brand font-medium"
                             title="Pilih hanya Storage Tanks"
                           >
                             ST
@@ -1991,7 +1995,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setWipTankIds([])}
-                            className="text-slate-400 hover:text-slate-300 font-medium"
+                            className="text-ink-secondary hover:text-ink-secondary font-medium"
                           >
                             Kosongkan
                           </button>
@@ -1999,7 +2003,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
 
                       {state.master.tanks.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto no-scrollbar bg-slate-950/70 p-2 rounded-xl border border-slate-700/80">
+                        <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto no-scrollbar bg-canvas p-2 rounded-xl border border-border-strong">
                           {state.master.tanks.map(t => {
                             const isChecked = wipTankIds.includes(t.id);
                             const isHT = t.type === 'HOLDING_TANK';
@@ -2008,8 +2012,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 key={t.id}
                                 className={`flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition ${
                                   isChecked
-                                    ? 'bg-purple-500/15 border-purple-500/50 text-white'
-                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                    ? 'bg-purple-500/15 border-purple-500/50 text-ink-primary'
+                                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                                 }`}
                               >
                                 <div className="flex items-center space-x-2 truncate mr-2">
@@ -2023,19 +2027,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         setWipTankIds(prev => prev.filter(id => id !== t.id));
                                       }
                                     }}
-                                    className="w-3.5 h-3.5 rounded text-purple-600 bg-slate-800 border-slate-700 focus:ring-0"
+                                    className="w-3.5 h-3.5 rounded text-purple-600 bg-elevated border-border-strong focus:ring-0"
                                   />
                                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
                                     isHT
-                                      ? 'bg-amber-950 text-amber-300 border-amber-600/50'
-                                      : 'bg-sky-950 text-sky-300 border-sky-600/50'
+                                      ? 'bg-tint-amber text-ink-amber border-amber-600/50'
+                                      : 'bg-tint-sky text-ink-sky border-sky-600/50'
                                   }`}>
                                     {isHT ? 'HT' : 'ST'}
                                   </span>
-                                  <span className="font-mono font-bold text-white text-[11px]">{t.code}</span>
-                                  <span className="truncate text-slate-300">{t.name}</span>
+                                  <span className="font-mono font-bold text-ink-primary text-[11px]">{t.code}</span>
+                                  <span className="truncate text-ink-secondary">{t.name}</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                <span className="text-[10px] text-ink-secondary font-mono shrink-0">
                                   {t.capacityKg} kg
                                 </span>
                               </label>
@@ -2043,15 +2047,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           })}
                         </div>
                       ) : (
-                        <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-xl">
+                        <p className="text-[11px] text-ink-muted italic p-2 bg-canvas rounded-xl">
                           Belum ada master tangki. Tambahkan di tab Tangki.
                         </p>
                       )}
 
-                      <div className="flex justify-between text-[10px] text-slate-400">
+                      <div className="flex justify-between text-[10px] text-ink-secondary">
                         <span>{wipTankIds.length} tangki penampungan / penyimpanan dipilih</span>
                         {wipTankIds.length > 1 && (
-                          <span className="text-purple-300 font-medium">★ Multi-Storage/Holding Tank</span>
+                          <span className="text-ink-purple font-medium">★ Multi-Storage/Holding Tank</span>
                         )}
                       </div>
                     </div>
@@ -2082,7 +2086,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       return (
                         <div
                           key={w.id}
-                          className="bg-slate-800/50 border border-slate-700/60 p-3 rounded-xl text-xs hover:bg-slate-800 transition space-y-2"
+                          className="bg-elevated border border-border-strong p-3 rounded-xl text-xs hover:bg-elevated transition space-y-2"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center space-x-2 truncate mr-2">
@@ -2091,22 +2095,22 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   {w.code}
                                 </span>
                               )}
-                              <span className="font-semibold text-white truncate">{w.name}</span>
+                              <span className="font-semibold text-ink-primary truncate">{w.name}</span>
                             </div>
                             <button
                               type="button"
                               onClick={() => onDeleteWip(w.id)}
-                              className="text-rose-400 hover:text-rose-300 text-[11px] font-semibold shrink-0"
+                              className="text-ink-rose hover:text-ink-rose text-[11px] font-semibold shrink-0"
                             >
                               Hapus
                             </button>
                           </div>
 
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-amber-400 font-mono tabular-nums font-semibold">
+                            <span className="text-ink-amber font-mono tabular-nums font-semibold">
                               1 Batch = {w.batchWeightKg.toFixed(4)} kg
                             </span>
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono text-[10px]">
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-ink-amber border border-amber-500/20 font-mono text-[10px]">
                               {w.productionDurationMinutes || 30} mnt (Auto-Alarm)
                             </span>
                           </div>
@@ -2120,7 +2124,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   </span>
                                 ))
                               ) : (
-                                <span className="text-slate-500 italic">Tanpa mesin</span>
+                                <span className="text-ink-muted italic">Tanpa mesin</span>
                               )}
 
                               {assignedTnks.length > 0 ? (
@@ -2129,21 +2133,21 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                     key={t.id}
                                     className={`px-1.5 py-0.5 rounded font-mono text-[10px] border ${
                                       t.type === 'HOLDING_TANK'
-                                        ? 'bg-amber-950 text-amber-300 border-amber-700/60'
-                                        : 'bg-purple-950 text-purple-300 border-purple-700/60'
+                                        ? 'bg-tint-amber text-ink-amber border-amber-700/60'
+                                        : 'bg-tint-purple text-ink-purple border-purple-700/60'
                                     }`}
                                   >
                                     ➔ {t.code} ({t.type === 'HOLDING_TANK' ? 'HT' : 'ST'})
                                   </span>
                                 ))
                               ) : (
-                                <span className="text-slate-500 italic">Tanpa tangki</span>
+                                <span className="text-ink-muted italic">Tanpa tangki</span>
                               )}
                             </div>
                             <button
                               type="button"
                               onClick={() => handleStartEditWip(w)}
-                              className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-1 ml-auto"
+                              className="text-brand hover:text-brand font-semibold flex items-center space-x-1 ml-auto"
                               title="Kelola / Ubah kode, mesin & tangki untuk WIP ini"
                             >
                               <Edit3 className="w-3 h-3" />
@@ -2154,7 +2158,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       );
                     })
                   ) : (
-                    <p className="col-span-full text-xs text-slate-400 text-center py-6 border border-slate-800 rounded-xl bg-slate-950/30">
+                    <p className="col-span-full text-xs text-ink-secondary text-center py-6 border border-border-subtle rounded-xl bg-canvas">
                       Belum ada WIP tersimpan.
                     </p>
                   )}
@@ -2180,17 +2184,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               const previewKgPerHour = previewTargetH * previewWeightKtn;
 
               return (
-                <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-3">
+                <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border-subtle pb-3">
                     <div className="flex items-center space-x-2.5">
-                      <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
+                      <div className="p-2 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20 shrink-0">
                         <Box className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-sm sm:text-base text-white">
+                        <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                           3. Input SKU Produk Jadi (Domestik / KITE Ekspor)
                         </h3>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ink-secondary">
                           {state.master.skus.length} SKU terdaftar ·{' '}
                           {state.master.skus.filter(s => !s.isKite).length} Domestik ·{' '}
                           {state.master.skus.filter(s => s.isKite).length} KITE Ekspor
@@ -2202,24 +2206,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                          if (!isAdmin) {
                             onOpenAdminModal();
                             showToast('Otorisasi Administrator diperlukan untuk impor data SKU', true);
                             return;
                           }
                           setIsSkuImportOpen(true);
                         }}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 rounded-xl text-xs font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
+                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-tint-cyan hover:bg-tint-cyan text-brand border border-tint-cyan-border rounded-xl text-xs font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
                         title="Impor daftar SKU dari Google Drive Spreadsheet atau file lokal (CSV/JSON)"
                       >
-                        <UploadCloud className="w-3.5 h-3.5 text-cyan-400" />
+                        <UploadCloud className="w-3.5 h-3.5 text-brand" />
                         <span>Import Drive / File</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsSkuFormOpen(prev => !prev)}
                         aria-expanded={isSkuFormOpen}
-                        className="text-xs text-slate-300 hover:text-white flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 font-semibold transition whitespace-nowrap shrink-0"
+                        className="text-xs text-ink-secondary hover:text-ink-primary flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-elevated border border-border-strong hover:bg-accent font-semibold transition whitespace-nowrap shrink-0"
                       >
                         {isSkuFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         <span>{isSkuFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -2232,18 +2236,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {isSkuFormOpen && (
                       <form
                         onSubmit={handleSkuSubmit}
-                        className="lg:col-span-5 space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-4"
+                        className="lg:col-span-5 space-y-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-4"
                       >
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                          <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                        <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                          <span className="font-bold text-xs text-ink-primary flex items-center gap-1.5">
                             {editingSkuId ? (
                               <>
-                                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                                <Edit3 className="w-3.5 h-3.5 text-ink-amber" />
                                 <span>Edit Master SKU</span>
                               </>
                             ) : (
                               <>
-                                <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                                <Plus className="w-3.5 h-3.5 text-brand" />
                                 <span>Tambah SKU Produk Baru</span>
                               </>
                             )}
@@ -2252,7 +2256,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             <button
                               type="button"
                               onClick={resetSkuForm}
-                              className="text-[11px] font-semibold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition"
+                              className="text-[11px] font-semibold text-ink-secondary hover:text-ink-primary px-2 py-0.5 rounded-lg bg-elevated border border-border-strong transition"
                             >
                               Batal Edit
                             </button>
@@ -2261,7 +2265,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                           <div className="sm:col-span-4">
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Kode SKU
                             </label>
                             <input
@@ -2269,11 +2273,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               value={skuCode}
                               onChange={(e) => setSkuCode(e.target.value.toUpperCase())}
                               placeholder="SKU-BSK-01"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono uppercase placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                             />
                           </div>
                           <div className="sm:col-span-8">
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Nama SKU Produk Jadi *
                             </label>
                             <input
@@ -2282,14 +2286,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               onChange={(e) => setSkuName(e.target.value)}
                               required
                               placeholder="Contoh: Biskuit Wafer Coklat 120g"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                             />
                           </div>
                         </div>
 
                         {/* Segmented Facility Category Toggle (DOM vs KITE) */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                             Kategori Fasilitas Kepabeanan / Pasar
                           </label>
                           <div className="grid grid-cols-2 gap-2">
@@ -2300,7 +2304,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
                                 !skuIsKite
                                   ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
-                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                                  : 'bg-elevated border-border-strong text-ink-secondary hover:bg-accent'
                               }`}
                             >
                               Pasar Domestik (DOM)
@@ -2312,7 +2316,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
                                 skuIsKite
                                   ? 'bg-amber-600 border-amber-500 text-white shadow-sm'
-                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                                  : 'bg-elevated border-border-strong text-ink-secondary hover:bg-accent'
                               }`}
                             >
                               Ekspor Fasilitas KITE
@@ -2322,7 +2326,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Target Output (Karton / Jam) *
                             </label>
                             <input
@@ -2333,11 +2337,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               onChange={(e) => setSkuTarget(e.target.value)}
                               required
                               placeholder="Contoh: 180"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                             />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                               Berat Netto per Karton (kg) *
                             </label>
                             <input
@@ -2348,22 +2352,22 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               onChange={(e) => setSkuWeight(e.target.value)}
                               required
                               placeholder="Contoh: 4.8000"
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono tabular-nums placeholder-slate-500"
+                              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono tabular-nums placeholder:text-ink-muted"
                             />
                           </div>
                         </div>
 
                         {/* Live Production Rate Preview */}
-                        <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                          <span className="text-slate-300">
+                        <div className="p-2.5 rounded-xl bg-canvas border border-border-subtle flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                          <span className="text-ink-secondary">
                             Target / Shift (8 jam):{' '}
-                            <strong className="font-mono tabular-nums text-cyan-400">
+                            <strong className="font-mono tabular-nums text-brand">
                               {previewCartonsPerShift.toLocaleString('id-ID')} ktn
                             </strong>
                           </span>
-                          <span className="text-slate-300">
+                          <span className="text-ink-secondary">
                             Kapasitas Netto:{' '}
-                            <strong className="font-mono tabular-nums text-amber-400">
+                            <strong className="font-mono tabular-nums text-ink-amber">
                               {previewKgPerHour.toFixed(2)} kg/jam
                             </strong>
                           </span>
@@ -2382,13 +2386,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     <div className={`${isSkuFormOpen ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-3`}>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="relative flex-1">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           <input
                             type="text"
                             value={skuSearch}
                             onChange={(e) => setSkuSearch(e.target.value)}
                             placeholder="Cari kode atau nama SKU produk..."
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                           />
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -2400,7 +2404,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
                                 skuCategoryFilter === cat
                                   ? 'bg-cyan-600 border-cyan-500 text-white'
-                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                  : 'bg-elevated hover:bg-accent border-border-strong text-ink-secondary'
                               }`}
                             >
                               {cat === 'ALL' ? 'Semua' : cat === 'DOM' ? 'Domestik' : 'KITE Ekspor'}
@@ -2409,9 +2413,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-[420px] overflow-y-auto">
+                      <div className="overflow-x-auto border border-border-subtle rounded-xl max-h-[420px] overflow-y-auto">
                         <table className="w-full text-left border-collapse text-xs">
-                          <thead className="sticky top-0 z-10 bg-slate-800/90 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                          <thead className="sticky top-0 z-10 bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                             <tr>
                               <th className="py-2.5 px-3">SKU &amp; Kode Produk</th>
                               <th className="py-2.5 px-2.5 text-center">Kategori</th>
@@ -2422,7 +2426,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               <th className="py-2.5 px-3 text-right">Aksi</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/60">
+                          <tbody className="divide-y divide-border-subtle">
                             {filteredSkus.length > 0 ? (
                               filteredSkus.map(s => {
                                 const linkedWipCount = state.master.skuWips.filter(sw => sw.skuId === s.id).length;
@@ -2431,7 +2435,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   <tr
                                     key={s.id}
                                     className={`transition ${
-                                      isEditingThis ? 'bg-amber-950/30' : 'hover:bg-slate-800/40'
+                                      isEditingThis ? 'bg-tint-amber' : 'hover:bg-elevated'
                                     }`}
                                   >
                                     <td className="py-2.5 px-3">
@@ -2441,9 +2445,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                             {s.code}
                                           </span>
                                         )}
-                                        <span className="font-semibold text-white">{s.name}</span>
+                                        <span className="font-semibold text-ink-primary">{s.name}</span>
                                         {isEditingThis && (
-                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
+                                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-ink-amber border border-amber-500/40 text-[9px] font-bold uppercase tracking-wide shrink-0">
                                             Sedang Diedit
                                           </span>
                                         )}
@@ -2453,28 +2457,28 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                       <span
                                         className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
                                           s.isKite
-                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                            ? 'bg-amber-500/20 text-ink-amber border-amber-500/30'
+                                            : 'bg-cyan-500/20 text-brand border-cyan-500/30'
                                         }`}
                                       >
                                         {s.isKite ? 'KITE' : 'DOM'}
                                       </span>
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-200 whitespace-nowrap">
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-ink-primary whitespace-nowrap">
                                       {s.targetHour.toLocaleString('id-ID')} ktn/j
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-cyan-400 font-semibold whitespace-nowrap">
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-brand font-semibold whitespace-nowrap">
                                       {(s.targetHour * 8).toLocaleString('id-ID')} ktn
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                    <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-ink-secondary whitespace-nowrap">
                                       {s.cartonWeightKg.toFixed(4)} kg
                                     </td>
                                     <td className="py-2.5 px-2.5 text-center whitespace-nowrap">
                                       <span
                                         className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
                                           linkedWipCount > 0
-                                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                                            ? 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30'
+                                            : 'bg-elevated text-ink-secondary border-border-strong'
                                         }`}
                                       >
                                         {linkedWipCount} WIP
@@ -2486,7 +2490,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                           <button
                                             type="button"
                                             onClick={() => handleStartEditSku(s)}
-                                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[10px] font-semibold transition"
+                                            className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-brand text-[10px] font-semibold transition"
                                             title="Edit data SKU ini"
                                           >
                                             Edit
@@ -2495,7 +2499,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => onDeleteSku(s.id)}
-                                          className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800 text-rose-300 text-[10px] font-semibold transition"
+                                          className="px-2 py-1 rounded-lg bg-tint-rose hover:bg-tint-rose border border-tint-rose-border text-ink-rose text-[10px] font-semibold transition"
                                         >
                                           Hapus
                                         </button>
@@ -2506,7 +2510,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               })
                             ) : (
                               <tr>
-                                <td colSpan={7} className="py-6 text-center text-slate-400 text-xs">
+                                <td colSpan={7} className="py-6 text-center text-ink-secondary text-xs">
                                   {state.master.skus.length === 0
                                     ? 'Belum ada SKU tersimpan. Tambahkan SKU melalui form di samping.'
                                     : 'Tidak ada SKU yang cocok dengan pencarian atau filter.'}
@@ -2526,17 +2530,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       {/* Step 4: BOM Configuration (A. SKU to WIP kg/carton, B. WIP to Material kg with Autofill) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* A. Tentukan WIP (kg/karton) untuk 1 Karton SKU */}
-        <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3 shadow-xl">
-          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isSkuWipFormOpen ? 'border-b border-slate-800 pb-2' : ''}`}>
+        <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-3 shadow-xl">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isSkuWipFormOpen ? 'border-b border-border-subtle pb-2' : ''}`}>
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+              <div className="p-1.5 rounded-lg bg-cyan-500/10 text-brand">
                 <GitBranch className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-xs sm:text-sm text-white">
+                <h3 className="font-bold text-xs sm:text-sm text-ink-primary">
                   A. Tentukan Jenis WIP (kg/karton) untuk 1 Karton SKU
                 </h3>
-                <p className="text-[10px] text-slate-400">Hubungkan komponen WIP terpisah ke dalam 1 karton SKU</p>
+                <p className="text-[10px] text-ink-secondary">Hubungkan komponen WIP terpisah ke dalam 1 karton SKU</p>
               </div>
             </div>
             <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
@@ -2544,7 +2548,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 type="button"
                 onClick={() => setIsSkuWipImportOpen(true)}
                 title="Import konfigurasi kebutuhan WIP per karton SKU dari File CSV/JSON atau Google Drive"
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 rounded-xl text-[11px] font-semibold transition active:scale-95 shadow-sm"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-brand rounded-xl text-[11px] font-semibold transition active:scale-95 shadow-sm"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
                 <span>Import File</span>
@@ -2553,7 +2557,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 type="button"
                 onClick={() => setIsSkuWipFormOpen(prev => !prev)}
                 aria-expanded={isSkuWipFormOpen}
-                className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold transition whitespace-nowrap shrink-0"
+                className="flex items-center space-x-1 px-2.5 py-1.5 bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary rounded-xl text-[11px] font-semibold transition whitespace-nowrap shrink-0"
               >
                 {isSkuWipFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isSkuWipFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -2562,16 +2566,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           </div>
 
           {isSkuWipFormOpen && (
-          <form onSubmit={handleSkuWipSubmit} className="space-y-2.5 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+          <form onSubmit={handleSkuWipSubmit} className="space-y-2.5 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Pilih SKU Produk Target
               </label>
               <select
                 value={swSkuId}
                 onChange={(e) => setSwSkuId(e.target.value)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
               >
                 <option value="">-- Pilih SKU --</option>
                 {state.master.skus.map(s => (
@@ -2583,14 +2587,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Pilih Jenis WIP Terpisah
               </label>
               <select
                 value={swWipId}
                 onChange={(e) => setSwWipId(e.target.value)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
               >
                 <option value="">-- Pilih WIP --</option>
                 {state.master.wips.map(w => (
@@ -2602,7 +2606,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Kebutuhan WIP (Kilogram per Karton SKU)
               </label>
               <input
@@ -2612,7 +2616,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 onChange={(e) => setSwKgPerCarton(e.target.value)}
                 required
                 placeholder="0.0000"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
               />
             </div>
 
@@ -2627,17 +2631,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         </div>
 
         {/* B. Penentuan Batch WIP dari Resep & Database Material */}
-        <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+        <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border-subtle pb-3 gap-2">
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-ink-amber">
                 <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-xs sm:text-sm text-white">
+                <h3 className="font-bold text-xs sm:text-sm text-ink-primary">
                   B. Penentuan Batch WIP dari Resep & Database Material
                 </h3>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-ink-secondary">
                   Hierarki Formulasi: Pilih Target WIP &rarr; Pilih/Buat Resep &rarr; Konfigurasi Material (Padat/Bubuk/Liquid dalam kg atau gr/batch)
                 </p>
               </div>
@@ -2647,7 +2651,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 type="button"
                 onClick={() => setIsRecipeImportOpen(true)}
                 title="Import Resep dari Google Drive atau File Spreadsheet/JSON"
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-semibold transition active:scale-95 shadow"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-brand rounded-xl text-xs font-semibold transition active:scale-95 shadow"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
                 <span>Import Resep (Drive / File)</span>
@@ -2656,7 +2660,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCreatingRecipe(!isCreatingRecipe)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-semibold transition active:scale-95 shadow"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-ink-amber rounded-xl text-xs font-semibold transition active:scale-95 shadow"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{isCreatingRecipe ? 'Tutup Form Resep' : '+ Buat Resep Baru'}</span>
@@ -2666,18 +2670,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
           {/* Form Pembuatan Resep Baru (Bila Ditoggle) */}
           {isCreatingRecipe && (
-            <form onSubmit={handleCreateRecipeSubmit} className="bg-slate-950/80 border border-amber-500/30 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
+            <form onSubmit={handleCreateRecipeSubmit} className="bg-canvas border border-amber-500/30 p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                <span className="text-xs font-bold text-ink-amber flex items-center space-x-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Formulir Resep Formulasi Baru untuk WIP</span>
                 </span>
-                <span className="text-[10px] text-slate-400">1 WIP dapat memiliki beberapa varian resep</span>
+                <span className="text-[10px] text-ink-secondary">1 WIP dapat memiliki beberapa varian resep</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                     Kode Resep Formulasi *
                   </label>
                   <input
@@ -2686,11 +2690,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     onChange={(e) => setNewRecipeCode(e.target.value)}
                     placeholder="Contoh: RSP-WIP1-01"
                     required
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-amber-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono uppercase focus:outline-none focus:border-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                     Nama Resep Formulasi *
                   </label>
                   <input
@@ -2699,13 +2703,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     onChange={(e) => setNewRecipeName(e.target.value)}
                     placeholder="Contoh: Formula Standar Biskuit Domestik"
                     required
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                   Deskripsi / Catatan Formulasi (Opsional)
                 </label>
                 <input
@@ -2713,24 +2717,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   value={newRecipeDesc}
                   onChange={(e) => setNewRecipeDesc(e.target.value)}
                   placeholder="Keterangan parameter proses atau varian rasa"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500 text-xs"
                 />
               </div>
 
               {/* Opsi Multi-Select Material Saat Membuat Resep Baru */}
-              <div className="bg-slate-900/90 border border-slate-700/80 p-3.5 rounded-xl space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <div className="bg-surface border border-border-strong p-3.5 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle pb-2.5">
                   <div>
-                    <div className="flex items-center space-x-1.5 text-xs font-bold text-white">
-                      <CheckSquare className="w-4 h-4 text-amber-400" />
+                    <div className="flex items-center space-x-1.5 text-xs font-bold text-ink-primary">
+                      <CheckSquare className="w-4 h-4 text-ink-amber" />
                       <span>Pilih Material Database Sekaligus untuk Resep Ini (Multi-Select)</span>
                     </div>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-ink-secondary">
                       Centang material di bawah untuk langsung dimasukkan ke resep tanpa harus menambahkan satu per satu
                     </p>
                   </div>
                   <div className="flex items-center space-x-2 self-end sm:self-auto shrink-0">
-                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold">
+                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-ink-amber border border-amber-500/30 font-bold">
                       {newRecipeSelectedMatIds.length} Material Terpilih
                     </span>
                   </div>
@@ -2739,13 +2743,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 {/* Filter and Search Bar */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                   <div className="relative flex-1 max-w-sm">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-2.5 top-2.5" />
                     <input
                       type="text"
                       value={newRecipeMatSearch}
                       onChange={(e) => setNewRecipeMatSearch(e.target.value)}
                       placeholder="Cari nama atau kode material..."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-elevated border border-border-strong rounded-lg pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <div className="flex items-center space-x-1.5 overflow-x-auto">
@@ -2757,7 +2761,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
                           newRecipeMatTypeFilter === t
                             ? 'bg-amber-600 text-white shadow-xs'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                            : 'bg-elevated text-ink-secondary hover:text-ink-primary'
                         }`}
                       >
                         {t === 'all' ? 'Semua' : t}
@@ -2777,14 +2781,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         });
                         handleSelectAllNewRecipeMaterials(list);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-semibold transition border border-slate-700"
+                      className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-brand text-[10px] font-semibold transition border border-border-strong"
                     >
                       Pilih Semua
                     </button>
                     <button
                       type="button"
                       onClick={handleDeselectAllNewRecipeMaterials}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] font-semibold transition border border-slate-700"
+                      className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary text-[10px] font-semibold transition border border-border-strong"
                     >
                       Batal
                     </button>
@@ -2792,7 +2796,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 </div>
 
                 {/* Material Cards List */}
-                <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-800/60">
+                <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1 divide-y divide-border-subtle">
                   {(() => {
                     const searchNorm = newRecipeMatSearch.trim().toLowerCase();
                     const list = state.master.materials.filter(m => {
@@ -2806,7 +2810,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                     if (list.length === 0) {
                       return (
-                        <div className="py-6 text-center text-slate-500 text-xs">
+                        <div className="py-6 text-center text-ink-muted text-xs">
                           Tidak ada material yang cocok dengan filter pencarian.
                         </div>
                       );
@@ -2824,7 +2828,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           className={`p-2.5 rounded-xl border transition ${
                             isSelected
                               ? 'bg-amber-500/10 border-amber-500/40'
-                              : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                              : 'bg-surface border-border-subtle hover:border-border-strong'
                           }`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -2835,42 +2839,42 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             >
                               <button
                                 type="button"
-                                className="mt-0.5 text-amber-400 shrink-0"
+                                className="mt-0.5 text-ink-amber shrink-0"
                               >
                                 {isSelected ? (
-                                  <CheckSquare className="w-4 h-4 text-amber-400" />
+                                  <CheckSquare className="w-4 h-4 text-ink-amber" />
                                 ) : (
-                                  <Square className="w-4 h-4 text-slate-500" />
+                                  <Square className="w-4 h-4 text-ink-muted" />
                                 )}
                               </button>
                               <div>
                                 <div className="flex items-center space-x-1.5">
                                   {m.code && (
-                                    <span className="font-mono text-[10px] font-bold text-cyan-300 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                                    <span className="font-mono text-[10px] font-bold text-brand bg-elevated px-1.5 py-0.2 rounded border border-border-strong">
                                       {m.code}
                                     </span>
                                   )}
-                                  <span className="font-semibold text-white text-xs">{m.name}</span>
+                                  <span className="font-semibold text-ink-primary text-xs">{m.name}</span>
                                   <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
                                     m.type === 'padat'
-                                      ? 'bg-amber-500/20 text-amber-300'
+                                      ? 'bg-amber-500/20 text-ink-amber'
                                       : m.type === 'liquid'
-                                      ? 'bg-cyan-500/20 text-cyan-300'
-                                      : 'bg-emerald-500/20 text-emerald-300'
+                                      ? 'bg-cyan-500/20 text-brand'
+                                      : 'bg-emerald-500/20 text-ink-emerald'
                                   }`}>
                                     {m.type}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  Supplier: <span className="text-slate-300 font-medium">{m.source}</span> | Kemasan: <span className="text-slate-300 font-medium">{m.packaging} ({m.weightKg.toFixed(4)} kg)</span>
+                                <div className="text-[10px] text-ink-secondary mt-0.5">
+                                  Supplier: <span className="text-ink-secondary font-medium">{m.source}</span> | Kemasan: <span className="text-ink-secondary font-medium">{m.packaging} ({m.weightKg.toFixed(4)} kg)</span>
                                 </div>
                               </div>
                             </div>
 
                             {/* Dosage Inputs (Active when checked) */}
                             {isSelected && (
-                              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto bg-slate-950/70 p-1.5 rounded-lg border border-amber-500/30">
-                                <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto bg-canvas p-1.5 rounded-lg border border-amber-500/30">
+                                <span className="text-[10px] text-ink-secondary font-medium hidden sm:inline">
                                   Takaran:
                                 </span>
                                 <input
@@ -2878,16 +2882,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   step="0.0001"
                                   value={dosage.amount}
                                   onChange={(e) => handleUpdateNewRecipeDosage(m.id, e.target.value, dosage.unit)}
-                                  className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono font-bold text-amber-300 text-right focus:outline-none focus:border-amber-500"
+                                  className="w-20 bg-surface border border-border-strong rounded px-2 py-1 text-xs font-mono font-bold text-ink-amber text-right focus:outline-none focus:border-amber-500"
                                 />
-                                <div className="flex rounded overflow-hidden border border-slate-700 bg-slate-900 p-0.5 text-[10px]">
+                                <div className="flex rounded overflow-hidden border border-border-strong bg-surface p-0.5 text-[10px]">
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateNewRecipeDosage(m.id, dosage.amount, 'kg')}
                                     className={`px-1.5 py-0.5 rounded font-bold transition ${
                                       dosage.unit === 'kg'
                                         ? 'bg-amber-600 text-white'
-                                        : 'text-slate-400 hover:text-white'
+                                        : 'text-ink-secondary hover:text-ink-primary'
                                     }`}
                                   >
                                     kg
@@ -2898,13 +2902,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                     className={`px-1.5 py-0.5 rounded font-bold transition ${
                                       dosage.unit === 'gr'
                                         ? 'bg-cyan-600 text-white'
-                                        : 'text-slate-400 hover:text-white'
+                                        : 'text-ink-secondary hover:text-ink-primary'
                                     }`}
                                   >
                                     gr
                                   </button>
                                 </div>
-                                <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                                <span className="text-[10px] text-ink-secondary font-mono hidden md:inline">
                                   ({amountInKg.toFixed(4)} kg)
                                 </span>
                               </div>
@@ -2921,7 +2925,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCreatingRecipe(false)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition"
+                  className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-secondary rounded-xl text-xs transition"
                 >
                   Batal
                 </button>
@@ -2940,14 +2944,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           {/* Selector 1: Target WIP */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 1. Pilih Target Produk WIP *
               </label>
               <select
                 value={recipeWipId}
                 onChange={(e) => setRecipeWipId(e.target.value)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500 font-medium"
               >
                 <option value="">-- Pilih Produk WIP --</option>
                 {state.master.wips.map(w => (
@@ -2960,7 +2964,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
             {/* Selector 2: Pilih Resep dari WIP */}
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 2. Pilih Resep Formulasi Acuan WIP *
               </label>
               {(() => {
@@ -2970,7 +2974,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     value={selectedRecipeId}
                     onChange={(e) => setSelectedRecipeId(e.target.value)}
                     disabled={!recipeWipId || recipesForWip.length === 0}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium disabled:opacity-50"
+                    className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-500 font-medium disabled:opacity-50"
                   >
                     {recipesForWip.length === 0 ? (
                       <option value="">-- Belum ada resep, klik "+ Buat Resep Baru" --</option>
@@ -2997,7 +3001,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
             if (!recipeWipId) {
               return (
-                <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-center text-slate-400 text-xs">
+                <div className="p-4 rounded-xl bg-canvas border border-border-subtle text-center text-ink-secondary text-xs">
                   Silakan pilih Target Produk WIP di atas terlebih dahulu.
                 </div>
               );
@@ -3005,12 +3009,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
             if (!activeRecipe) {
               return (
-                <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-center text-slate-400 text-xs space-y-2">
+                <div className="p-4 rounded-xl bg-canvas border border-border-subtle text-center text-ink-secondary text-xs space-y-2">
                   <p>Belum ada resep yang dipilih untuk <strong>{currentWip?.name}</strong>.</p>
                   <button
                     type="button"
                     onClick={() => setIsCreatingRecipe(true)}
-                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-semibold inline-flex items-center space-x-1.5 transition"
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-ink-amber rounded-xl text-xs font-semibold inline-flex items-center space-x-1.5 transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Buat Resep Pertama untuk WIP Ini</span>
@@ -3027,31 +3031,31 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             return (
               <div className="space-y-4">
                 {/* Active Recipe Summary Header */}
-                <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      <span className="font-mono font-bold text-ink-amber bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                         {activeRecipe.recipeCode}
                       </span>
-                      <h4 className="font-bold text-white text-sm">{activeRecipe.recipeName}</h4>
+                      <h4 className="font-bold text-ink-primary text-sm">{activeRecipe.recipeName}</h4>
                       {activeRecipe.isDefault && (
-                        <span className="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded font-semibold">
+                        <span className="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-brand border border-cyan-500/30 rounded font-semibold">
                           Resep Utama
                         </span>
                       )}
                     </div>
                     {activeRecipe.description && (
-                      <p className="text-[11px] text-slate-400 mt-1">{activeRecipe.description}</p>
+                      <p className="text-[11px] text-ink-secondary mt-1">{activeRecipe.description}</p>
                     )}
                   </div>
 
                   <div className="flex items-center space-x-2 self-end sm:self-auto">
                     <div className="text-right mr-1">
-                      <span className="text-[10px] text-slate-400 block">Total Bobot Resep:</span>
-                      <span className="font-mono font-bold text-sm text-cyan-400">
+                      <span className="text-[10px] text-ink-secondary block">Total Bobot Resep:</span>
+                      <span className="font-mono font-bold text-sm text-brand">
                         {activeRecipe.totalWeightKg.toFixed(4)} kg / batch
                       </span>
-                      <span className={`text-[10px] font-mono block ${isMatch ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      <span className={`text-[10px] font-mono block ${isMatch ? 'text-ink-emerald' : 'text-ink-amber'}`}>
                         Target WIP: {targetWeight.toFixed(4)} kg {isMatch ? '✓ Sesuai' : `(Selisih: ${variance > 0 ? '+' : ''}${variance.toFixed(4)} kg)`}
                       </span>
                     </div>
@@ -3060,7 +3064,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       type="button"
                       onClick={() => handleStartEditRecipe(activeRecipe)}
                       title="Edit Kode, Nama, dan Keterangan Resep"
-                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold border border-slate-700 transition active:scale-95 shadow"
+                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-elevated hover:bg-accent text-brand rounded-lg text-xs font-semibold border border-border-strong transition active:scale-95 shadow"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Edit Resep</span>
@@ -3071,7 +3075,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         type="button"
                         onClick={() => setDeleteRecipeTarget(activeRecipe)}
                         title="Hapus Resep Formulasi ini"
-                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs font-semibold border border-rose-500/20 transition active:scale-95"
+                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-ink-rose rounded-lg text-xs font-semibold border border-rose-500/20 transition active:scale-95"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Hapus</span>
@@ -3081,17 +3085,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 </div>
 
                 {/* Pilihan Mode Input: Multi-Select (Pilih Banyak Sekaligus) vs Input Satuan */}
-                <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl space-y-3">
-                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isRecipeMaterialAddOpen ? 'border-b border-slate-800/80 pb-2.5' : ''}`}>
+                <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl space-y-3">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isRecipeMaterialAddOpen ? 'border-b border-border-subtle pb-2.5' : ''}`}>
                     <div className="flex items-center space-x-2">
-                      <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                      <div className="p-1.5 rounded-lg bg-cyan-500/10 text-brand">
                         <CheckSquare className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-white block">
+                        <span className="text-xs font-bold text-ink-primary block">
                           Input Material Database ke Resep [{activeRecipe.recipeCode}]
                         </span>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[10px] text-ink-secondary">
                           Pilih beberapa material sekaligus agar praktis dan tidak perlu input satu per satu
                         </span>
                       </div>
@@ -3100,19 +3104,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {/* Mode Toggle Tabs + Collapse */}
                     <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
                       {isRecipeMaterialAddOpen && (
-                        <div className="flex rounded-xl overflow-hidden border border-slate-700 bg-slate-900 p-0.5 text-xs">
+                        <div className="flex rounded-xl overflow-hidden border border-border-strong bg-surface p-0.5 text-xs">
                           <button
                             type="button"
                             onClick={() => setRecipeInputMode('multi')}
                             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
                               recipeInputMode === 'multi'
                                 ? 'bg-cyan-600 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
+                                : 'text-ink-secondary hover:text-ink-primary'
                             }`}
                           >
                             <CheckSquare className="w-3.5 h-3.5" />
                             <span>Pilih Banyak (Multi-Select)</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-400/30 hidden sm:inline">
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-tint-cyan text-brand border border-cyan-400/30 hidden sm:inline">
                               Rekomendasi
                             </span>
                           </button>
@@ -3122,8 +3126,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             onClick={() => setRecipeInputMode('single')}
                             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
                               recipeInputMode === 'single'
-                                ? 'bg-slate-700 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
+                                ? 'bg-elevated text-ink-primary shadow-xs'
+                                : 'text-ink-secondary hover:text-ink-primary'
                             }`}
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -3135,7 +3139,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         type="button"
                         onClick={() => setIsRecipeMaterialAddOpen(prev => !prev)}
                         aria-expanded={isRecipeMaterialAddOpen}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                        className="px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                       >
                         {isRecipeMaterialAddOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         <span>{isRecipeMaterialAddOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -3150,13 +3154,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                         {/* Search Input */}
                         <div className="relative flex-1 max-w-sm">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                          <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-2.5 top-2.5" />
                           <input
                             type="text"
                             value={multiMatSearch}
                             onChange={(e) => setMultiMatSearch(e.target.value)}
                             placeholder="Cari nama, kode material, kemasan..."
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-elevated border border-border-strong rounded-lg pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                           />
                         </div>
 
@@ -3170,7 +3174,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
                                 multiMatTypeFilter === t
                                   ? 'bg-cyan-600 text-white shadow-xs'
-                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  : 'bg-elevated text-ink-secondary hover:text-ink-primary'
                               }`}
                             >
                               {t === 'all' ? 'Semua' : t}
@@ -3191,7 +3195,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               });
                               handleSelectAllMaterials(filteredList);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-semibold transition border border-slate-700 shrink-0"
+                            className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-brand text-[10px] font-semibold transition border border-border-strong shrink-0"
                           >
                             Pilih Semua
                           </button>
@@ -3200,7 +3204,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             type="button"
                             onClick={handleDeselectAllMaterials}
                             disabled={selectedMaterialIds.length === 0}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] font-semibold transition border border-slate-700 disabled:opacity-40 shrink-0"
+                            className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary text-[10px] font-semibold transition border border-border-strong disabled:opacity-40 shrink-0"
                           >
                             Batal ({selectedMaterialIds.length})
                           </button>
@@ -3208,7 +3212,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
 
                       {/* Material Checklist Grid */}
-                      <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-800/60">
+                      <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 divide-y divide-border-subtle">
                         {(() => {
                           const sNorm = multiMatSearch.trim().toLowerCase();
                           const filteredList = state.master.materials.filter(m => {
@@ -3222,7 +3226,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                           if (filteredList.length === 0) {
                             return (
-                              <div className="py-8 text-center text-slate-500 text-xs">
+                              <div className="py-8 text-center text-ink-muted text-xs">
                                 Tidak ada material database yang sesuai dengan kata kunci atau filter tipe.
                               </div>
                             );
@@ -3241,7 +3245,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 className={`p-2.5 rounded-xl border transition ${
                                   isSelected
                                     ? 'bg-cyan-500/10 border-cyan-500/40 shadow-xs'
-                                    : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                                    : 'bg-surface border-border-subtle hover:border-border-strong'
                                 }`}
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -3252,49 +3256,49 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   >
                                     <button
                                       type="button"
-                                      className="mt-0.5 text-cyan-400 shrink-0"
+                                      className="mt-0.5 text-brand shrink-0"
                                       aria-label={isSelected ? 'Hapus pilihan' : 'Pilih material'}
                                     >
                                       {isSelected ? (
-                                        <CheckSquare className="w-4 h-4 text-cyan-400" />
+                                        <CheckSquare className="w-4 h-4 text-brand" />
                                       ) : (
-                                        <Square className="w-4 h-4 text-slate-500" />
+                                        <Square className="w-4 h-4 text-ink-muted" />
                                       )}
                                     </button>
 
                                     <div>
                                       <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                                         {m.code && (
-                                          <span className="font-mono text-[10px] font-bold text-cyan-300 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                                          <span className="font-mono text-[10px] font-bold text-brand bg-elevated px-1.5 py-0.2 rounded border border-border-strong">
                                             {m.code}
                                           </span>
                                         )}
-                                        <span className="font-semibold text-white text-xs">{m.name}</span>
+                                        <span className="font-semibold text-ink-primary text-xs">{m.name}</span>
                                         <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
                                           m.type === 'padat'
-                                            ? 'bg-amber-500/20 text-amber-300'
+                                            ? 'bg-amber-500/20 text-ink-amber'
                                             : m.type === 'liquid'
-                                            ? 'bg-cyan-500/20 text-cyan-300'
-                                            : 'bg-emerald-500/20 text-emerald-300'
+                                            ? 'bg-cyan-500/20 text-brand'
+                                            : 'bg-emerald-500/20 text-ink-emerald'
                                         }`}>
                                           {m.type}
                                         </span>
                                         {existingInRecipe && (
-                                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold">
+                                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-ink-purple border border-purple-500/30 font-semibold">
                                             Sudah di resep ({existingInRecipe.amount} {existingInRecipe.unit})
                                           </span>
                                         )}
                                       </div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">
-                                        Supplier: <span className="text-slate-300 font-medium">{m.source}</span> | Kemasan: <span className="text-slate-300 font-medium">{m.packaging} ({m.weightKg.toFixed(4)} kg)</span>
+                                      <div className="text-[10px] text-ink-secondary mt-0.5">
+                                        Supplier: <span className="text-ink-secondary font-medium">{m.source}</span> | Kemasan: <span className="text-ink-secondary font-medium">{m.packaging} ({m.weightKg.toFixed(4)} kg)</span>
                                       </div>
                                     </div>
                                   </div>
 
                                   {/* Dosage Control Row (Active when checked) */}
                                   {isSelected && (
-                                    <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto bg-slate-950/80 p-1.5 rounded-xl border border-cyan-500/30">
-                                      <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                                    <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto bg-canvas p-1.5 rounded-xl border border-cyan-500/30">
+                                      <span className="text-[10px] text-ink-secondary font-medium hidden sm:inline">
                                         Takaran Resep:
                                       </span>
                                       <input
@@ -3302,16 +3306,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         step="0.0001"
                                         value={dosage.amount}
                                         onChange={(e) => handleUpdateMultiDosage(m.id, e.target.value, dosage.unit)}
-                                        className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-cyan-400 text-right focus:outline-none focus:border-cyan-500"
+                                        className="w-20 bg-surface border border-border-strong rounded-lg px-2 py-1 text-xs font-mono font-bold text-brand text-right focus:outline-none focus:border-accent-primary"
                                       />
-                                      <div className="flex rounded-lg overflow-hidden border border-slate-700 bg-slate-900 p-0.5 text-[10px]">
+                                      <div className="flex rounded-lg overflow-hidden border border-border-strong bg-surface p-0.5 text-[10px]">
                                         <button
                                           type="button"
                                           onClick={() => handleUpdateMultiDosage(m.id, dosage.amount, 'kg')}
                                           className={`px-2 py-0.5 rounded font-bold transition ${
                                             dosage.unit === 'kg'
                                               ? 'bg-cyan-600 text-white'
-                                              : 'text-slate-400 hover:text-white'
+                                              : 'text-ink-secondary hover:text-ink-primary'
                                           }`}
                                         >
                                           kg
@@ -3322,13 +3326,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                           className={`px-2 py-0.5 rounded font-bold transition ${
                                             dosage.unit === 'gr'
                                               ? 'bg-amber-600 text-white'
-                                              : 'text-slate-400 hover:text-white'
+                                              : 'text-ink-secondary hover:text-ink-primary'
                                           }`}
                                         >
                                           gr
                                         </button>
                                       </div>
-                                      <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                                      <span className="text-[10px] text-ink-secondary font-mono hidden md:inline">
                                         ({amountInKg.toFixed(4)} kg)
                                       </span>
                                     </div>
@@ -3350,14 +3354,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         });
 
                         return (
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-slate-800">
-                            <div className="text-xs text-slate-300 font-mono">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-border-subtle">
+                            <div className="text-xs text-ink-secondary font-mono">
                               {selectedMaterialIds.length > 0 ? (
                                 <span>
-                                  Terpilih: <strong className="text-cyan-400 font-bold">{selectedMaterialIds.length} Material</strong> | Total Takaran Tambahan: <strong className="text-white font-bold">{totalBatchAddKg.toFixed(4)} kg</strong> / batch
+                                  Terpilih: <strong className="text-brand font-bold">{selectedMaterialIds.length} Material</strong> | Total Takaran Tambahan: <strong className="text-ink-primary font-bold">{totalBatchAddKg.toFixed(4)} kg</strong> / batch
                                 </span>
                               ) : (
-                                <span className="text-slate-400">
+                                <span className="text-ink-secondary">
                                   Centang kotak pada material di atas untuk memilih banyak bahan sekaligus.
                                 </span>
                               )}
@@ -3382,18 +3386,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     </div>
                   ) : (
                     /* MODE 2: SINGLE INPUT FORM (SATU PER SATU) */
-                    <form onSubmit={handleAddMaterialToRecipeSubmit} className="space-y-3 bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+                    <form onSubmit={handleAddMaterialToRecipeSubmit} className="space-y-3 bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
                         {/* Material Select */}
                         <div className="sm:col-span-6">
-                          <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                          <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                             Pilih Material dari Database *
                           </label>
                           <select
                             value={recipeMatId}
                             onChange={(e) => handleRecipeMaterialSelect(e.target.value)}
                             required
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium"
+                            className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary font-medium"
                           >
                             <option value="">-- Pilih Material Database --</option>
                             {state.master.materials.map(m => (
@@ -3406,7 +3410,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                         {/* Takaran Input */}
                         <div className="sm:col-span-3">
-                          <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                          <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                             Takaran per Batch *
                           </label>
                           <input
@@ -3416,23 +3420,23 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             onChange={(e) => setRecipeMatAmount(e.target.value)}
                             required
                             placeholder="0.0000"
-                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-cyan-400 font-mono font-bold focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-brand font-mono font-bold focus:outline-none focus:border-accent-primary"
                           />
                         </div>
 
                         {/* Unit Select (kg vs gr) */}
                         <div className="sm:col-span-3">
-                          <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                          <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                             Satuan Resep
                           </label>
-                          <div className="flex rounded-xl overflow-hidden border border-slate-700 bg-slate-800 p-0.5">
+                          <div className="flex rounded-xl overflow-hidden border border-border-strong bg-elevated p-0.5">
                             <button
                               type="button"
                               onClick={() => setRecipeMatUnit('kg')}
                               className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
                                 recipeMatUnit === 'kg'
                                   ? 'bg-cyan-600 text-white shadow'
-                                  : 'text-slate-400 hover:text-white'
+                                  : 'text-ink-secondary hover:text-ink-primary'
                               }`}
                             >
                               kg / batch
@@ -3443,7 +3447,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
                                 recipeMatUnit === 'gr'
                                   ? 'bg-amber-600 text-white shadow'
-                                  : 'text-slate-400 hover:text-white'
+                                  : 'text-ink-secondary hover:text-ink-primary'
                               }`}
                             >
                               gr / batch
@@ -3454,10 +3458,10 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                       {/* Conversion Live Preview & Submit */}
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
-                        <div className="text-[11px] text-slate-400 font-mono">
+                        <div className="text-[11px] text-ink-secondary font-mono">
                           {recipeMatAmount && !isNaN(parseFloat(recipeMatAmount)) ? (
                             <span>
-                              Konversi Formulasi: <strong className="text-white">{parseFloat(recipeMatAmount)} {recipeMatUnit}</strong> = <strong className="text-cyan-400">{(recipeMatUnit === 'gr' ? parseFloat(recipeMatAmount) / 1000 : parseFloat(recipeMatAmount)).toFixed(4)} kg</strong> per batch WIP
+                              Konversi Formulasi: <strong className="text-ink-primary">{parseFloat(recipeMatAmount)} {recipeMatUnit}</strong> = <strong className="text-brand">{(recipeMatUnit === 'gr' ? parseFloat(recipeMatAmount) / 1000 : parseFloat(recipeMatAmount)).toFixed(4)} kg</strong> per batch WIP
                             </span>
                           ) : (
                             <span>Masukkan takaran material dalam kg atau gr per 1 batch WIP</span>
@@ -3477,7 +3481,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                 {/* Table of Materials in this Recipe */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase tracking-wider px-1">
+                  <div className="flex items-center justify-between text-[11px] text-ink-secondary font-semibold uppercase tracking-wider px-1">
                     <span>Komponen Material dalam Resep ({activeRecipe.items?.length || 0} Bahan)</span>
                     <span>Total Berat: {activeRecipe.totalWeightKg.toFixed(4)} kg</span>
                   </div>
@@ -3491,22 +3495,22 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                         const typeColor =
                           matType === 'padat'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            ? 'bg-amber-500/20 text-ink-amber border-amber-500/30'
                             : matType === 'liquid'
-                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                            ? 'bg-blue-500/20 text-ink-blue border-blue-500/30'
+                            : 'bg-emerald-500/20 text-ink-emerald border-emerald-500/30';
 
                         return (
                           <div
                             key={it.id || idx}
-                            className="bg-slate-950/80 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-slate-700 transition"
+                            className="bg-canvas border border-border-subtle p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-border-strong transition"
                           >
                             <div className="flex items-center space-x-2.5 truncate mr-2">
-                              <span className="text-slate-500 font-mono text-[10px] w-4">{idx + 1}.</span>
+                              <span className="text-ink-muted font-mono text-[10px] w-4">{idx + 1}.</span>
                               <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold border ${typeColor}`}>
                                 {matType}
                               </span>
-                              <span className="text-slate-200 font-medium truncate">
+                              <span className="text-ink-primary font-medium truncate">
                                 {it.materialName || matObj?.name}
                               </span>
                               {it.materialCode && (
@@ -3517,20 +3521,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             </div>
 
                             <div className="flex items-center space-x-2 shrink-0">
-                              <span className="text-[11px] font-mono text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                              <span className="text-[11px] font-mono text-ink-amber bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                                 {it.amount} {it.unit}
                               </span>
-                              <span className="text-xs font-mono font-bold text-cyan-400">
+                              <span className="text-xs font-mono font-bold text-brand">
                                 {it.amountKg.toFixed(4)} kg
                               </span>
-                              <span className="text-[10px] text-slate-400 font-mono w-12 text-right">
+                              <span className="text-[10px] text-ink-secondary font-mono w-12 text-right">
                                 {pct.toFixed(1)}%
                               </span>
                               <button
                                 type="button"
                                 onClick={() => handleStartEditRecipeItem(activeRecipe.id, it)}
                                 title="Edit takaran material ini"
-                                className="text-cyan-400 hover:text-cyan-300 p-1 rounded hover:bg-cyan-500/10 transition"
+                                className="text-brand hover:text-brand p-1 rounded hover:bg-cyan-500/10 transition"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -3539,7 +3543,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   type="button"
                                   onClick={() => onDeleteMaterialFromRecipe(activeRecipe.id, it.id)}
                                   title="Hapus material dari resep ini"
-                                  className="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-500/10 transition"
+                                  className="text-ink-rose hover:text-ink-rose p-1 rounded hover:bg-rose-500/10 transition"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -3550,7 +3554,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       })}
                     </div>
                   ) : (
-                    <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-center text-slate-500 text-xs italic">
+                    <div className="p-4 rounded-xl bg-canvas border border-border-subtle text-center text-ink-muted text-xs italic">
                       Resep ini belum memiliki komponen bahan. Pilih material database di atas untuk menambahkan bahan padat, bubuk, atau liquid.
                     </div>
                   )}
@@ -3562,22 +3566,22 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
       </div>
 
       {/* Step 5: Visualisasi BOM Hierarki Profesional */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+      <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-border-subtle pb-3 gap-2">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-ink-emerald">
               <Network className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">
+              <h3 className="font-bold text-sm text-ink-primary">
                 Visualisasi BOM Hierarki Profesional (SKU &rarr; WIP Terpisah &rarr; Material Database)
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Pohon relasi formulasi berjenjang dengan presisi 4 desimal industri
               </p>
             </div>
           </div>
-          <span className="text-[11px] px-2.5 py-1 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg">
+          <span className="text-[11px] px-2.5 py-1 bg-elevated border border-border-strong text-ink-secondary rounded-lg">
             Standar ISO / GMP Manufacturing
           </span>
         </div>
@@ -3622,24 +3626,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
           return (
             <>
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2.5">
+              <div className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-2.5">
                 <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
                   <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={hierarchySkuSearch}
                       onChange={(e) => setHierarchySkuSearch(e.target.value)}
                       placeholder="Cari kode SKU, nama SKU, atau nama WIP..."
                       aria-label="Cari SKU pada visualisasi BOM hierarki"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-8 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                     {hierarchySkuSearch && (
                       <button
                         type="button"
                         onClick={() => setHierarchySkuSearch('')}
                         aria-label="Hapus pencarian SKU"
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-white transition"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-ink-secondary hover:text-ink-primary transition"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -3651,7 +3655,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={hierarchySelectedSkuId}
                       onChange={(e) => setHierarchySelectedSkuId(e.target.value)}
                       aria-label="Pilih SKU langsung"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-xs text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value="ALL">Semua SKU ({categoryMatchedSkus.length})</option>
                       {categoryMatchedSkus.map(s => (
@@ -3674,7 +3678,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         className={`px-2.5 py-2 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
                           hierarchySkuCategory === cat
                             ? 'bg-cyan-600 border-cyan-500 text-white'
-                            : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                            : 'bg-elevated hover:bg-accent border-border-strong text-ink-secondary'
                         }`}
                       >
                         {cat === 'ALL' ? 'Semua' : cat === 'DOM' ? 'Domestik' : 'KITE Ekspor'}
@@ -3683,14 +3687,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border-subtle text-[11px] text-ink-secondary">
                   <span>
                     Menampilkan{' '}
-                    <strong className="text-white font-mono tabular-nums">
+                    <strong className="text-ink-primary font-mono tabular-nums">
                       {filteredHierarchySkus.length}
                     </strong>{' '}
                     dari{' '}
-                    <strong className="text-slate-200 font-mono tabular-nums">
+                    <strong className="text-ink-primary font-mono tabular-nums">
                       {state.master.skus.length}
                     </strong>{' '}
                     SKU
@@ -3699,7 +3703,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     <button
                       type="button"
                       onClick={resetHierarchyFilters}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-primary text-[11px] font-semibold transition whitespace-nowrap shrink-0"
                     >
                       <X className="w-3 h-3" />
                       Reset Filter
@@ -3717,12 +3721,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     return (
                       <div
                         key={sku.id}
-                        className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-inner"
+                        className="bg-canvas border border-border-subtle rounded-2xl p-4 sm:p-5 space-y-3 shadow-inner"
                       >
                         {/* SKU Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-border-subtle gap-2">
                           <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xs shrink-0">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-brand font-bold text-xs shrink-0">
                               SKU
                             </div>
                             <div>
@@ -3732,28 +3736,28 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                     {sku.code}
                                   </span>
                                 )}
-                                <h4 className="font-bold text-sm text-white">{sku.name}</h4>
+                                <h4 className="font-bold text-sm text-ink-primary">{sku.name}</h4>
                                 <span className={`text-[10px] px-2 py-0.5 rounded font-semibold shrink-0 ${
                                   sku.isKite
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                    ? 'bg-amber-500/20 text-ink-amber border border-amber-500/30'
+                                    : 'bg-cyan-500/20 text-brand border border-cyan-500/30'
                                 }`}>
                                   {sku.isKite ? 'KITE Ekspor' : 'Domestik'}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                              <p className="text-[11px] text-ink-secondary font-mono tabular-nums mt-0.5">
                                 Bobot: <strong>{sku.cartonWeightKg.toFixed(4)} kg/karton</strong> • Target Produksi: <strong>{sku.targetHour} karton/jam</strong>
                               </p>
                             </div>
                           </div>
-                          <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-500/20 self-start sm:self-auto whitespace-nowrap shrink-0">
+                          <span className="text-[10px] text-brand font-mono bg-tint-cyan px-2.5 py-1 rounded-lg border border-cyan-500/20 self-start sm:self-auto whitespace-nowrap shrink-0">
                             Hierarki Induk Tingkat 1
                           </span>
                         </div>
 
                   {/* WIP Components under this SKU */}
                   <div className="space-y-3 pt-1">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    <p className="text-[10px] font-semibold text-ink-secondary uppercase tracking-wider">
                       Komponen WIP Terpisah (kg WIP per karton SKU):
                     </p>
 
@@ -3775,30 +3779,30 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         return (
                           <div
                             key={sw.id}
-                            className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 sm:p-4 space-y-3 shadow-md"
+                            className="bg-surface border border-border-subtle rounded-xl p-3 sm:p-4 space-y-3 shadow-md"
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-border-subtle gap-2">
                               <div className="flex items-center space-x-2.5">
-                                <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400">
+                                <div className="p-1 rounded-lg bg-amber-500/10 text-ink-amber">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="font-bold text-white text-xs sm:text-sm">
+                                  <span className="font-bold text-ink-primary text-xs sm:text-sm">
                                     WIP Terpisah: {wObj ? wObj.name : 'WIP'}
                                   </span>
-                                  <span className="text-[10px] text-slate-400 block">
+                                  <span className="text-[10px] text-ink-secondary block">
                                     Basis 1 Batch Formulasi: {wObj?.batchWeightKg.toFixed(4)} kg
                                   </span>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-3 self-end sm:self-auto">
-                                <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                                <span className="text-xs font-mono font-bold text-ink-amber bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                                   {sw.kgWipPerCartonSku.toFixed(4)} kg WIP / ktn SKU
                                 </span>
                                 <button
                                   onClick={() => onDeleteSkuWip(sw.id)}
                                   title="Hapus relasi WIP ke SKU"
-                                  className="text-rose-400 hover:text-rose-300 p-1 text-xs"
+                                  className="text-ink-rose hover:text-ink-rose p-1 text-xs"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -3806,10 +3810,10 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             </div>
 
                             {/* Multi-Mesin Produksi Strip for this WIP */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 text-[11px]">
+                            <div className="flex flex-wrap items-center justify-between gap-2 bg-canvas p-2.5 rounded-xl border border-border-subtle text-[11px]">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-slate-400 font-semibold uppercase text-[10px] flex items-center space-x-1">
-                                  <Cpu className="w-3 h-3 text-cyan-400" />
+                                <span className="text-ink-secondary font-semibold uppercase text-[10px] flex items-center space-x-1">
+                                  <Cpu className="w-3 h-3 text-brand" />
                                   <span>Mesin Pengolah WIP:</span>
                                 </span>
                                 {assignedMachs.length > 0 ? (
@@ -3824,7 +3828,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="text-slate-500 text-[10px] italic">
+                                  <span className="text-ink-muted text-[10px] italic">
                                     Belum dihubungkan ke mesin master
                                   </span>
                                 )}
@@ -3834,7 +3838,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleStartEditWip(wObj)}
-                                  className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 transition text-[10px]"
+                                  className="text-brand hover:text-brand font-semibold flex items-center space-x-1 px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong transition text-[10px]"
                                   title="Konfigurasi multi-mesin yang diizinkan untuk WIP ini"
                                 >
                                   <Edit3 className="w-3 h-3" />
@@ -3850,12 +3854,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               if (wipRecipes.length > 0) {
                                 return (
                                   <div className="pl-3 sm:pl-4 border-l-2 border-amber-500/30 space-y-3">
-                                    <div className="flex justify-between items-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                                      <span className="flex items-center space-x-1.5 text-amber-400">
+                                    <div className="flex justify-between items-center text-[10px] font-semibold text-ink-secondary uppercase tracking-wider">
+                                      <span className="flex items-center space-x-1.5 text-ink-amber">
                                         <Sparkles className="w-3 h-3" />
                                         <span>Hierarki Level 3: Resep Formulasi WIP ({wipRecipes.length} Resep Terdaftar)</span>
                                       </span>
-                                      <span className="text-[10px] text-slate-500 normal-case">
+                                      <span className="text-[10px] text-ink-muted normal-case">
                                         Acuan BOM: Resep &rarr; Acuan Resep: Material
                                       </span>
                                     </div>
@@ -3864,25 +3868,25 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                       {wipRecipes.map(recipe => (
                                         <div
                                           key={recipe.id}
-                                          className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-2 hover:border-slate-700 transition"
+                                          className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-2 hover:border-border-strong transition"
                                         >
-                                          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/60 gap-1.5">
+                                          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-border-subtle gap-1.5">
                                             <div className="flex items-center space-x-2">
-                                              <span className="px-2 py-0.5 rounded font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 text-[11px]">
+                                              <span className="px-2 py-0.5 rounded font-mono font-bold text-ink-amber bg-amber-500/10 border border-amber-500/20 text-[11px]">
                                                 {recipe.recipeCode}
                                               </span>
-                                              <span className="text-white font-bold text-xs">
+                                              <span className="text-ink-primary font-bold text-xs">
                                                 {recipe.recipeName}
                                               </span>
                                               {recipe.isDefault && (
-                                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
+                                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-brand border border-cyan-500/20 font-semibold">
                                                   Default
                                                 </span>
                                               )}
                                             </div>
                                             <div className="flex items-center space-x-2 text-[11px] font-mono">
-                                              <span className="text-slate-400">Total Berat:</span>
-                                              <span className="text-cyan-400 font-bold">
+                                              <span className="text-ink-secondary">Total Berat:</span>
+                                              <span className="text-brand font-bold">
                                                 {recipe.totalWeightKg.toFixed(4)} kg / batch
                                               </span>
                                             </div>
@@ -3890,7 +3894,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                                           {/* Level 4: Material List inside this recipe */}
                                           <div className="space-y-1.5 pl-2 sm:pl-3 border-l-2 border-cyan-500/30">
-                                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                            <span className="text-[10px] font-semibold text-ink-secondary uppercase tracking-wider block">
                                               Hierarki Level 4: Komponen Material Database ({recipe.items?.length || 0} Bahan)
                                             </span>
 
@@ -3905,21 +3909,21 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                                                   const typeBadgeColor =
                                                     matType === 'padat'
-                                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                                      ? 'bg-amber-500/20 text-ink-amber border-amber-500/30'
                                                       : matType === 'liquid'
-                                                      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                                                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                                                      ? 'bg-blue-500/20 text-ink-blue border-blue-500/30'
+                                                      : 'bg-emerald-500/20 text-ink-emerald border-emerald-500/30';
 
                                                   return (
                                                     <div
                                                       key={it.id || itIdx}
-                                                      className="bg-slate-900/80 border border-slate-800/80 p-2 rounded-lg flex items-center justify-between text-xs"
+                                                      className="bg-surface border border-border-subtle p-2 rounded-lg flex items-center justify-between text-xs"
                                                     >
                                                       <div className="flex items-center space-x-2 truncate mr-2">
                                                         <span className={`text-[9px] px-1.5 py-0.2 rounded uppercase font-bold border ${typeBadgeColor}`}>
                                                           {matType}
                                                         </span>
-                                                        <span className="text-slate-200 font-medium truncate">
+                                                        <span className="text-ink-primary font-medium truncate">
                                                           {it.materialName || mObj?.name}
                                                         </span>
                                                         {it.materialCode && (
@@ -3930,13 +3934,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                                       </div>
 
                                                       <div className="flex items-center space-x-2.5 shrink-0 text-xs font-mono">
-                                                        <span className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 text-[10px]">
+                                                        <span className="text-ink-amber bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 text-[10px]">
                                                           {it.amount} {it.unit}
                                                         </span>
-                                                        <span className="text-cyan-400 font-bold">
+                                                        <span className="text-brand font-bold">
                                                           {it.amountKg.toFixed(4)} kg
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 w-10 text-right">
+                                                        <span className="text-[10px] text-ink-secondary w-10 text-right">
                                                           {percentage.toFixed(1)}%
                                                         </span>
                                                       </div>
@@ -3945,7 +3949,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                                 })}
                                               </div>
                                             ) : (
-                                              <p className="text-[10px] text-slate-500 italic py-0.5">
+                                              <p className="text-[10px] text-ink-muted italic py-0.5">
                                                 Resep ini belum memiliki material formulasi.
                                               </p>
                                             )}
@@ -3961,9 +3965,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               if (wipMatComps.length > 0) {
                                 return (
                                   <div className="pl-3 sm:pl-4 border-l-2 border-amber-500/30 space-y-2">
-                                    <div className="flex justify-between items-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex justify-between items-center text-[10px] font-semibold text-ink-secondary uppercase tracking-wider">
                                       <span>Komposisi Database Material 1 Batch WIP:</span>
-                                      <span className="font-mono text-cyan-400 normal-case">
+                                      <span className="font-mono text-brand normal-case">
                                         Total Formula: {totalFormulaBatchWeight.toFixed(4)} kg
                                       </span>
                                     </div>
@@ -3977,28 +3981,28 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                         return (
                                           <div
                                             key={wm.id}
-                                            className="bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-slate-700 transition"
+                                            className="bg-canvas border border-border-subtle p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-border-strong transition"
                                           >
                                             <div className="flex items-center space-x-2 truncate mr-2">
                                               <div className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
-                                              <span className="text-slate-200 font-medium truncate">
+                                              <span className="text-ink-primary font-medium truncate">
                                                 {mObj ? mObj.name : 'Material'}
                                               </span>
-                                              <span className="text-[10px] text-slate-400">
+                                              <span className="text-[10px] text-ink-secondary">
                                                 ({mObj?.type} - {mObj?.source})
                                               </span>
                                             </div>
                                             <div className="flex items-center space-x-3 shrink-0">
-                                              <span className="text-[10px] text-slate-400 font-mono">
+                                              <span className="text-[10px] text-ink-secondary font-mono">
                                                 {percentageOfBatch.toFixed(1)}%
                                               </span>
-                                              <span className="font-mono text-cyan-400 font-bold text-xs">
+                                              <span className="font-mono text-brand font-bold text-xs">
                                                 {wm.materialKgPerBatch.toFixed(4)} kg / batch
                                               </span>
                                               <button
                                                 onClick={() => onDeleteWipMat(wm.id)}
                                                 title="Hapus relasi Material ke WIP"
-                                                className="text-rose-400 hover:text-rose-300 p-1"
+                                                className="text-ink-rose hover:text-ink-rose p-1"
                                               >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                               </button>
@@ -4012,8 +4016,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               }
 
                               return (
-                                <div className="pl-3 sm:pl-4 border-l-2 border-slate-800 py-1">
-                                  <p className="text-[11px] text-slate-500 italic">
+                                <div className="pl-3 sm:pl-4 border-l-2 border-border-subtle py-1">
+                                  <p className="text-[11px] text-ink-muted italic">
                                     Belum ada resep formulasi yang dibuat untuk WIP ini. Buat resep pada bagian B di atas.
                                   </p>
                                 </div>
@@ -4023,7 +4027,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         );
                       })
                     ) : (
-                      <p className="text-[11px] text-slate-500 italic py-2">
+                      <p className="text-[11px] text-ink-muted italic py-2">
                         Belum ada jenis WIP terpisah yang diikat ke SKU ini. Gunakan formulir bagian A di atas.
                       </p>
                     )}
@@ -4032,8 +4036,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               );
             })
           ) : (
-            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 text-center space-y-3">
-              <p className="text-slate-400 text-xs">
+            <div className="bg-canvas border border-border-subtle rounded-2xl p-6 text-center space-y-3">
+              <p className="text-ink-secondary text-xs">
                 Tidak ada SKU yang cocok dengan pencarian atau filter yang dipilih.
               </p>
               <button
@@ -4052,7 +4056,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
   })()}
 
   {state.master.skus.length === 0 && (
-    <div className="text-center py-10 text-slate-500 text-xs">
+    <div className="text-center py-10 text-ink-muted text-xs">
       Belum ada konfigurasi hierarki BOM. Silakan tambahkan SKU, WIP, dan Material melalui form di atas.
     </div>
   )}
@@ -4064,14 +4068,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {activeSubTab === 'MACHINES' && (
       <div className="space-y-6">
         {/* Banner Info */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-indigo-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-indigo-300 shadow-xl">
+        <div className="bg-gradient-to-r from-surface via-surface to-tint-indigo border border-indigo-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-ink-indigo shadow-xl">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-ink-indigo shrink-0">
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-white text-sm">Master List Mesin Produksi</h4>
-              <p className="text-[11px] text-indigo-200/80">
+              <h4 className="font-bold text-ink-primary text-sm">Master List Mesin Produksi</h4>
+              <p className="text-[11px] text-ink-indigo">
                 Daftar mesin pengolah utama (Mixer, Cooker, Extruder, Enrober) yang menghasilkan WIP. Data mesin ini akan menjadi pilihan dropdown saat mengonfigurasi WIP pada BOM.
               </p>
             </div>
@@ -4080,7 +4084,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                if (!isAdmin) {
                   onOpenAdminModal();
                   showToast('Otorisasi Administrator diperlukan untuk impor data mesin', true);
                   return;
@@ -4092,26 +4096,26 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <UploadCloud className="w-3.5 h-3.5" />
               <span>Import Mesin (Drive & Storage)</span>
             </button>
-            <span className="px-2.5 py-1 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold rounded-lg text-[10px] shrink-0">
+            <span className="px-2.5 py-1 bg-indigo-500/20 border border-indigo-500/40 text-ink-indigo font-bold rounded-lg text-[10px] shrink-0">
               {state.master.machines.length} Mesin Aktif
             </span>
           </div>
         </div>
 
         {/* Form Tambah Mesin */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className={`flex items-center justify-between gap-2 ${isMachineFormOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
-            <h3 className="font-bold text-sm text-white flex items-center space-x-2">
-              <Wrench className="w-4 h-4 text-cyan-400" />
+        <div className="bg-surface border border-border-subtle rounded-2xl p-5 shadow-xl space-y-4">
+          <div className={`flex items-center justify-between gap-2 ${isMachineFormOpen ? 'border-b border-border-subtle pb-3' : ''}`}>
+            <h3 className="font-bold text-sm text-ink-primary flex items-center space-x-2">
+              <Wrench className="w-4 h-4 text-brand" />
               <span>Tambah Mesin Produksi Baru</span>
             </h3>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-400 hidden sm:inline">Master Plant Machinery</span>
+              <span className="text-xs text-ink-secondary hidden sm:inline">Master Plant Machinery</span>
               <button
                 type="button"
                 onClick={() => setIsMachineFormOpen(prev => !prev)}
                 aria-expanded={isMachineFormOpen}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
               >
                 {isMachineFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isMachineFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -4120,48 +4124,48 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           </div>
 
           {isMachineFormOpen && (
-          <form onSubmit={handleMachineSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+          <form onSubmit={handleMachineSubmit} className="space-y-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Kode Mesin *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Kode Mesin *</label>
                 <input
                   type="text"
                   value={machCode}
                   onChange={(e) => setMachCode(e.target.value)}
                   required
                   placeholder="e.g. MX-02, ENR-02"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted font-mono focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Nama Mesin *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Nama Mesin *</label>
                 <input
                   type="text"
                   value={machName}
                   onChange={(e) => setMachName(e.target.value)}
                   required
                   placeholder="e.g. High-Speed Planetary Mixer"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Line Produksi *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Line Produksi *</label>
                 <input
                   type="text"
                   value={machLine}
                   onChange={(e) => setMachLine(e.target.value)}
                   required
                   placeholder="e.g. Line 1 (Biskuit Domestik)"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Kapasitas (kg / jam) *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Kapasitas (kg / jam) *</label>
                 <input
                   type="number"
                   step="1"
@@ -4170,16 +4174,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   onChange={(e) => setMachCapacity(e.target.value)}
                   required
                   placeholder="800"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Status Operasional</label>
+                <label className="block text-ink-secondary font-medium mb-1">Status Operasional</label>
                 <select
                   value={machStatus}
                   onChange={(e) => setMachStatus(e.target.value as 'OPERATIONAL' | 'STANDBY' | 'MAINTENANCE')}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="OPERATIONAL">OPERATIONAL (Aktif Beroperasi)</option>
                   <option value="STANDBY">STANDBY (Siaga)</option>
@@ -4188,25 +4192,25 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Operator Penanggung Jawab</label>
+                <label className="block text-ink-secondary font-medium mb-1">Operator Penanggung Jawab</label>
                 <input
                   type="text"
                   value={machOperator}
                   onChange={(e) => setMachOperator(e.target.value)}
                   placeholder="e.g. Supriyadi (Shift 1)"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-300 font-medium mb-1">Catatan Teknis / Jalur Pipa Transfer</label>
+              <label className="block text-ink-secondary font-medium mb-1">Catatan Teknis / Jalur Pipa Transfer</label>
               <input
                 type="text"
                 value={machNotes}
                 onChange={(e) => setMachNotes(e.target.value)}
                 placeholder="e.g. Terhubung ke Holding Tank HT-01 melalui jalur pipa sanitasi"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
               />
             </div>
 
@@ -4225,20 +4229,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
         {/* Header & Changeover Control Bar */}
         <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-ink-secondary gap-2">
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-semibold uppercase tracking-wider text-[11px] text-white">
+                <span className="font-semibold uppercase tracking-wider text-[11px] text-ink-primary">
                   Daftar Mesin Produksi & Opsi Changeover
                 </span>
                 {state.master.machines.filter(m => m.status === 'CHANGEOVER').length > 0 && (
-                  <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold animate-pulse">
+                  <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-ink-amber border border-amber-500/40 text-[10px] font-bold animate-pulse">
                     <RotateCw className="w-3 h-3 animate-spin" />
                     <span>{state.master.machines.filter(m => m.status === 'CHANGEOVER').length} Sedang Changeover</span>
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Kontrol pergantian formula produk, sanitasi jalur pipa, dan audit log downtime mesin
               </p>
             </div>
@@ -4250,30 +4254,30 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   setHistorySelectedMachineId(null);
                   setIsChangeoverHistoryOpen(true);
                 }}
-                className="text-[11px] text-cyan-300 hover:text-white flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/60 border border-cyan-800 hover:bg-cyan-900/60 transition active:scale-95 shadow-md shadow-cyan-950"
+                className="text-[11px] text-brand hover:text-ink-primary flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-tint-cyan border border-tint-cyan-border hover:bg-tint-cyan transition active:scale-95 shadow-md shadow-cyan-950"
                 title="Buka seluruh riwayat changeover & verifikasi QC pabrik"
               >
-                <History className="w-3.5 h-3.5 text-cyan-400" />
+                <History className="w-3.5 h-3.5 text-brand" />
                 <span>Audit Log Changeover</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                  if (!isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data mesin', true);
                     return;
                   }
                   setIsMachineImportOpen(true);
                 }}
-                className="text-[11px] text-indigo-300 hover:text-white flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-indigo-950/60 border border-indigo-800 hover:bg-indigo-900/60 transition active:scale-95"
+                className="text-[11px] text-ink-indigo hover:text-ink-primary flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-tint-indigo border border-tint-indigo-border hover:bg-tint-indigo transition active:scale-95"
                 title="Impor master mesin dari CSV/JSON lokal atau Google Drive"
               >
-                <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
+                <UploadCloud className="w-3.5 h-3.5 text-ink-indigo" />
                 <span>Import Mesin</span>
               </button>
-              <span className="font-mono text-slate-400 text-xs px-1">
+              <span className="font-mono text-ink-secondary text-xs px-1">
                 {state.master.machines.length} Unit Mesin
               </span>
             </div>
@@ -4285,8 +4289,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               onClick={() => setMachineStatusFilter('ALL')}
               className={`px-3 py-1.5 rounded-xl font-medium transition ${
                 machineStatusFilter === 'ALL'
-                  ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                  ? 'bg-elevated text-ink-primary border border-border-strong shadow-sm'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               Semua ({state.master.machines.length})
@@ -4295,8 +4299,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               onClick={() => setMachineStatusFilter('OPERATIONAL')}
               className={`px-3 py-1.5 rounded-xl font-medium transition ${
                 machineStatusFilter === 'OPERATIONAL'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                  ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               Operasional ({state.master.machines.filter(m => m.status === 'OPERATIONAL').length})
@@ -4305,8 +4309,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               onClick={() => setMachineStatusFilter('CHANGEOVER')}
               className={`px-3 py-1.5 rounded-xl font-medium transition ${
                 machineStatusFilter === 'CHANGEOVER'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                  ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 animate-pulse font-bold'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               Sedang Changeover ({state.master.machines.filter(m => m.status === 'CHANGEOVER').length})
@@ -4315,8 +4319,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               onClick={() => setMachineStatusFilter('STANDBY')}
               className={`px-3 py-1.5 rounded-xl font-medium transition ${
                 machineStatusFilter === 'STANDBY'
-                  ? 'bg-slate-700 text-slate-200 border border-slate-600'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                  ? 'bg-elevated text-ink-primary border border-border-strong'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
               }`}
             >
               Standby / Maint ({state.master.machines.filter(m => m.status === 'STANDBY' || m.status === 'MAINTENANCE').length})
@@ -4341,10 +4345,10 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 return (
                   <div
                     key={mach.id}
-                    className={`bg-slate-900 border rounded-2xl p-4 shadow-xl flex flex-col justify-between transition ${
+                    className={`bg-surface border rounded-2xl p-4 shadow-xl flex flex-col justify-between transition ${
                       isUndergoingChangeover
-                        ? 'border-amber-500/60 shadow-amber-950/40 bg-gradient-to-b from-slate-900 to-amber-950/20 ring-1 ring-amber-500/30'
-                        : 'border-slate-800 hover:border-slate-700'
+                        ? 'border-amber-500/60 shadow-amber-950/40 bg-gradient-to-b from-surface to-tint-amber ring-1 ring-amber-500/30'
+                        : 'border-border-subtle hover:border-border-strong'
                     }`}
                   >
                     <div>
@@ -4358,25 +4362,25 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                                 mach.status === 'CHANGEOVER'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse font-bold'
+                                  ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 animate-pulse font-bold'
                                   : mach.status === 'OPERATIONAL'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/30'
                                   : mach.status === 'STANDBY'
-                                  ? 'bg-slate-700/50 text-slate-300 border border-slate-600'
-                                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  ? 'bg-elevated text-ink-secondary border border-border-strong'
+                                  : 'bg-rose-500/20 text-ink-rose border border-rose-500/30'
                               }`}
                             >
                               {mach.status === 'CHANGEOVER' ? 'Sedang Changeover' : mach.status}
                             </span>
                           </div>
                           <h4 className="font-bold text-sm text-slate-900 mt-1.5">{mach.name}</h4>
-                          <p className="text-[11px] text-slate-400">{mach.line}</p>
+                          <p className="text-[11px] text-ink-secondary">{mach.line}</p>
                         </div>
 
                         {onDeleteMachine && (
                           <button
                             onClick={() => onDeleteMachine(mach.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition"
+                            className="text-ink-rose hover:text-ink-rose p-1.5 rounded-lg hover:bg-rose-500/10 transition"
                             title="Hapus Mesin"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -4385,18 +4389,18 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       </div>
 
                       {/* Active Product Banner */}
-                      <div className="bg-slate-950/80 rounded-xl p-2.5 border border-slate-800 text-xs flex items-center justify-between my-2.5">
+                      <div className="bg-canvas rounded-xl p-2.5 border border-border-subtle text-xs flex items-center justify-between my-2.5">
                         <div className="flex items-center space-x-2 truncate mr-2">
-                          <Layers className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          <Layers className="w-3.5 h-3.5 text-brand shrink-0" />
                           <div className="truncate">
-                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Produk / WIP Aktif:</span>
-                            <span className="text-white font-bold truncate block">
+                            <span className="text-[10px] text-ink-muted block uppercase font-semibold">Produk / WIP Aktif:</span>
+                            <span className="text-ink-primary font-bold truncate block">
                               {activeWip ? activeWip.name : mach.currentWipName || 'Belum Ada Formula Terpilih'}
                             </span>
                           </div>
                         </div>
                         {activeWip && (
-                          <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800 shrink-0">
+                          <span className="font-mono text-[10px] text-brand bg-tint-cyan px-2 py-0.5 rounded border border-tint-cyan-border shrink-0">
                             {activeWip.batchWeightKg.toFixed(1)} kg/batch
                           </span>
                         )}
@@ -4404,9 +4408,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                       {/* Active Changeover Alert in Progress */}
                       {isUndergoingChangeover && mach.activeChangeover && (
-                        <div className="bg-amber-950/50 border border-amber-500/40 rounded-xl p-2.5 text-xs text-amber-200 mb-2.5 space-y-1">
+                        <div className="bg-tint-amber border border-amber-500/40 rounded-xl p-2.5 text-xs text-ink-amber mb-2.5 space-y-1">
                           <div className="flex items-center justify-between font-bold">
-                            <span className="flex items-center space-x-1.5 text-amber-300">
+                            <span className="flex items-center space-x-1.5 text-ink-amber">
                               <RotateCw className="w-3.5 h-3.5 animate-spin" />
                               <span>Sedang Proses Changeover</span>
                             </span>
@@ -4417,26 +4421,26 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <div className="text-[11px] text-amber-100 truncate">
                             Target Formula: <strong>{mach.activeChangeover.toWipName}</strong>
                           </div>
-                          <div className="text-[10px] text-amber-300/80">
+                          <div className="text-[10px] text-ink-amber">
                             PIC: {mach.activeChangeover.operatorName} • Dimulai: {new Date(mach.activeChangeover.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
                           </div>
                         </div>
                       )}
 
                       {/* Machinery Specs Info */}
-                      <div className="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800 text-xs space-y-1.5 my-2">
+                      <div className="bg-canvas rounded-xl p-2.5 border border-border-subtle text-xs space-y-1.5 my-2">
                         <div className="flex justify-between">
-                          <span className="text-slate-400 text-[11px]">Kapasitas Produksi:</span>
-                          <span className="font-mono text-white font-bold">{mach.capacityKgPerHour} kg/jam</span>
+                          <span className="text-ink-secondary text-[11px]">Kapasitas Produksi:</span>
+                          <span className="font-mono text-ink-primary font-bold">{mach.capacityKgPerHour} kg/jam</span>
                         </div>
                         {mach.operatorAssigned && (
                           <div className="flex justify-between">
-                            <span className="text-slate-400 text-[11px]">Operator PIC:</span>
-                            <span className="text-slate-300 font-medium">{mach.operatorAssigned}</span>
+                            <span className="text-ink-secondary text-[11px]">Operator PIC:</span>
+                            <span className="text-ink-secondary font-medium">{mach.operatorAssigned}</span>
                           </div>
                         )}
                         {mach.notes && (
-                          <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-850">
+                          <div className="text-[11px] text-ink-secondary pt-1 border-t border-border-subtle">
                             {mach.notes}
                           </div>
                         )}
@@ -4445,43 +4449,43 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                     {/* Bottom Area: Linked WIPs & Changeover Actions */}
                     <div className="space-y-3 pt-2">
-                      <div className="border-t border-slate-800 text-[11px] pt-2">
-                        <span className="text-slate-400 block mb-1">WIP yang Menggunakan Mesin Ini:</span>
+                      <div className="border-t border-border-subtle text-[11px] pt-2">
+                        <span className="text-ink-secondary block mb-1">WIP yang Menggunakan Mesin Ini:</span>
                         {linkedWips.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {linkedWips.map(w => (
                               <span
                                 key={w.id}
-                                className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium"
+                                className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-ink-amber border border-amber-500/20 font-medium"
                               >
                                 {w.name}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-slate-500 italic">Belum ada WIP ditautkan ke mesin ini.</span>
+                          <span className="text-ink-muted italic">Belum ada WIP ditautkan ke mesin ini.</span>
                         )}
                       </div>
 
                       {/* Action Buttons: Changeover & History */}
-                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                      <div className="pt-2 border-t border-border-subtle flex items-center justify-between gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setHistorySelectedMachineId(mach.id);
                             setIsChangeoverHistoryOpen(true);
                           }}
-                          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 text-[11px] font-medium transition active:scale-95"
+                          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-elevated text-ink-secondary hover:text-ink-primary border border-border-strong text-[11px] font-medium transition active:scale-95"
                           title="Lihat riwayat switchover & clearance mesin ini"
                         >
-                          <History className="w-3.5 h-3.5 text-slate-400" />
+                          <History className="w-3.5 h-3.5 text-ink-secondary" />
                           <span>Riwayat ({mach.changeoverHistory?.length || 0})</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            if (!state.isAdmin) {
+                            if (!isAdmin) {
                               onOpenAdminModal();
                               showToast('Otorisasi Administrator diperlukan untuk opsi changeover produk', true);
                               return;
@@ -4511,14 +4515,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {activeSubTab === 'TANKS' && (
       <div className="space-y-6">
         {/* Banner Info */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/40 border border-cyan-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-cyan-300 shadow-xl">
+        <div className="bg-gradient-to-r from-surface via-surface to-tint-cyan border border-cyan-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-brand shadow-xl">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 shrink-0">
+            <div className="p-2 rounded-xl bg-cyan-500/20 text-brand shrink-0">
               <Cylinder className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-white text-sm">Master List Tangki WIP (Holding Tank & Storage Tank)</h4>
-              <p className="text-[11px] text-cyan-200/80">
+              <h4 className="font-bold text-ink-primary text-sm">Master List Tangki WIP (Holding Tank & Storage Tank)</h4>
+              <p className="text-[11px] text-brand">
                 Pusat data tangki penampung antara (Holding Tank) dan tangki penyimpanan kapasitas besar (Storage Tank). Isi tangki ini otomatis terpotong saat karton SKU diproduksi.
               </p>
             </div>
@@ -4527,7 +4531,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                if (!isAdmin) {
                   onOpenAdminModal();
                   showToast('Otorisasi Administrator diperlukan untuk impor data tangki WIP', true);
                   return;
@@ -4539,26 +4543,26 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <UploadCloud className="w-3.5 h-3.5" />
               <span>Import Tangki WIP (Drive & Storage)</span>
             </button>
-            <span className="px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold rounded-lg text-[10px] shrink-0">
+            <span className="px-2.5 py-1 bg-cyan-500/20 border border-cyan-500/40 text-brand font-bold rounded-lg text-[10px] shrink-0">
               {state.master.tanks.length} Tangki Terdaftar
             </span>
           </div>
         </div>
 
         {/* Form Tambah Tangki */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className={`flex items-center justify-between gap-2 ${isTankFormOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
-            <h3 className="font-bold text-sm text-white flex items-center space-x-2">
-              <Cylinder className="w-4 h-4 text-cyan-400" />
+        <div className="bg-surface border border-border-subtle rounded-2xl p-5 shadow-xl space-y-4">
+          <div className={`flex items-center justify-between gap-2 ${isTankFormOpen ? 'border-b border-border-subtle pb-3' : ''}`}>
+            <h3 className="font-bold text-sm text-ink-primary flex items-center space-x-2">
+              <Cylinder className="w-4 h-4 text-brand" />
               <span>Tambah Tangki WIP Baru</span>
             </h3>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-400 hidden sm:inline">Master Industrial Vessel</span>
+              <span className="text-xs text-ink-secondary hidden sm:inline">Master Industrial Vessel</span>
               <button
                 type="button"
                 onClick={() => setIsTankFormOpen(prev => !prev)}
                 aria-expanded={isTankFormOpen}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
               >
                 {isTankFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isTankFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -4567,38 +4571,38 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           </div>
 
           {isTankFormOpen && (
-          <form onSubmit={handleTankSubmit} className="space-y-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+          <form onSubmit={handleTankSubmit} className="space-y-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Kode Tangki *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Kode Tangki *</label>
                 <input
                   type="text"
                   value={tankCode}
                   onChange={(e) => setTankCode(e.target.value)}
                   required
                   placeholder="e.g. HT-04, ST-WIP-03"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted font-mono focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Nama Tangki *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Nama Tangki *</label>
                 <input
                   type="text"
                   value={tankName}
                   onChange={(e) => setTankName(e.target.value)}
                   required
                   placeholder="e.g. Holding Tank Buffer Adonan #4"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Tipe Tangki *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Tipe Tangki *</label>
                 <select
                   value={tankTypeForm}
                   onChange={(e) => setTankTypeForm(e.target.value as WipTankType)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="HOLDING_TANK">Holding Tank (Penampung Antara Produksi)</option>
                   <option value="STORAGE_TANK">Storage Tank (Penyimpanan Kapasitas Besar)</option>
@@ -4608,7 +4612,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Kapasitas Maksimal (kg) *</label>
+                <label className="block text-ink-secondary font-medium mb-1">Kapasitas Maksimal (kg) *</label>
                 <input
                   type="number"
                   step="1"
@@ -4617,12 +4621,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   onChange={(e) => setTankCapacity(e.target.value)}
                   required
                   placeholder="800"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Level Awal (kg)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Level Awal (kg)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -4630,28 +4634,28 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   value={tankInitialLevel}
                   onChange={(e) => setTankInitialLevel(e.target.value)}
                   placeholder="400"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Suhu Standar (°C)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Suhu Standar (°C)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={tankTemp}
                   onChange={(e) => setTankTemp(e.target.value)}
                   placeholder="45.0"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Status Agitator (Pengaduk)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Status Agitator (Pengaduk)</label>
                 <select
                   value={tankAgitator}
                   onChange={(e) => setTankAgitator(e.target.value as 'ON' | 'OFF')}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="ON">ON (Pengaduk Berputar)</option>
                   <option value="OFF">OFF (Tidak Aktif)</option>
@@ -4663,17 +4667,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-300 font-medium text-xs">
+                  <label className="block text-ink-secondary font-medium text-xs">
                     WIP yang Dialokasikan (1 Jenis WIP Sama)
                   </label>
-                  <span className="text-[10px] text-amber-400 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                  <span className="text-[10px] text-ink-amber font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
                     Formula Tunggal
                   </span>
                 </div>
                 <select
                   value={tankAssignedWip}
                   onChange={(e) => setTankAssignedWip(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-xs text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="">-- Kosong / Belum Dialokasikan --</option>
                   {state.master.wips.map(w => (
@@ -4682,17 +4686,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     </option>
                   ))}
                 </select>
-                <p className="text-[10px] text-slate-400 mt-1">
+                <p className="text-[10px] text-ink-secondary mt-1">
                   *Satu tangki hanya menampung 1 jenis WIP yang sama untuk menjaga kemurnian formula dan mencegah kontaminasi silang.
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-300 font-medium text-xs">
+                  <label className="block text-ink-secondary font-medium text-xs">
                     Ambang Batas Alert Rendah (kg)
                   </label>
-                  <span className="text-[10px] text-slate-400">Default: 20% Kapasitas</span>
+                  <span className="text-[10px] text-ink-secondary">Default: 20% Kapasitas</span>
                 </div>
                 <input
                   type="number"
@@ -4700,31 +4704,31 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   value={tankMinAlert}
                   onChange={(e) => setTankMinAlert(e.target.value)}
                   placeholder="100"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-xs text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
+                <p className="text-[10px] text-ink-secondary mt-1">
                   Alarm visual akan aktif jika isi tangki berada di bawah batas ini.
                 </p>
               </div>
             </div>
 
             {/* Row 3: Multi-Mesin Pengisi (Pilihan lebih dari 1 mesin) */}
-            <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+            <div className="bg-canvas p-3.5 rounded-2xl border border-border-subtle space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center space-x-2">
-                  <Cpu className="w-4 h-4 text-cyan-400" />
-                  <label className="text-xs font-bold text-white">
+                  <Cpu className="w-4 h-4 text-brand" />
+                  <label className="text-xs font-bold text-ink-primary">
                     Pilihan Mesin Pengisi (Bisa Beberapa Unit Mesin)
                   </label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800">
+                  <span className="text-[10px] font-mono font-bold text-brand bg-tint-cyan px-2.5 py-0.5 rounded-full border border-tint-cyan-border">
                     {tankAssignedMachines.length} Mesin Pengisi Dipilih
                   </span>
                   <button
                     type="button"
                     onClick={() => setTankAssignedMachines(state.master.machines.map(m => m.id))}
-                    className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-medium"
+                    className="text-[10px] text-brand hover:text-brand underline font-medium"
                   >
                     Pilih Semua
                   </button>
@@ -4732,19 +4736,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setTankAssignedMachines([])}
-                    className="text-[10px] text-slate-400 hover:text-white underline font-medium"
+                    className="text-[10px] text-ink-secondary hover:text-ink-primary underline font-medium"
                   >
                     Kosongkan
                   </button>
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Pilih satu atau lebih mesin produksi yang menjadi sumber pengisian WIP ke dalam tangki ini. Semua mesin yang dipilih harus menghasilkan <strong>1 jenis WIP yang sama</strong> sesuai alokasi di atas.
               </p>
 
               {state.master.machines.length === 0 ? (
-                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-400 text-center">
+                <div className="p-3 bg-surface border border-border-subtle rounded-xl text-xs text-ink-secondary text-center">
                   Belum ada master mesin. Silakan tambahkan mesin produksi di tab "Master Mesin Produksi".
                 </div>
               ) : (
@@ -4763,25 +4767,25 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                         }}
                         className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
                           isSelected
-                            ? 'bg-cyan-950/60 border-cyan-500/70 text-white shadow-md shadow-cyan-950'
-                            : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                            ? 'bg-tint-cyan border-cyan-500/70 text-ink-primary shadow-md shadow-cyan-950'
+                            : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong hover:bg-surface'
                         }`}
                       >
                         <div className="truncate mr-2">
                           <div className="flex items-center space-x-1.5 truncate">
-                            <span className="font-mono text-cyan-400 font-bold text-xs bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                            <span className="font-mono text-brand font-bold text-xs bg-canvas px-1.5 py-0.5 rounded border border-border-subtle">
                               {mach.code}
                             </span>
-                            <span className="truncate text-white font-medium">{mach.name}</span>
+                            <span className="truncate text-ink-primary font-medium">{mach.name}</span>
                           </div>
-                          <span className="text-[10px] text-slate-400 block truncate mt-1">
+                          <span className="text-[10px] text-ink-secondary block truncate mt-1">
                             {mach.line} • {mach.capacityKgPerHour} kg/jam
                           </span>
                         </div>
                         <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition ${
                           isSelected
                             ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-bold'
-                            : 'border-slate-600 bg-slate-800'
+                            : 'border-border-strong bg-elevated'
                         }`}>
                           {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
                         </div>
@@ -4807,23 +4811,23 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
         {/* Daftar Tangki WIP */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between text-xs text-ink-secondary">
             <span className="font-semibold uppercase tracking-wider text-[11px]">Daftar Tangki WIP Terpasang</span>
             <div className="flex items-center space-x-2">
               <button
                 type="button"
                 onClick={() => {
-                  if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+                  if (!isAdmin) {
                     onOpenAdminModal();
                     showToast('Otorisasi Administrator diperlukan untuk impor data tangki WIP', true);
                     return;
                   }
                   setIsTankImportOpen(true);
                 }}
-                className="text-[11px] text-emerald-300 hover:text-white flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800 hover:bg-emerald-900/60 transition"
+                className="text-[11px] text-ink-emerald hover:text-ink-primary flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-tint-emerald border border-tint-emerald-border hover:bg-tint-emerald transition"
                 title="Impor master tangki WIP dari CSV/JSON lokal atau Google Drive"
               >
-                <UploadCloud className="w-3 h-3 text-emerald-400" />
+                <UploadCloud className="w-3 h-3 text-ink-emerald" />
                 <span>Import Tangki</span>
               </button>
               <span className="font-mono">{state.master.tanks.length} Tangki</span>
@@ -4842,7 +4846,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               return (
                 <div
                   key={tank.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between hover:border-slate-700 transition"
+                  className="bg-surface border border-border-subtle rounded-2xl p-4 shadow-xl flex flex-col justify-between hover:border-border-strong transition"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -4854,14 +4858,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                               tank.type === 'STORAGE_TANK'
-                                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                ? 'bg-indigo-500/20 text-ink-indigo border border-indigo-500/30'
+                                : 'bg-amber-500/20 text-ink-amber border border-amber-500/30'
                             }`}
                           >
                             {tank.type === 'STORAGE_TANK' ? 'Storage' : 'Holding'}
                           </span>
                         </div>
-                        <h4 className="font-bold text-sm text-white mt-1.5">{tank.name}</h4>
+                        <h4 className="font-bold text-sm text-ink-primary mt-1.5">{tank.name}</h4>
                       </div>
 
                       <div className="flex items-center space-x-1 shrink-0">
@@ -4869,7 +4873,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleStartEditTank(tank)}
-                            className="text-cyan-400 hover:text-cyan-300 p-1.5 rounded-lg hover:bg-cyan-500/10 transition"
+                            className="text-brand hover:text-brand p-1.5 rounded-lg hover:bg-cyan-500/10 transition"
                             title="Edit Tangki & Mesin Pengisi"
                           >
                             <Edit3 className="w-4 h-4" />
@@ -4879,7 +4883,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <button
                             type="button"
                             onClick={() => onDeleteTank(tank.id)}
-                            className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition"
+                            className="text-ink-rose hover:text-ink-rose p-1.5 rounded-lg hover:bg-rose-500/10 transition"
                             title="Hapus Tangki"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -4891,12 +4895,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     {/* Progress Bar & Level */}
                     <div className="space-y-1.5 my-3">
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Level Saat Ini:</span>
-                        <span className="font-mono font-bold text-white">
+                        <span className="text-ink-secondary">Level Saat Ini:</span>
+                        <span className="font-mono font-bold text-ink-primary">
                           {tank.currentLevelKg.toFixed(1)} / {tank.capacityKg.toFixed(0)} kg
                         </span>
                       </div>
-                      <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div className="w-full bg-elevated h-2 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             percent < 20 ? 'bg-rose-500' : percent < 50 ? 'bg-amber-500' : 'bg-cyan-500'
@@ -4904,29 +4908,29 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           style={{ width: `${Math.min(100, percent)}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-[10px] text-slate-400">
+                      <div className="flex justify-between text-[10px] text-ink-secondary">
                         <span>{percent.toFixed(1)}% Terisi</span>
                         <span>Alert: &lt; {tank.minAlertKg || (tank.capacityKg * 0.2).toFixed(0)} kg</span>
                       </div>
                     </div>
 
                     {/* Details Box */}
-                    <div className="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800 text-xs space-y-2">
+                    <div className="bg-canvas rounded-xl p-2.5 border border-border-subtle text-xs space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px]">1 Jenis WIP:</span>
-                        <span className="text-white font-semibold truncate max-w-[170px] text-right">
-                          {wip ? wip.name : <em className="text-slate-500">Belum dialokasikan</em>}
+                        <span className="text-ink-secondary text-[11px]">1 Jenis WIP:</span>
+                        <span className="text-ink-primary font-semibold truncate max-w-[170px] text-right">
+                          {wip ? wip.name : <em className="text-ink-muted">Belum dialokasikan</em>}
                         </span>
                       </div>
 
                       {/* Connected Multi-Machines */}
-                      <div className="pt-1 border-t border-slate-850 space-y-1">
+                      <div className="pt-1 border-t border-border-subtle space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400 text-[11px] flex items-center space-x-1">
-                            <Cpu className="w-3 h-3 text-cyan-400" />
+                          <span className="text-ink-secondary text-[11px] flex items-center space-x-1">
+                            <Cpu className="w-3 h-3 text-brand" />
                             <span>Mesin Pengisi:</span>
                           </span>
-                          <span className="font-mono text-[10px] text-cyan-300 font-semibold bg-slate-900 px-1.5 py-0.2 rounded border border-slate-800">
+                          <span className="font-mono text-[10px] text-brand font-semibold bg-surface px-1.5 py-0.2 rounded border border-border-subtle">
                             {assignedMachines.length} Mesin Sumber
                           </span>
                         </div>
@@ -4935,24 +4939,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                             {assignedMachines.map(m => (
                               <span
                                 key={m.id}
-                                className="px-1.5 py-0.5 bg-slate-900 border border-slate-700/80 text-slate-200 rounded text-[10px] font-mono flex items-center space-x-1"
+                                className="px-1.5 py-0.5 bg-surface border border-border-strong text-ink-primary rounded text-[10px] font-mono flex items-center space-x-1"
                                 title={`${m.code} - ${m.name} (${m.line})`}
                               >
                                 <span className="font-extrabold text-sky-950 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300">{m.code}</span>
-                                <span className="text-slate-400 truncate max-w-[85px]">{m.name}</span>
+                                <span className="text-ink-secondary truncate max-w-[85px]">{m.name}</span>
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-slate-500 text-[10px] italic block">
+                          <span className="text-ink-muted text-[10px] italic block">
                             Belum dihubungkan ke mesin pengisi
                           </span>
                         )}
                       </div>
 
-                      <div className="flex justify-between pt-1 border-t border-slate-850">
-                        <span className="text-slate-400 text-[11px]">Suhu: {tank.temp !== undefined ? tank.temp : 45.0}°C</span>
-                        <span className="text-slate-300 text-[11px]">Agitator: {tank.agitatorStatus || 'ON'}</span>
+                      <div className="flex justify-between pt-1 border-t border-border-subtle">
+                        <span className="text-ink-secondary text-[11px]">Suhu: {tank.temp !== undefined ? tank.temp : 45.0}°C</span>
+                        <span className="text-ink-secondary text-[11px]">Agitator: {tank.agitatorStatus || 'ON'}</span>
                       </div>
                     </div>
                   </div>
@@ -4968,20 +4972,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {activeSubTab === 'USERS' && (
       <div className="space-y-5 animate-fadeIn">
         {/* Header Overview Banner */}
-        <div className="bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-900 border border-amber-500/30 p-4 sm:p-5 rounded-2xl shadow-xl">
+        <div className="bg-gradient-to-r from-tint-amber via-surface to-surface border border-amber-500/30 p-4 sm:p-5 rounded-2xl shadow-xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-amber-500/20">
             <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-ink-amber border border-amber-500/30 shrink-0">
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                <h3 className="text-base sm:text-lg font-bold text-ink-primary flex items-center space-x-2">
                   <span>Manajemen Otoritas & Akses Pengguna</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold uppercase">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-ink-amber font-mono font-bold uppercase">
                     Admin Hak Penuh
                   </span>
                 </h3>
-                <p className="text-xs text-slate-300">
+                <p className="text-xs text-ink-secondary">
                   Otoritas Administrator: Kelola pendaftaran & penghapusan operator lini produksi, serta kendalikan izin akses melihat bagi jajaran management.
                 </p>
               </div>
@@ -4991,9 +4995,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <button
                 type="button"
                 onClick={onOpenUserManagement}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition flex items-center space-x-1.5 shrink-0"
+                className="px-3 py-1.5 rounded-xl bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary text-xs font-semibold border border-border-strong transition flex items-center space-x-1.5 shrink-0"
               >
-                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <Users className="w-3.5 h-3.5 text-ink-amber" />
                 <span>Buka Mode Dialog Cepat</span>
               </button>
             )}
@@ -5001,42 +5005,42 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
           {/* Metric KPI Chips */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 text-xs">
-            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Total Operator:</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-cyan-400">
-                {state.registeredOperators?.length || 0} <span className="text-xs font-normal text-slate-400">Orang</span>
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Total Operator:</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-brand">
+                {state.registeredOperators?.length || 0} <span className="text-xs font-normal text-ink-secondary">Orang</span>
               </span>
-              <span className="text-[10px] text-emerald-400 block mt-0.5">
+              <span className="text-[10px] text-ink-emerald block mt-0.5">
                 ✓ {state.registeredOperators?.filter(o => o.status === 'ACTIVE').length || 0} Aktif Bekerja
               </span>
             </div>
 
-            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Sebaran Shift Operator:</span>
-              <div className="text-xs font-mono font-semibold text-slate-200 mt-1 flex items-center space-x-2">
-                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">S1: {state.registeredOperators?.filter(o => o.assignedShift === 1).length || 0}</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">S2: {state.registeredOperators?.filter(o => o.assignedShift === 2).length || 0}</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-purple-300">S3: {state.registeredOperators?.filter(o => o.assignedShift === 3).length || 0}</span>
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Sebaran Shift Operator:</span>
+              <div className="text-xs font-mono font-semibold text-ink-primary mt-1 flex items-center space-x-2">
+                <span className="px-1.5 py-0.5 rounded bg-elevated text-brand">S1: {state.registeredOperators?.filter(o => o.assignedShift === 1).length || 0}</span>
+                <span className="px-1.5 py-0.5 rounded bg-elevated text-ink-amber">S2: {state.registeredOperators?.filter(o => o.assignedShift === 2).length || 0}</span>
+                <span className="px-1.5 py-0.5 rounded bg-elevated text-ink-purple">S3: {state.registeredOperators?.filter(o => o.assignedShift === 3).length || 0}</span>
               </div>
-              <span className="text-[10px] text-slate-500 block mt-1">3 Shift Produksi 24 Jam</span>
+              <span className="text-[10px] text-ink-muted block mt-1">3 Shift Produksi 24 Jam</span>
             </div>
 
-            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Total Akun Management:</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-indigo-400">
-                {state.registeredManagement?.length || 0} <span className="text-xs font-normal text-slate-400">Akun</span>
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Total Akun Management:</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-ink-indigo">
+                {state.registeredManagement?.length || 0} <span className="text-xs font-normal text-ink-secondary">Akun</span>
               </span>
-              <span className="text-[10px] text-emerald-400 block mt-0.5">
+              <span className="text-[10px] text-ink-emerald block mt-0.5">
                 ✓ {state.registeredManagement?.filter(m => m.hasViewAccess).length || 0} Izin Melihat Aktif
               </span>
             </div>
 
-            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Izin Dicabut / Nonaktif:</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-rose-400">
-                {state.registeredManagement?.filter(m => !m.hasViewAccess).length || 0} <span className="text-xs font-normal text-slate-400">Terkunci</span>
+            <div className="bg-canvas p-3 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Izin Dicabut / Nonaktif:</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-ink-rose">
+                {state.registeredManagement?.filter(m => !m.hasViewAccess).length || 0} <span className="text-xs font-normal text-ink-secondary">Terkunci</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
+              <span className="text-[10px] text-ink-secondary block mt-0.5">
                 Read-Only Dashboard
               </span>
             </div>
@@ -5044,13 +5048,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         </div>
 
         {/* Segment Selector: Operator, Management, Security */}
-        <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex flex-wrap gap-1.5">
+        <div className="bg-surface border border-border-subtle p-1.5 rounded-2xl flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveUserTab('OPERATORS')}
             className={`flex-1 min-w-[200px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
               activeUserTab === 'OPERATORS'
                 ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <UserCheck className="w-4 h-4" />
@@ -5062,7 +5066,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             className={`flex-1 min-w-[200px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
               activeUserTab === 'MANAGEMENT'
                 ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Building className="w-4 h-4" />
@@ -5074,7 +5078,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             className={`flex-1 min-w-[160px] py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 ${
               activeUserTab === 'SECURITY'
                 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Lock className="w-4 h-4" />
@@ -5086,15 +5090,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         {activeUserTab === 'OPERATORS' && (
           <div className="space-y-5">
             {/* Form Pendaftaran Operator Baru */}
-            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-              <div className={`flex flex-wrap items-center justify-between gap-2 ${isOperatorFormOpen ? 'pb-3 mb-4 border-b border-slate-800' : ''}`}>
+            <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl">
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isOperatorFormOpen ? 'pb-3 mb-4 border-b border-border-subtle' : ''}`}>
                 <div className="flex items-center space-x-2.5">
-                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20">
                     <UserPlus className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">Formulir Pendaftaran Operator Baru</h4>
-                    <p className="text-[11px] text-slate-400">
+                    <h4 className="font-bold text-sm text-ink-primary">Formulir Pendaftaran Operator Baru</h4>
+                    <p className="text-[11px] text-ink-secondary">
                       Daftarkan operator untuk penugasan pada mesin pengisi, pembuatan WIP, atau penerimaan gudang.
                     </p>
                   </div>
@@ -5104,7 +5108,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     <button
                       type="button"
                       onClick={generateAutoNik}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono font-semibold border border-slate-700 transition"
+                      className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-brand text-xs font-mono font-semibold border border-border-strong transition"
                       title="Generate NIK otomatis"
                     >
                       ⚡ Auto NIK
@@ -5114,7 +5118,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     type="button"
                     onClick={() => setIsOperatorFormOpen(prev => !prev)}
                     aria-expanded={isOperatorFormOpen}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                    className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                   >
                     {isOperatorFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     <span>{isOperatorFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -5123,12 +5127,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
 
               {isOperatorFormOpen && (
-              <form onSubmit={handleOperatorSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+              <form onSubmit={handleOperatorSubmit} className="space-y-4 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Nama Operator */}
                   <div className="sm:col-span-2">
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Nama Lengkap Operator <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Nama Lengkap Operator <span className="text-ink-rose">*</span>
                     </label>
                     <input
                       type="text"
@@ -5136,14 +5140,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={opName}
                       onChange={(e) => setOpName(e.target.value)}
                       placeholder="e.g. Supriyadi Pratama, A.Md."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   {/* NIK Operator */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Nomor Induk Karyawan (NIK) <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Nomor Induk Karyawan (NIK) <span className="text-ink-rose">*</span>
                     </label>
                     <input
                       type="text"
@@ -5151,19 +5155,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={opNik}
                       onChange={(e) => setOpNik(e.target.value)}
                       placeholder="e.g. OPR-2026-009"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
                   {/* Shift Rutin */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Shift Penugasan <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Shift Penugasan <span className="text-ink-rose">*</span>
                     </label>
                     <select
                       value={opShift}
                       onChange={(e) => setOpShift(Number(e.target.value) as 1 | 2 | 3)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value={1}>Shift 1 (07:01 - 15:00)</option>
                       <option value={2}>Shift 2 (15:01 - 23:00)</option>
@@ -5173,13 +5177,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                   {/* Line Penugasan */}
                   <div className="sm:col-span-2">
-                    <label className="block text-slate-300 font-semibold mb-1">
+                    <label className="block text-ink-secondary font-semibold mb-1">
                       Line / Area Penugasan Utama
                     </label>
                     <select
                       value={opLine}
                       onChange={(e) => setOpLine(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                     >
                       <option value="Line 1 (Biskuit Domestik)">Line 1 (Biskuit Domestik)</option>
                       <option value="Line 2 (Wafer Ekspor KITE)">Line 2 (Wafer Ekspor KITE)</option>
@@ -5192,7 +5196,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
                   {/* Catatan / Kualifikasi Mesin */}
                   <div className="sm:col-span-2">
-                    <label className="block text-slate-300 font-semibold mb-1">
+                    <label className="block text-ink-secondary font-semibold mb-1">
                       Catatan Kualifikasi / Keterampilan Mesin
                     </label>
                     <input
@@ -5200,12 +5204,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={opNotes}
                       onChange={(e) => setOpNotes(e.target.value)}
                       placeholder="e.g. Sertifikasi Food Safety, Operator Mixer High-Shear, Operator CIP"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-800">
+                <div className="flex justify-end pt-2 border-t border-border-subtle">
                   <button
                     type="submit"
                     className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-cyan-600/25 active:scale-95 transition flex items-center space-x-2"
@@ -5219,14 +5223,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             {/* Tabel Daftar Operator Terdaftar */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
               {/* Toolbar: Search & Filter */}
-              <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/80">
+              <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface">
                 <div className="flex items-center space-x-2">
-                  <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <div className="p-1.5 rounded-lg bg-cyan-500/10 text-brand">
                     <UserCheck className="w-4 h-4" />
                   </div>
-                  <h4 className="font-bold text-sm text-white">
+                  <h4 className="font-bold text-sm text-ink-primary">
                     Daftar Operator Terdaftar ({state.registeredOperators?.length || 0})
                   </h4>
                 </div>
@@ -5234,13 +5238,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   {/* Search box */}
                   <div className="relative flex-1 sm:w-56">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={opSearch}
                       onChange={(e) => setOpSearch(e.target.value)}
                       placeholder="Cari nama / NIK..."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                     />
                   </div>
 
@@ -5248,7 +5252,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <select
                     value={opShiftFilter}
                     onChange={(e) => setOpShiftFilter(e.target.value as any)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500"
+                    className="bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-xs text-ink-secondary focus:outline-none focus:border-accent-primary"
                   >
                     <option value="ALL">Semua Shift</option>
                     <option value="1">Shift 1</option>
@@ -5260,7 +5264,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <select
                     value={opStatusFilter}
                     onChange={(e) => setOpStatusFilter(e.target.value as any)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500"
+                    className="bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-xs text-ink-secondary focus:outline-none focus:border-accent-primary"
                   >
                     <option value="ALL">Semua Status</option>
                     <option value="ACTIVE">Aktif Saja</option>
@@ -5273,7 +5277,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                    <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                       <th className="py-2.5 px-3">No</th>
                       <th className="py-2.5 px-3">Nama Operator & NIK</th>
                       <th className="py-2.5 px-3">Penugasan Line</th>
@@ -5283,7 +5287,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       <th className="py-2.5 px-3 text-center">Aksi Administrator</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-border-subtle">
                     {(() => {
                       const list = (state.registeredOperators || []).filter(op => {
                         const q = opSearch.toLowerCase();
@@ -5296,7 +5300,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       if (list.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={7} className="text-center py-8 text-slate-500 text-xs">
+                            <td colSpan={7} className="text-center py-8 text-ink-muted text-xs">
                               Tidak ada data operator yang sesuai dengan filter pencarian.
                             </td>
                           </tr>
@@ -5304,21 +5308,21 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       }
 
                       return list.map((op, idx) => (
-                        <tr key={op.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-3 font-mono text-slate-400">
+                        <tr key={op.id} className="hover:bg-elevated transition">
+                          <td className="py-3 px-3 font-mono text-ink-secondary">
                             #{idx + 1}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-bold text-white text-xs block">{op.name}</span>
-                            <span className="font-mono text-cyan-400 text-[11px]">{op.nik}</span>
+                            <span className="font-bold text-ink-primary text-xs block">{op.name}</span>
+                            <span className="font-mono text-brand text-[11px]">{op.nik}</span>
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-ink-secondary">
                             {op.assignedLine}
                           </td>
                           <td className="py-3 px-3 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                              op.assignedShift === 1 ? 'bg-cyan-500/20 text-cyan-300' :
-                              op.assignedShift === 2 ? 'bg-amber-500/20 text-amber-300' : 'bg-purple-500/20 text-purple-300'
+                              op.assignedShift === 1 ? 'bg-cyan-500/20 text-brand' :
+                              op.assignedShift === 2 ? 'bg-amber-500/20 text-ink-amber' : 'bg-purple-500/20 text-ink-purple'
                             }`}>
                               Shift {op.assignedShift}
                             </span>
@@ -5326,13 +5330,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                           <td className="py-3 px-3 text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               op.status === 'ACTIVE'
-                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                ? 'bg-emerald-500/15 text-ink-emerald border border-emerald-500/30'
+                                : 'bg-elevated text-ink-secondary border border-border-strong'
                             }`}>
                               {op.status === 'ACTIVE' ? 'AKTIF' : 'NON-AKTIF'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-slate-400 text-[11px] max-w-[160px] truncate" title={op.notes || '-'}>
+                          <td className="py-3 px-3 text-ink-secondary text-[11px] max-w-[160px] truncate" title={op.notes || '-'}>
                             {op.notes || '-'}
                           </td>
                           <td className="py-3 px-3 text-center">
@@ -5349,8 +5353,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                 }}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition ${
                                   op.status === 'ACTIVE'
-                                    ? 'bg-slate-800 text-slate-300 hover:text-white border-slate-700'
-                                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                                    ? 'bg-elevated text-ink-secondary hover:text-ink-primary border-border-strong'
+                                    : 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30 hover:bg-emerald-500/25'
                                 }`}
                               >
                                 {op.status === 'ACTIVE' ? 'Nonaktifkan' : 'Aktifkan'}
@@ -5367,7 +5371,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                     details: `NIK: ${op.nik} • ${op.assignedLine} (Shift ${op.assignedShift})`
                                   });
                                 }}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition border border-transparent hover:border-rose-500/30"
+                                className="p-1.5 rounded-lg text-ink-secondary hover:text-ink-rose hover:bg-rose-500/15 transition border border-transparent hover:border-rose-500/30"
                                 title="Hapus Operator Terdaftar"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -5388,15 +5392,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         {activeUserTab === 'MANAGEMENT' && (
           <div className="space-y-5">
             {/* Otoritas Eksekutif Callout Banner */}
-            <div className="bg-indigo-950/40 border border-indigo-500/40 p-4 rounded-2xl flex items-start space-x-3 text-xs shadow-lg">
-              <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 shrink-0 mt-0.5">
+            <div className="bg-tint-indigo border border-indigo-500/40 p-4 rounded-2xl flex items-start space-x-3 text-xs shadow-lg">
+              <div className="p-2 rounded-xl bg-indigo-500/20 text-ink-indigo shrink-0 mt-0.5">
                 <Building className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h4 className="font-bold text-sm text-indigo-200">
+                <h4 className="font-bold text-sm text-ink-indigo">
                   Kebijakan Hak Akses Melihat Management (Read-Only Executive)
                 </h4>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-ink-secondary leading-relaxed">
                   Pengguna jenis Management hanya memiliki hak melihat (Read-Only) data Dashboard produksi berjalan, stok material, tangki WIP, dan mengunduh laporan PDF shift tanpa hak mengubah formula BOM atau data inventaris.
                   Administrator berhak penuh mendaftarkan akun jajaran management, mengaktifkan/mencabut izin akses kapan saja, atau menghapus akun terdaftar.
                 </p>
@@ -5404,15 +5408,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             {/* Form Pendaftaran Akun Management */}
-            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-              <div className={`flex flex-wrap items-center justify-between gap-2 ${isManagementFormOpen ? 'pb-3 mb-4 border-b border-slate-800' : ''}`}>
+            <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl">
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isManagementFormOpen ? 'pb-3 mb-4 border-b border-border-subtle' : ''}`}>
                 <div className="flex items-center space-x-2.5">
-                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-ink-indigo border border-indigo-500/20">
                     <UserPlus className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">Formulir Tambah Akun Management</h4>
-                    <p className="text-[11px] text-slate-400">
+                    <h4 className="font-bold text-sm text-ink-primary">Formulir Tambah Akun Management</h4>
+                    <p className="text-[11px] text-ink-secondary">
                       Daftarkan akun eksekutif (Direktur, Factory Manager, Head of QC, PPIC, Maintenance).
                     </p>
                   </div>
@@ -5421,7 +5425,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   type="button"
                   onClick={() => setIsManagementFormOpen(prev => !prev)}
                   aria-expanded={isManagementFormOpen}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                 >
                   {isManagementFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   <span>{isManagementFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -5429,12 +5433,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
 
               {isManagementFormOpen && (
-              <form onSubmit={handleManagementSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+              <form onSubmit={handleManagementSubmit} className="space-y-4 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Nama Management */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Nama Lengkap & Gelar <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Nama Lengkap & Gelar <span className="text-ink-rose">*</span>
                     </label>
                     <input
                       type="text"
@@ -5442,14 +5446,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={mgtName}
                       onChange={(e) => setMgtName(e.target.value)}
                       placeholder="e.g. Dr. Ir. Gunawan, M.M."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   {/* Email Resmi */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Email Resmi Perusahaan <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Email Resmi Perusahaan <span className="text-ink-rose">*</span>
                     </label>
                     <input
                       type="email"
@@ -5457,14 +5461,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={mgtEmail}
                       onChange={(e) => setMgtEmail(e.target.value)}
                       placeholder="e.g. gunawan@factory.co.id"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   {/* Jabatan / Title */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Jabatan / Title Eksekutif <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Jabatan / Title Eksekutif <span className="text-ink-rose">*</span>
                     </label>
                     <input
                       type="text"
@@ -5472,19 +5476,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       value={mgtTitle}
                       onChange={(e) => setMgtTitle(e.target.value)}
                       placeholder="e.g. Factory Manager / Operations Director"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   {/* Departemen */}
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">
-                      Departemen / Divisi <span className="text-rose-400">*</span>
+                    <label className="block text-ink-secondary font-semibold mb-1">
+                      Departemen / Divisi <span className="text-ink-rose">*</span>
                     </label>
                     <select
                       value={mgtDepartment}
                       onChange={(e) => setMgtDepartment(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-indigo-500"
                     >
                       <option value="Plant Operations Management">Plant Operations Management</option>
                       <option value="Quality Assurance & QC">Quality Assurance & QC</option>
@@ -5497,20 +5501,20 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 </div>
 
                 {/* Sakelar Izin Akses Awal */}
-                <div className="flex items-center space-x-2 pt-1 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center space-x-2 pt-1 bg-canvas p-3 rounded-xl border border-border-subtle">
                   <input
                     type="checkbox"
                     id="mgtAccessCheckboxInTab"
                     checked={mgtAccess}
                     onChange={(e) => setMgtAccess(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 bg-slate-800 border-slate-700 focus:ring-0"
+                    className="w-4 h-4 rounded text-indigo-600 bg-elevated border-border-strong focus:ring-0"
                   />
-                  <label htmlFor="mgtAccessCheckboxInTab" className="text-xs text-slate-200 font-medium cursor-pointer">
+                  <label htmlFor="mgtAccessCheckboxInTab" className="text-xs text-ink-primary font-medium cursor-pointer">
                     Langsung berikan izin akses melihat (Read-Only) pada akun ini saat disimpan
                   </label>
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-800">
+                <div className="flex justify-end pt-2 border-t border-border-subtle">
                   <button
                     type="submit"
                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/25 active:scale-95 transition flex items-center space-x-2"
@@ -5524,14 +5528,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             {/* Tabel Daftar Akun Management Terdaftar */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
               {/* Toolbar */}
-              <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/80">
+              <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface">
                 <div className="flex items-center space-x-2">
-                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-ink-indigo">
                     <Building className="w-4 h-4" />
                   </div>
-                  <h4 className="font-bold text-sm text-white">
+                  <h4 className="font-bold text-sm text-ink-primary">
                     Daftar Akun Management Terdaftar ({state.registeredManagement?.length || 0})
                   </h4>
                 </div>
@@ -5539,13 +5543,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   {/* Search box */}
                   <div className="relative flex-1 sm:w-60">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={mgtSearch}
                       onChange={(e) => setMgtSearch(e.target.value)}
                       placeholder="Cari nama, email, jabatan..."
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
@@ -5553,7 +5557,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <select
                     value={mgtAccessFilter}
                     onChange={(e) => setMgtAccessFilter(e.target.value as any)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                    className="bg-elevated border border-border-strong rounded-xl px-2.5 py-1.5 text-xs text-ink-secondary focus:outline-none focus:border-indigo-500"
                   >
                     <option value="ALL">Semua Izin Akses</option>
                     <option value="ACTIVE">Izin Diberikan Saja</option>
@@ -5566,7 +5570,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                    <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                       <th className="py-2.5 px-3">No</th>
                       <th className="py-2.5 px-3">Nama Eksekutif & Email</th>
                       <th className="py-2.5 px-3">Jabatan & Departemen</th>
@@ -5575,7 +5579,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       <th className="py-2.5 px-3 text-center">Aksi Administrator</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-border-subtle">
                     {(() => {
                       const list = (state.registeredManagement || []).filter(m => {
                         const q = mgtSearch.toLowerCase();
@@ -5587,7 +5591,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       if (list.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={6} className="text-center py-8 text-slate-500 text-xs">
+                            <td colSpan={6} className="text-center py-8 text-ink-muted text-xs">
                               Tidak ada akun management yang sesuai dengan filter pencarian.
                             </td>
                           </tr>
@@ -5595,17 +5599,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       }
 
                       return list.map((mgt, idx) => (
-                        <tr key={mgt.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-3 font-mono text-slate-400">
+                        <tr key={mgt.id} className="hover:bg-elevated transition">
+                          <td className="py-3 px-3 font-mono text-ink-secondary">
                             #{idx + 1}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-bold text-white text-xs block">{mgt.name}</span>
-                            <span className="font-mono text-slate-400 text-[11px]">{mgt.email}</span>
+                            <span className="font-bold text-ink-primary text-xs block">{mgt.name}</span>
+                            <span className="font-mono text-ink-secondary text-[11px]">{mgt.email}</span>
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-semibold text-indigo-300 block">{mgt.title}</span>
-                            <span className="text-[10px] text-slate-400">{mgt.department}</span>
+                            <span className="font-semibold text-ink-indigo block">{mgt.title}</span>
+                            <span className="text-[10px] text-ink-secondary">{mgt.department}</span>
                           </td>
                           <td className="py-3 px-3 text-center">
                             {/* Interactive Access Switch Button */}
@@ -5618,8 +5622,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               }}
                               className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition inline-flex items-center space-x-1.5 border ${
                                 mgt.hasViewAccess
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                                  ? 'bg-emerald-500/20 text-ink-emerald border-emerald-500/40 hover:bg-emerald-500/30'
+                                  : 'bg-rose-500/20 text-ink-rose border-rose-500/40 hover:bg-rose-500/30'
                               }`}
                               title={mgt.hasViewAccess ? 'Klik untuk mencabut izin akses melihat' : 'Klik untuk memberikan izin akses melihat'}
                             >
@@ -5636,7 +5640,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               )}
                             </button>
                           </td>
-                          <td className="py-3 px-3 text-center text-slate-400 text-[11px] font-mono">
+                          <td className="py-3 px-3 text-center text-ink-secondary text-[11px] font-mono">
                             {mgt.registeredAt ? mgt.registeredAt.slice(0, 10) : '-'}
                           </td>
                           <td className="py-3 px-3 text-center">
@@ -5650,7 +5654,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                                   details: `${mgt.title} • ${mgt.email} (${mgt.department})`
                                 });
                               }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition border border-transparent hover:border-rose-500/30"
+                              className="p-1.5 rounded-lg text-ink-secondary hover:text-ink-rose hover:bg-rose-500/15 transition border border-transparent hover:border-rose-500/30"
                               title="Hapus Akun & Izin Management"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -5669,15 +5673,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
         {/* SEGMENT 3: KEAMANAN ADMINISTRATOR (GANTI PIN) */}
         {activeUserTab === 'SECURITY' && (
           <div className="max-w-xl mx-auto space-y-4">
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
-              <div className={`flex flex-wrap items-center justify-between gap-2 ${isChangePinFormOpen ? 'pb-3 border-b border-slate-800' : ''}`}>
+            <div className="bg-surface border border-border-subtle p-5 rounded-2xl shadow-xl space-y-4">
+              <div className={`flex flex-wrap items-center justify-between gap-2 ${isChangePinFormOpen ? 'pb-3 border-b border-border-subtle' : ''}`}>
                 <div className="flex items-center space-x-2.5">
-                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-ink-amber border border-amber-500/20">
                     <KeyRound className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">Ganti PIN Akses Administrator</h4>
-                    <p className="text-[11px] text-slate-400">
+                    <h4 className="font-bold text-sm text-ink-primary">Ganti PIN Akses Administrator</h4>
+                    <p className="text-[11px] text-ink-secondary">
                       PIN ini mengamankan seluruh perubahan formula BOM, mesin, tangki, dan manajemen otoritas pengguna.
                     </p>
                   </div>
@@ -5686,7 +5690,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   type="button"
                   onClick={() => setIsChangePinFormOpen(prev => !prev)}
                   aria-expanded={isChangePinFormOpen}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                 >
                   {isChangePinFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   <span>{isChangePinFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -5694,9 +5698,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
 
               {isChangePinFormOpen && (
-              <form onSubmit={handleChangePinSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+              <form onSubmit={handleChangePinSubmit} className="space-y-4 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
+                  <label className="block text-ink-secondary font-semibold mb-1">
                     PIN / Password Administrator Baru (Min. 8 Karakter)
                   </label>
                   <input
@@ -5707,12 +5711,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     value={newAdminPin}
                     onChange={(e) => setNewAdminPin(e.target.value)}
                     placeholder="Minimal 8 karakter unik..."
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
+                  <label className="block text-ink-secondary font-semibold mb-1">
                     Konfirmasi Ulang PIN Administrator
                   </label>
                   <input
@@ -5723,15 +5727,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     value={confirmAdminPin}
                     onChange={(e) => setConfirmAdminPin(e.target.value)}
                     placeholder="Ketik ulang PIN baru"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
-                <div className="p-3 bg-amber-950/20 rounded-xl border border-amber-500/30 text-amber-300 text-[11px]">
+                <div className="p-3 bg-tint-amber rounded-xl border border-amber-500/30 text-ink-amber text-[11px]">
                   🔒 <strong>Keamanan Aktif:</strong> PIN/Password Administrator di-hash menggunakan PBKDF2-SHA256 (210.000 iterasi) dan divalidasi terhadap daftar kata sandi umum yang bocor.
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-800">
+                <div className="flex justify-end pt-2 border-t border-border-subtle">
                   <button
                     type="submit"
                     className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-600/25 active:scale-95 transition"
@@ -5750,34 +5754,34 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* MODAL KONFIRMASI PENGHAPUSAN PENGGUNA (IN-APP DIALOG) */}
     {deleteConfirmation && (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-          <div className="flex items-center space-x-3 text-rose-400">
+        <div className="bg-surface border border-border-subtle rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+          <div className="flex items-center space-x-3 text-ink-rose">
             <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-sm">
+              <h3 className="font-bold text-ink-primary text-sm">
                 Konfirmasi Penghapusan {deleteConfirmation.type === 'OPERATOR' ? 'Operator' : 'Akun Management'}
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Tindakan ini akan menghapus data pengguna dari masterlist sistem.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-bold">
+          <div className="bg-canvas p-3.5 rounded-xl border border-border-subtle space-y-1">
+            <span className="text-[10px] text-ink-muted uppercase tracking-wider block font-bold">
               Data yang Akan Dihapus:
             </span>
-            <div className="font-bold text-white text-xs">{deleteConfirmation.name}</div>
-            <div className="text-[11px] text-slate-400 font-mono">{deleteConfirmation.details}</div>
+            <div className="font-bold text-ink-primary text-xs">{deleteConfirmation.name}</div>
+            <div className="text-[11px] text-ink-secondary font-mono">{deleteConfirmation.details}</div>
           </div>
 
-          <div className="flex items-center space-x-2 pt-2 border-t border-slate-800">
+          <div className="flex items-center space-x-2 pt-2 border-t border-border-subtle">
             <button
               type="button"
               onClick={() => setDeleteConfirmation(null)}
-              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
+              className="flex-1 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl text-xs font-semibold transition"
             >
               Batal
             </button>
@@ -5796,24 +5800,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* Edit Tank Modal */}
     {editingTank && (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-5 shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-2xl p-5 shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+          <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl">
+              <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 text-brand rounded-xl">
                 <Edit3 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">
+                <h3 className="font-bold text-sm text-ink-primary">
                   Edit Tangki WIP & Mesin Pengisi: {editingTank.code}
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Ubah mesin pengisi sumber WIP (multi-mesin) dan formula WIP tunggal
                 </p>
               </div>
             </div>
             <button
               onClick={() => setEditingTank(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800"
+              className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated"
             >
               <X className="w-5 h-5" />
             </button>
@@ -5822,47 +5826,47 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
           <form onSubmit={handleSaveEditTank} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Nama Tangki</label>
+                <label className="block text-ink-secondary font-medium mb-1">Nama Tangki</label>
                 <input
                   type="text"
                   value={editTankName}
                   onChange={(e) => setEditTankName(e.target.value)}
                   required
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Kapasitas Maksimal (kg)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Kapasitas Maksimal (kg)</label>
                 <input
                   type="number"
                   step="1"
                   value={editTankCapacity}
                   onChange={(e) => setEditTankCapacity(e.target.value)}
                   required
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Suhu Target (°C)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Suhu Target (°C)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={editTankTemp}
                   onChange={(e) => setEditTankTemp(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Status Agitator</label>
+                <label className="block text-ink-secondary font-medium mb-1">Status Agitator</label>
                 <select
                   value={editTankAgitator}
                   onChange={(e) => setEditTankAgitator(e.target.value as 'ON' | 'OFF')}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 >
                   <option value="ON">ON (Aktif Berputar)</option>
                   <option value="OFF">OFF (Mati)</option>
@@ -5870,13 +5874,13 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Min Alert (kg)</label>
+                <label className="block text-ink-secondary font-medium mb-1">Min Alert (kg)</label>
                 <input
                   type="number"
                   step="1"
                   value={editTankMinAlert}
                   onChange={(e) => setEditTankMinAlert(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
@@ -5884,17 +5888,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             {/* 1 Jenis WIP Sama */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-slate-300 font-medium">
+                <label className="block text-ink-secondary font-medium">
                   Alokasi Formula WIP (1 Jenis WIP Sama)
                 </label>
-                <span className="text-[10px] text-amber-400 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                <span className="text-[10px] text-ink-amber font-medium bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
                   Formula Tunggal
                 </span>
               </div>
               <select
                 value={editTankWip}
                 onChange={(e) => setEditTankWip(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
               >
                 <option value="">-- Kosong / Belum Dialokasikan --</option>
                 {state.master.wips.map(w => (
@@ -5906,17 +5910,17 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             {/* Mesin Pengisi Multi-Mesin */}
-            <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+            <div className="bg-canvas p-3.5 rounded-2xl border border-border-subtle space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-white flex items-center space-x-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-xs font-bold text-ink-primary flex items-center space-x-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-brand" />
                   <span>Mesin Pengisi Sumber WIP ({editTankMachines.length} Terpilih)</span>
                 </label>
                 <div className="flex space-x-2 text-[10px]">
                   <button
                     type="button"
                     onClick={() => setEditTankMachines(state.master.machines.map(m => m.id))}
-                    className="text-cyan-400 hover:text-cyan-300 underline font-medium"
+                    className="text-brand hover:text-brand underline font-medium"
                   >
                     Pilih Semua
                   </button>
@@ -5924,7 +5928,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditTankMachines([])}
-                    className="text-slate-400 hover:text-white underline font-medium"
+                    className="text-ink-secondary hover:text-ink-primary underline font-medium"
                   >
                     Kosongkan
                   </button>
@@ -5946,19 +5950,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       }}
                       className={`p-2 rounded-xl border cursor-pointer flex items-center justify-between transition ${
                         isSelected
-                          ? 'bg-cyan-950/60 border-cyan-500 text-white'
-                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                          ? 'bg-tint-cyan border-cyan-500 text-ink-primary'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                       }`}
                     >
                       <div className="truncate mr-2">
                         <div className="flex items-center space-x-1.5 truncate">
-                          <span className="font-mono text-cyan-400 font-bold text-xs">{mach.code}</span>
-                          <span className="truncate text-white font-medium text-[11px]">{mach.name}</span>
+                          <span className="font-mono text-brand font-bold text-xs">{mach.code}</span>
+                          <span className="truncate text-ink-primary font-medium text-[11px]">{mach.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 block truncate">{mach.line}</span>
+                        <span className="text-[10px] text-ink-secondary block truncate">{mach.line}</span>
                       </div>
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-bold' : 'border-slate-600'
+                        isSelected ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-bold' : 'border-border-strong'
                       }`}>
                         {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
                       </div>
@@ -5968,11 +5972,11 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end space-x-2 border-t border-slate-800">
+            <div className="pt-2 flex justify-end space-x-2 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={() => setEditingTank(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium"
+                className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium"
               >
                 Batal
               </button>
@@ -6069,24 +6073,24 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* MODAL: Kelola Master WIP (1 Kode, Multi-Mesin, Multi-Tangki Transfer) */}
     {editingWip && (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="bg-surface border border-border-subtle rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
+          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center space-x-2.5">
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-ink-amber border border-amber-500/20">
                 <Layers className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-sm sm:text-base text-white">
+                <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                   Kelola Database WIP, Mesin & Tangki Transfer
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   1 Nama WIP memiliki 1 Kode unik. Kustomisasi multi-mesin dan multi-tangki penampungan (HT/ST).
                 </p>
               </div>
             </div>
             <button
               onClick={() => setEditingWip(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800"
+              className="text-ink-secondary hover:text-ink-primary p-1 rounded-lg bg-elevated"
             >
               <X className="w-4 h-4" />
             </button>
@@ -6096,30 +6100,30 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             {/* 1 Nama WIP = 1 Kode Unik */}
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-1">
-                <label className="block text-slate-300 font-semibold mb-1">Kode WIP (Unik):</label>
+                <label className="block text-ink-secondary font-semibold mb-1">Kode WIP (Unik):</label>
                 <input
                   type="text"
                   value={editWipCode}
                   onChange={(e) => setEditWipCode(e.target.value.toUpperCase())}
                   required
                   placeholder="WIP-001"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-cyan-300 font-mono font-bold uppercase focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-brand font-mono font-bold uppercase focus:outline-none focus:border-accent-primary"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-slate-300 font-semibold mb-1">Nama WIP:</label>
+                <label className="block text-ink-secondary font-semibold mb-1">Nama WIP:</label>
                 <input
                   type="text"
                   value={editWipName}
                   onChange={(e) => setEditWipName(e.target.value)}
                   required
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-ink-secondary font-semibold mb-1">
                 Berat 1 Batch Formulasi (kg):
               </label>
               <input
@@ -6128,14 +6132,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 value={editWipBatchWeight}
                 onChange={(e) => setEditWipBatchWeight(e.target.value)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+              <label className="block text-ink-secondary font-semibold mb-1 flex items-center justify-between">
                 <span>Lama Waktu Produksi (Menit / Batch):</span>
-                <span className="text-amber-400 font-mono font-bold">{editWipDuration || 30} menit</span>
+                <span className="text-ink-amber font-mono font-bold">{editWipDuration || 30} menit</span>
               </label>
               <div className="flex items-center space-x-2">
                 <input
@@ -6145,9 +6149,9 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   value={editWipDuration}
                   onChange={(e) => setEditWipDuration(e.target.value)}
                   required
-                  className="w-28 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500 font-bold"
+                  className="w-28 bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono focus:outline-none focus:border-accent-primary font-bold"
                 />
-                <span className="text-slate-400">menit</span>
+                <span className="text-ink-secondary">menit</span>
                 <div className="flex items-center space-x-1.5 ml-auto">
                   {['15', '30', '45', '60'].map(mins => (
                     <button
@@ -6157,7 +6161,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       className={`px-2 py-1 rounded-lg text-xs font-mono transition ${
                         editWipDuration === mins
                           ? 'bg-amber-500 text-slate-950 font-bold'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                          : 'bg-elevated hover:bg-accent text-ink-secondary'
                       }`}
                     >
                       {mins}m
@@ -6165,7 +6169,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   ))}
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">
+              <p className="text-[10px] text-ink-secondary mt-1">
                 Batch WIP otomatis selesai setelah waktu ini dan memicu alarm notifikasi.
               </p>
             </div>
@@ -6173,15 +6177,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             {/* Multi-machine selection checklist */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-slate-300 font-semibold uppercase text-[10px] flex items-center space-x-1">
-                  <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                <label className="text-ink-secondary font-semibold uppercase text-[10px] flex items-center space-x-1">
+                  <Cpu className="w-3.5 h-3.5 text-brand" />
                   <span>Pilih Mesin Produksi yang Diizinkan (Multi-Mesin):</span>
                 </label>
                 <div className="flex items-center space-x-1.5 text-[10px]">
                   <button
                     type="button"
                     onClick={() => setEditWipMachines(state.master.machines.map(m => m.id))}
-                    className="text-cyan-400 hover:text-cyan-300 font-medium"
+                    className="text-brand hover:text-brand font-medium"
                   >
                     Semua
                   </button>
@@ -6189,14 +6193,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditWipMachines([])}
-                    className="text-slate-400 hover:text-slate-300 font-medium"
+                    className="text-ink-secondary hover:text-ink-secondary font-medium"
                   >
                     Kosongkan
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto no-scrollbar bg-slate-950/80 p-2.5 rounded-xl border border-slate-700">
+              <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto no-scrollbar bg-canvas p-2.5 rounded-xl border border-border-strong">
                 {state.master.machines.map(m => {
                   const isChecked = editWipMachines.includes(m.id);
                   return (
@@ -6204,8 +6208,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       key={m.id}
                       className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition ${
                         isChecked
-                          ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-cyan-500/10 border-cyan-500/40 text-ink-primary'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                       }`}
                     >
                       <div className="flex items-center space-x-2 truncate mr-2">
@@ -6219,12 +6223,12 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               setEditWipMachines(prev => prev.filter(id => id !== m.id));
                             }
                           }}
-                          className="w-4 h-4 rounded text-cyan-600 bg-slate-800 border-slate-700 focus:ring-0"
+                          className="w-4 h-4 rounded text-cyan-600 bg-elevated border-border-strong focus:ring-0"
                         />
                         <span className="font-mono font-extrabold text-sky-950 bg-sky-100 px-1.5 py-0.5 rounded border border-sky-300 text-xs shrink-0">{m.code}</span>
                         <span className="truncate">{m.name}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                      <span className="text-[10px] text-ink-muted font-mono shrink-0">
                         {m.line.split('(')[0]}
                       </span>
                     </label>
@@ -6232,23 +6236,23 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 })}
               </div>
 
-              <p className="text-[10px] text-slate-400">
-                Terpilih: <strong className="text-cyan-400 font-mono">{editWipMachines.length} unit mesin</strong>.
+              <p className="text-[10px] text-ink-secondary">
+                Terpilih: <strong className="text-brand font-mono">{editWipMachines.length} unit mesin</strong>.
               </p>
             </div>
 
             {/* Multi-tank selection checklist (Holding Tanks & Storage Tanks) */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-slate-300 font-semibold uppercase text-[10px] flex items-center space-x-1">
-                  <Database className="w-3.5 h-3.5 text-purple-400" />
+                <label className="text-ink-secondary font-semibold uppercase text-[10px] flex items-center space-x-1">
+                  <Database className="w-3.5 h-3.5 text-ink-purple" />
                   <span>Tangki Penampungan / Penyimpanan Transfer (Multi-Tank):</span>
                 </label>
                 <div className="flex items-center space-x-1.5 text-[10px]">
                   <button
                     type="button"
                     onClick={() => setEditWipTankIds(state.master.tanks.map(t => t.id))}
-                    className="text-purple-400 hover:text-purple-300 font-medium"
+                    className="text-ink-purple hover:text-ink-purple font-medium"
                   >
                     Semua
                   </button>
@@ -6256,7 +6260,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditWipTankIds(state.master.tanks.filter(t => t.type === 'HOLDING_TANK').map(t => t.id))}
-                    className="text-amber-400 hover:text-amber-300 font-medium"
+                    className="text-ink-amber hover:text-ink-amber font-medium"
                   >
                     HT
                   </button>
@@ -6264,7 +6268,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditWipTankIds(state.master.tanks.filter(t => t.type === 'STORAGE_TANK').map(t => t.id))}
-                    className="text-cyan-400 hover:text-cyan-300 font-medium"
+                    className="text-brand hover:text-brand font-medium"
                   >
                     ST
                   </button>
@@ -6272,14 +6276,14 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setEditWipTankIds([])}
-                    className="text-slate-400 hover:text-slate-300 font-medium"
+                    className="text-ink-secondary hover:text-ink-secondary font-medium"
                   >
                     Kosongkan
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto no-scrollbar bg-slate-950/80 p-2.5 rounded-xl border border-slate-700">
+              <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto no-scrollbar bg-canvas p-2.5 rounded-xl border border-border-strong">
                 {state.master.tanks.map(t => {
                   const isChecked = editWipTankIds.includes(t.id);
                   const isHT = t.type === 'HOLDING_TANK';
@@ -6288,8 +6292,8 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                       key={t.id}
                       className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition ${
                         isChecked
-                          ? 'bg-purple-500/15 border-purple-500/50 text-white'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-purple-500/15 border-purple-500/50 text-ink-primary'
+                          : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                       }`}
                     >
                       <div className="flex items-center space-x-2 truncate mr-2">
@@ -6303,19 +6307,19 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                               setEditWipTankIds(prev => prev.filter(id => id !== t.id));
                             }
                           }}
-                          className="w-4 h-4 rounded text-purple-600 bg-slate-800 border-slate-700 focus:ring-0"
+                          className="w-4 h-4 rounded text-purple-600 bg-elevated border-border-strong focus:ring-0"
                         />
                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
                           isHT
-                            ? 'bg-amber-950 text-amber-300 border-amber-600/50'
-                            : 'bg-sky-950 text-sky-300 border-sky-600/50'
+                            ? 'bg-tint-amber text-ink-amber border-amber-600/50'
+                            : 'bg-tint-sky text-ink-sky border-sky-600/50'
                         }`}>
                           {isHT ? 'HT' : 'ST'}
                         </span>
-                        <span className="font-mono font-bold text-white text-[11px]">{t.code}</span>
-                        <span className="truncate text-slate-300">{t.name}</span>
+                        <span className="font-mono font-bold text-ink-primary text-[11px]">{t.code}</span>
+                        <span className="truncate text-ink-secondary">{t.name}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                      <span className="text-[10px] text-ink-secondary font-mono shrink-0">
                         {t.capacityKg} kg
                       </span>
                     </label>
@@ -6323,16 +6327,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                 })}
               </div>
 
-              <p className="text-[10px] text-slate-400">
-                Terpilih: <strong className="text-purple-300 font-mono">{editWipTankIds.length} tangki transfer</strong> (Holding/Storage Tanks).
+              <p className="text-[10px] text-ink-secondary">
+                Terpilih: <strong className="text-ink-purple font-mono">{editWipTankIds.length} tangki transfer</strong> (Holding/Storage Tanks).
               </p>
             </div>
 
-            <div className="flex items-center space-x-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center space-x-3 pt-3 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={() => setEditingWip(null)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition"
+                className="flex-1 py-2.5 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium transition"
               >
                 Batal
               </button>
@@ -6351,15 +6355,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* MODAL 1: Edit Resep (Kode, Nama, Deskripsi, Default) */}
     {editingRecipe && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl">
+              <div className="p-2 bg-cyan-500/10 text-brand rounded-xl">
                 <Edit3 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Edit Resep Formulasi</h3>
-                <p className="text-xs text-slate-400">
+                <h3 className="font-bold text-ink-primary text-base">Edit Resep Formulasi</h3>
+                <p className="text-xs text-ink-secondary">
                   Ubah identitas resep untuk WIP {state.master.wips.find(w => w.id === editingRecipe.wipId)?.name || ''}
                 </p>
               </div>
@@ -6367,7 +6371,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => setEditingRecipe(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800"
+              className="text-ink-secondary hover:text-ink-primary p-1 rounded-lg bg-elevated"
             >
               <X className="w-4 h-4" />
             </button>
@@ -6375,60 +6379,60 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
 
           <form onSubmit={handleSaveEditRecipe} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Kode Resep *</label>
+              <label className="block text-ink-secondary font-semibold mb-1">Kode Resep *</label>
               <input
                 type="text"
                 value={editRecipeCode}
                 onChange={(e) => setEditRecipeCode(e.target.value.toUpperCase())}
                 required
                 placeholder="Contoh: REC-WIP-01"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold uppercase focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono font-bold uppercase focus:outline-none focus:border-accent-primary"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Nama Resep Formulasi *</label>
+              <label className="block text-ink-secondary font-semibold mb-1">Nama Resep Formulasi *</label>
               <input
                 type="text"
                 value={editRecipeName}
                 onChange={(e) => setEditRecipeName(e.target.value)}
                 required
                 placeholder="Contoh: Resep Standar Original"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Keterangan / Catatan Formulasi</label>
+              <label className="block text-ink-secondary font-semibold mb-1">Keterangan / Catatan Formulasi</label>
               <textarea
                 rows={2}
                 value={editRecipeDesc}
                 onChange={(e) => setEditRecipeDesc(e.target.value)}
                 placeholder="Catatan parameter proses, varian rasa, atau acuan QC..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
               />
             </div>
 
-            <label className="flex items-center space-x-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-cyan-500/40 transition">
+            <label className="flex items-center space-x-2.5 p-3 rounded-xl bg-canvas border border-border-subtle cursor-pointer hover:border-cyan-500/40 transition">
               <input
                 type="checkbox"
                 checked={editRecipeIsDefault}
                 onChange={(e) => setEditRecipeIsDefault(e.target.checked)}
-                className="w-4 h-4 rounded text-cyan-600 bg-slate-800 border-slate-700 focus:ring-0"
+                className="w-4 h-4 rounded text-cyan-600 bg-elevated border-border-strong focus:ring-0"
               />
               <div>
-                <span className="font-semibold text-white block">Jadikan Resep Acuan Utama (Default)</span>
-                <span className="text-[11px] text-slate-400 block">
+                <span className="font-semibold text-ink-primary block">Jadikan Resep Acuan Utama (Default)</span>
+                <span className="text-[11px] text-ink-secondary block">
                   Resep ini otomatis terpilih saat pembuatan batch WIP dan penarikan permintaan material
                 </span>
               </div>
             </label>
 
-            <div className="flex items-center space-x-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center space-x-3 pt-3 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={() => setEditingRecipe(null)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition"
+                className="flex-1 py-2.5 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium transition"
               >
                 Batal
               </button>
@@ -6447,30 +6451,30 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* MODAL 2: Edit Takaran Material dalam Resep */}
     {editingRecipeItem && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+              <div className="p-2 bg-amber-500/10 text-ink-amber rounded-xl">
                 <Edit3 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Edit Takaran Material</h3>
-                <p className="text-xs text-slate-400">Sesuaikan porsi bahan dalam 1 batch WIP</p>
+                <h3 className="font-bold text-ink-primary text-base">Edit Takaran Material</h3>
+                <p className="text-xs text-ink-secondary">Sesuaikan porsi bahan dalam 1 batch WIP</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setEditingRecipeItem(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800"
+              className="text-ink-secondary hover:text-ink-primary p-1 rounded-lg bg-elevated"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <form onSubmit={handleSaveEditRecipeItem} className="space-y-4 text-xs">
-            <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
-              <span className="text-[10px] text-slate-400 uppercase font-mono block">Material Terpilih:</span>
-              <span className="font-bold text-white text-sm block mt-0.5">
+            <div className="p-3 bg-canvas border border-border-subtle rounded-xl">
+              <span className="text-[10px] text-ink-secondary uppercase font-mono block">Material Terpilih:</span>
+              <span className="font-bold text-ink-primary text-sm block mt-0.5">
                 {editingRecipeItem.item.materialName}
               </span>
               {editingRecipeItem.item.materialCode && (
@@ -6481,7 +6485,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Takaran per 1 Batch *</label>
+              <label className="block text-ink-secondary font-semibold mb-1">Takaran per 1 Batch *</label>
               <div className="flex gap-2">
                 <input
                   type="number"
@@ -6491,16 +6495,16 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                   onChange={(e) => setEditItemAmount(e.target.value)}
                   required
                   placeholder="0.0000"
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-cyan-400 font-mono font-bold focus:outline-none focus:border-cyan-500 text-sm"
+                  className="flex-1 bg-elevated border border-border-strong rounded-xl px-3 py-2 text-brand font-mono font-bold focus:outline-none focus:border-accent-primary text-sm"
                 />
-                <div className="flex rounded-xl overflow-hidden border border-slate-700 bg-slate-800 p-0.5 shrink-0">
+                <div className="flex rounded-xl overflow-hidden border border-border-strong bg-elevated p-0.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => setEditItemUnit('kg')}
                     className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
                       editItemUnit === 'kg'
                         ? 'bg-cyan-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     kg / batch
@@ -6511,7 +6515,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
                     className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
                       editItemUnit === 'gr'
                         ? 'bg-amber-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     gr / batch
@@ -6520,15 +6524,15 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
               </div>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-800/40 text-[11px] text-slate-300">
-              Setara: <strong className="text-cyan-400 font-mono">{editItemAmount && !isNaN(parseFloat(editItemAmount)) ? (editItemUnit === 'gr' ? parseFloat(editItemAmount) / 1000 : parseFloat(editItemAmount)).toFixed(4) : '0.0000'} kg</strong> per batch WIP.
+            <div className="p-2.5 rounded-xl bg-tint-cyan border border-tint-cyan-border text-[11px] text-ink-secondary">
+              Setara: <strong className="text-brand font-mono">{editItemAmount && !isNaN(parseFloat(editItemAmount)) ? (editItemUnit === 'gr' ? parseFloat(editItemAmount) / 1000 : parseFloat(editItemAmount)).toFixed(4) : '0.0000'} kg</strong> per batch WIP.
             </div>
 
-            <div className="flex items-center space-x-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center space-x-3 pt-3 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={() => setEditingRecipeItem(null)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition"
+                className="flex-1 py-2.5 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium transition"
               >
                 Batal
               </button>
@@ -6547,43 +6551,43 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
     {/* MODAL 3: Konfirmasi Hapus Resep Formulasi */}
     {deleteRecipeTarget && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-rose-800/50 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-          <div className="flex items-center space-x-3 text-rose-400">
+        <div className="bg-surface border border-tint-rose-border rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+          <div className="flex items-center space-x-3 text-ink-rose">
             <div className="p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Hapus Resep Formulasi?</h3>
-              <p className="text-xs text-rose-300">Tindakan ini tidak dapat dibatalkan</p>
+              <h3 className="font-bold text-ink-primary text-base">Hapus Resep Formulasi?</h3>
+              <p className="text-xs text-ink-rose">Tindakan ini tidak dapat dibatalkan</p>
             </div>
           </div>
 
-          <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-xl text-xs space-y-2">
+          <div className="bg-canvas border border-border-subtle p-3.5 rounded-xl text-xs space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-400">Kode Resep:</span>
-              <span className="font-mono font-bold text-amber-400">{deleteRecipeTarget.recipeCode}</span>
+              <span className="text-ink-secondary">Kode Resep:</span>
+              <span className="font-mono font-bold text-ink-amber">{deleteRecipeTarget.recipeCode}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Nama Resep:</span>
-              <span className="font-bold text-white">{deleteRecipeTarget.recipeName}</span>
+              <span className="text-ink-secondary">Nama Resep:</span>
+              <span className="font-bold text-ink-primary">{deleteRecipeTarget.recipeName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Target WIP:</span>
-              <span className="text-cyan-400 font-medium">
+              <span className="text-ink-secondary">Target WIP:</span>
+              <span className="text-brand font-medium">
                 {state.master.wips.find(w => w.id === deleteRecipeTarget.wipId)?.name || '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Jumlah Bahan:</span>
-              <span className="font-mono text-slate-200">{deleteRecipeTarget.items?.length || 0} material</span>
+              <span className="text-ink-secondary">Jumlah Bahan:</span>
+              <span className="font-mono text-ink-primary">{deleteRecipeTarget.items?.length || 0} material</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Total Berat:</span>
-              <span className="font-mono font-bold text-cyan-400">{deleteRecipeTarget.totalWeightKg.toFixed(4)} kg</span>
+              <span className="text-ink-secondary">Total Berat:</span>
+              <span className="font-mono font-bold text-brand">{deleteRecipeTarget.totalWeightKg.toFixed(4)} kg</span>
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-ink-secondary">
             Menghapus resep ini akan menghapus seluruh susunan takaran material yang ada di dalamnya.
           </p>
 
@@ -6591,7 +6595,7 @@ export const MasterBOMView: React.FC<MasterBOMViewProps> = ({
             <button
               type="button"
               onClick={() => setDeleteRecipeTarget(null)}
-              className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition text-xs"
+              className="flex-1 py-2.5 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium transition text-xs"
             >
               Batal
             </button>

@@ -194,18 +194,18 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
   return (
     <div className="space-y-3">
       {driveError && (
-        <div className="p-3 bg-rose-950/50 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-start space-x-2.5">
-          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+        <div className="p-3 bg-tint-rose border border-rose-500/40 rounded-xl text-xs text-ink-rose flex items-start space-x-2.5">
+          <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
           <div className="space-y-1 flex-1">
-            <p className="font-semibold text-rose-300">Kendala Google Drive:</p>
+            <p className="font-semibold text-ink-rose">Kendala Google Drive:</p>
             <p className="text-[11px] leading-relaxed">{driveError}</p>
           </div>
         </div>
       )}
 
       {!driveToken ? (
-        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 text-center space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+        <div className="bg-elevated border border-border-strong rounded-2xl p-6 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-ink-blue">
             <svg className="w-8 h-8" viewBox="0 0 87.3 78" fill="currentColor">
               <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
               <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47" />
@@ -216,11 +216,11 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
             </svg>
           </div>
           <div>
-            <h4 className="font-bold text-white text-sm">Hubungkan ke Akun Google Drive</h4>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
+            <h4 className="font-bold text-ink-primary text-sm">Hubungkan ke Akun Google Drive</h4>
+            <p className="text-xs text-ink-secondary mt-1 max-w-md mx-auto leading-relaxed">
               {description}
             </p>
-            <p className="text-[11px] text-cyan-300/80 mt-1.5 max-w-md mx-auto">
+            <p className="text-[11px] text-brand mt-1.5 max-w-md mx-auto">
               Mendukung Google Spreadsheet, Excel (.xlsx/.xls), CSV, TSV, JSON, dan Google Docs. Pastikan izin baca Google Drive dicentang saat login.
             </p>
           </div>
@@ -252,7 +252,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
               className={`inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition border ${
                 showRedirectFallback
                   ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-600/20'
-                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                  : 'bg-surface hover:bg-elevated text-ink-secondary border-border-strong'
               }`}
               title="Gunakan metode ini jika browser memblokir jendela popup"
             >
@@ -264,12 +264,12 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
       ) : (
         <div className="space-y-3">
           {/* Account Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-blue-950/20 border border-blue-900/40 rounded-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-tint-blue border border-tint-blue-border rounded-xl">
             <div className="flex items-center space-x-2 text-xs">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-slate-300">
+              <span className="text-ink-secondary">
                 Google Drive Terhubung:{' '}
-                <strong className="text-white">{driveUserEmail || 'Akun Google'}</strong>
+                <strong className="text-ink-primary">{driveUserEmail || 'Akun Google'}</strong>
               </span>
             </div>
 
@@ -278,7 +278,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                 type="button"
                 onClick={() => fetchFiles(driveToken, driveSearch)}
                 disabled={isLoading}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center space-x-1 transition"
+                className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary rounded-lg text-xs flex items-center space-x-1 transition"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                 <span>Segarkan</span>
@@ -287,7 +287,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                 type="button"
                 onClick={handleConnect}
                 disabled={isLoading}
-                className="px-2.5 py-1.5 bg-blue-900/40 hover:bg-blue-800/50 text-blue-300 rounded-lg text-xs transition"
+                className="px-2.5 py-1.5 bg-tint-blue hover:bg-blue-800/50 text-ink-blue rounded-lg text-xs transition"
               >
                 Ganti Akun
               </button>
@@ -295,7 +295,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                 type="button"
                 onClick={handleDisconnect}
                 disabled={isLoading}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-950 text-rose-300 rounded-lg text-xs flex items-center space-x-1 transition"
+                className="px-2.5 py-1.5 bg-elevated hover:bg-tint-rose text-ink-rose rounded-lg text-xs flex items-center space-x-1 transition"
                 title="Putuskan koneksi Google Drive"
               >
                 <LogOut className="w-3 h-3" />
@@ -306,7 +306,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
 
           {/* Search Bar */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-secondary" />
             <input
               type="text"
               value={driveSearch}
@@ -318,7 +318,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                 }
               }}
               placeholder={searchPlaceholder}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-20 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl pl-9 pr-20 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
             />
             <button
               type="button"
@@ -331,15 +331,15 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
           </div>
 
           {/* File List */}
-          <div className="border border-slate-800 rounded-xl bg-slate-900/60 overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-800 text-[11px] font-semibold text-slate-400 flex flex-wrap items-center justify-between gap-2">
+          <div className="border border-border-subtle rounded-xl bg-surface overflow-hidden">
+            <div className="px-3 py-2 border-b border-border-subtle text-[11px] font-semibold text-ink-secondary flex flex-wrap items-center justify-between gap-2">
               <span>Daftar File di Google Drive ({displayedFiles.length})</span>
               <div className="flex items-center space-x-3">
                 {driveFiles.length > relevantFiles.length && relevantFiles.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setShowAllFiles(prev => !prev)}
-                    className="text-cyan-400 hover:underline font-normal"
+                    className="text-brand hover:underline font-normal"
                   >
                     {showAllFiles
                       ? `Filter Spreadsheet/CSV (${relevantFiles.length})`
@@ -350,21 +350,21 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
               </div>
             </div>
 
-            <div className="max-h-56 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
+            <div className="max-h-56 overflow-y-auto divide-y divide-border-subtle no-scrollbar">
               {isLoading ? (
-                <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center space-x-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                <div className="p-8 text-center text-xs text-ink-secondary flex items-center justify-center space-x-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand" />
                   <span>Mengambil daftar file dari Google Drive...</span>
                 </div>
               ) : displayedFiles.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-400 space-y-2.5">
-                  <p className="text-slate-400">
+                <div className="p-8 text-center text-xs text-ink-secondary space-y-2.5">
+                  <p className="text-ink-secondary">
                     Tidak ada file Spreadsheet, Excel, CSV, atau JSON ditemukan di Google Drive Anda.
                   </p>
                   <button
                     type="button"
                     onClick={onSwitchToLocal}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-medium transition"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-elevated hover:bg-accent text-brand rounded-lg text-xs font-medium transition"
                   >
                     <HardDrive className="w-3.5 h-3.5" />
                     <span>Gunakan Unggah File Lokal (CSV / Excel / JSON)</span>
@@ -388,27 +388,27 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                       }}
                       className={`p-2.5 flex items-center justify-between cursor-pointer transition ${
                         isSelected
-                          ? 'bg-cyan-950/40 border-l-4 border-cyan-400'
-                          : 'hover:bg-slate-800/60'
+                          ? 'bg-tint-cyan border-l-4 border-cyan-400'
+                          : 'hover:bg-elevated'
                       }`}
                     >
                       <div className="flex items-center space-x-2.5 truncate mr-2">
-                        <div className="p-1.5 bg-slate-800 rounded-lg shrink-0">
+                        <div className="p-1.5 bg-elevated rounded-lg shrink-0">
                           {isGoogleSheet || isExcel ? (
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                            <FileSpreadsheet className="w-4 h-4 text-ink-emerald" />
                           ) : isJson ? (
-                            <FileCode className="w-4 h-4 text-amber-400" />
+                            <FileCode className="w-4 h-4 text-ink-amber" />
                           ) : isGoogleDoc ? (
-                            <FileText className="w-4 h-4 text-blue-400" />
+                            <FileText className="w-4 h-4 text-ink-blue" />
                           ) : (
-                            <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+                            <FileSpreadsheet className="w-4 h-4 text-brand" />
                           )}
                         </div>
                         <div className="truncate">
-                          <div className="text-xs font-semibold text-white truncate flex items-center space-x-1.5">
+                          <div className="text-xs font-semibold text-ink-primary truncate flex items-center space-x-1.5">
                             <span className="truncate">{file.name}</span>
                             {isGoogleSheet && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-normal shrink-0">
+                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-ink-emerald rounded font-normal shrink-0">
                                 Google Sheets
                               </span>
                             )}
@@ -418,12 +418,12 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                               </span>
                             )}
                             {isGoogleDoc && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-normal shrink-0">
+                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-ink-blue rounded font-normal shrink-0">
                                 Google Docs
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400 flex items-center space-x-2">
+                          <div className="text-[10px] text-ink-secondary flex items-center space-x-2">
                             {file.modifiedTime && (
                               <span>
                                 Diubah: {new Date(file.modifiedTime).toLocaleDateString('id-ID')}
@@ -439,7 +439,7 @@ export const GoogleDriveFileBrowser: React.FC<GoogleDriveFileBrowserProps> = ({
                         className={`px-2.5 py-1 rounded-lg text-xs font-medium shrink-0 flex items-center space-x-1 ${
                           isSelected
                             ? 'bg-cyan-500 text-slate-950 font-bold'
-                            : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+                            : 'bg-elevated text-ink-secondary hover:text-ink-primary hover:bg-accent'
                         }`}
                       >
                         {isFileLoading ? (

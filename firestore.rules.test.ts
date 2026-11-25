@@ -117,5 +117,65 @@ export const DIRTY_DOZEN_PAYLOADS = [
     operation: 'get',
     path: '/workspaceDirectory/0000000000000000000000000000000000000000000000000000000000000001',
     expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 14,
+    name: 'Operator Mutating Immutable Transaction Document',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'update',
+    path: '/workspaces/main/transactions/tx_req_1',
+    data: {
+      id: 'tx_req_1',
+      type: 'REQUEST',
+      timestamp: '2026-11-25T00:00:00.000Z',
+      actorEmail: 'op@factory.com',
+      payload: { qty: 9999 },
+      shift: 1,
+      skuCode: 'SKU-01'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 15,
+    name: 'Operator Deleting Immutable Transaction Document',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'delete',
+    path: '/workspaces/main/transactions/tx_req_1',
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 16,
+    name: 'Operator Impersonating Another Actor Email on Transaction Create',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/transactions/tx_spoof_1',
+    data: {
+      id: 'tx_spoof_1',
+      type: 'USAGE',
+      timestamp: '2026-11-25T00:00:00.000Z',
+      actorEmail: 'luasdzatzali@gmail.com',
+      payload: { usageQty: 50 },
+      shift: 1,
+      skuCode: 'SKU-01'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 17,
+    name: 'Management Attempting Transaction Create',
+    auth: { uid: 'mgt_uid', email: 'mgr@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/transactions/tx_mgt_1',
+    data: {
+      id: 'tx_mgt_1',
+      type: 'ADJUSTMENT',
+      timestamp: '2026-11-25T00:00:00.000Z',
+      actorEmail: 'mgr@factory.com',
+      payload: { deltaKg: 100 },
+      shift: 1,
+      skuCode: ''
+    },
+    expected: 'PERMISSION_DENIED'
   }
 ];
+

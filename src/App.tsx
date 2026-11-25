@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   AppState,
   Material,
@@ -49,8 +49,11 @@ import {
   computeLineAvailabilitySignature,
   consumeGoogleRedirectResult,
   DashboardLineStatusSnapshot,
+  extractActiveChangeoversFromMachines,
   formatGoogleAuthError,
   loadCloudWorkspaceDetailed,
+  mergeMachinesWithActiveChangeovers,
+  mergeMasterAndOpsTanks,
   publishDashboardLineStatusBroadcast,
   registerAdministratorWorkspace,
   saveWorkspaceSectionsToCloud,
@@ -59,8 +62,25 @@ import {
   startGoogleRedirectSignIn,
   subscribeAuthState,
   subscribeToDashboardLineStatus,
-  subscribeToWorkspaceCloud
+  subscribeToWorkspaceCloud,
+  WorkspaceRemotePatch
 } from './utils/firebaseSync';
+import {
+  appendTransaction,
+  deleteTransactionsByTypes,
+  hydrateTransactionsFromDocs,
+  mergeMigratedTransactionsIntoState,
+  migrateLegacyOperationsTransactionsIfNeeded,
+  subscribeRecentTransactions,
+  toTransactionDocFromAdjustment,
+  toTransactionDocFromCartonProd,
+  toTransactionDocFromReceipt,
+  toTransactionDocFromRequest,
+  toTransactionDocFromTankLog,
+  toTransactionDocFromUsage,
+  updateTransactionDoc,
+  WorkspaceTransactionDoc
+} from './services/transactionService';
 import {
   createSecurityAuditEntry,
   enforceHttpsTransport,
@@ -69,6 +89,7 @@ import {
   sanitizeTextInput,
   validatePasswordStrength
 } from './utils/security';
+import { resolveEffectiveRole } from './utils/roleAccess';
 import type { User } from 'firebase/auth';
 import { getMaterialCompositeKey } from './utils/materialParser';
 import { getCurrentShift, getShiftPeriodInfo, getNextShiftNumber } from './utils/shifts';
@@ -99,7 +120,8 @@ import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustme
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
 import { ContactSection, ContactFormData } from '@/components/ui/contact';
-import { CheckCircle2, AlertCircle, FileText, Activity, Clock, Zap, Layers, PauseCircle, Play } from 'lucide-react';
+import { Toaster, toast as sonnerToast } from 'sonner';
+import { FileText, Activity, Clock, Zap, Layers, PauseCircle, Play } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
@@ -130,18 +152,12 @@ export default function App() {
     setIsStockAdjustmentModalOpen(true);
   };
 
-  // Toast Notification state
-  const [toast, setToast] = useState<{ msg: string; isError: boolean; visible: boolean }>({
-    msg: '',
-    isError: false,
-    visible: false
-  });
-
   const showToast = useCallback((msg: string, isError = false) => {
-    setToast({ msg, isError, visible: true });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, visible: false }));
-    }, 3000);
+    if (isError) {
+      sonnerToast.error(msg);
+    } else {
+      sonnerToast.success(msg);
+    }
   }, []);
 
   // Cloud Setup & Cross-Device Firestore Sync State
@@ -149,6 +165,24 @@ export default function App() {
   const [cloudFactoryName, setCloudFactoryName] = useState<string | undefined>(undefined);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [cloudAuthRole, setCloudAuthRole] = useState<UserRole | null>(null);
+  const effectiveRole = useMemo(
+    () =>
+      resolveEffectiveRole(state, {
+        firebaseUserEmail: firebaseUser?.email ?? auth.currentUser?.email ?? null,
+        firebaseUid: firebaseUser?.uid ?? auth.currentUser?.uid ?? null,
+        cloudAuthRole
+      }),
+    [state, firebaseUser, cloudAuthRole]
+  );
+  const getEffectiveRoleForState = useCallback(
+    (targetState: AppState = stateRef.current) =>
+      resolveEffectiveRole(targetState, {
+        firebaseUserEmail: firebaseUser?.email ?? auth.currentUser?.email ?? null,
+        firebaseUid: firebaseUser?.uid ?? auth.currentUser?.uid ?? null,
+        cloudAuthRole
+      }),
+    [firebaseUser, cloudAuthRole]
+  );
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [authErrorBanner, setAuthErrorBanner] = useState<AuthErrorDetail | null>(null);
   const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
@@ -160,7 +194,21 @@ export default function App() {
   const manualGoogleLoginInFlightRef = useRef(false);
   const mainScrollRef = useRef<HTMLElement | null>(null);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
+  const txUnsubRef = useRef<(() => void) | null>(null);
   const lineStatusUnsubRef = useRef<(() => void) | null>(null);
+  const hasLegacyOperationsRef = useRef<boolean>(false);
+  const pendingTxDocsRef = useRef<Map<string, WorkspaceTransactionDoc>>(new Map());
+  const autoCartonBufferRef = useRef<
+    Map<
+      string,
+      {
+        cartonLog: CartonProductionLog;
+        tankLogs: Map<string, TankTransferLog>;
+        lastFlushedAt: number;
+        accumulatedCartons: number;
+      }
+    >
+  >(new Map());
   const cloudWriteTimersRef = useRef<{
     debounceTimer: ReturnType<typeof setTimeout> | null;
     maxWaitTimer: ReturnType<typeof setTimeout> | null;
@@ -194,30 +242,25 @@ export default function App() {
   const serializeMaster = (s: AppState) => JSON.stringify(s.master);
   const serializeOperations = (s: AppState) =>
     JSON.stringify({
-      transactions: s.transactions,
       activeSkuRuns: s.activeSkuRuns || [],
       tank: s.tank.isSimulationActive ? { ...s.tank, temp: 0 } : s.tank,
+      tanks: s.master.tanks || [],
       lastShiftHandover: s.lastShiftHandover ?? null,
       weeklyPlannings: s.weeklyPlannings || [],
-      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null
+      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null,
+      activeChangeovers: extractActiveChangeoversFromMachines(s.master.machines || []),
+      wipBatches: s.transactions.wipBatches || [],
+      changeovers: s.transactions.changeovers || [],
+      productionStops: s.transactions.productionStops || []
     });
 
   // Structural/critical operations excluding high-frequency Auto [ simulation counter ticks
   const serializeCriticalOperations = (s: AppState) =>
     JSON.stringify({
-      requests: s.transactions.requests,
-      receipts: s.transactions.receipts,
-      usages: s.transactions.usages,
       wipBatches: s.transactions.wipBatches,
       changeovers: s.transactions.changeovers,
       productionStops: s.transactions.productionStops,
-      stockAdjustments: s.transactions.stockAdjustments,
-      manualCartonsCount: (s.transactions.cartonProductions || []).filter(
-        cp => !cp.notes?.startsWith('Auto [')
-      ).length,
-      manualTankLogsCount: (s.transactions.tankLogs || []).filter(
-        tl => !tl.notes?.startsWith('Auto [')
-      ).length,
+      activeChangeovers: extractActiveChangeoversFromMachines(s.master.machines || []),
       tankStatic: {
         maxCapacity: s.tank.maxCapacity,
         minTempTarget: s.tank.minTempTarget,
@@ -246,27 +289,139 @@ export default function App() {
     };
   }, []);
 
+  const applyRemoteWorkspacePatch = useCallback(
+    (prev: AppState, patch: WorkspaceRemotePatch): AppState => {
+      const {
+        master: masterPatch,
+        transactions: txPatch,
+        opsTanks,
+        activeChangeovers,
+        hasLegacyOperationsTransactions: _hasLegacy,
+        transactionsMigrated: _migrated,
+        ...restPatch
+      } = patch;
+
+      let nextMaster = masterPatch ? { ...prev.master, ...masterPatch } : { ...prev.master };
+      if (opsTanks) {
+        nextMaster = {
+          ...nextMaster,
+          tanks: mergeMasterAndOpsTanks(nextMaster.tanks, opsTanks)
+        };
+      }
+      if (activeChangeovers) {
+        nextMaster = {
+          ...nextMaster,
+          machines: mergeMachinesWithActiveChangeovers(nextMaster.machines, activeChangeovers)
+        };
+      }
+
+      const nextTransactions = txPatch
+        ? {
+            ...prev.transactions,
+            ...txPatch
+          }
+        : prev.transactions;
+
+      return {
+        ...prev,
+        ...restPatch,
+        master: nextMaster,
+        transactions: nextTransactions
+      };
+    },
+    []
+  );
+
+  const getActiveActorEmail = useCallback(() => {
+    return (
+      firebaseUser?.email ||
+      auth.currentUser?.email ||
+      stateRef.current.currentSession?.email ||
+      stateRef.current.currentAdminUser?.email ||
+      'system@prodtrack.local'
+    );
+  }, [firebaseUser]);
+
+  const dispatchAppendTx = useCallback(
+    (txDoc: WorkspaceTransactionDoc) => {
+      const currentState = stateRef.current;
+      const canWriteTx =
+        cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR';
+      if (
+        setupStatus !== 'ready' ||
+        !(auth.currentUser || firebaseUser) ||
+        !canWriteTx ||
+        !currentState.cloudOwnerUid
+      ) {
+        return;
+      }
+      const workspaceId = currentState.cloudWorkspaceId || 'main';
+      pendingTxDocsRef.current.set(txDoc.id, txDoc);
+      void appendTransaction(workspaceId, txDoc).catch(err => {
+        console.error('Failed to append transaction to Firestore sub-collection:', err);
+      });
+    },
+    [setupStatus, firebaseUser, cloudAuthRole]
+  );
+
+  const getBufferedAutoTxDocs = useCallback((): Map<string, WorkspaceTransactionDoc> => {
+    const combined = new Map<string, WorkspaceTransactionDoc>(pendingTxDocsRef.current);
+    const actorEmail = getActiveActorEmail();
+    autoCartonBufferRef.current.forEach(entry => {
+      const cpDoc = toTransactionDocFromCartonProd(entry.cartonLog, actorEmail);
+      combined.set(cpDoc.id, cpDoc);
+      entry.tankLogs.forEach(tl => {
+        const tlDoc = toTransactionDocFromTankLog(tl, actorEmail);
+        combined.set(tlDoc.id, tlDoc);
+      });
+    });
+    return combined;
+  }, [getActiveActorEmail]);
+
+  const flushAutoCartonBuffer = useCallback(
+    (targetLineOrRunKey?: string) => {
+      if (autoCartonBufferRef.current.size === 0) return;
+      const actorEmail = getActiveActorEmail();
+      const keysToFlush = Array.from(autoCartonBufferRef.current.keys()).filter(k =>
+        targetLineOrRunKey ? k.includes(targetLineOrRunKey) : true
+      );
+      keysToFlush.forEach(k => {
+        const entry = autoCartonBufferRef.current.get(k);
+        if (!entry) return;
+        autoCartonBufferRef.current.delete(k);
+        dispatchAppendTx(toTransactionDocFromCartonProd(entry.cartonLog, actorEmail));
+        entry.tankLogs.forEach(tl => {
+          dispatchAppendTx(toTransactionDocFromTankLog(tl, actorEmail));
+        });
+      });
+    },
+    [dispatchAppendTx, getActiveActorEmail]
+  );
+
   // Sign In Success from AuthPortalView
   const handleLoginSuccess = useCallback(
     (
       role: UserRole,
-      sessionData: { id: string; name: string; subtitle?: string; email?: string }
+      sessionData: { id: string; name: string; subtitle?: string; email?: string },
+      cloudVerifiedRole?: UserRole | null
     ) => {
       isLoggingOutRef.current = false;
       isApplyingRemoteRef.current = false;
       setAuthErrorBanner(null);
       setState(prev => {
-        const isNewAdmin = role === 'ADMINISTRATOR';
         const initialTab: AppState['currentTab'] =
-          role === 'ADMINISTRATOR'
+          role === 'ADMINISTRATOR' || role === 'OFFLINE_PIN_ADMIN'
             ? 'admin-portal'
             : role === 'OPERATOR'
             ? 'pemakaian'
             : 'dashboard';
 
-        const fallbackEmail = normalizeEmail(sessionData.email || auth.currentUser?.email || '');
+        const isVerifiedCloudAdminCall = cloudVerifiedRole === 'ADMINISTRATOR';
+        const fallbackEmail = normalizeEmail(
+          sessionData.email || (isVerifiedCloudAdminCall ? auth.currentUser?.email || '' : '')
+        );
         const restoredAdminUser =
-          isNewAdmin && !prev.currentAdminUser && fallbackEmail
+          role === 'ADMINISTRATOR' && !prev.currentAdminUser && fallbackEmail
             ? {
                 email: fallbackEmail,
                 displayName: sanitizeTextInput(sessionData.name, 120),
@@ -279,22 +434,34 @@ export default function App() {
               }
             : prev.currentAdminUser;
 
+        const resolvedLoginRole = resolveEffectiveRole(
+          {
+            ...prev,
+            currentUserRole: role,
+            currentAdminUser: restoredAdminUser
+          },
+          {
+            firebaseUserEmail: auth.currentUser?.email ?? firebaseUser?.email ?? null,
+            firebaseUid: auth.currentUser?.uid ?? firebaseUser?.uid ?? null,
+            cloudAuthRole: cloudVerifiedRole ?? cloudAuthRole
+          }
+        );
+
         const loginAudit = createSecurityAuditEntry({
           eventType: 'LOGIN_SUCCESS',
           userEmail: fallbackEmail || sessionData.name,
-          role,
+          role: resolvedLoginRole.role,
           notes: `Masuk ke workspace ${prev.factoryName || 'ProdTrack'}`
         });
 
         return {
           ...prev,
           isAuthenticated: true,
-          currentUserRole: role,
-          isAdmin: isNewAdmin,
-          currentAdminUser: restoredAdminUser,
+          currentUserRole: resolvedLoginRole.role,
+          currentAdminUser: resolvedLoginRole.isCloudAdmin ? restoredAdminUser : null,
           currentTab: initialTab,
           currentSession: {
-            role,
+            role: resolvedLoginRole.role,
             id: sessionData.id,
             name: sessionData.name,
             subtitle: sessionData.subtitle,
@@ -303,9 +470,9 @@ export default function App() {
           securityLogs: [loginAudit, ...(prev.securityLogs || [])].slice(0, 100)
         };
       });
-      showToast(`Selamat datang, ${sessionData.name} (${role})`);
+      showToast(`Selamat datang, ${sessionData.name} (${role === 'OFFLINE_PIN_ADMIN' ? 'Mode PIN Lokal' : role})`);
     },
-    [showToast]
+    [showToast, firebaseUser, cloudAuthRole]
   );
 
   const applyCloudWorkspaceEntry = useCallback(
@@ -347,12 +514,10 @@ export default function App() {
       setAuthErrorBanner(null);
       setCloudAuthRole(loaded.cloudRole);
       setCloudFactoryName(loaded.factoryName);
+      hasLegacyOperationsRef.current = loaded.hasLegacyOperationsTransactions;
       isApplyingRemoteRef.current = true;
       setState(prev => {
-        const next: AppState = {
-          ...prev,
-          ...loaded.statePatch
-        };
+        const next = applyRemoteWorkspacePatch(prev, loaded.statePatch);
         refreshCloudSnapshotsBaseline(next);
         return next;
       });
@@ -360,15 +525,19 @@ export default function App() {
         isApplyingRemoteRef.current = false;
       }, 200);
 
-      handleLoginSuccess(effectiveRole, {
-        id: loaded.matchedProfileId || user.uid,
-        name: loaded.matchedProfileName || user.displayName || user.email || 'User',
-        email: user.email || undefined,
-        subtitle: loaded.matchedProfileSubtitle || `${effectiveRole} • ${loaded.factoryName}`
-      });
+      handleLoginSuccess(
+        effectiveRole,
+        {
+          id: loaded.matchedProfileId || user.uid,
+          name: loaded.matchedProfileName || user.displayName || user.email || 'User',
+          email: user.email || undefined,
+          subtitle: loaded.matchedProfileSubtitle || `${effectiveRole} • ${loaded.factoryName}`
+        },
+        loaded.cloudRole
+      );
       return true;
     },
-    [handleLoginSuccess, refreshCloudSnapshotsBaseline, showToast]
+    [applyRemoteWorkspacePatch, handleLoginSuccess, refreshCloudSnapshotsBaseline, showToast]
   );
 
   const runSetupCheck = useCallback(async () => {
@@ -459,8 +628,13 @@ export default function App() {
       if (!user) {
         cloudUnsubRef.current?.();
         cloudUnsubRef.current = null;
+        txUnsubRef.current?.();
+        txUnsubRef.current = null;
         lineStatusUnsubRef.current?.();
         lineStatusUnsubRef.current = null;
+        hasLegacyOperationsRef.current = false;
+        pendingTxDocsRef.current.clear();
+        autoCartonBufferRef.current.clear();
         if (cloudWriteTimersRef.current.debounceTimer) {
           clearTimeout(cloudWriteTimersRef.current.debounceTimer);
           cloudWriteTimersRef.current.debounceTimer = null;
@@ -492,11 +666,19 @@ export default function App() {
           const loaded = outcome.workspace;
           setCloudAuthRole(loaded.cloudRole);
           setCloudFactoryName(loaded.factoryName);
+          hasLegacyOperationsRef.current = loaded.hasLegacyOperationsTransactions;
           isApplyingRemoteRef.current = true;
           setState(prev => {
+            const patched = applyRemoteWorkspacePatch(prev, loaded.statePatch);
+            const resolved = resolveEffectiveRole(patched, {
+              firebaseUserEmail: firebaseUser.email,
+              firebaseUid: firebaseUser.uid,
+              cloudAuthRole: loaded.cloudRole
+            });
             const next: AppState = {
-              ...prev,
-              ...loaded.statePatch
+              ...patched,
+              currentUserRole: resolved.role,
+              currentAdminUser: resolved.isCloudAdmin ? patched.currentAdminUser : null
             };
             refreshCloudSnapshotsBaseline(next);
             return next;
@@ -518,7 +700,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [setupStatus, firebaseUser, refreshCloudSnapshotsBaseline]);
+  }, [setupStatus, firebaseUser, applyRemoteWorkspacePatch, refreshCloudSnapshotsBaseline]);
 
   // Attach debounced/batched real-time Firestore listeners for multi-device collaboration (isolated per workspaceId)
   useEffect(() => {
@@ -526,12 +708,12 @@ export default function App() {
     const unsub = subscribeToWorkspaceCloud(
       cloudAuthRole,
       patch => {
+        if (typeof patch.hasLegacyOperationsTransactions === 'boolean') {
+          hasLegacyOperationsRef.current = patch.hasLegacyOperationsTransactions;
+        }
         isApplyingRemoteRef.current = true;
         setState(prev => {
-          const next: AppState = {
-            ...prev,
-            ...patch
-          };
+          const next = applyRemoteWorkspacePatch(prev, patch);
           refreshCloudSnapshotsBaseline(next);
           return next;
         });
@@ -556,7 +738,83 @@ export default function App() {
         cloudUnsubRef.current = null;
       }
     };
-  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, refreshCloudSnapshotsBaseline]);
+  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, applyRemoteWorkspacePatch, refreshCloudSnapshotsBaseline]);
+
+  // Attach real-time Firestore listener for /workspaces/{workspaceId}/transactions sub-collection
+  useEffect(() => {
+    if (setupStatus !== 'ready' || !firebaseUser || !cloudAuthRole) return;
+    const workspaceId = state.cloudWorkspaceId || 'main';
+    const unsubTx = subscribeRecentTransactions(
+      workspaceId,
+      500,
+      docs => {
+        docs.forEach(d => {
+          pendingTxDocsRef.current.delete(d.id);
+        });
+        if (docs.length === 0 && hasLegacyOperationsRef.current) {
+          return;
+        }
+        const hydrated = hydrateTransactionsFromDocs(docs);
+        const pendingMap = getBufferedAutoTxDocs();
+        isApplyingRemoteRef.current = true;
+        setState(prev => ({
+          ...prev,
+          transactions: mergeMigratedTransactionsIntoState(prev.transactions, hydrated, pendingMap)
+        }));
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 100);
+      },
+      err => {
+        console.error('Realtime transaction sub-collection warning:', err);
+      }
+    );
+    txUnsubRef.current = unsubTx;
+    return () => {
+      unsubTx();
+      if (txUnsubRef.current === unsubTx) {
+        txUnsubRef.current = null;
+      }
+    };
+  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, getBufferedAutoTxDocs]);
+
+  // One-time automatic Admin migration of legacy transaction arrays from data/operations -> /transactions
+  useEffect(() => {
+    if (
+      setupStatus !== 'ready' ||
+      !firebaseUser ||
+      cloudAuthRole !== 'ADMINISTRATOR' ||
+      !effectiveRole.canWriteCloudMaster
+    ) {
+      return;
+    }
+    const workspaceId = state.cloudWorkspaceId;
+    if (!workspaceId) return;
+
+    let cancelled = false;
+    const runMigration = async () => {
+      try {
+        const res = await migrateLegacyOperationsTransactionsIfNeeded({
+          workspaceId,
+          adminEmail: firebaseUser.email,
+          skus: stateRef.current.master.skus
+        });
+        if (cancelled) return;
+        hasLegacyOperationsRef.current = false;
+        if (res.migrated && res.migratedCount > 0) {
+          showToast(
+            `Migrasi otomatis selesai: ${res.migratedCount} transaksi dipindahkan ke sub-koleksi Firestore.`
+          );
+        }
+      } catch (err) {
+        console.error('Legacy transaction migration warning:', err);
+      }
+    };
+    void runMigration();
+    return () => {
+      cancelled = true;
+    };
+  }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, showToast]);
 
   // Dedicated real-time listener specifically for DashboardView production line availability & SKU run progress
   useEffect(() => {
@@ -645,6 +903,7 @@ export default function App() {
     };
 
     isLoggingOutRef.current = false;
+    hasLegacyOperationsRef.current = false;
     setAuthErrorBanner(null);
     isApplyingRemoteRef.current = true;
     setState(finalState);
@@ -655,6 +914,26 @@ export default function App() {
     setTimeout(() => {
       isApplyingRemoteRef.current = false;
     }, 200);
+
+    // Seed initial template transactions (if any) directly into /transactions sub-collection
+    if (data.initMode === 'template' && finalState.cloudWorkspaceId) {
+      const wsId = finalState.cloudWorkspaceId;
+      const actor = data.user.email || 'admin@prodtrack.local';
+      const skus = finalState.master.skus || [];
+      const seedDocs: WorkspaceTransactionDoc[] = [
+        ...(finalState.transactions.requests || []).map(r => toTransactionDocFromRequest(r, actor, skus)),
+        ...(finalState.transactions.receipts || []).map(r => toTransactionDocFromReceipt(r, actor)),
+        ...(finalState.transactions.usages || []).map(u => toTransactionDocFromUsage(u, actor, skus)),
+        ...(finalState.transactions.cartonProductions || []).map(c => toTransactionDocFromCartonProd(c, actor)),
+        ...(finalState.transactions.tankLogs || []).map(t => toTransactionDocFromTankLog(t, actor)),
+        ...(finalState.transactions.stockAdjustments || []).map(a => toTransactionDocFromAdjustment(a, actor))
+      ];
+      seedDocs.forEach(d => {
+        pendingTxDocsRef.current.set(d.id, d);
+        void appendTransaction(wsId, d).catch(err => console.error('Template tx seed error:', err));
+      });
+    }
+
     showToast(`Administrator ${data.adminName} & Workspace "${data.factoryName}" berhasil disimpan ke Cloud!`);
   };
 
@@ -755,7 +1034,10 @@ export default function App() {
 
     refreshCloudSnapshotsBaseline(latestState);
     try {
-      await saveWorkspaceSectionsToCloud(sectionsToSave, latestState, cloudAuthRole);
+      await saveWorkspaceSectionsToCloud(sectionsToSave, latestState, cloudAuthRole, {
+        preserveLegacyOperationsKeys:
+          cloudAuthRole !== 'ADMINISTRATOR' && hasLegacyOperationsRef.current
+      });
     } catch (err) {
       console.error('Cloud sync save error:', err);
     }
@@ -766,6 +1048,8 @@ export default function App() {
     isLoggingOutRef.current = true;
     manualGoogleLoginInFlightRef.current = false;
     isApplyingRemoteRef.current = true;
+
+    flushAutoCartonBuffer();
 
     // Capture any queued cloud sections & active user context BEFORE wiping local state
     const capturedSections = { ...pendingCloudSectionsRef.current };
@@ -784,8 +1068,13 @@ export default function App() {
     // Tear down realtime listeners & pending write timers immediately
     cloudUnsubRef.current?.();
     cloudUnsubRef.current = null;
+    txUnsubRef.current?.();
+    txUnsubRef.current = null;
     lineStatusUnsubRef.current?.();
     lineStatusUnsubRef.current = null;
+    hasLegacyOperationsRef.current = false;
+    pendingTxDocsRef.current.clear();
+    autoCartonBufferRef.current.clear();
 
     if (cloudWriteTimersRef.current.debounceTimer) {
       clearTimeout(cloudWriteTimersRef.current.debounceTimer);
@@ -849,7 +1138,6 @@ export default function App() {
       ...getCleanBlankState(),
       theme: currentTheme,
       isAuthenticated: false,
-      isAdmin: false,
       currentTab: 'admin-portal',
       cloudWorkspaceId: undefined,
       cloudOwnerUid: undefined,
@@ -962,10 +1250,16 @@ export default function App() {
     );
     const curCriticalOpsSig = serializeCriticalOperations(state);
 
-    const metaChanged = curMeta !== prevSnaps.meta;
-    const secretsChanged = curSecrets !== prevSnaps.secrets;
-    const masterChanged = curMaster !== prevSnaps.master;
-    const opsChanged = curOps !== prevSnaps.operations;
+    const resolvedSyncRole = getEffectiveRoleForState(state);
+    const canWriteMaster = resolvedSyncRole.canWriteCloudMaster && cloudAuthRole === 'ADMINISTRATOR';
+    const canWriteOps =
+      resolvedSyncRole.canWriteCloudOperations &&
+      (cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR');
+
+    const metaChanged = canWriteMaster && curMeta !== prevSnaps.meta;
+    const secretsChanged = canWriteMaster && curSecrets !== prevSnaps.secrets;
+    const masterChanged = canWriteMaster && curMaster !== prevSnaps.master;
+    const opsChanged = canWriteOps && curOps !== prevSnaps.operations;
 
     if (!metaChanged && !secretsChanged && !masterChanged && !opsChanged) {
       return () => clearTimeout(localSaveTimer);
@@ -1012,6 +1306,7 @@ export default function App() {
         }
         return;
       }
+      flushAutoCartonBuffer();
       saveStateToStorage(stateRef.current);
       void flushPendingCloudWrites();
     };
@@ -1028,7 +1323,7 @@ export default function App() {
       window.removeEventListener('pagehide', flushState);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [flushPendingCloudWrites]);
+  }, [flushAutoCartonBuffer, flushPendingCloudWrites]);
 
   // Sync theme with HTML document element (Midnight vs Daylight)
   useEffect(() => {
@@ -1131,9 +1426,9 @@ export default function App() {
       setIsPdfReportModalOpen(true);
       return;
     }
-    const role = stateRef.current.currentUserRole;
+    const resolved = getEffectiveRoleForState();
     if (
-      role === 'MANAGEMENT' &&
+      resolved.isManagement &&
       tab !== 'dashboard' &&
       tab !== 'weekly-planning' &&
       tab !== 'tank-monitoring' &&
@@ -1144,7 +1439,7 @@ export default function App() {
       showToast('Akses dibatasi: User Management hanya memiliki izin melihat (Read-Only)', true);
       return;
     }
-    if (role !== 'ADMINISTRATOR' && (tab === 'master' || tab === 'admin-portal')) {
+    if (!resolved.isAdmin && (tab === 'master' || tab === 'admin-portal')) {
       showToast('Akses dibatasi: Portal dan Master BOM hanya dapat diakses oleh Administrator', true);
       return;
     }
@@ -1160,26 +1455,50 @@ export default function App() {
     await performCompleteLogout('Berhasil logout total. Anda dapat masuk ke akun lain atau mendaftar akun baru.');
   };
 
-  // Role switching (Administrator, Operator, Management)
+  // Role switching (Administrator, Offline PIN Admin, Operator, Management)
   const handleSelectRole = (
     role: UserRole,
     sessionData?: { id: string; name: string; subtitle?: string; email?: string }
   ) => {
-    if (cloudAuthRole && cloudAuthRole !== 'ADMINISTRATOR' && role === 'ADMINISTRATOR') {
-      showToast('Akses ditolak: Akun Google Cloud Anda bukan Administrator.', true);
-      return;
-    }
-    if (cloudAuthRole === 'MANAGEMENT' && role === 'OPERATOR') {
+    if (cloudAuthRole === 'MANAGEMENT' && role !== 'MANAGEMENT') {
       showToast('Akses ditolak: Akun Management hanya memiliki izin melihat (Read-Only).', true);
       return;
     }
+    const liveEmail = firebaseUser?.email || auth.currentUser?.email || null;
+    const liveUid = firebaseUser?.uid || auth.currentUser?.uid || null;
+
     setState(prev => {
-      const isNewAdmin = role === 'ADMINISTRATOR';
+      const resolved = resolveEffectiveRole(
+        {
+          ...prev,
+          currentUserRole: role,
+          currentAdminUser:
+            role === 'ADMINISTRATOR'
+              ? prev.currentAdminUser ||
+                (liveEmail
+                  ? {
+                      email: normalizeEmail(liveEmail),
+                      displayName: firebaseUser?.displayName || liveEmail.split('@')[0],
+                      photoURL: firebaseUser?.photoURL || undefined,
+                      registeredAt: new Date().toISOString(),
+                      role: prev.cloudOwnerUid === liveUid ? 'SUPER_ADMIN' : 'ADMIN'
+                    }
+                  : null)
+              : null
+        },
+        {
+          firebaseUserEmail: liveEmail,
+          firebaseUid: liveUid,
+          cloudAuthRole
+        }
+      );
+
+      const finalRole = resolved.role;
       let nextTab = prev.currentTab;
 
       // Management is strictly restricted to dashboard, weekly-planning, tank-monitoring, shift-summary, contact, and sheets-sync (read-only)
       if (
-        role === 'MANAGEMENT' &&
+        resolved.isManagement &&
         nextTab !== 'dashboard' &&
         nextTab !== 'weekly-planning' &&
         nextTab !== 'tank-monitoring' &&
@@ -1190,38 +1509,46 @@ export default function App() {
         nextTab = 'dashboard';
       }
       // Non-admins cannot stay in Master BOM or Admin Portal
-      if (!isNewAdmin && (nextTab === 'master' || nextTab === 'admin-portal')) {
+      if (!resolved.isAdmin && (nextTab === 'master' || nextTab === 'admin-portal')) {
         nextTab = 'dashboard';
+      }
+
+      if (resolved.isOfflinePinAdmin && (role === 'ADMINISTRATOR' || role === 'OFFLINE_PIN_ADMIN')) {
+        showToast('Mode PIN Lokal aktif — perubahan Master tidak tersimpan ke Cloud');
+      } else if (finalRole === 'ADMINISTRATOR') {
+        showToast('Berhasil masuk sebagai Administrator (Akses Penuh)');
       }
 
       return {
         ...prev,
-        currentUserRole: role,
-        isAdmin: isNewAdmin,
+        currentUserRole: finalRole,
+        currentAdminUser: resolved.isCloudAdmin ? prev.currentAdminUser : null,
         currentTab: nextTab,
         currentSession: sessionData
           ? {
-              role,
+              role: finalRole,
               id: sessionData.id,
               name: sessionData.name,
-              subtitle: sessionData.subtitle,
-              email: sessionData.email
+              subtitle: resolved.isOfflinePinAdmin
+                ? 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
+                : sessionData.subtitle,
+              email: resolved.isCloudAdmin ? (sessionData.email || liveEmail || undefined) : undefined
             }
           : {
-              role,
-              id: role.toLowerCase(),
-              name:
-                role === 'ADMINISTRATOR'
-                  ? 'Administrator MES'
-                  : role === 'OPERATOR'
-                  ? 'Operator Lini'
-                  : 'Executive Management',
-              subtitle:
-                role === 'ADMINISTRATOR'
-                  ? 'Kewenangan Penuh Master & Akses'
-                  : role === 'OPERATOR'
-                  ? 'Operasi & Pencatatan Lini'
-                  : 'Pemantauan Read-Only'
+              role: finalRole,
+              id: finalRole.toLowerCase(),
+              name: resolved.isAdmin
+                ? 'Administrator MES'
+                : finalRole === 'OPERATOR'
+                ? 'Operator Lini'
+                : 'Executive Management',
+              subtitle: resolved.isOfflinePinAdmin
+                ? 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
+                : finalRole === 'ADMINISTRATOR'
+                ? 'Kewenangan Penuh Master & Akses'
+                : finalRole === 'OPERATOR'
+                ? 'Operasi & Pencatatan Lini'
+                : 'Pemantauan Read-Only'
             }
       };
     });
@@ -1333,23 +1660,76 @@ export default function App() {
     }));
   };
 
-  // Admin authentication
+  // Admin authentication (Single Source of Truth via resolveEffectiveRole)
   const handleAdminLogin = (googleUser?: AdminGoogleUser) => {
-    setState(prev => ({
-      ...prev,
-      isAdmin: true,
-      currentUserRole: 'ADMINISTRATOR',
-      currentAdminUser: googleUser || null
-    }));
+    const liveEmail = googleUser?.email || firebaseUser?.email || auth.currentUser?.email || null;
+    const liveUid = firebaseUser?.uid || auth.currentUser?.uid || null;
+    const liveCloudRole: UserRole | null = googleUser ? 'ADMINISTRATOR' : cloudAuthRole;
+
+    setState(prev => {
+      const candidateAdminUser: AdminGoogleUser | null =
+        googleUser ||
+        (liveEmail
+          ? {
+              email: normalizeEmail(liveEmail),
+              displayName:
+                prev.currentAdminUser?.displayName ||
+                firebaseUser?.displayName ||
+                liveEmail.split('@')[0],
+              photoURL: prev.currentAdminUser?.photoURL || firebaseUser?.photoURL || undefined,
+              registeredAt: prev.currentAdminUser?.registeredAt || new Date().toISOString(),
+              role: (prev.cloudOwnerUid === liveUid ? 'SUPER_ADMIN' : 'ADMIN') as
+                | 'SUPER_ADMIN'
+                | 'ADMIN'
+            }
+          : null);
+
+      const resolved = resolveEffectiveRole(
+        {
+          ...prev,
+          currentUserRole: 'ADMINISTRATOR',
+          currentAdminUser: candidateAdminUser
+        },
+        {
+          firebaseUserEmail: liveEmail,
+          firebaseUid: liveUid,
+          cloudAuthRole: liveCloudRole
+        }
+      );
+
+      return {
+        ...prev,
+        currentUserRole: resolved.role,
+        currentAdminUser: resolved.isCloudAdmin ? candidateAdminUser : null,
+        currentSession: {
+          ...prev.currentSession,
+          role: resolved.role,
+          email: resolved.isCloudAdmin ? (candidateAdminUser?.email || prev.currentSession?.email) : undefined,
+          subtitle: resolved.isOfflinePinAdmin
+            ? 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
+            : prev.currentSession?.subtitle
+        }
+      };
+    });
   };
 
   const handleAdminLogout = () => {
-    setState(prev => ({
-      ...prev,
-      isAdmin: false,
-      currentUserRole: 'OPERATOR',
-      currentAdminUser: null
-    }));
+    setState(prev => {
+      const nextTab =
+        prev.currentTab === 'master' || prev.currentTab === 'admin-portal'
+          ? 'dashboard'
+          : prev.currentTab;
+      return {
+        ...prev,
+        currentUserRole: 'OPERATOR',
+        currentAdminUser: null,
+        currentTab: nextTab,
+        currentSession: {
+          ...prev.currentSession,
+          role: 'OPERATOR'
+        }
+      };
+    });
   };
 
   const handleChangePin = async (newPin: string) => {
@@ -1402,17 +1782,33 @@ export default function App() {
   // Full Reset to empty
   // 1. Reset All Data
   const handleResetAll = () => {
+    autoCartonBufferRef.current.clear();
+    pendingTxDocsRef.current.clear();
+    if (
+      getEffectiveRoleForState().canWriteCloudMaster &&
+      cloudAuthRole === 'ADMINISTRATOR' &&
+      stateRef.current.cloudWorkspaceId
+    ) {
+      void deleteTransactionsByTypes(stateRef.current.cloudWorkspaceId, [
+        'REQUEST',
+        'RECEIPT',
+        'USAGE',
+        'CARTON_PROD',
+        'TANK_LOG',
+        'ADJUSTMENT'
+      ]).catch(err => console.error('Reset all transactions cloud error:', err));
+    }
     setState(prev => ({
       ...DEFAULT_STATE,
       factoryName: prev.factoryName,
       cloudWorkspaceId: prev.cloudWorkspaceId,
       cloudOwnerUid: prev.cloudOwnerUid,
       isAuthenticated: prev.isAuthenticated,
-      isAdmin: prev.isAdmin,
       currentUserRole: prev.currentUserRole,
       currentSession: prev.currentSession,
       adminPin: prev.adminPin,
       adminGoogleEmails: prev.adminGoogleEmails,
+      workspaceAccessConfig: prev.workspaceAccessConfig,
       currentAdminUser: prev.currentAdminUser,
       registeredOperators: prev.registeredOperators,
       registeredManagement: prev.registeredManagement,
@@ -1445,6 +1841,15 @@ export default function App() {
 
   // 3. Reset Data Stock Material Diterima (CK, WINEROTO & Storage Tank Liquid)
   const handleResetStockReceipts = () => {
+    if (
+      getEffectiveRoleForState().canWriteCloudMaster &&
+      cloudAuthRole === 'ADMINISTRATOR' &&
+      stateRef.current.cloudWorkspaceId
+    ) {
+      void deleteTransactionsByTypes(stateRef.current.cloudWorkspaceId, ['RECEIPT']).catch(err =>
+        console.error('Reset receipts cloud error:', err)
+      );
+    }
     setState(prev => ({
       ...prev,
       transactions: {
@@ -1461,6 +1866,15 @@ export default function App() {
 
   // 4. Reset Data Pemesanan RM (Permintaan Material)
   const handleResetRequests = () => {
+    if (
+      getEffectiveRoleForState().canWriteCloudMaster &&
+      cloudAuthRole === 'ADMINISTRATOR' &&
+      stateRef.current.cloudWorkspaceId
+    ) {
+      void deleteTransactionsByTypes(stateRef.current.cloudWorkspaceId, ['REQUEST']).catch(err =>
+        console.error('Reset requests cloud error:', err)
+      );
+    }
     setState(prev => ({
       ...prev,
       transactions: {
@@ -1473,6 +1887,15 @@ export default function App() {
 
   // 5. Reset Data Pemakaian Material & WIP
   const handleResetUsages = () => {
+    if (
+      getEffectiveRoleForState().canWriteCloudMaster &&
+      cloudAuthRole === 'ADMINISTRATOR' &&
+      stateRef.current.cloudWorkspaceId
+    ) {
+      void deleteTransactionsByTypes(stateRef.current.cloudWorkspaceId, ['USAGE']).catch(err =>
+        console.error('Reset usages cloud error:', err)
+      );
+    }
     setState(prev => ({
       ...prev,
       transactions: {
@@ -1492,11 +1915,11 @@ export default function App() {
       factoryName: prev.factoryName || sample.factoryName,
       cloudOwnerUid: prev.cloudOwnerUid,
       isAuthenticated: prev.isAuthenticated,
-      isAdmin: prev.isAdmin,
       currentUserRole: prev.currentUserRole,
       currentSession: prev.currentSession,
       adminPin: prev.adminPin,
       adminGoogleEmails: prev.adminGoogleEmails?.length ? prev.adminGoogleEmails : sample.adminGoogleEmails,
+      workspaceAccessConfig: prev.workspaceAccessConfig,
       currentAdminUser: prev.currentAdminUser,
       registeredOperators: prev.registeredOperators?.length ? prev.registeredOperators : sample.registeredOperators,
       registeredManagement: prev.registeredManagement?.length ? prev.registeredManagement : sample.registeredManagement
@@ -1554,6 +1977,11 @@ export default function App() {
       status: 'Received',
       notes: `Diterima dari mutasi gudang ${from}`
     };
+
+    const nowIso = new Date().toISOString();
+    const actorEmail = getActiveActorEmail();
+    dispatchAppendTx(toTransactionDocFromUsage(newUsage, actorEmail, state.master.skus, nowIso));
+    dispatchAppendTx(toTransactionDocFromReceipt(newReceipt, actorEmail, nowIso));
 
     setState(prev => {
       let updatedTankLevel = prev.tank.level;
@@ -1646,72 +2074,72 @@ export default function App() {
       notes?: string;
     }
   ) => {
-    if (state.currentUserRole !== 'ADMINISTRATOR' && !state.isAdmin) {
+    const currentState = stateRef.current;
+    if (!getEffectiveRoleForState(currentState).isAdmin) {
       showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan adjust saldo awal material', true);
       return;
     }
 
-    setState(prev => {
-      const targetMat = prev.master.materials.find(m => m.id === materialId);
-      if (!targetMat) return prev;
+    const targetMat = currentState.master.materials.find(m => m.id === materialId);
+    if (!targetMat) return;
 
-      const prevCk = Number(targetMat.initialStockCk ?? 0);
-      const prevWineroto = Number(targetMat.initialStockWineroto ?? 0);
-      const prevTank = Number(targetMat.initialStockTank ?? 0);
-      const prevTotal = prevCk + prevWineroto + prevTank;
+    const prevCk = Number(targetMat.initialStockCk ?? 0);
+    const prevWineroto = Number(targetMat.initialStockWineroto ?? 0);
+    const prevTank = Number(targetMat.initialStockTank ?? 0);
+    const prevTotal = prevCk + prevWineroto + prevTank;
 
-      const newCk = Math.max(0, adjustments.initialStockCk);
-      const newWineroto = Math.max(0, adjustments.initialStockWineroto);
-      const newTank = Math.max(0, adjustments.initialStockTank);
-      const newTotal = newCk + newWineroto + newTank;
-      const deltaTotal = newTotal - prevTotal;
+    const newCk = Math.max(0, adjustments.initialStockCk);
+    const newWineroto = Math.max(0, adjustments.initialStockWineroto);
+    const newTank = Math.max(0, adjustments.initialStockTank);
+    const newTotal = newCk + newWineroto + newTank;
+    const deltaTotal = newTotal - prevTotal;
 
-      const updatedMaterials = prev.master.materials.map(m => {
-        if (m.id !== materialId) return m;
-        return {
-          ...m,
-          initialStockCk: newCk,
-          initialStockWineroto: newWineroto,
-          initialStockTank: newTank
-        };
-      });
+    const now = new Date();
+    const adjRecord: MaterialStockAdjustment = {
+      id: `adj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      adjustmentNumber: `ADJ-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String((currentState.transactions.stockAdjustments?.length || 0) + 1).padStart(3, '0')}`,
+      date: now.toISOString().slice(0, 10),
+      timestamp: now.toISOString(),
+      materialId: targetMat.id,
+      materialName: targetMat.name,
+      materialCode: targetMat.code,
+      location: (newCk !== prevCk ? 'CK' : (newWineroto !== prevWineroto ? 'WINEROTO' : (newTank !== prevTank ? 'STORAGE_TANK' : 'ALL'))),
+      previousInitialStockKg: prevTotal,
+      newInitialStockKg: newTotal,
+      deltaKg: deltaTotal,
+      previousStockCk: prevCk,
+      newStockCk: newCk,
+      previousStockWineroto: prevWineroto,
+      newStockWineroto: newWineroto,
+      previousStockTank: prevTank,
+      newStockTank: newTank,
+      reason: adjustments.reason || 'Penyesuaian Saldo Awal Material oleh Administrator',
+      adjustedBy: currentState.currentSession?.name || 'Administrator',
+      notes: adjustments.notes
+    };
 
-      const now = new Date();
-      const adjRecord: MaterialStockAdjustment = {
-        id: `adj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        adjustmentNumber: `ADJ-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String((prev.transactions.stockAdjustments?.length || 0) + 1).padStart(3, '0')}`,
-        date: now.toISOString().slice(0, 10),
-        timestamp: now.toISOString(),
-        materialId: targetMat.id,
-        materialName: targetMat.name,
-        materialCode: targetMat.code,
-        location: (newCk !== prevCk ? 'CK' : (newWineroto !== prevWineroto ? 'WINEROTO' : (newTank !== prevTank ? 'STORAGE_TANK' : 'ALL'))),
-        previousInitialStockKg: prevTotal,
-        newInitialStockKg: newTotal,
-        deltaKg: deltaTotal,
-        previousStockCk: prevCk,
-        newStockCk: newCk,
-        previousStockWineroto: prevWineroto,
-        newStockWineroto: newWineroto,
-        previousStockTank: prevTank,
-        newStockTank: newTank,
-        reason: adjustments.reason || 'Penyesuaian Saldo Awal Material oleh Administrator',
-        adjustedBy: prev.currentSession?.name || 'Administrator',
-        notes: adjustments.notes
-      };
+    dispatchAppendTx(toTransactionDocFromAdjustment(adjRecord, getActiveActorEmail()));
 
-      return {
-        ...prev,
-        master: {
-          ...prev.master,
-          materials: updatedMaterials
-        },
-        transactions: {
-          ...prev.transactions,
-          stockAdjustments: [adjRecord, ...(prev.transactions.stockAdjustments || [])]
-        }
-      };
-    });
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        materials: prev.master.materials.map(m =>
+          m.id === materialId
+            ? {
+                ...m,
+                initialStockCk: newCk,
+                initialStockWineroto: newWineroto,
+                initialStockTank: newTank
+              }
+            : m
+        )
+      },
+      transactions: {
+        ...prev.transactions,
+        stockAdjustments: [adjRecord, ...(prev.transactions.stockAdjustments || [])]
+      }
+    }));
 
     showToast(`Saldo awal material berhasil disesuaikan oleh Administrator`);
   };
@@ -2621,11 +3049,7 @@ export default function App() {
 
   // Update Tank Item
   const handleUpdateTankItem = (tankId: string, updates: Partial<WipTank>) => {
-    if (
-      updates.currentLevelKg !== undefined &&
-      stateRef.current.currentUserRole !== 'ADMINISTRATOR' &&
-      !stateRef.current.isAdmin
-    ) {
+    if (updates.currentLevelKg !== undefined && !getEffectiveRoleForState().isAdmin) {
       showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan kalibrasi isi tangki', true);
       return;
     }
@@ -2641,49 +3065,43 @@ export default function App() {
 
   // Top Up / Transfer WIP into Tank
   const handleTopUpTank = (tankId: string, amountKg: number, notes?: string) => {
-    if (stateRef.current.currentUserRole !== 'ADMINISTRATOR' && !stateRef.current.isAdmin) {
+    const currentState = stateRef.current;
+    if (!getEffectiveRoleForState(currentState).isAdmin) {
       showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan Isi Batch WIP ke tangki', true);
       return;
     }
 
-    setState(prev => {
-      let logEntry: TankTransferLog | null = null;
-      const updatedTanks = prev.master.tanks.map(t => {
-        if (t.id === tankId) {
-          const prevLvl = t.currentLevelKg;
-          const newLvl = Math.min(t.capacityKg, prevLvl + amountKg);
-          logEntry = {
-            id: `tl_${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            tankId: t.id,
-            tankCode: t.code,
-            tankName: t.name,
-            type: 'MANUAL_TOPUP',
-            amountKg,
-            previousLevelKg: prevLvl,
-            newLevelKg: newLvl,
-            notes: notes || `Top-up / refill manual sebesar ${amountKg.toFixed(2)} kg`
-          };
-          return {
-            ...t,
-            currentLevelKg: newLvl
-          };
-        }
-        return t;
-      });
+    const targetTank = currentState.master.tanks.find(t => t.id === tankId);
+    if (!targetTank) return;
 
-      return {
-        ...prev,
-        master: {
-          ...prev.master,
-          tanks: updatedTanks
-        },
-        transactions: {
-          ...prev.transactions,
-          tankLogs: logEntry ? [logEntry, ...(prev.transactions.tankLogs || [])] : prev.transactions.tankLogs
-        }
-      };
-    });
+    const prevLvl = targetTank.currentLevelKg;
+    const newLvl = Math.min(targetTank.capacityKg, prevLvl + amountKg);
+    const logEntry: TankTransferLog = {
+      id: `tl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      tankId: targetTank.id,
+      tankCode: targetTank.code,
+      tankName: targetTank.name,
+      type: 'MANUAL_TOPUP',
+      amountKg,
+      previousLevelKg: prevLvl,
+      newLevelKg: newLvl,
+      notes: notes || `Top-up / refill manual sebesar ${amountKg.toFixed(2)} kg`
+    };
+
+    dispatchAppendTx(toTransactionDocFromTankLog(logEntry, getActiveActorEmail()));
+
+    setState(prev => ({
+      ...prev,
+      master: {
+        ...prev.master,
+        tanks: prev.master.tanks.map(t => (t.id === tankId ? { ...t, currentLevelKg: newLvl } : t))
+      },
+      transactions: {
+        ...prev.transactions,
+        tankLogs: [logEntry, ...(prev.transactions.tankLogs || [])]
+      }
+    }));
   };
 
   // Automatic Carton Production Depletion Engine (Holding Tank & Storage Tank Real-Time Depletion)
@@ -2785,117 +3203,109 @@ export default function App() {
       }
     }
 
-    // Execute deduction
+    // Execute deduction cleanly outside setState so sub-collection writes & buffering stay deterministic
     const timestamp = new Date().toISOString();
     const currentShiftObj = getCurrentShift();
     const deductions: CartonProductionLog['tankDeductions'] = [];
     const newTankLogs: TankTransferLog[] = [];
+    const updatedTanksSnapshot = currentState.master.tanks.map(t => ({ ...t }));
     let autoCompletedLineMsg: string | null = null;
 
+    linkedWips.forEach(sw => {
+      const wip = currentState.master.wips.find(w => w.id === sw.wipId);
+      let neededKg = effectiveCartons * sw.kgWipPerCartonSku;
+
+      const allWipTanks = getAllTanksForWip(wip, updatedTanksSnapshot);
+      const allWipTankIdSet = new Set(allWipTanks.map(t => t.id));
+      const chosenHtId = wip ? effectiveSelectedTanks[wip.id] : undefined;
+      const hasValidChosenHt = Boolean(chosenHtId && allWipTankIdSet.has(chosenHtId));
+
+      const candidateIndices = updatedTanksSnapshot
+        .map((t, idx) => ({ t, idx }))
+        .filter(({ t }) => {
+          if (!allWipTankIdSet.has(t.id)) return false;
+          if (hasValidChosenHt && t.type === 'HOLDING_TANK' && t.id !== chosenHtId) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          if (hasValidChosenHt) {
+            if (a.t.id === chosenHtId && b.t.id !== chosenHtId) return -1;
+            if (a.t.id !== chosenHtId && b.t.id === chosenHtId) return 1;
+          }
+          if (a.t.type === 'HOLDING_TANK' && b.t.type !== 'HOLDING_TANK') return -1;
+          if (a.t.type !== 'HOLDING_TANK' && b.t.type === 'HOLDING_TANK') return 1;
+          return 0;
+        });
+
+      for (const { idx } of candidateIndices) {
+        if (neededKg <= 0.0001) break;
+        const prevLvl = updatedTanksSnapshot[idx].currentLevelKg;
+        if (prevLvl <= 0) continue;
+
+        const deductThisTank = Math.min(prevLvl, neededKg);
+        const newLvl = Math.max(0, prevLvl - deductThisTank);
+        updatedTanksSnapshot[idx].currentLevelKg = newLvl;
+        neededKg -= deductThisTank;
+
+        deductions.push({
+          tankId: updatedTanksSnapshot[idx].id,
+          tankCode: updatedTanksSnapshot[idx].code,
+          tankName: updatedTanksSnapshot[idx].name,
+          tankType: updatedTanksSnapshot[idx].type,
+          wipId: wip?.id || '',
+          wipName: wip?.name || '',
+          kgPerCarton: sw.kgWipPerCartonSku,
+          kgDeducted: deductThisTank,
+          remainingLevelKg: newLvl
+        });
+
+        newTankLogs.push({
+          id: `tl_${Date.now()}_${sw.id}_${updatedTanksSnapshot[idx].id}_${Math.random().toString(36).slice(2, 6)}`,
+          timestamp,
+          tankId: updatedTanksSnapshot[idx].id,
+          tankCode: updatedTanksSnapshot[idx].code,
+          tankName: updatedTanksSnapshot[idx].name,
+          type: 'CARTON_DEPLETION',
+          amountKg: -deductThisTank,
+          previousLevelKg: prevLvl,
+          newLevelKg: newLvl,
+          wipId: wip?.id,
+          wipName: wip?.name,
+          skuName: resolvedLineName ? `[${resolvedLineName}] ${targetSku.name}` : targetSku.name,
+          cartonsCount: effectiveCartons,
+          operatorName,
+          notes:
+            notes ||
+            `Otomatis terpotong untuk ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''} (${updatedTanksSnapshot[idx].type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})`
+        });
+      }
+    });
+
+    const dateKey = timestamp.slice(0, 10);
+    const isAutoTick = Boolean(notes?.startsWith('Auto ['));
+    const newCartonLog: CartonProductionLog = {
+      id: `cp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp,
+      lineId: resolvedLineId,
+      lineName: resolvedLineName,
+      skuId: targetSku.id,
+      skuName: targetSku.name,
+      skuCode: targetSku.code,
+      cartonsProduced: effectiveCartons,
+      shift: currentShiftObj.shift,
+      operatorName,
+      tankDeductions: deductions,
+      notes
+    };
+
+    const tankNewLevelMap = new Map(updatedTanksSnapshot.map(t => [t.id, t.currentLevelKg]));
+
     setState(prev => {
-      const updatedTanks = prev.master.tanks.map(t => ({ ...t }));
-      const prevRunsForChoice = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-      const runForChoice =
-        (runId ? prevRunsForChoice.find(r => r.id === runId) : undefined) ||
-        (resolvedLineId ? prevRunsForChoice.find(r => r.lineId === resolvedLineId && r.isRunning) : undefined) ||
-        prevRunsForChoice.find(r => r.skuId === skuId && r.isRunning) ||
-        prevRunsForChoice.find(r => r.skuId === skuId);
-
-      const runSelectedTanks: Record<string, string> = {
-        ...(runForChoice?.selectedHoldingTanks || {}),
-        ...(overrideSelectedHoldingTanks || {})
-      };
-
-      linkedWips.forEach(sw => {
-        const wip = prev.master.wips.find(w => w.id === sw.wipId);
-        let neededKg = effectiveCartons * sw.kgWipPerCartonSku;
-
-        const allWipTanks = getAllTanksForWip(wip, updatedTanks);
-        const allWipTankIdSet = new Set(allWipTanks.map(t => t.id));
-        const chosenHtId = wip ? runSelectedTanks[wip.id] : undefined;
-        const hasValidChosenHt = Boolean(chosenHtId && allWipTankIdSet.has(chosenHtId));
-
-        // Find candidate tanks: if user selected a Holding Tank for this WIP, ONLY use that Holding Tank (plus Storage Tank if linked)
-        const candidateIndices = updatedTanks
-          .map((t, idx) => ({ t, idx }))
-          .filter(({ t }) => {
-            if (!allWipTankIdSet.has(t.id)) return false;
-            if (hasValidChosenHt && t.type === 'HOLDING_TANK' && t.id !== chosenHtId) {
-              return false;
-            }
-            return true;
-          })
-          .sort((a, b) => {
-            if (hasValidChosenHt) {
-              if (a.t.id === chosenHtId && b.t.id !== chosenHtId) return -1;
-              if (a.t.id !== chosenHtId && b.t.id === chosenHtId) return 1;
-            }
-            if (a.t.type === 'HOLDING_TANK' && b.t.type !== 'HOLDING_TANK') return -1;
-            if (a.t.type !== 'HOLDING_TANK' && b.t.type === 'HOLDING_TANK') return 1;
-            return 0;
-          });
-
-        for (const { idx } of candidateIndices) {
-          if (neededKg <= 0.0001) break;
-          const prevLvl = updatedTanks[idx].currentLevelKg;
-          if (prevLvl <= 0) continue;
-
-          const deductThisTank = Math.min(prevLvl, neededKg);
-          const newLvl = Math.max(0, prevLvl - deductThisTank);
-          updatedTanks[idx].currentLevelKg = newLvl;
-          neededKg -= deductThisTank;
-
-          deductions.push({
-            tankId: updatedTanks[idx].id,
-            tankCode: updatedTanks[idx].code,
-            tankName: updatedTanks[idx].name,
-            tankType: updatedTanks[idx].type,
-            wipId: wip?.id || '',
-            wipName: wip?.name || '',
-            kgPerCarton: sw.kgWipPerCartonSku,
-            kgDeducted: deductThisTank,
-            remainingLevelKg: newLvl
-          });
-
-          newTankLogs.push({
-            id: `tl_${Date.now()}_${sw.id}_${updatedTanks[idx].id}_${Math.random().toString(36).slice(2, 6)}`,
-            timestamp,
-            tankId: updatedTanks[idx].id,
-            tankCode: updatedTanks[idx].code,
-            tankName: updatedTanks[idx].name,
-            type: 'CARTON_DEPLETION',
-            amountKg: -deductThisTank,
-            previousLevelKg: prevLvl,
-            newLevelKg: newLvl,
-            wipId: wip?.id,
-            wipName: wip?.name,
-            skuName: resolvedLineName ? `[${resolvedLineName}] ${targetSku.name}` : targetSku.name,
-            cartonsCount: effectiveCartons,
-            operatorName,
-            notes:
-              notes ||
-              `Otomatis terpotong untuk ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''} (${updatedTanks[idx].type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})`
-          });
-        }
-      });
-
-      const dateKey = timestamp.slice(0, 10);
-      const isAutoTick = Boolean(notes?.startsWith('Auto ['));
-
-      const newCartonLog: CartonProductionLog = {
-        id: `cp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        timestamp,
-        lineId: resolvedLineId,
-        lineName: resolvedLineName,
-        skuId: targetSku.id,
-        skuName: targetSku.name,
-        skuCode: targetSku.code,
-        cartonsProduced: effectiveCartons,
-        shift: currentShiftObj.shift, // Selalu mengikuti jam shift berjalan
-        operatorName,
-        tankDeductions: deductions,
-        notes
-      };
+      const updatedTanks = prev.master.tanks.map(t =>
+        tankNewLevelMap.has(t.id) ? { ...t, currentLevelKg: tankNewLevelMap.get(t.id)! } : t
+      );
 
       const prevCartonLogs = prev.transactions.cartonProductions || [];
       let nextCartonLogs: CartonProductionLog[];
@@ -3025,6 +3435,78 @@ export default function App() {
       };
     });
 
+    // Persist to /workspaces/{workspaceId}/transactions/{txId}
+    const actorEmail = getActiveActorEmail();
+    if (!isAutoTick) {
+      dispatchAppendTx(toTransactionDocFromCartonProd(newCartonLog, actorEmail));
+      newTankLogs.forEach(tl => dispatchAppendTx(toTransactionDocFromTankLog(tl, actorEmail)));
+    } else {
+      const bufferKey = `${resolvedLineId || 'line'}::${targetSku.id}::${currentShiftObj.shift}`;
+      const existingBuf = autoCartonBufferRef.current.get(bufferKey);
+      if (!existingBuf) {
+        const tlMap = new Map<string, TankTransferLog>();
+        newTankLogs.forEach(tl => {
+          tlMap.set(`${tl.tankId}::${tl.wipId || ''}`, { ...tl });
+        });
+        autoCartonBufferRef.current.set(bufferKey, {
+          cartonLog: { ...newCartonLog },
+          tankLogs: tlMap,
+          lastFlushedAt: Date.now(),
+          accumulatedCartons: effectiveCartons
+        });
+      } else {
+        const mergedDed = [...(existingBuf.cartonLog.tankDeductions || [])];
+        deductions.forEach(d => {
+          const dIdx = mergedDed.findIndex(m => m.tankId === d.tankId && m.wipId === d.wipId);
+          if (dIdx >= 0) {
+            mergedDed[dIdx] = {
+              ...mergedDed[dIdx],
+              kgDeducted: parseFloat((mergedDed[dIdx].kgDeducted + d.kgDeducted).toFixed(4)),
+              remainingLevelKg: d.remainingLevelKg
+            };
+          } else {
+            mergedDed.push({ ...d });
+          }
+        });
+        existingBuf.cartonLog = {
+          ...existingBuf.cartonLog,
+          timestamp,
+          cartonsProduced: existingBuf.cartonLog.cartonsProduced + effectiveCartons,
+          operatorName: operatorName || existingBuf.cartonLog.operatorName,
+          tankDeductions: mergedDed,
+          notes
+        };
+        newTankLogs.forEach(ntl => {
+          const tkKey = `${ntl.tankId}::${ntl.wipId || ''}`;
+          const prevTl = existingBuf.tankLogs.get(tkKey);
+          if (!prevTl) {
+            existingBuf.tankLogs.set(tkKey, { ...ntl });
+          } else {
+            existingBuf.tankLogs.set(tkKey, {
+              ...prevTl,
+              timestamp,
+              amountKg: parseFloat((prevTl.amountKg + ntl.amountKg).toFixed(4)),
+              newLevelKg: ntl.newLevelKg,
+              cartonsCount: (prevTl.cartonsCount || 0) + (ntl.cartonsCount || 0),
+              operatorName: ntl.operatorName || prevTl.operatorName,
+              notes: ntl.notes
+            });
+          }
+        });
+        existingBuf.accumulatedCartons += effectiveCartons;
+      }
+
+      const bufNow = autoCartonBufferRef.current.get(bufferKey);
+      if (
+        bufNow &&
+        (bufNow.accumulatedCartons >= 20 ||
+          Date.now() - bufNow.lastFlushedAt >= 15000 ||
+          Boolean(autoCompletedLineMsg))
+      ) {
+        flushAutoCartonBuffer(bufferKey);
+      }
+    }
+
     if (autoCompletedLineMsg) {
       setTimeout(() => showToast(autoCompletedLineMsg!), 30);
     }
@@ -3043,8 +3525,9 @@ export default function App() {
     notes?: string,
     operatorName?: string
   ): { success: boolean; message: string } => {
-    const source = state.master.tanks.find(t => t.id === sourceTankId);
-    const dest = state.master.tanks.find(t => t.id === destTankId);
+    const currentState = stateRef.current;
+    const source = currentState.master.tanks.find(t => t.id === sourceTankId);
+    const dest = currentState.master.tanks.find(t => t.id === destTankId);
     if (!source || !dest) return { success: false, message: 'Tangki tidak ditemukan!' };
 
     if (source.currentLevelKg < amountKg) {
@@ -3076,9 +3559,46 @@ export default function App() {
     }
 
     const timestamp = new Date().toISOString();
-    const sourceWip = state.master.wips.find(w => w.id === source.assignedWipId);
+    const sourceWip = currentState.master.wips.find(w => w.id === source.assignedWipId);
     const newSourceLevel = Math.max(0, source.currentLevelKg - amountKg);
     const newDestLevel = Math.min(dest.capacityKg, dest.currentLevelKg + amountKg);
+    const baseTs = Date.now();
+
+    const transferLog1: TankTransferLog = {
+      id: `tl_${baseTs}_src`,
+      timestamp,
+      tankId: source.id,
+      tankCode: source.code,
+      tankName: source.name,
+      type: 'MANUAL_TOPUP',
+      amountKg: -amountKg,
+      previousLevelKg: source.currentLevelKg,
+      newLevelKg: newSourceLevel,
+      wipId: source.assignedWipId,
+      wipName: sourceWip?.name,
+      operatorName,
+      notes: `Transfer keluar (${amountKg.toFixed(1)} kg) ➔ ${dest.code} (${dest.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}). ${notes || ''}`
+    };
+
+    const transferLog2: TankTransferLog = {
+      id: `tl_${baseTs}_dest`,
+      timestamp,
+      tankId: dest.id,
+      tankCode: dest.code,
+      tankName: dest.name,
+      type: 'WIP_BATCH_INFLOW',
+      amountKg,
+      previousLevelKg: dest.currentLevelKg,
+      newLevelKg: newDestLevel,
+      wipId: source.assignedWipId,
+      wipName: sourceWip?.name,
+      operatorName,
+      notes: `Transfer masuk (${amountKg.toFixed(1)} kg) dari ${source.code} (${source.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}). ${notes || ''}`
+    };
+
+    const actorEmail = getActiveActorEmail();
+    dispatchAppendTx(toTransactionDocFromTankLog(transferLog1, actorEmail));
+    dispatchAppendTx(toTransactionDocFromTankLog(transferLog2, actorEmail));
 
     setState(prev => {
       const updatedTanks = prev.master.tanks.map(t => {
@@ -3094,38 +3614,6 @@ export default function App() {
         }
         return t;
       });
-
-      const transferLog1: TankTransferLog = {
-        id: `tl_${Date.now()}_src`,
-        timestamp,
-        tankId: source.id,
-        tankCode: source.code,
-        tankName: source.name,
-        type: 'MANUAL_TOPUP',
-        amountKg: -amountKg,
-        previousLevelKg: source.currentLevelKg,
-        newLevelKg: newSourceLevel,
-        wipId: source.assignedWipId,
-        wipName: sourceWip?.name,
-        operatorName,
-        notes: `Transfer keluar (${amountKg.toFixed(1)} kg) ➔ ${dest.code} (${dest.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}). ${notes || ''}`
-      };
-
-      const transferLog2: TankTransferLog = {
-        id: `tl_${Date.now()}_dest`,
-        timestamp,
-        tankId: dest.id,
-        tankCode: dest.code,
-        tankName: dest.name,
-        type: 'WIP_BATCH_INFLOW',
-        amountKg,
-        previousLevelKg: dest.currentLevelKg,
-        newLevelKg: newDestLevel,
-        wipId: source.assignedWipId,
-        wipName: sourceWip?.name,
-        operatorName,
-        notes: `Transfer masuk (${amountKg.toFixed(1)} kg) dari ${source.code} (${source.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}). ${notes || ''}`
-      };
 
       return {
         ...prev,
@@ -3148,10 +3636,7 @@ export default function App() {
   };
 
   // Production Line Customization CRUD (Line A, B, C, D, etc.)
-  const isAdminSession = () => {
-    const s = stateRef.current;
-    return s.currentUserRole === 'ADMINISTRATOR' || s.isAdmin;
-  };
+  const isAdminSession = () => getEffectiveRoleForState().isAdmin;
 
   const handleAddProductionLine = (lineData: Omit<ProductionLine, 'id'>) => {
     if (!isAdminSession()) {
@@ -3712,6 +4197,7 @@ export default function App() {
 
   // Complete a Line Run Normally (Target finished / batch selesai - no SBL breakdown recorded)
   const handleCompleteLineRun = (runIdOrLineId: string, notes?: string) => {
+    flushAutoCartonBuffer();
     const completedAt = new Date().toISOString();
     let completedInfo = '';
 
@@ -3747,6 +4233,7 @@ export default function App() {
     targetRunOrId: ActiveSkuProductionRun | string,
     reasonMessage: string
   ) => {
+    flushAutoCartonBuffer();
     const currentState = stateRef.current;
     const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
     const targetRun =
@@ -4026,6 +4513,7 @@ export default function App() {
 
   // Stop Specific Line / SKU Production due to Problem (Six Big Losses TPM)
   const handleStopSkuProduction = (stopData: Omit<ProductionStopLog, 'id'>) => {
+    flushAutoCartonBuffer();
     const newStopLog: ProductionStopLog = {
       ...stopData,
       estimatedRepairMinutes: stopData.estimatedRepairMinutes ?? stopData.durationMinutes,
@@ -4083,6 +4571,7 @@ export default function App() {
 
   // Stop All Running Lines Production
   const handleStopAllSkuProduction = () => {
+    flushAutoCartonBuffer();
     const completedAt = new Date().toISOString();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
@@ -4108,6 +4597,7 @@ export default function App() {
     targetPeriodKey?: string;
     forceHandoverAll?: boolean;
   }) => {
+    flushAutoCartonBuffer();
     const currentState = stateRef.current;
     const curRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
     const currentPeriod = getShiftPeriodInfo(new Date());
@@ -4333,58 +4823,67 @@ export default function App() {
 
   // Create Single Request
   const handleCreateRequest = (reqData: Omit<MaterialRequest, 'id' | 'requestNumber' | 'date' | 'status'>) => {
-    setState(prev => {
-      const count = prev.transactions.requests.length + 1;
-      const reqNumber = `REQ-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
-      const uniqueSuffix = Math.random().toString(36).substring(2, 8);
-      const newReq: MaterialRequest = {
-        ...reqData,
-        id: `req_${Date.now()}_${uniqueSuffix}`,
-        requestNumber: reqNumber,
-        date: new Date().toISOString().slice(0, 10),
-        status: 'Pending'
-      };
+    const currentState = stateRef.current;
+    const count = currentState.transactions.requests.length + 1;
+    const nowIso = new Date().toISOString();
+    const reqNumber = `REQ-${nowIso.slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+    const newReq: MaterialRequest = {
+      ...reqData,
+      id: `req_${Date.now()}_${uniqueSuffix}`,
+      requestNumber: reqNumber,
+      date: nowIso.slice(0, 10),
+      status: 'Pending'
+    };
 
-      return {
-        ...prev,
-        transactions: {
-          ...prev.transactions,
-          requests: [newReq, ...prev.transactions.requests]
-        }
-      };
-    });
+    dispatchAppendTx(
+      toTransactionDocFromRequest(newReq, getActiveActorEmail(), currentState.master.skus, nowIso)
+    );
+
+    setState(prev => ({
+      ...prev,
+      transactions: {
+        ...prev.transactions,
+        requests: [newReq, ...prev.transactions.requests]
+      }
+    }));
   };
 
   // Create Multiple Requests atomically (from shopping cart checkout)
   const handleCreateMultipleRequests = (items: Array<Omit<MaterialRequest, 'id' | 'requestNumber' | 'date' | 'status'>>) => {
     if (items.length === 0) return;
-    setState(prev => {
-      const baseCount = prev.transactions.requests.length;
-      const datePrefix = new Date().toISOString().slice(0, 7).replace('-', '');
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const timestamp = Date.now();
+    const currentState = stateRef.current;
+    const baseCount = currentState.transactions.requests.length;
+    const nowMs = Date.now();
+    const datePrefix = new Date(nowMs).toISOString().slice(0, 7).replace('-', '');
+    const dateStr = new Date(nowMs).toISOString().slice(0, 10);
 
-      const newRequests: MaterialRequest[] = items.map((reqData, idx) => {
-        const count = baseCount + idx + 1;
-        const reqNumber = `REQ-${datePrefix}-${String(count).padStart(3, '0')}`;
-        const uniqueSuffix = Math.random().toString(36).substring(2, 8);
-        return {
-          ...reqData,
-          id: `req_${timestamp}_${idx}_${uniqueSuffix}`,
-          requestNumber: reqNumber,
-          date: dateStr,
-          status: 'Pending'
-        };
-      });
-
+    const newRequests: MaterialRequest[] = items.map((reqData, idx) => {
+      const count = baseCount + idx + 1;
+      const reqNumber = `REQ-${datePrefix}-${String(count).padStart(3, '0')}`;
+      const uniqueSuffix = Math.random().toString(36).substring(2, 8);
       return {
-        ...prev,
-        transactions: {
-          ...prev.transactions,
-          requests: [...newRequests, ...prev.transactions.requests]
-        }
+        ...reqData,
+        id: `req_${nowMs}_${idx}_${uniqueSuffix}`,
+        requestNumber: reqNumber,
+        date: dateStr,
+        status: 'Pending'
       };
     });
+
+    const actorEmail = getActiveActorEmail();
+    newRequests.forEach((req, idx) => {
+      const itemIso = new Date(nowMs + idx).toISOString();
+      dispatchAppendTx(toTransactionDocFromRequest(req, actorEmail, currentState.master.skus, itemIso));
+    });
+
+    setState(prev => ({
+      ...prev,
+      transactions: {
+        ...prev.transactions,
+        requests: [...newRequests, ...prev.transactions.requests]
+      }
+    }));
   };
 
   // Weekly Production Planning handlers (acuan pemesanan material ke supplier)
@@ -4426,16 +4925,36 @@ export default function App() {
 
   // Receive Material
   const handleReceiveMaterial = (receiptData: Omit<MaterialReceipt, 'id' | 'receiptNumber' | 'date'>) => {
-    setState(prev => {
-      const count = prev.transactions.receipts.length + 1;
-      const receiptNumber = `RCV-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
-      const newReceipt: MaterialReceipt = {
-        ...receiptData,
-        id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        receiptNumber,
-        date: new Date().toISOString().slice(0, 10)
-      };
+    const currentState = stateRef.current;
+    const count = currentState.transactions.receipts.length + 1;
+    const nowIso = new Date().toISOString();
+    const receiptNumber = `RCV-${nowIso.slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
+    const newReceipt: MaterialReceipt = {
+      ...receiptData,
+      id: `rec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      receiptNumber,
+      date: nowIso.slice(0, 10)
+    };
 
+    const actorEmail = getActiveActorEmail();
+    dispatchAppendTx(toTransactionDocFromReceipt(newReceipt, actorEmail, nowIso));
+
+    // Only Administrator can mutate an existing REQUEST transaction doc in Firestore (Operators are create-only)
+    if (receiptData.requestId && cloudAuthRole === 'ADMINISTRATOR' && currentState.cloudWorkspaceId) {
+      const linkedReq = currentState.transactions.requests.find(r => r.id === receiptData.requestId);
+      if (linkedReq) {
+        const updatedReqDoc = toTransactionDocFromRequest(
+          { ...linkedReq, status: 'Received' },
+          actorEmail,
+          currentState.master.skus
+        );
+        void updateTransactionDoc(currentState.cloudWorkspaceId, updatedReqDoc).catch(err =>
+          console.error('Update linked request status error:', err)
+        );
+      }
+    }
+
+    setState(prev => {
       // Mark request as received if linked
       const updatedRequests = prev.transactions.requests.map(r => {
         if (receiptData.requestId && r.id === receiptData.requestId) {
@@ -4467,18 +4986,24 @@ export default function App() {
 
   // Record Usage (Shift selalu mengikuti jam shift berjalan saat transaksi dicatat)
   const handleRecordUsage = (usageData: Omit<MaterialUsage, 'id' | 'usageNumber' | 'date'>) => {
+    const currentState = stateRef.current;
     const liveShift = getCurrentShift().shift;
-    setState(prev => {
-      const count = prev.transactions.usages.length + 1;
-      const usageNumber = `USG-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
-      const newUsage: MaterialUsage = {
-        ...usageData,
-        shift: liveShift,
-        id: `use_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        usageNumber,
-        date: new Date().toISOString().slice(0, 10)
-      };
+    const count = currentState.transactions.usages.length + 1;
+    const nowIso = new Date().toISOString();
+    const usageNumber = `USG-${nowIso.slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
+    const newUsage: MaterialUsage = {
+      ...usageData,
+      shift: liveShift,
+      id: `use_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      usageNumber,
+      date: nowIso.slice(0, 10)
+    };
 
+    dispatchAppendTx(
+      toTransactionDocFromUsage(newUsage, getActiveActorEmail(), currentState.master.skus, nowIso)
+    );
+
+    setState(prev => {
       let updatedTankLevel = prev.tank.level;
       const mObj = prev.master.materials.find(m => m.id === usageData.materialId);
 
@@ -4570,6 +5095,13 @@ export default function App() {
 
     const targetMach = state.master.machines.find(m => m.id === batchData.targetMachineId);
     const machDisplay = targetMach ? `${targetMach.code} - ${targetMach.name}` : '';
+
+    const actorEmail = getActiveActorEmail();
+    const skusList = stateRef.current.master.skus;
+    newUsages.forEach((u, idx) => {
+      const uIso = new Date(now.getTime() + idx).toISOString();
+      dispatchAppendTx(toTransactionDocFromUsage(u, actorEmail, skusList, uIso));
+    });
 
     setState(prev => {
       const updatedMachines = prev.master.machines.map(m => {
@@ -4760,6 +5292,7 @@ export default function App() {
 
   // Complete WIP Batch with Auto-Transfer into designated Tank
   const handleCompleteWipBatch = (batchId: string) => {
+    const currentState = stateRef.current;
     const now = new Date();
     const nowMs = now.getTime();
     const nowIso = now.toISOString();
@@ -4767,113 +5300,94 @@ export default function App() {
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const completedAt = `${dateStr} ${timeStr}`;
     const actor =
-      stateRef.current.currentAdminUser?.displayName ||
-      stateRef.current.currentSession?.name ||
-      stateRef.current.currentUserRole ||
+      currentState.currentAdminUser?.displayName ||
+      currentState.currentSession?.name ||
+      currentState.currentUserRole ||
       'Operator';
 
-    let completedBatchName = '';
+    const targetBatch = (currentState.transactions.wipBatches || []).find(b => b.id === batchId);
+    if (!targetBatch) return;
+
+    const completedBatchName = `${targetBatch.batchCode} (${targetBatch.wipName})`;
+    const wipId = targetBatch.wipId;
+    const batchWeight = targetBatch.batchWeightKg;
+    const batchCode = targetBatch.batchCode;
+    const wipName = targetBatch.wipName;
+
+    const wipDef = currentState.master.wips.find(w => w.id === wipId);
+    const targetTankId =
+      targetBatch.targetTankId ||
+      wipDef?.targetTankId ||
+      (wipDef?.targetTankIds && wipDef.targetTankIds[0]) ||
+      currentState.master.tanks.find(t => t.assignedWipId === wipId)?.id;
+
     let tankTransferMessage = '';
+    let createdInflowLog: TankTransferLog | null = null;
+    const targetTankObj = targetTankId ? currentState.master.tanks.find(t => t.id === targetTankId) : undefined;
+    if (targetTankObj) {
+      const prevLvl = targetTankObj.currentLevelKg;
+      const newLvl = Math.min(targetTankObj.capacityKg, prevLvl + batchWeight);
+      tankTransferMessage = ` & otomatis ditransfer ${batchWeight.toFixed(1)} kg ke ${targetTankObj.code} (${targetTankObj.name})`;
+      createdInflowLog = {
+        id: `tl_${nowMs}_${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: nowIso,
+        tankId: targetTankObj.id,
+        tankCode: targetTankObj.code,
+        tankName: targetTankObj.name,
+        type: 'WIP_BATCH_INFLOW',
+        amountKg: batchWeight,
+        previousLevelKg: prevLvl,
+        newLevelKg: newLvl,
+        wipId,
+        wipName,
+        batchCode,
+        notes: `Transfer selesai batch ${batchCode} ke ${targetTankObj.code}`
+      };
+      dispatchAppendTx(toTransactionDocFromTankLog(createdInflowLog, getActiveActorEmail()));
+    }
 
     setState(prev => {
-      let wipId = '';
-      let batchWeight = 0;
-      let batchCode = '';
-      let wipName = '';
-
       const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
-        if (b.id === batchId) {
-          completedBatchName = `${b.batchCode} (${b.wipName})`;
-          wipId = b.wipId;
-          batchWeight = b.batchWeightKg;
-          batchCode = b.batchCode;
-          wipName = b.wipName;
-
-          let extraPausedMs = 0;
-          let closedLogs = b.pauseLogs;
-          if (b.status === 'DIJEDA' && b.pausedAt) {
-            const pMs = new Date(b.pausedAt).getTime();
-            if (Number.isFinite(pMs)) extraPausedMs = Math.max(0, nowMs - pMs);
-            if (closedLogs && closedLogs.length > 0) {
-              closedLogs = closedLogs.map((log, idx) =>
-                !log.resumedAt && idx === closedLogs!.length - 1
-                  ? { ...log, resumedAt: nowIso, resumedBy: `${actor} (Diselesaikan)`, pausedDurationMs: extraPausedMs }
-                  : log
-              );
-            }
+        if (b.id !== batchId) return b;
+        let extraPausedMs = 0;
+        let closedLogs = b.pauseLogs;
+        if (b.status === 'DIJEDA' && b.pausedAt) {
+          const pMs = new Date(b.pausedAt).getTime();
+          if (Number.isFinite(pMs)) extraPausedMs = Math.max(0, nowMs - pMs);
+          if (closedLogs && closedLogs.length > 0) {
+            closedLogs = closedLogs.map((log, idx) =>
+              !log.resumedAt && idx === closedLogs!.length - 1
+                ? { ...log, resumedAt: nowIso, resumedBy: `${actor} (Diselesaikan)`, pausedDurationMs: extraPausedMs }
+                : log
+            );
           }
-
-          return {
-            ...b,
-            status: 'SELESAI' as const,
-            completedAt,
-            pausedAt: undefined,
-            remainingMsAtPause: undefined,
-            totalPausedMs: (b.totalPausedMs || 0) + extraPausedMs,
-            pauseLogs: closedLogs
-          };
         }
-        return b;
+        return {
+          ...b,
+          status: 'SELESAI' as const,
+          completedAt,
+          pausedAt: undefined,
+          remainingMsAtPause: undefined,
+          totalPausedMs: (b.totalPausedMs || 0) + extraPausedMs,
+          pauseLogs: closedLogs
+        };
       });
 
-      // Find destination tank: batch target tank first, then WIP master target tanks, then assigned tank
-      const activeBatchObj = (prev.transactions.wipBatches || []).find(b => b.id === batchId);
-      const wipDef = prev.master.wips.find(w => w.id === wipId);
-      const targetTankId = activeBatchObj?.targetTankId || wipDef?.targetTankId || (wipDef?.targetTankIds && wipDef.targetTankIds[0]) || prev.master.tanks.find(t => t.assignedWipId === wipId)?.id;
+      const updatedTanks = createdInflowLog
+        ? prev.master.tanks.map(t =>
+            t.id === createdInflowLog!.tankId
+              ? { ...t, currentLevelKg: Math.min(t.capacityKg, t.currentLevelKg + batchWeight) }
+              : t
+          )
+        : prev.master.tanks;
 
-      let updatedTanks = prev.master.tanks;
-      let newTankLogs = prev.transactions.tankLogs || [];
-
-      if (targetTankId) {
-        updatedTanks = prev.master.tanks.map(t => {
-          if (t.id === targetTankId) {
-            const prevLvl = t.currentLevelKg;
-            const newLvl = Math.min(t.capacityKg, prevLvl + batchWeight);
-            tankTransferMessage = ` & otomatis ditransfer ${batchWeight.toFixed(1)} kg ke ${t.code} (${t.name})`;
-
-            newTankLogs = [
-              {
-                id: `tl_${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                tankId: t.id,
-                tankCode: t.code,
-                tankName: t.name,
-                type: 'WIP_BATCH_INFLOW',
-                amountKg: batchWeight,
-                previousLevelKg: prevLvl,
-                newLevelKg: newLvl,
-                wipId,
-                wipName,
-                batchCode,
-                notes: `Transfer selesai batch ${batchCode} ke ${t.code}`
-              },
-              ...newTankLogs
-            ];
-
-            return {
-              ...t,
-              currentLevelKg: newLvl
-            };
-          }
-          return t;
-        });
-      }
-
-      // Release machine currentWip assignment upon completion
-      const completingBatch = (prev.transactions.wipBatches || []).find(b => b.id === batchId);
-      let updatedMachines = prev.master.machines;
-      if (completingBatch?.targetMachineId) {
-        updatedMachines = prev.master.machines.map(m => {
-          if (m.id === completingBatch.targetMachineId && m.currentWipId === completingBatch.wipId) {
-            return {
-              ...m,
-              currentWipId: undefined,
-              currentWipName: undefined
-            };
-          }
-          return m;
-        });
-      }
+      const updatedMachines = targetBatch.targetMachineId
+        ? prev.master.machines.map(m =>
+            m.id === targetBatch.targetMachineId && m.currentWipId === targetBatch.wipId
+              ? { ...m, currentWipId: undefined, currentWipName: undefined }
+              : m
+          )
+        : prev.master.machines;
 
       return {
         ...prev,
@@ -4885,7 +5399,9 @@ export default function App() {
         transactions: {
           ...prev.transactions,
           wipBatches: updatedBatches,
-          tankLogs: newTankLogs
+          tankLogs: createdInflowLog
+            ? [createdInflowLog, ...(prev.transactions.tankLogs || [])]
+            : prev.transactions.tankLogs
         }
       };
     });
@@ -5018,62 +5534,61 @@ export default function App() {
     'sheets-sync': 'Integrasi Otomatis Hasil Produksi ke Google Sheets'
   };
 
+  const isDaylightTheme = state.theme === 'daylight' || state.theme === 'light';
+
+  const toasterNode = (
+    <Toaster
+      position="bottom-right"
+      richColors
+      theme={isDaylightTheme ? 'light' : 'dark'}
+      closeButton
+      duration={3200}
+      toastOptions={{
+        className: 'font-sans text-xs border border-border shadow-xl',
+      }}
+    />
+  );
+
   // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
   if (!state.isAuthenticated || setupStatus !== 'ready') {
     return (
-      <div
-        key={`auth-portal-shell-${authViewKey}`}
-        className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-sans"
-      >
-        <AuthPortalView
-          key={`auth-portal-${authViewKey}`}
-          state={state}
-          theme={state.theme === 'daylight' || state.theme === 'light' ? 'daylight' : 'midnight'}
-          onToggleTheme={handleToggleTheme}
-          setupStatus={setupStatus}
-          cloudFactoryName={cloudFactoryName}
-          firebaseUser={firebaseUser}
-          cloudAuthRole={cloudAuthRole}
-          isSyncingCloud={isSyncingCloud}
-          authError={authErrorBanner}
-          onClearAuthError={() => setAuthErrorBanner(null)}
-          onRetryCheckSetup={runSetupCheck}
-          onCompleteFirstAdminSetup={handleCompleteFirstAdminSetup}
-          onGoogleCloudLogin={handleGoogleCloudLogin}
-          onFirebaseSignOut={handleFirebaseSignOut}
-          onLoginSuccess={handleLoginSuccess}
-          showToast={showToast}
-        />
-
-        {/* Global Toast Notification */}
+      <>
         <div
-          className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] transform transition-all duration-300 pointer-events-none ${
-            toast.visible ? 'translate-y-0 opacity-100' : '-translate-y-12 opacity-0'
-          }`}
+          key={`auth-portal-shell-${authViewKey}`}
+          className="min-h-screen w-full overflow-y-auto bg-background text-foreground font-sans"
         >
-          <div className={`px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium flex items-center space-x-2 border ${
-            toast.isError
-              ? 'bg-rose-950/90 text-rose-200 border-rose-500/40'
-              : 'bg-slate-900/95 text-slate-100 border-slate-700'
-          }`}>
-            {toast.isError ? (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            )}
-            <span>{toast.msg}</span>
-          </div>
+          <AuthPortalView
+            key={`auth-portal-${authViewKey}`}
+            state={state}
+            theme={isDaylightTheme ? 'daylight' : 'midnight'}
+            onToggleTheme={handleToggleTheme}
+            setupStatus={setupStatus}
+            cloudFactoryName={cloudFactoryName}
+            firebaseUser={firebaseUser}
+            cloudAuthRole={cloudAuthRole}
+            isSyncingCloud={isSyncingCloud}
+            authError={authErrorBanner}
+            onClearAuthError={() => setAuthErrorBanner(null)}
+            onRetryCheckSetup={runSetupCheck}
+            onCompleteFirstAdminSetup={handleCompleteFirstAdminSetup}
+            onGoogleCloudLogin={handleGoogleCloudLogin}
+            onFirebaseSignOut={handleFirebaseSignOut}
+            onLoginSuccess={handleLoginSuccess}
+            showToast={showToast}
+          />
         </div>
-      </div>
+        {toasterNode}
+      </>
     );
   }
 
   // 2. TAMPILAN SETELAH LOGIN (NAVIGASI MODEL POPUP DRAWER & KONTEN LEBAR PENUH)
   return (
-    <div
-      key={`app-shell-${authViewKey}`}
-      className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 font-sans select-none"
-    >
+    <>
+      <div
+        key={`app-shell-${authViewKey}`}
+        className="h-screen w-screen overflow-hidden flex flex-col bg-background text-foreground font-sans select-none"
+      >
       {/* Sidebar: Model Popup Drawer (Slide-Over) untuk Komputer, Tablet & Mobile */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -5110,12 +5625,12 @@ export default function App() {
         />
 
         {/* Live Factory Dispatch Console Strip */}
-        <div className="bg-[#06090f] border-b border-slate-800/90 px-3 sm:px-5 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar gap-3 shrink-0 text-xs">
+        <div className="bg-canvas border-b border-border-subtle px-3 sm:px-5 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar gap-3 shrink-0 text-xs">
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Shift Telemetry */}
-            <div className="flex items-center gap-1.5 bg-[#0c121d] px-2.5 py-1 rounded-md border border-slate-800 font-mono tabular-nums whitespace-nowrap">
-              <span className="font-bold text-emerald-400 text-[11px]">Shift {getCurrentShift().shift}</span>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">· {getCurrentShift().timeRange}</span>
+            <div className="flex items-center gap-1.5 bg-surface px-2.5 py-1 rounded-md border border-border-subtle font-mono tabular-nums whitespace-nowrap">
+              <span className="font-bold text-ink-emerald text-[11px]">Shift {getCurrentShift().shift}</span>
+              <span className="text-[10px] text-ink-secondary hidden sm:inline">· {getCurrentShift().timeRange}</span>
             </div>
 
             {/* Running Multi-SKU Dispatch */}
@@ -5125,19 +5640,19 @@ export default function App() {
                 return (
                   <div
                     onClick={() => handleSwitchTab('dashboard')}
-                    className="flex items-center gap-2 cursor-pointer bg-cyan-950/40 border border-cyan-500/40 px-2.5 py-1 rounded-md text-[11px] hover:bg-cyan-900/40 transition whitespace-nowrap"
+                    className="flex items-center gap-2 cursor-pointer bg-tint-cyan border border-tint-cyan-border px-2.5 py-1 rounded-md text-[11px] hover:border-accent-primary transition whitespace-nowrap"
                     title="Klik untuk membuka modul Manufacturing & melihat SKU yang sedang diproses"
                   >
-                    <span className="font-bold text-cyan-400 font-mono">
+                    <span className="font-bold text-ink-cyan font-mono">
                       {runs.length === 1 ? '1 Lini Aktif:' : `${runs.length} Lini Aktif:`}
                     </span>
                     <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[280px] sm:max-w-[480px]">
                       {runs.map((r, i) => (
                         <span key={r.id || `${r.lineId || ''}_${r.skuId}_${i}`} className="flex items-center gap-1 whitespace-nowrap">
-                          {i > 0 && <span className="text-slate-600">·</span>}
-                          {r.lineName && <span className="text-cyan-300 font-semibold">{r.lineName}:</span>}
-                          <span className="text-slate-100 font-medium">{r.skuName}</span>
-                          <span className="text-cyan-400 font-mono text-[10px] tabular-nums">
+                          {i > 0 && <span className="text-ink-secondary">·</span>}
+                          {r.lineName && <span className="text-ink-cyan font-semibold">{r.lineName}:</span>}
+                          <span className="text-ink-primary font-medium">{r.skuName}</span>
+                          <span className="text-ink-cyan font-mono text-[10px] tabular-nums">
                             ({(r.cartonsProducedTotal || 0).toLocaleString()}{r.plannedCartons ? `/${r.plannedCartons.toLocaleString()}` : ''} ktn)
                           </span>
                         </span>
@@ -5147,7 +5662,7 @@ export default function App() {
                 );
               }
               return (
-                <div className="flex items-center gap-1.5 bg-[#0c121d] px-2.5 py-1 rounded-md border border-slate-800 text-[11px] text-slate-400 whitespace-nowrap">
+                <div className="flex items-center gap-1.5 bg-surface px-2.5 py-1 rounded-md border border-border-subtle text-[11px] text-ink-secondary whitespace-nowrap">
                   <span>Lini Siaga</span>
                 </div>
               );
@@ -5165,20 +5680,20 @@ export default function App() {
                   onClick={() => handleSwitchTab('pemakaian')}
                   className={`cursor-pointer flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] transition whitespace-nowrap border ${
                     isPaused
-                      ? 'bg-sky-950/60 border-sky-500/50 hover:border-sky-400'
-                      : 'bg-amber-950/40 border-amber-500/40 hover:border-amber-400'
+                      ? 'bg-tint-cyan border-tint-cyan-border hover:border-accent-primary'
+                      : 'bg-tint-amber border-tint-amber-border hover:border-ink-amber'
                   }`}
                   title={isPaused ? `Batch dijeda: ${running.pauseReason || ''}` : 'Klik untuk membuka rincian batch & Gantt WIP'}
                 >
                   {isPaused ? (
-                    <PauseCircle className="w-3 h-3 text-sky-400 shrink-0" />
+                    <PauseCircle className="w-3 h-3 text-ink-sky shrink-0" />
                   ) : (
-                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                    <Clock className="w-3 h-3 text-ink-amber shrink-0" />
                   )}
-                  <span className={`${isPaused ? 'text-sky-300' : 'text-amber-300'} font-mono font-semibold`}>
+                  <span className={`${isPaused ? 'text-ink-sky' : 'text-ink-amber'} font-mono font-semibold`}>
                     {running.batchCode}
                   </span>
-                  <span className="text-slate-200 hidden sm:inline">
+                  <span className="text-ink-primary hidden sm:inline">
                     · {running.wipName} {isPaused ? '(Dijeda)' : ''}
                   </span>
                   {isPaused ? (
@@ -5216,10 +5731,10 @@ export default function App() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setIsPdfReportModalOpen(true)}
-              className="flex items-center gap-1.5 bg-[#0c121d] hover:bg-slate-800 border border-slate-800 hover:border-rose-500/40 text-slate-200 px-2.5 py-1 rounded-md text-[11px] font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 bg-surface hover:bg-elevated border border-border-subtle hover:border-tint-rose-border text-ink-primary px-2.5 py-1 rounded-md text-[11px] font-semibold transition active:scale-95 whitespace-nowrap shrink-0"
               title="Download Laporan Saldo Stock Aktual Shift Format PDF (A4 Landscape)"
             >
-              <FileText className="w-3.5 h-3.5 text-rose-400" />
+              <FileText className="w-3.5 h-3.5 text-ink-rose" />
               <span>Laporan Shift (PDF)</span>
             </button>
           </div>
@@ -5236,7 +5751,7 @@ export default function App() {
         {/* Main Content View Area */}
         <main
           ref={mainScrollRef}
-          className="flex-1 overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8 bg-[#06090f] relative"
+          className="flex-1 overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8 bg-background relative"
         >
           {state.currentTab === 'admin-portal' && (
             <AdminPortalView
@@ -5467,7 +5982,7 @@ export default function App() {
       <AdminModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
-        isAdmin={state.isAdmin}
+        effectiveRole={effectiveRole}
         adminPin={state.adminPin}
         adminGoogleEmails={state.adminGoogleEmails}
         currentAdminUser={state.currentAdminUser}
@@ -5542,26 +6057,8 @@ export default function App() {
         onAdjustStock={handleAdjustMaterialStock}
         showToast={showToast}
       />
-
-      {/* Global Toast Notification */}
-      <div
-        className={`fixed top-14 left-1/2 -translate-x-1/2 z-[100] transform transition-all duration-300 pointer-events-none ${
-          toast.visible ? 'translate-y-0 opacity-100' : '-translate-y-12 opacity-0'
-        }`}
-      >
-        <div className={`px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium flex items-center space-x-2 border ${
-          toast.isError
-            ? 'bg-rose-950/90 text-rose-200 border-rose-500/40'
-            : 'bg-slate-900/95 text-slate-100 border-slate-700'
-        }`}>
-          {toast.isError ? (
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          )}
-          <span>{toast.msg}</span>
-        </div>
-      </div>
     </div>
+    {toasterNode}
+    </>
   );
 }

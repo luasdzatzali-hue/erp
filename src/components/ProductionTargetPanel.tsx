@@ -55,6 +55,7 @@ import {
 } from '../utils/skuTankHelper';
 import { isWhatsAppEligibleSblCategory } from '../utils/whatsappReport';
 import { DashboardLineStatusSnapshot } from '../utils/firebaseSync';
+import { resolveEffectiveRole } from '../utils/roleAccess';
 
 interface ProductionTargetPanelProps {
   state: AppState;
@@ -154,8 +155,9 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   onSetProductionLinesCount,
   showToast
 }) => {
-  const isManagement = state.currentUserRole === 'MANAGEMENT';
-  const isAdmin = state.currentUserRole === 'ADMINISTRATOR' || state.isAdmin;
+  const effectiveRole = resolveEffectiveRole(state);
+  const isManagement = effectiveRole.isManagement;
+  const isAdmin = effectiveRole.isAdmin;
   const defaultOperator = state.currentSession?.name || 'Operator Line Produksi';
 
   // Live clock ticking every second (Kalender + Jam Aktual + Shift Produk)
@@ -626,29 +628,29 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       : Math.min(100, Math.round((finalCartonsToday / (aggregateDailyTargetCartons || 1)) * 100));
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5 shadow-xl no-print">
+    <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 space-y-5 shadow-xl no-print">
       {/* 1. COCKPIT HEADER: Kalender, Jam Aktual, Shift Produk & Line Produksi */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-border-subtle pb-4">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
-              <Factory className="w-5 h-5 text-cyan-400 shrink-0" />
+            <h2 className="text-base sm:text-lg font-bold text-ink-primary flex items-center space-x-2">
+              <Factory className="w-5 h-5 text-brand shrink-0" />
               <span>Kontrol Produksi SKU Per Line</span>
             </h2>
-            <span className="text-[11px] font-mono font-semibold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-lg">
+            <span className="text-[11px] font-mono font-semibold text-brand bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-lg">
               {runningRuns.length} / {productionLines.length} Line Aktif · {standbyLines.length} Standby
             </span>
             <span
-              className="text-[11px] font-mono font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg inline-flex items-center space-x-1.5"
+              className="text-[11px] font-mono font-semibold text-ink-emerald bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg inline-flex items-center space-x-1.5"
               title="Status ketersediaan line dan progres SKU disinkronkan real-time ke seluruh perangkat"
             >
-              <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+              <Radio className="w-3 h-3 text-ink-emerald animate-pulse" />
               <span>
                 Live Sync{liveLineSyncTimeLabel ? ` · ${liveLineSyncTimeLabel}` : ''}
               </span>
             </span>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-secondary">
             1 Line hanya menjalankan 1 SKU hingga selesai/stop. Line berbeda dapat menjalankan SKU yang sama atau berbeda secara bersamaan dengan pemotongan Holding Tank real-time.
           </p>
         </div>
@@ -656,33 +658,33 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
         {/* Live Telemetry Strip: Kalender, Jam Aktual, Shift Produk, Atur Line */}
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch gap-2">
           {/* Kalender */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2.5">
-            <CalendarDays className="w-4 h-4 text-cyan-400 shrink-0" />
+          <div className="bg-canvas border border-border-subtle rounded-xl px-3 py-2 flex items-center space-x-2.5">
+            <CalendarDays className="w-4 h-4 text-brand shrink-0" />
             <div>
-              <span className="text-[10px] text-slate-400 block leading-none">Kalender</span>
-              <span className="text-xs font-semibold text-white whitespace-nowrap">{liveDateFormatted}</span>
+              <span className="text-[10px] text-ink-secondary block leading-none">Kalender</span>
+              <span className="text-xs font-semibold text-ink-primary whitespace-nowrap">{liveDateFormatted}</span>
             </div>
           </div>
 
           {/* Jam Aktual Live */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2.5">
-            <Clock className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="bg-canvas border border-border-subtle rounded-xl px-3 py-2 flex items-center space-x-2.5">
+            <Clock className="w-4 h-4 text-ink-emerald shrink-0" />
             <div>
-              <span className="text-[10px] text-slate-400 block leading-none">Jam Aktual</span>
-              <span className="text-xs sm:text-sm font-mono font-bold text-emerald-400 tabular-nums">
+              <span className="text-[10px] text-ink-secondary block leading-none">Jam Aktual</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-ink-emerald tabular-nums">
                 {liveClockFormatted}
               </span>
             </div>
           </div>
 
           {/* Shift Produk & Hitung Mundur Pergantian Shift */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 flex items-center space-x-2">
+          <div className="bg-canvas border border-border-subtle rounded-xl px-3 py-2 flex items-center space-x-2">
             <div>
-              <span className="text-[10px] text-slate-400 block leading-none">
+              <span className="text-[10px] text-ink-secondary block leading-none">
                 Shift Aktif · Auto Handover ke Shift {shiftPeriod.nextShift} dlm{' '}
-                <strong className="text-cyan-300 font-mono tabular-nums">{shiftCountdownLabel}</strong>
+                <strong className="text-brand font-mono tabular-nums">{shiftCountdownLabel}</strong>
               </span>
-              <span className="text-xs font-bold text-amber-300 font-mono whitespace-nowrap">
+              <span className="text-xs font-bold text-ink-amber font-mono whitespace-nowrap">
                 {currentLiveShift.name} · {currentLiveShift.timeRange}
               </span>
             </div>
@@ -693,9 +695,9 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
             <button
               type="button"
               onClick={() => setIsLineManagerOpen(true)}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition active:scale-95"
+              className="px-3.5 py-2 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition active:scale-95"
             >
-              <Settings2 className="w-4 h-4 text-cyan-400" />
+              <Settings2 className="w-4 h-4 text-brand" />
               <span>Atur Line ({productionLines.length})</span>
             </button>
           )}
@@ -704,27 +706,27 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
       {/* 2. GUIDED PRODUCTION FLOW COMPOSER (Alur 1 -> 2 -> 3 -> 4) */}
       {!isManagement && (
-        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-4">
+        <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-4">
           {/* Flow Step Header */}
-          <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isFlowComposerOpen ? 'border-b border-slate-800 pb-3' : ''}`}>
+          <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isFlowComposerOpen ? 'border-b border-border-subtle pb-3' : ''}`}>
             <div>
-              <h3 className="text-xs sm:text-sm font-bold text-white flex items-center space-x-2">
+              <h3 className="text-xs sm:text-sm font-bold text-ink-primary flex items-center space-x-2">
                 <span>Alur Mulai Produksi</span>
               </h3>
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 mt-1">
-                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-300 font-medium'}>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-secondary mt-1">
+                <span className={selectedLineIds.length > 0 ? 'text-brand font-semibold' : 'text-ink-secondary font-medium'}>
                   1. Pilih Line Produksi
                 </span>
                 <span>→</span>
-                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-400'}>
+                <span className={selectedLineIds.length > 0 ? 'text-brand font-semibold' : 'text-ink-secondary'}>
                   2. Tentukan SKU (bisa sama/berbeda)
                 </span>
                 <span>→</span>
-                <span className={selectedLineIds.length > 0 ? 'text-cyan-400 font-semibold' : 'text-slate-400'}>
+                <span className={selectedLineIds.length > 0 ? 'text-brand font-semibold' : 'text-ink-secondary'}>
                   3. Planning Karton/Shift
                 </span>
                 <span>→</span>
-                <span className={selectedLineIds.length > 0 ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                <span className={selectedLineIds.length > 0 ? 'text-ink-emerald font-semibold' : 'text-ink-secondary'}>
                   4. Start Produksi
                 </span>
               </div>
@@ -732,10 +734,10 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
             {/* Active Shift Badge (Auto synced to live shift clock) & Operator Field */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="text-[11px] text-slate-400">Shift Otomatis:</span>
-                <span className="text-xs font-bold text-amber-300 font-mono">
+              <div className="flex items-center space-x-1.5 bg-surface border border-border-subtle rounded-xl px-3 py-1.5">
+                <Clock className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+                <span className="text-[11px] text-ink-secondary">Shift Otomatis:</span>
+                <span className="text-xs font-bold text-ink-amber font-mono">
                   {currentLiveShift.shortLabel} ({currentLiveShift.timeRange})
                 </span>
               </div>
@@ -746,7 +748,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                   value={operatorInput}
                   onChange={(e) => setOperatorInput(e.target.value)}
                   placeholder="Nama Operator..."
-                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-44"
+                  className="bg-surface border border-border-subtle rounded-xl px-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary w-44"
                 />
               )}
 
@@ -754,7 +756,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 type="button"
                 onClick={() => setIsFlowComposerOpen(prev => !prev)}
                 aria-expanded={isFlowComposerOpen}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                className="px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
               >
                 {isFlowComposerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isFlowComposerOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -768,14 +770,14 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
           {/* Step 1: Select Production Lines */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-slate-300">
+              <span className="text-xs font-semibold text-ink-secondary">
                 Langkah 1 — Pilih Line Produksi ({standbyLines.length} Standby dari {productionLines.length} Line):
               </span>
               {standbyLines.length > 1 && (
                 <button
                   type="button"
                   onClick={handleSelectAllStandbyLines}
-                  className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition"
+                  className="text-[11px] font-semibold text-brand hover:text-brand transition"
                 >
                   {selectedLineIds.length === standbyLines.length
                     ? 'Batalkan Semua Pilihan'
@@ -798,31 +800,31 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                     onClick={() => handleToggleLineSelection(line.id)}
                     className={`text-left p-2.5 rounded-xl border transition flex flex-col justify-between min-h-[68px] ${
                       isBusy
-                        ? 'bg-slate-900/50 border-emerald-500/30 opacity-75 cursor-not-allowed'
+                        ? 'bg-surface border-emerald-500/30 opacity-75 cursor-not-allowed'
                         : isSelected
                         ? 'bg-cyan-500/15 border-cyan-400 shadow-sm'
-                        : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+                        : 'bg-surface border-border-subtle hover:border-border-strong'
                     }`}
                   >
                     <div className="flex items-center justify-between w-full gap-1">
-                      <span className="font-bold text-xs text-white truncate">{line.name}</span>
+                      <span className="font-bold text-xs text-ink-primary truncate">{line.name}</span>
                       {isBusy ? (
-                        <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Lock className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
                       ) : isSelected ? (
                         <span className="w-4 h-4 rounded bg-cyan-500 text-slate-950 flex items-center justify-center shrink-0">
                           <Check className="w-3 h-3 stroke-[3]" />
                         </span>
                       ) : (
-                        <span className="w-4 h-4 rounded border border-slate-600 shrink-0" />
+                        <span className="w-4 h-4 rounded border border-border-strong shrink-0" />
                       )}
                     </div>
                     <span
                       className={`text-[10px] mt-1 truncate w-full ${
                         isBusy
-                          ? 'text-emerald-400 font-medium'
+                          ? 'text-ink-emerald font-medium'
                           : isSelected
-                          ? 'text-cyan-300 font-medium'
-                          : 'text-slate-400'
+                          ? 'text-brand font-medium'
+                          : 'text-ink-secondary'
                       }`}
                     >
                       {isBusy ? `Aktif: ${activeRun.skuName}` : 'Standby · Klik pilih'}
@@ -835,16 +837,16 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
           {/* Step 2 & 3: Assign SKU & Planning per Selected Line */}
           {selectedLineIds.length > 0 && (
-            <div className="space-y-3 pt-2 border-t border-slate-800">
+            <div className="space-y-3 pt-2 border-t border-border-subtle">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-300">
+                <span className="text-xs font-semibold text-ink-secondary">
                   Langkah 2 &amp; 3 — Tentukan SKU &amp; Planning Karton per Shift ({selectedLineIds.length} Line Terpilih):
                 </span>
                 {selectedLineIds.length >= 2 && (
                   <button
                     type="button"
                     onClick={handleApplyFirstPlanToAllSelected}
-                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition"
+                    className="text-[11px] font-semibold text-brand hover:text-brand transition"
                   >
                     Samakan SKU &amp; Planning ke Semua Line Terpilih
                   </button>
@@ -868,18 +870,18 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                   return (
                     <div
                       key={lineId}
-                      className="bg-slate-900 border border-slate-800 rounded-xl p-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center"
+                      className="bg-surface border border-border-subtle rounded-xl p-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center"
                     >
                       {/* Line Label */}
                       <div className="lg:col-span-2 flex items-center justify-between lg:justify-start gap-2">
                         <div>
-                          <span className="text-xs font-bold text-white block">{lineObj.name}</span>
-                          <span className="text-[10px] font-mono text-slate-400">{lineObj.code}</span>
+                          <span className="text-xs font-bold text-ink-primary block">{lineObj.name}</span>
+                          <span className="text-[10px] font-mono text-ink-secondary">{lineObj.code}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleToggleLineSelection(lineId)}
-                          className="lg:hidden text-slate-400 hover:text-rose-400 p-1"
+                          className="lg:hidden text-ink-secondary hover:text-ink-rose p-1"
                           title="Batalkan pilih line"
                         >
                           <X className="w-4 h-4" />
@@ -888,11 +890,11 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
                       {/* SKU Selector (Same SKU across multiple lines IS supported) */}
                       <div className="lg:col-span-4 space-y-1">
-                        <label className="text-[10px] text-slate-400 block">SKU yang Diproduksi</label>
+                        <label className="text-[10px] text-ink-secondary block">SKU yang Diproduksi</label>
                         <select
                           value={draft.skuId}
                           onChange={(e) => handleUpdateDraftSku(lineId, e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan-500"
+                          className="w-full bg-canvas border border-border-strong rounded-lg px-2.5 py-2 text-xs font-semibold text-ink-primary focus:outline-none focus:border-accent-primary"
                         >
                           {state.master.skus.map(s => (
                             <option key={s.id} value={s.id}>
@@ -905,12 +907,12 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       {/* Planning Karton / Shift */}
                       <div className="lg:col-span-3 space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-[10px] text-slate-400">Planning (Ktn / Shift)</label>
+                          <label className="text-[10px] text-ink-secondary">Planning (Ktn / Shift)</label>
                           <div className="flex items-center space-x-1">
                             <button
                               type="button"
                               onClick={() => handleUpdateDraftPlannedCartons(lineId, String(halfShiftQty))}
-                              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono px-1"
+                              className="text-[10px] text-brand hover:text-brand font-mono px-1"
                               title="Setengah Shift (4 Jam)"
                             >
                               ½ Shift
@@ -918,7 +920,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                             <button
                               type="button"
                               onClick={() => handleUpdateDraftPlannedCartons(lineId, String(fullShiftQty))}
-                              className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono px-1"
+                              className="text-[10px] text-brand hover:text-brand font-mono px-1"
                               title="1 Shift Penuh (8 Jam)"
                             >
                               1 Shift
@@ -932,9 +934,9 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                             step={1}
                             value={draft.plannedCartons}
                             onChange={(e) => handleUpdateDraftPlannedCartons(lineId, e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-white tabular-nums focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-canvas border border-border-strong rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-ink-primary tabular-nums focus:outline-none focus:border-accent-primary"
                           />
-                          <span className="text-[11px] text-slate-400 font-mono">ktn</span>
+                          <span className="text-[11px] text-ink-secondary font-mono">ktn</span>
                         </div>
                       </div>
 
@@ -942,21 +944,21 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       <div className="lg:col-span-3 flex items-center justify-between gap-2">
                         <div className="text-[11px] min-w-0">
                           {wips.length === 0 ? (
-                            <span className="text-rose-400 font-semibold flex items-center space-x-1">
+                            <span className="text-ink-rose font-semibold flex items-center space-x-1">
                               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                               <span className="truncate">BOM WIP belum diset</span>
                             </span>
                           ) : (
                             <div className="space-y-0.5">
-                              <span className="text-slate-300 block truncate">
+                              <span className="text-ink-secondary block truncate">
                                 {wips.length} WIP BOM ({wips.map(w => w.wip?.code || 'WIP').join(', ')})
                               </span>
                               {multiHtCount > 0 ? (
-                                <span className="text-amber-300 text-[10px] block truncate">
+                                <span className="text-ink-amber text-[10px] block truncate">
                                   {multiHtCount} WIP punya 2+ Holding Tank (dipilih saat Start)
                                 </span>
                               ) : (
-                                <span className="text-emerald-400 text-[10px] block truncate">
+                                <span className="text-ink-emerald text-[10px] block truncate">
                                   Holding Tank otomatis siap
                                 </span>
                               )}
@@ -966,7 +968,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => handleToggleLineSelection(lineId)}
-                          className="hidden lg:inline-flex p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition shrink-0"
+                          className="hidden lg:inline-flex p-1.5 text-ink-secondary hover:text-ink-rose rounded-lg hover:bg-elevated transition shrink-0"
                           title="Hapus dari rencana start"
                         >
                           <X className="w-4 h-4" />
@@ -979,9 +981,9 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
               {/* Step 4: Start CTA */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-ink-secondary">
                   Total Planning:{' '}
-                  <strong className="text-white font-mono tabular-nums">
+                  <strong className="text-ink-primary font-mono tabular-nums">
                     {selectedLineIds
                       .reduce((sum, id) => sum + (parseInt(draftPlansByLine[id]?.plannedCartons || '0', 10) || 0), 0)
                       .toLocaleString()}{' '}
@@ -1012,10 +1014,10 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-sm font-bold text-ink-primary">
               Monitoring Line Produksi ({productionLines.length} Line)
             </h3>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-ink-secondary">
               Setiap line beroperasi paralel &amp; memotong Holding Tank sesuai formula BOM SKU yang berjalan.
             </p>
           </div>
@@ -1025,7 +1027,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               <button
                 type="button"
                 onClick={onTriggerShiftHandover}
-                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95"
+                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-ink-indigo border border-indigo-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95"
                 title="Hentikan run shift saat ini & lanjutkan otomatis ke shift berikutnya"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -1037,7 +1039,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               <button
                 type="button"
                 onClick={onStopAllSkuProduction}
-                className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+                className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-ink-rose border border-rose-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
                 <span>Hentikan Semua ({runningRuns.length})</span>
@@ -1047,9 +1049,9 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
             <button
               type="button"
               onClick={() => setShowStopHistory(!showStopHistory)}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+              className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
             >
-              <History className="w-3.5 h-3.5 text-amber-400" />
+              <History className="w-3.5 h-3.5 text-ink-amber" />
               <span>Log SBL Hari Ini ({stopLogsToday.length})</span>
             </button>
           </div>
@@ -1114,34 +1116,34 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                   key={line.id}
                   className={`rounded-2xl p-4 flex flex-col justify-between gap-3 border ${
                     isShortageStop
-                      ? 'bg-slate-950/75 border-amber-500/50 shadow-lg'
+                      ? 'bg-canvas border-amber-500/50 shadow-lg'
                       : isSblStop
-                      ? 'bg-slate-950/75 border-rose-500/45 shadow-lg'
-                      : 'bg-slate-950/50 border-slate-800'
+                      ? 'bg-canvas border-rose-500/45 shadow-lg'
+                      : 'bg-canvas border-border-subtle'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-white">{line.name}</span>
-                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                        <span className="text-sm font-bold text-ink-primary">{line.name}</span>
+                        <span className="text-[10px] font-mono text-ink-secondary bg-elevated px-1.5 py-0.5 rounded">
                           {line.code}
                         </span>
                       </div>
                       {line.description && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">{line.description}</p>
+                        <p className="text-[11px] text-ink-secondary mt-0.5">{line.description}</p>
                       )}
                     </div>
                     {isShortageStop ? (
-                      <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/40 shrink-0">
+                      <span className="text-[11px] font-semibold text-ink-amber bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/40 shrink-0">
                         Stop · Material Shortage
                       </span>
                     ) : isSblStop ? (
-                      <span className="text-[11px] font-semibold text-rose-300 bg-rose-500/15 px-2.5 py-1 rounded-lg border border-rose-500/40 shrink-0">
+                      <span className="text-[11px] font-semibold text-ink-rose bg-rose-500/15 px-2.5 py-1 rounded-lg border border-rose-500/40 shrink-0">
                         Stop · SBL (Est. {sblEstMinutes} mnt)
                       </span>
                     ) : (
-                      <span className="text-[11px] font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/70">
+                      <span className="text-[11px] font-semibold text-ink-secondary bg-elevated px-2.5 py-1 rounded-lg border border-border-strong">
                         Standby
                       </span>
                     )}
@@ -1153,32 +1155,32 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start space-x-2 min-w-0">
-                            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <AlertTriangle className="w-4 h-4 text-ink-amber shrink-0 mt-0.5" />
                             <div className="min-w-0">
-                              <p className="text-xs font-bold text-white truncate">
+                              <p className="text-xs font-bold text-ink-primary truncate">
                                 {lastFinished.skuName} ({lastFinished.skuCode || 'SKU'})
                               </p>
-                              <p className="text-[11px] text-amber-200 mt-0.5">
+                              <p className="text-[11px] text-ink-amber mt-0.5">
                                 Penyebab Stop: {lastFinished.shortageReason || 'WIP di Holding Tank habis / di bawah kebutuhan 1 karton'}
                               </p>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[10px] font-mono tabular-nums text-slate-300">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[10px] font-mono tabular-nums text-ink-secondary">
                           <span>
-                            Tercapai: <strong className="text-white">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
+                            Tercapai: <strong className="text-ink-primary">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
                           </span>
                           <span>
-                            Sisa Target: <strong className="text-amber-300">{pausedRemaining.toLocaleString()} ktn</strong>
+                            Sisa Target: <strong className="text-ink-amber">{pausedRemaining.toLocaleString()} ktn</strong>
                           </span>
                         </div>
                       </div>
 
                       {/* WIP Holding Tank Status & Alternate Tank Switcher */}
                       {shortageWipBreakdown.length > 0 && (
-                        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-2">
-                          <span className="text-[10px] font-semibold text-slate-400 block">
+                        <div className="bg-surface border border-border-subtle rounded-xl p-2.5 space-y-2">
+                          <span className="text-[10px] font-semibold text-ink-secondary block">
                             Cek Ketersediaan WIP Holding Tank:
                           </span>
                           <div className="space-y-1.5">
@@ -1196,16 +1198,16 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                               return (
                                 <div key={item.skuWip.id || idx} className="flex flex-col gap-1 text-[11px]">
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-slate-200 font-medium truncate">
+                                    <span className="text-ink-primary font-medium truncate">
                                       {item.wip?.name || 'WIP'}
                                     </span>
-                                    <span className={`font-mono font-bold tabular-nums shrink-0 ${isEnough ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <span className={`font-mono font-bold tabular-nums shrink-0 ${isEnough ? 'text-ink-emerald' : 'text-ink-rose'}`}>
                                       {activeTank ? `${activeTank.code}: ${tankAvailKg.toFixed(1)} kg (${canCartons} ktn)` : 'Belum ada tangki'}
                                     </span>
                                   </div>
                                   {!isManagement && holdingTanks.length >= 2 && item.wip && (
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[10px] text-slate-400 shrink-0">Pindah Tank:</span>
+                                      <span className="text-[10px] text-ink-secondary shrink-0">Pindah Tank:</span>
                                       <select
                                         value={activeTank?.id || ''}
                                         onChange={(e) =>
@@ -1213,7 +1215,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                                           item.wip &&
                                           onUpdateRunHoldingTank(lastFinished.skuId, item.wip.id, e.target.value, lastFinished.id)
                                         }
-                                        className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-mono text-white focus:outline-none focus:border-cyan-500"
+                                        className="flex-1 min-w-0 bg-canvas border border-border-strong rounded-lg px-2 py-1 text-[10px] font-mono text-ink-primary focus:outline-none focus:border-accent-primary"
                                       >
                                         {holdingTanks.map(ht => (
                                           <option key={ht.id} value={ht.id}>
@@ -1233,8 +1235,8 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       {/* Readiness Banner */}
                       {resumeAvailability?.isReady ? (
                         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                          <div className="flex items-center space-x-2 text-[11px] text-emerald-300">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div className="flex items-center space-x-2 text-[11px] text-ink-emerald">
+                            <CheckCircle2 className="w-4 h-4 text-ink-emerald shrink-0" />
                             <span>
                               WIP sudah tersedia kembali (±<strong>{resumeAvailability.minPossibleCartons.toLocaleString()}</strong> ktn siap)
                             </span>
@@ -1242,14 +1244,14 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         </div>
                       ) : (
                         <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[11px] text-rose-300">
+                          <span className="text-[11px] text-ink-rose">
                             Menunggu pengisian WIP ke Holding Tank ({resumeAvailability?.missingDetails.join(' · ') || 'Stok kosong'})
                           </span>
                           {onSwitchTab && (
                             <button
                               type="button"
                               onClick={() => onSwitchTab('tank-monitoring')}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-[10px] font-semibold flex items-center space-x-1 transition shrink-0"
+                              className="px-2.5 py-1 bg-elevated hover:bg-accent text-brand border border-border-strong rounded-lg text-[10px] font-semibold flex items-center space-x-1 transition shrink-0"
                             >
                               <Droplets className="w-3 h-3" />
                               <span>Isi / Transfer Tangki</span>
@@ -1263,28 +1265,28 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       {/* Interrupted Run & SBL Repair Estimation Box */}
                       <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 space-y-1.5">
                         <div className="flex items-start space-x-2 min-w-0">
-                          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <ShieldAlert className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center justify-between gap-1">
-                              <p className="text-xs font-bold text-white truncate">
+                              <p className="text-xs font-bold text-ink-primary truncate">
                                 {lastFinished.skuName} ({lastFinished.skuCode || 'SKU'})
                               </p>
-                              <span className="text-[10px] font-mono text-rose-300">
+                              <span className="text-[10px] font-mono text-ink-rose">
                                 {lastFinished.sblCategoryLabel || linkedSblLog?.categoryLabel || 'Six Big Losses'}
                               </span>
                             </div>
-                            <p className="text-[11px] text-rose-200 mt-0.5">
+                            <p className="text-[11px] text-ink-rose mt-0.5">
                               Kendala: {lastFinished.sblReason || linkedSblLog?.reasonTitle || 'Masalah proses / perbaikan teknis'}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-500/20 text-[10px] font-mono tabular-nums text-slate-300">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-rose-500/20 text-[10px] font-mono tabular-nums text-ink-secondary">
                           <span>
-                            Tercapai: <strong className="text-white">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
+                            Tercapai: <strong className="text-ink-primary">{pausedProduced.toLocaleString()}</strong> / {pausedPlanned.toLocaleString()} ktn
                           </span>
                           <span>
-                            Sisa Target: <strong className="text-cyan-300">{pausedRemaining.toLocaleString()} ktn</strong>
+                            Sisa Target: <strong className="text-brand">{pausedRemaining.toLocaleString()} ktn</strong>
                           </span>
                         </div>
                       </div>
@@ -1300,7 +1302,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                           <span
                             className={`font-bold flex items-center space-x-1.5 ${
-                              sblWithinEstimate ? 'text-emerald-300' : 'text-amber-300'
+                              sblWithinEstimate ? 'text-ink-emerald' : 'text-ink-amber'
                             }`}
                           >
                             <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -1310,12 +1312,12 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                                 : `Melewati Estimasi (${sblEstMinutes} menit)`}
                             </span>
                           </span>
-                          <span className="font-mono font-bold text-white tabular-nums">
+                          <span className="font-mono font-bold text-ink-primary tabular-nums">
                             {formatMmSs(sblElapsedSec)} / {formatMmSs(sblEstSec)}
                           </span>
                         </div>
 
-                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 bg-elevated rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               sblWithinEstimate ? 'bg-emerald-500' : 'bg-amber-500'
@@ -1324,7 +1326,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                           />
                         </div>
 
-                        <p className="text-[10px] text-slate-300 tabular-nums">
+                        <p className="text-[10px] text-ink-secondary tabular-nums">
                           {sblWithinEstimate
                             ? `Sisa waktu estimasi ${formatMmSs(sblRemainingSec)}. Jika perbaikan sudah selesai kurang dari ${sblEstMinutes} menit, klik Start Produksi Kembali untuk melanjutkan target.`
                             : `Waktu perbaikan telah berjalan ${Math.ceil(sblElapsedSec / 60)} mnt. Jika sudah selesai, klik Start Produksi Kembali untuk melanjutkan.`}
@@ -1332,7 +1334,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       </div>
 
                       {!resumeAvailability?.isReady && (
-                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2 text-[11px] text-rose-300 flex flex-wrap items-center justify-between gap-2">
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2 text-[11px] text-ink-rose flex flex-wrap items-center justify-between gap-2">
                           <span>
                             Stok WIP Holding Tank belum cukup untuk melanjutkan ({resumeAvailability?.missingDetails.join(' · ') || 'Kosong'})
                           </span>
@@ -1340,7 +1342,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                             <button
                               type="button"
                               onClick={() => onSwitchTab('tank-monitoring')}
-                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-[10px] font-semibold"
+                              className="px-2 py-1 bg-elevated hover:bg-accent text-brand border border-border-strong rounded-lg text-[10px] font-semibold"
                             >
                               Isi Tangki
                             </button>
@@ -1349,15 +1351,15 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       )}
                     </div>
                   ) : lastFinished ? (
-                    <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5 text-[11px] flex items-center justify-between gap-2">
-                      <span className="text-slate-400 truncate">
-                        Terakhir: <strong className="text-slate-200">{lastFinished.skuName}</strong> ({(lastFinished.cartonsProducedTotal || 0).toLocaleString()} ktn)
+                    <div className="bg-surface border border-border-subtle rounded-xl p-2.5 text-[11px] flex items-center justify-between gap-2">
+                      <span className="text-ink-secondary truncate">
+                        Terakhir: <strong className="text-ink-primary">{lastFinished.skuName}</strong> ({(lastFinished.cartonsProducedTotal || 0).toLocaleString()} ktn)
                       </span>
                       <span
                         className={`font-semibold shrink-0 ${
                           lastFinished.completionStatus === 'SHIFT_HANDOVER'
-                            ? 'text-indigo-300'
-                            : 'text-emerald-400'
+                            ? 'text-ink-indigo'
+                            : 'text-ink-emerald'
                         }`}
                       >
                         {lastFinished.completionStatus === 'SHIFT_HANDOVER'
@@ -1366,7 +1368,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-ink-muted">
                       Line tersedia. Pilih line ini pada Alur Mulai Produksi untuk menentukan SKU dan planning karton.
                     </p>
                   )}
@@ -1382,7 +1384,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                           }
                           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
                             !resumeAvailability?.isReady
-                              ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                              ? 'bg-elevated text-ink-muted border border-border-strong cursor-not-allowed'
                               : isSblStop && !sblWithinEstimate
                               ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 active:scale-95'
                               : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 active:scale-95'
@@ -1403,7 +1405,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => setWaModalTarget({ stopLog: linkedSblLog })}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition flex items-center space-x-1.5"
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-ink-emerald border border-emerald-500/40 transition flex items-center space-x-1.5"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
                           <span>Kirim WA</span>
@@ -1416,7 +1418,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 ${
                           selectedLineIds.includes(line.id)
                             ? 'bg-cyan-600 text-white'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                            : 'bg-elevated hover:bg-accent text-ink-primary border border-border-strong'
                         }`}
                       >
                         {selectedLineIds.includes(line.id) ? (
@@ -1426,7 +1428,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                           </>
                         ) : (
                           <>
-                            <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                            <Plus className="w-3.5 h-3.5 text-brand" />
                             <span>{canShowResumeCard ? `Ganti SKU (${line.name})` : `Pilih ${line.name}`}</span>
                           </>
                         )}
@@ -1451,36 +1453,36 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
             return (
               <div
                 key={line.id}
-                className="bg-slate-950/75 border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg"
+                className="bg-canvas border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg"
               >
                 {/* Card Header: Line Name, Running SKU, Speed & Stop/Selesai */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 border-b border-border-subtle pb-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold">
                         {run.lineName || line.name}
                       </span>
-                      <span className="text-[11px] font-mono text-emerald-400 font-semibold flex items-center space-x-1">
+                      <span className="text-[11px] font-mono text-ink-emerald font-semibold flex items-center space-x-1">
                         <Lock className="w-3 h-3" />
                         <span>1 SKU Aktif · Shift {run.shift || currentLiveShift.shift}</span>
                       </span>
                       {run.carriedOverFromShift && (
-                        <span className="text-[10px] font-mono font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-mono font-semibold text-ink-indigo bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 rounded">
                           Lanjutan Shift {run.carriedOverFromShift} ({(run.previousShiftCartons || 0).toLocaleString()} ktn)
                         </span>
                       )}
                       {sku?.isKite && (
-                        <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-mono font-bold text-ink-amber bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
                           KITE
                         </span>
                       )}
                     </div>
                     <div className="flex items-center space-x-2 mt-1.5">
-                      <Package className="w-4 h-4 text-cyan-400 shrink-0" />
-                      <h4 className="text-sm sm:text-base font-bold text-white truncate">
+                      <Package className="w-4 h-4 text-brand shrink-0" />
+                      <h4 className="text-sm sm:text-base font-bold text-ink-primary truncate">
                         {sku?.name || run.skuName}
                       </h4>
-                      <span className="text-[10px] font-mono text-cyan-300 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded shrink-0">
+                      <span className="text-[10px] font-mono text-brand bg-elevated border border-border-strong px-1.5 py-0.5 rounded shrink-0">
                         {sku?.code || run.skuCode || 'SKU'}
                       </span>
                     </div>
@@ -1488,7 +1490,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
                   {/* Speed & Stop Action */}
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                    <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                    <div className="flex items-center space-x-1 bg-surface border border-border-subtle rounded-lg p-0.5">
                       {[1, 2, 5].map(mult => (
                         <button
                           key={mult}
@@ -1498,7 +1500,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                           className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition ${
                             speedMult === mult
                               ? 'bg-cyan-600 text-white'
-                              : 'text-slate-400 hover:text-white'
+                              : 'text-ink-secondary hover:text-ink-primary'
                           }`}
                         >
                           {mult}x
@@ -1523,35 +1525,35 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 </div>
 
                 {/* Realisasi vs Planning Progress */}
-                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div className="bg-surface border border-border-subtle rounded-xl p-3 space-y-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <div>
-                      <span className="text-[10px] text-slate-400 block">Realisasi vs Planning Shift</span>
+                      <span className="text-[10px] text-ink-secondary block">Realisasi vs Planning Shift</span>
                       <div className="flex items-baseline space-x-1.5">
-                        <span className="text-xl font-bold font-mono text-white tabular-nums">
+                        <span className="text-xl font-bold font-mono text-ink-primary tabular-nums">
                           {produced.toLocaleString()}
                         </span>
-                        <span className="text-xs font-mono text-slate-400 tabular-nums">
+                        <span className="text-xs font-mono text-ink-secondary tabular-nums">
                           / {plannedCartons.toLocaleString()} ktn
                         </span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-sm font-mono font-bold text-emerald-400 tabular-nums">{pct}%</span>
-                      <span className="text-[10px] text-slate-400 font-mono block tabular-nums">
+                      <span className="text-sm font-mono font-bold text-ink-emerald tabular-nums">{pct}%</span>
+                      <span className="text-[10px] text-ink-secondary font-mono block tabular-nums">
                         Sisa: {remaining.toLocaleString()} ktn
                       </span>
                     </div>
                   </div>
 
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-elevated rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400 pt-0.5 tabular-nums">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-ink-secondary pt-0.5 tabular-nums">
                     <span>Laju: {((targetPerHour * speedMult) / 3600).toFixed(2)} ktn/dtk ({targetPerHour * speedMult} ktn/j)</span>
                     <span>Op: {run.operatorName}</span>
                   </div>
@@ -1560,11 +1562,11 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 {/* Holding Tank WIP BOM Depletion Strip */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-slate-300 flex items-center space-x-1.5">
-                      <Cylinder className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="font-semibold text-ink-secondary flex items-center space-x-1.5">
+                      <Cylinder className="w-3.5 h-3.5 text-brand" />
                       <span>Pengurangan WIP Holding Tank (BOM)</span>
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">
+                    <span className="text-[10px] font-mono text-ink-secondary">
                       {linkedWips.length} Komponen WIP
                     </span>
                   </div>
@@ -1586,36 +1588,36 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                       return (
                         <div
                           key={item.skuWip.id || idx}
-                          className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs space-y-1.5"
+                          className="bg-surface border border-border-subtle rounded-xl p-2.5 text-xs space-y-1.5"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="font-semibold text-white block truncate">
+                              <span className="font-semibold text-ink-primary block truncate">
                                 {item.wip?.name || 'WIP'}
                               </span>
-                              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                              <span className="text-[10px] font-mono text-ink-secondary tabular-nums">
                                 {item.kgPerCarton.toFixed(4)} kg/ktn · Terpotong {(produced * item.kgPerCarton).toFixed(1)} kg
                               </span>
                             </div>
                             <div className="text-right shrink-0 font-mono tabular-nums">
                               {primaryTank ? (
                                 <>
-                                  <span className="text-[11px] font-bold text-cyan-300 block">
+                                  <span className="text-[11px] font-bold text-brand block">
                                     {primaryTank.code}: {primaryTank.currentLevelKg.toFixed(1)} kg
                                   </span>
-                                  <span className={`text-[10px] font-semibold ${isCrit ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  <span className={`text-[10px] font-semibold ${isCrit ? 'text-ink-rose' : 'text-ink-emerald'}`}>
                                     Cukup {maxCartons.toLocaleString()} ktn
                                   </span>
                                 </>
                               ) : (
-                                <span className="text-[10px] text-rose-400">Belum ada tangki</span>
+                                <span className="text-[10px] text-ink-rose">Belum ada tangki</span>
                               )}
                             </div>
                           </div>
 
                           {holdingTanks.length >= 2 && item.wip && (
-                            <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between gap-2">
-                              <span className="text-[10px] text-slate-400 shrink-0">Holding Tank:</span>
+                            <div className="pt-1.5 border-t border-border-subtle flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-ink-secondary shrink-0">Holding Tank:</span>
                               <select
                                 disabled={isManagement}
                                 value={primaryTank?.id || ''}
@@ -1624,7 +1626,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                                   item.wip &&
                                   onUpdateRunHoldingTank(run.skuId, item.wip.id, e.target.value, run.id)
                                 }
-                                className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-mono text-white focus:outline-none focus:border-cyan-500"
+                                className="flex-1 min-w-0 bg-canvas border border-border-strong rounded-lg px-2 py-1 text-[10px] font-mono text-ink-primary focus:outline-none focus:border-accent-primary"
                               >
                                 {holdingTanks.map(ht => (
                                   <option key={ht.id} value={ht.id}>
@@ -1642,15 +1644,15 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
                 {/* Manual Output / Quick Deduction Row */}
                 {!isManagement && (
-                  <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <div className="pt-2 border-t border-border-subtle flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400 mr-1">Catat Output:</span>
+                      <span className="text-[10px] text-ink-secondary mr-1">Catat Output:</span>
                       {[1, 10, 50, 200].map(q => (
                         <button
                           key={q}
                           type="button"
                           onClick={() => handleManualCartonDeduction(run, q)}
-                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-mono font-bold transition active:scale-95"
+                          className="px-2 py-1 bg-surface hover:bg-elevated text-ink-primary border border-border-strong rounded-lg text-[10px] font-mono font-bold transition active:scale-95"
                         >
                           +{q}
                         </button>
@@ -1680,7 +1682,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                             [run.id || line.id]: e.target.value
                           }))
                         }
-                        className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-white text-center tabular-nums focus:outline-none focus:border-cyan-500"
+                        className="w-16 bg-surface border border-border-strong rounded-lg px-2 py-1 text-[11px] font-mono text-ink-primary text-center tabular-nums focus:outline-none focus:border-accent-primary"
                       />
                       <button
                         type="submit"
@@ -1699,15 +1701,15 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
       {/* 4. COLLAPSIBLE SIX BIG LOSSES HISTORY TABLE */}
       {showStopHistory && (
-        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+        <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle pb-2.5">
             <div className="flex items-center space-x-2">
-              <ShieldAlert className="w-4 h-4 text-rose-400" />
-              <h4 className="font-bold text-xs sm:text-sm text-white">
+              <ShieldAlert className="w-4 h-4 text-ink-rose" />
+              <h4 className="font-bold text-xs sm:text-sm text-ink-primary">
                 Riwayat Stop Masalah Produksi Hari Ini (TPM Six Big Losses)
               </h4>
             </div>
-            <div className="text-xs font-mono tabular-nums text-rose-300">
+            <div className="text-xs font-mono tabular-nums text-ink-rose">
               Total Downtime: <strong>{totalDowntimeMinutes} Menit</strong>
             </div>
           </div>
@@ -1715,7 +1717,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
           <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-900 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-800">
+                <tr className="bg-surface text-ink-secondary text-[10px] font-bold uppercase border-b border-border-subtle">
                   <th className="py-2 px-2.5">Waktu Stop</th>
                   <th className="py-2 px-2.5">Line</th>
                   <th className="py-2 px-2.5">SKU</th>
@@ -1727,7 +1729,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                   <th className="py-2 px-2.5 text-center">Laporan WA</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/70">
+              <tbody className="divide-y divide-border-subtle">
                 {stopLogsToday.length > 0 ? (
                   stopLogsToday
                     .slice()
@@ -1735,45 +1737,45 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                     .map(log => {
                       const canSendWa = isWhatsAppEligibleSblCategory(log.category);
                       return (
-                        <tr key={log.id} className="hover:bg-slate-800/30 transition">
-                          <td className="py-2 px-2.5 font-mono text-[11px] text-slate-300 whitespace-nowrap tabular-nums">
+                        <tr key={log.id} className="hover:bg-elevated transition">
+                          <td className="py-2 px-2.5 font-mono text-[11px] text-ink-secondary whitespace-nowrap tabular-nums">
                             {new Date(log.stoppedAt).toLocaleTimeString('id-ID', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </td>
-                          <td className="py-2 px-2.5 font-semibold text-cyan-300 whitespace-nowrap">
+                          <td className="py-2 px-2.5 font-semibold text-brand whitespace-nowrap">
                             {log.lineName || '-'}
                           </td>
-                          <td className="py-2 px-2.5 font-semibold text-white">
+                          <td className="py-2 px-2.5 font-semibold text-ink-primary">
                             {log.skuName || '-'}
                           </td>
-                          <td className="py-2 px-2.5 font-mono text-slate-300">
+                          <td className="py-2 px-2.5 font-mono text-ink-secondary">
                             Shift {log.shift}
                           </td>
                           <td className="py-2 px-2.5">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                 log.category === 'MATERIAL_SHORTAGE'
-                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                  ? 'bg-amber-500/15 text-ink-amber border-amber-500/30'
+                                  : 'bg-rose-500/15 text-ink-rose border-rose-500/30'
                               }`}
                             >
                               {log.categoryLabel}
                             </span>
                           </td>
-                          <td className="py-2 px-2.5 text-slate-200 max-w-xs truncate">
+                          <td className="py-2 px-2.5 text-ink-primary max-w-xs truncate">
                             {log.reasonTitle}
                           </td>
-                          <td className="py-2 px-2.5 text-right font-mono font-bold text-rose-300 tabular-nums whitespace-nowrap">
+                          <td className="py-2 px-2.5 text-right font-mono font-bold text-ink-rose tabular-nums whitespace-nowrap">
                             <div>{log.durationMinutes} mnt</div>
                             {log.resumedAt && log.estimatedRepairMinutes && (
-                              <div className="text-[10px] font-normal text-emerald-400">
+                              <div className="text-[10px] font-normal text-ink-emerald">
                                 Est. {log.estimatedRepairMinutes} mnt → Aktual {log.actualRepairMinutes ?? log.durationMinutes} mnt
                               </div>
                             )}
                           </td>
-                          <td className="py-2 px-2.5 text-slate-400 text-[11px]">
+                          <td className="py-2 px-2.5 text-ink-secondary text-[11px]">
                             {log.actionTaken || log.operatorName || '-'}
                           </td>
                           <td className="py-2 px-2.5 text-center whitespace-nowrap">
@@ -1781,7 +1783,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setWaModalTarget({ stopLog: log })}
-                                className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold inline-flex items-center space-x-1 transition"
+                                className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/35 text-ink-emerald border border-emerald-500/40 rounded-lg text-[10px] font-bold inline-flex items-center space-x-1 transition"
                               >
                                 <MessageCircle className="w-3 h-3" />
                                 <span>Kirim WA</span>
@@ -1795,7 +1797,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                     })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="py-4 text-center text-slate-400 text-xs">
+                    <td colSpan={9} className="py-4 text-center text-ink-secondary text-xs">
                       Belum ada kejadian stop masalah (SBL) yang tercatat hari ini.
                     </td>
                   </tr>
@@ -1807,16 +1809,16 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       )}
 
       {/* 5. METRICS SUMMARY (Scoped by All Lines or Specific Line) */}
-      <div className="space-y-3 pt-1 border-t border-slate-800">
+      <div className="space-y-3 pt-1 border-t border-border-subtle">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          <span className="text-[11px] font-semibold text-slate-400 mr-1 shrink-0">Ringkasan Metrik:</span>
+          <span className="text-[11px] font-semibold text-ink-secondary mr-1 shrink-0">Ringkasan Metrik:</span>
           <button
             type="button"
             onClick={() => setMetricScope('ALL')}
             className={`px-3 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
               metricScope === 'ALL'
                 ? 'bg-cyan-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:text-white'
+                : 'bg-elevated text-ink-secondary hover:text-ink-primary'
             }`}
           >
             Semua Line
@@ -1829,7 +1831,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
                 metricScope === line.id
                   ? 'bg-cyan-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-elevated text-ink-secondary hover:text-ink-primary'
               }`}
             >
               {line.name}{runningByLineId[line.id] ? ` (${runningByLineId[line.id].skuCode || 'Aktif'})` : ''}
@@ -1839,41 +1841,41 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {/* KPI 1: Realisasi vs Planning */}
-          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl space-y-2.5">
+          <div className="bg-canvas border border-border-subtle p-4 rounded-2xl space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                <Target className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider flex items-center space-x-1.5">
+                <Target className="w-3.5 h-3.5 text-brand" />
                 <span>
                   {totalActiveShiftPlanned > 0 ? 'Realisasi Planning Shift' : 'Realisasi Harian'}
                 </span>
               </span>
-              <span className="text-xs font-mono font-bold text-cyan-400 tabular-nums">
+              <span className="text-xs font-mono font-bold text-brand tabular-nums">
                 {overallProgressPercent}%
               </span>
             </div>
 
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-2xl font-bold font-mono text-white tabular-nums">
+                <span className="text-2xl font-bold font-mono text-ink-primary tabular-nums">
                   {(totalActiveShiftPlanned > 0 ? totalActiveRealized : finalCartonsToday).toLocaleString()}
                 </span>
-                <span className="text-xs text-slate-400 font-mono ml-1.5 tabular-nums">
+                <span className="text-xs text-ink-secondary font-mono ml-1.5 tabular-nums">
                   / {(totalActiveShiftPlanned > 0 ? totalActiveShiftPlanned : aggregateDailyTargetCartons).toLocaleString()} ktn
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-[10px] font-mono text-ink-secondary bg-elevated px-2 py-0.5 rounded">
                 {scopedRunningRuns.length} Line Jalan
               </span>
             </div>
 
-            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="w-full bg-elevated h-2 rounded-full overflow-hidden">
               <div
                 className="bg-cyan-500 h-full rounded-full transition-all duration-500"
                 style={{ width: `${overallProgressPercent}%` }}
               />
             </div>
 
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono tabular-nums">
+            <div className="flex justify-between text-[10px] text-ink-secondary font-mono tabular-nums">
               <span>
                 Sisa Planning:{' '}
                 {Math.max(
@@ -1888,13 +1890,13 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
           </div>
 
           {/* KPI 2: Breakdown Shift 1 / 2 / 3 */}
-          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl space-y-2">
+          <div className="bg-canvas border border-border-subtle p-4 rounded-2xl space-y-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider flex items-center space-x-1.5">
+                <Clock className="w-3.5 h-3.5 text-ink-amber" />
                 <span>Output Per Shift</span>
               </span>
-              <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+              <span className="text-[10px] font-mono text-ink-secondary tabular-nums">
                 Est: {aggregateTargetPerShift.toLocaleString()} ktn/shift
               </span>
             </div>
@@ -1911,22 +1913,22 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                     key={sNum}
                     className={`p-2 rounded-xl text-xs flex items-center justify-between border ${
                       isCurrent
-                        ? 'bg-slate-900 border-cyan-500/40'
-                        : 'bg-slate-900/50 border-slate-800'
+                        ? 'bg-surface border-cyan-500/40'
+                        : 'bg-surface border-border-subtle'
                     }`}
                   >
                     <div className="flex items-center space-x-2">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        isCurrent ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-300'
+                        isCurrent ? 'bg-cyan-600 text-white' : 'bg-elevated text-ink-secondary'
                       }`}>
                         {sInfo.shortLabel}
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">{sInfo.timeRange}</span>
+                      <span className="text-[10px] text-ink-secondary font-mono">{sInfo.timeRange}</span>
                     </div>
 
                     <div className="flex items-center space-x-2 font-mono tabular-nums">
-                      <span className="font-bold text-white">{shiftRealized.toLocaleString()} ktn</span>
-                      <span className="text-[10px] text-slate-400 min-w-[32px] text-right">{shiftPct}%</span>
+                      <span className="font-bold text-ink-primary">{shiftRealized.toLocaleString()} ktn</span>
+                      <span className="text-[10px] text-ink-secondary min-w-[32px] text-right">{shiftPct}%</span>
                     </div>
                   </div>
                 );
@@ -1935,36 +1937,36 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
           </div>
 
           {/* KPI 3: Kapasitas 24 Jam & Downtime */}
-          <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-3">
+          <div className="bg-canvas border border-border-subtle p-4 rounded-2xl flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider flex items-center space-x-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-ink-emerald" />
                   <span>Kapasitas 24 Jam</span>
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
+                <span className="text-[10px] font-mono text-ink-secondary">
                   {productionLines.length} Line
                 </span>
               </div>
 
               <div className="mt-1.5">
-                <span className="text-2xl font-bold font-mono text-white tabular-nums">
+                <span className="text-2xl font-bold font-mono text-ink-primary tabular-nums">
                   {aggregateDailyTargetCartons.toLocaleString()}
                 </span>
-                <span className="text-xs text-slate-400 font-mono ml-1.5">ktn / 24 jam</span>
+                <span className="text-xs text-ink-secondary font-mono ml-1.5">ktn / 24 jam</span>
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-1 text-xs">
+            <div className="bg-surface border border-border-subtle rounded-xl p-2.5 space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">Line Beroperasi:</span>
-                <span className="font-mono font-bold text-white tabular-nums">
+                <span className="text-ink-secondary">Line Beroperasi:</span>
+                <span className="font-mono font-bold text-ink-primary tabular-nums">
                   {runningRuns.length} / {productionLines.length} Line
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Total Downtime SBL:</span>
-                <span className={`font-mono font-bold tabular-nums ${totalDowntimeMinutes > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                <span className="text-ink-secondary">Total Downtime SBL:</span>
+                <span className={`font-mono font-bold tabular-nums ${totalDowntimeMinutes > 0 ? 'text-ink-rose' : 'text-ink-emerald'}`}>
                   {totalDowntimeMinutes} Menit
                 </span>
               </div>
@@ -1974,7 +1976,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTab('bom-calculator')}
-                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[11px] font-semibold transition flex items-center justify-center space-x-1 border border-slate-700"
+                className="w-full py-2 bg-elevated hover:bg-accent text-ink-primary rounded-xl text-[11px] font-semibold transition flex items-center justify-center space-x-1 border border-border-strong"
               >
                 <span>Kalkulator Kebutuhan Bahan (BOM)</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -2016,20 +2018,20 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       {/* Modal 3: Stop / Selesai Produksi Decision Modal (Alur #5) */}
       {stopChoiceRun && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-100">
-            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/60">
+          <div className="bg-surface border border-border-subtle rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-ink-primary">
+            <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-canvas">
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-white">
+                <h3 className="text-sm sm:text-base font-bold text-ink-primary">
                   Hentikan / Selesaikan Produksi
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-ink-secondary mt-0.5">
                   {stopChoiceRun.lineName || 'Line'} · {stopChoiceRun.skuName} ({(stopChoiceRun.cartonsProducedTotal || 0).toLocaleString()} ktn)
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setStopChoiceRun(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2037,12 +2039,12 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
             <div className="p-4 space-y-3 text-xs">
               {/* Path A: Selesai Produksi Normal */}
-              <div className="bg-slate-950/60 border border-emerald-500/30 rounded-xl p-3.5 space-y-2.5">
+              <div className="bg-canvas border border-emerald-500/30 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-start space-x-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-5 h-5 text-ink-emerald shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-white">1. Produksi Selesai (Normal)</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="font-bold text-ink-primary">1. Produksi Selesai (Normal)</p>
+                    <p className="text-[11px] text-ink-secondary mt-0.5">
                       Target batch/planning sudah selesai tanpa kendala. Line kembali berstatus Standby dan siap memilih SKU baru.
                     </p>
                   </div>
@@ -2052,7 +2054,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                   value={normalFinishNotes}
                   onChange={(e) => setNormalFinishNotes(e.target.value)}
                   placeholder="Catatan penyelesaian (opsional)..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-emerald-500"
                 />
                 <button
                   type="button"
@@ -2068,12 +2070,12 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
               {/* Path B: Stop Karena Material Shortage (WIP Habis) */}
               {onRecordMaterialShortage && (
-                <div className="bg-slate-950/60 border border-amber-500/30 rounded-xl p-3.5 space-y-2.5">
+                <div className="bg-canvas border border-amber-500/30 rounded-xl p-3.5 space-y-2.5">
                   <div className="flex items-start space-x-2.5">
-                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 text-ink-amber shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold text-white">2. Stop Karena Material Shortage (WIP Habis)</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="font-bold text-ink-primary">2. Stop Karena Material Shortage (WIP Habis)</p>
+                      <p className="text-[11px] text-ink-secondary mt-0.5">
                         Material WIP di Holding Tank habis atau tidak mencukupi. Mencatat penyebab Material Shortage &amp; membuka tombol Start Produksi Kembali saat WIP tersedia lagi.
                       </p>
                     </div>
@@ -2096,12 +2098,12 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               )}
 
               {/* Path C: Stop Karena Masalah (Six Big Losses) */}
-              <div className="bg-slate-950/60 border border-rose-500/30 rounded-xl p-3.5 space-y-2.5">
+              <div className="bg-canvas border border-rose-500/30 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-start space-x-2.5">
-                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <ShieldAlert className="w-5 h-5 text-ink-rose shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-white">3. Stop Karena Masalah (Six Big Losses / SBL)</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="font-bold text-ink-primary">3. Stop Karena Masalah (Six Big Losses / SBL)</p>
+                    <p className="text-[11px] text-ink-secondary mt-0.5">
                       Terjadi kerusakan mesin, setup, atau kendala proses. Mencatat downtime ke Log Six Big Losses sebelum menghentikan line.
                     </p>
                   </div>

@@ -47,6 +47,7 @@ import {
   SHEETS_SYNC_EVENT,
   updateSheetsSyncStatus
 } from '../../utils/sheetsSyncStore';
+import { resolveEffectiveRole } from '../../utils/roleAccess';
 
 interface GoogleSheetsSyncViewProps {
   state: AppState;
@@ -91,8 +92,9 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
   onSwitchTab,
   showToast
 }) => {
-  const isManagement = state.currentUserRole === 'MANAGEMENT';
-  const isAdmin = state.currentUserRole === 'ADMINISTRATOR';
+  const effectiveRole = resolveEffectiveRole(state);
+  const isManagement = effectiveRole.isManagement;
+  const isAdmin = effectiveRole.isAdmin;
 
   const [settings, setSettings] = useState<GoogleSheetsSyncSettings>(() => loadSheetsSyncSettings());
   const [urlInput, setUrlInput] = useState<string>(settings.spreadsheetUrl);
@@ -897,14 +899,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
   return (
     <div className="max-w-[1440px] mx-auto space-y-4">
       {/* Top Panel Header */}
-      <div className="bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+      <div className="bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
         <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/35 text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/35 text-ink-emerald flex items-center justify-center shrink-0">
             <FileSpreadsheet className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400">
-              <span className="text-emerald-400 font-semibold">Google Sheets Integration</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-ink-secondary">
+              <span className="text-ink-emerald font-semibold">Google Sheets Integration</span>
               <span aria-hidden="true">·</span>
               <span>Spreadsheet ID: {settings.spreadsheetId.slice(0, 12)}…</span>
               {settings.lastSyncedAt && (
@@ -914,7 +916,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 </>
               )}
             </div>
-            <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight mt-0.5">
+            <h1 className="text-base sm:text-lg font-extrabold text-ink-primary tracking-tight mt-0.5">
               Panel Integrasi Otomatis Hasil Produksi ke Google Spreadsheet
             </h1>
           </div>
@@ -924,7 +926,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
           <button
             type="button"
             onClick={() => onSwitchTab('dashboard')}
-            className="px-3 py-2 bg-[#06090f]/90 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            className="px-3 py-2 bg-canvas hover:bg-elevated border border-border-strong text-ink-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Kembali ke Dashboard</span>
@@ -959,10 +961,10 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
 
       {/* Error Banner */}
       {sheetsError && (
-        <div className="p-3.5 bg-rose-950/50 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+        <div className="p-3.5 bg-tint-rose border border-rose-500/40 rounded-xl text-xs text-ink-rose flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-ink-rose shrink-0 mt-0.5" />
           <div className="space-y-1 flex-1">
-            <p className="font-bold text-rose-300">Kendala Koneksi Google Sheets</p>
+            <p className="font-bold text-ink-rose">Kendala Koneksi Google Sheets</p>
             <p className="leading-relaxed">{sheetsError}</p>
           </div>
         </div>
@@ -971,22 +973,22 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       {/* Row 1: Google Connection + Spreadsheet Link Target */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Google Account Sign-In Card */}
-        <div className="lg:col-span-5 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 flex flex-col justify-between space-y-4">
+        <div className="lg:col-span-5 bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 flex flex-col justify-between space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-white">1. Koneksi Akun Google Sheets</h2>
+              <h2 className="text-sm font-bold text-ink-primary">1. Koneksi Akun Google Sheets</h2>
               <button
                 type="button"
                 onClick={() => setIsConnectionCardOpen(prev => !prev)}
                 aria-expanded={isConnectionCardOpen}
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
               >
                 {isConnectionCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isConnectionCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
               </button>
             </div>
             {isConnectionCardOpen && (
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-ink-secondary leading-relaxed">
                 Masuk dengan akun Google yang memiliki akses Editor ke spreadsheet tujuan agar aplikasi dapat membaca daftar tab sheet dan menginput hasil produksi.
               </p>
             )}
@@ -1035,31 +1037,31 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                     type="button"
                     onClick={handleGoogleRedirect}
                     disabled={isConnecting}
-                    className="px-3.5 py-2.5 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
+                    className="px-3.5 py-2.5 bg-canvas hover:bg-elevated border border-border-strong text-ink-primary rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
                   >
                     Hubungkan via Redirect
                   </button>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Pastikan kotak izin Google Sheets dicentang pada jendela login Google.
               </p>
             </div>
           ) : (
-            <div className="bg-[#06090f]/80 border border-emerald-500/35 rounded-lg p-3 flex items-center justify-between gap-3">
+            <div className="bg-canvas border border-emerald-500/35 rounded-lg p-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5">
+                <p className="text-[11px] text-ink-emerald font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                   <span>Terhubung ke Google Sheets</span>
                 </p>
-                <p className="text-xs font-mono text-white truncate mt-0.5">
+                <p className="text-xs font-mono text-ink-primary truncate mt-0.5">
                   {googleEmail || 'Akun Google Terverifikasi'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleDisconnect}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 border border-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="px-2.5 py-1.5 bg-elevated hover:bg-tint-rose hover:text-ink-rose border border-border-strong text-ink-secondary rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Putus</span>
@@ -1071,14 +1073,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         </div>
 
         {/* Spreadsheet Target & Sheet Selector Card */}
-        <div className="lg:col-span-7 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-3.5">
+        <div className="lg:col-span-7 bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 space-y-3.5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-white">2. Target Spreadsheet &amp; Pemilihan Tab Sheet</h2>
+            <h2 className="text-sm font-bold text-ink-primary">2. Target Spreadsheet &amp; Pemilihan Tab Sheet</h2>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleResetDefaultLink}
-                className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="text-[11px] text-brand hover:text-brand font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Link Utama</span>
@@ -1087,7 +1089,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 type="button"
                 onClick={() => setIsTargetSheetCardOpen(prev => !prev)}
                 aria-expanded={isTargetSheetCardOpen}
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                className="px-2 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
               >
                 {isTargetSheetCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 <span>{isTargetSheetCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1104,7 +1106,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               value={urlInput}
               onChange={e => setUrlInput(e.target.value)}
               placeholder="Tempel link Google Spreadsheet (https://docs.google.com/spreadsheets/d/...)"
-              className="flex-1 bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+              className="flex-1 bg-canvas border border-border-strong rounded-lg px-3 py-2 text-xs text-ink-primary font-mono focus:outline-none focus:border-emerald-500"
             />
             <button
               type="button"
@@ -1117,10 +1119,10 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-ink-secondary mb-1">
                 Judul Spreadsheet Terdeteksi
               </label>
-              <div className="bg-[#06090f]/80 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-semibold flex items-center justify-between gap-2 min-h-[36px]">
+              <div className="bg-canvas border border-border-subtle rounded-lg px-3 py-2 text-xs text-ink-primary font-semibold flex items-center justify-between gap-2 min-h-[36px]">
                 <span className="truncate">
                   {isLoadingMeta
                     ? 'Memuat metadata...'
@@ -1132,7 +1134,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                     onClick={() => loadMetadataAndPreview(googleToken, settings.spreadsheetId)}
                     disabled={isLoadingMeta}
                     title="Muat ulang daftar tab sheet"
-                    className="text-cyan-400 hover:text-cyan-300 shrink-0"
+                    className="text-brand hover:text-brand shrink-0"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMeta ? 'animate-spin' : ''}`} />
                   </button>
@@ -1142,14 +1144,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-semibold text-slate-400">
+                <label className="block text-[11px] font-semibold text-ink-secondary">
                   Tab Sheet Tujuan
                 </label>
                 {googleToken && !isManagement && (
                   <button
                     type="button"
                     onClick={() => setIsCreatingTabOpen(prev => !prev)}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-0.5"
+                    className="text-[11px] text-ink-emerald hover:text-ink-emerald font-semibold flex items-center gap-0.5"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Tab Baru</span>
@@ -1161,7 +1163,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 value={settings.selectedSheetName}
                 onChange={e => handleSelectSheetTab(e.target.value)}
                 disabled={!metadata || metadata.sheets.length === 0}
-                className="w-full bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                className="w-full bg-canvas border border-border-strong rounded-lg px-3 py-2 text-xs text-ink-primary font-semibold focus:outline-none focus:border-emerald-500 disabled:opacity-50"
               >
                 {!metadata || metadata.sheets.length === 0 ? (
                   <option value="">
@@ -1181,14 +1183,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
           {isCreatingTabOpen && googleToken && !isManagement && (
             <form
               onSubmit={handleRequestCreateTab}
-              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-slate-800/80"
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-border-subtle"
             >
               <input
                 type="text"
                 value={newTabInput}
                 onChange={e => setNewTabInput(e.target.value)}
                 placeholder="Nama tab baru (contoh: Hasil_Produksi_Nov)"
-                className="flex-1 bg-[#06090f]/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="flex-1 bg-canvas border border-border-strong rounded-lg px-3 py-1.5 text-xs text-ink-primary focus:outline-none focus:border-emerald-500"
               />
               <button
                 type="submit"
@@ -1204,26 +1206,26 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       </div>
 
       {/* Row 2: Automated Production Queue & Sync Controls */}
-      <div className="bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-4">
-        <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isSyncQueueCardOpen ? 'pb-3 border-b border-slate-800/80' : ''}`}>
+      <div className="bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 space-y-4">
+        <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isSyncQueueCardOpen ? 'pb-3 border-b border-border-subtle' : ''}`}>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-white">
+            <h2 className="text-sm sm:text-base font-bold text-ink-primary">
               3. Sinkronisasi &amp; Input Hasil Produksi ke Spreadsheet
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-ink-secondary mt-0.5">
               Setiap hasil produksi karton yang tercatat otomatis masuk ke antrean sinkronisasi bebas duplikasi dan siap dikirim ke tab sheet terpilih dengan konfirmasi pengguna.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="flex items-center p-0.5 bg-[#06090f]/90 border border-slate-800 rounded-lg">
+            <div className="flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
               <button
                 type="button"
                 onClick={() => setSyncDatasetMode('PRODUCTION_LOGS')}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                   syncDatasetMode === 'PRODUCTION_LOGS'
                     ? 'bg-emerald-600 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 Log Hasil Produksi ({unsyncedProductionLogs.length} Baru)
@@ -1234,7 +1236,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                   syncDatasetMode === 'PLAN_VS_ACTUAL'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 Rekap Plan vs Aktual ({planComparison.rows.length} SKU)
@@ -1244,7 +1246,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               type="button"
               onClick={() => setIsSyncQueueCardOpen(prev => !prev)}
               aria-expanded={isSyncQueueCardOpen}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {isSyncQueueCardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{isSyncQueueCardOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1255,28 +1257,28 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         {isSyncQueueCardOpen && (syncDatasetMode === 'PRODUCTION_LOGS' ? (
           <div className="space-y-3">
             {/* Queue Toolbar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-canvas border border-border-subtle rounded-lg p-3">
               <div className="flex flex-wrap items-center gap-3 text-xs font-mono tabular-nums">
                 <div>
-                  <span className="text-slate-400">Total Log Tercatat:</span>{' '}
-                  <strong className="text-white">{allProductionLogs.length}</strong>
+                  <span className="text-ink-secondary">Total Log Tercatat:</span>{' '}
+                  <strong className="text-ink-primary">{allProductionLogs.length}</strong>
                 </div>
                 <span aria-hidden="true" className="text-slate-600">·</span>
                 <div>
-                  <span className="text-slate-400">Belum Diinput ke Sheets:</span>{' '}
-                  <strong className={unsyncedProductionLogs.length > 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                  <span className="text-ink-secondary">Belum Diinput ke Sheets:</span>{' '}
+                  <strong className={unsyncedProductionLogs.length > 0 ? 'text-ink-amber' : 'text-ink-emerald'}>
                     {unsyncedProductionLogs.length} baris
                   </strong>
                 </div>
                 <span aria-hidden="true" className="text-slate-600">·</span>
-                <label className="inline-flex items-center gap-1.5 cursor-pointer font-sans text-slate-300">
+                <label className="inline-flex items-center gap-1.5 cursor-pointer font-sans text-ink-secondary">
                   <input
                     type="checkbox"
                     checked={settings.autoQueueNewProduction}
                     onChange={e =>
                       updateSettings(prev => ({ ...prev, autoQueueNewProduction: e.target.checked }))
                     }
-                    className="rounded border-slate-600 text-emerald-500 focus:ring-0"
+                    className="rounded border-border-strong text-emerald-500 focus:ring-0"
                   />
                   <span>Pantau antrean otomatis saat produksi berjalan</span>
                 </label>
@@ -1286,7 +1288,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                 <select
                   value={logSendScope}
                   onChange={e => setLogSendScope(e.target.value as 'UNSYNCED_ONLY' | 'ALL_LOGS')}
-                  className="bg-[#0c121d] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-semibold"
+                  className="bg-surface border border-border-strong rounded-lg px-2.5 py-1.5 text-xs text-ink-primary font-semibold"
                 >
                   <option value="UNSYNCED_ONLY">
                     Hanya Log Baru ({unsyncedProductionLogs.length})
@@ -1298,7 +1300,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                   <button
                     type="button"
                     onClick={handleMarkAllSynced}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
+                    className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary border border-border-strong rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
                   >
                     Tandai Sudah Sync
                   </button>
@@ -1307,7 +1309,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                   <button
                     type="button"
                     onClick={handleResetSyncedFlags}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
+                    className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-ink-secondary border border-border-strong rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
                   >
                     Reset Penanda
                   </button>
@@ -1329,23 +1331,23 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
 
             {/* Production Logs Ready to Sync Table */}
             {logsToSync.length === 0 ? (
-              <div className="py-8 px-4 text-center bg-[#06090f]/60 border border-slate-800/70 rounded-lg space-y-1.5">
-                <Check className="w-7 h-7 text-emerald-400 mx-auto" />
-                <p className="text-xs font-bold text-white">
+              <div className="py-8 px-4 text-center bg-canvas border border-border-subtle rounded-lg space-y-1.5">
+                <Check className="w-7 h-7 text-ink-emerald mx-auto" />
+                <p className="text-xs font-bold text-ink-primary">
                   {allProductionLogs.length === 0
                     ? 'Belum ada catatan hasil produksi karton'
                     : 'Semua catatan hasil produksi sudah disinkronkan ke Google Sheets'}
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   {allProductionLogs.length === 0
                     ? 'Jalankan produksi di modul Manufacturing atau catat output karton agar data otomatis masuk ke antrean.'
                     : 'Setiap pencatatan output karton baru akan langsung muncul di antrean ini.'}
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-slate-800/90 rounded-lg max-h-72 overflow-y-auto">
+              <div className="overflow-x-auto border border-border-subtle rounded-lg max-h-72 overflow-y-auto">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="sticky top-0 bg-slate-900 text-[11px] text-slate-300 border-b border-slate-800">
+                  <thead className="sticky top-0 bg-surface text-[11px] text-ink-secondary border-b border-border-subtle">
                     <tr>
                       <th className="py-2 px-3">Waktu</th>
                       <th className="py-2 px-3">Shift / Line</th>
@@ -1357,35 +1359,35 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                       <th className="py-2 px-3">Status Sync</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/70">
+                  <tbody className="divide-y divide-border-subtle">
                     {logsToSync.slice(0, 60).map(cp => {
                       const planStats = planLookupBySkuId.get(cp.skuId);
                       const isSynced = syncedIdSet.has(cp.id);
                       return (
-                        <tr key={cp.id} className="hover:bg-slate-800/40">
-                          <td className="py-2 px-3 font-mono text-[11px] text-slate-300 tabular-nums whitespace-nowrap">
+                        <tr key={cp.id} className="hover:bg-elevated">
+                          <td className="py-2 px-3 font-mono text-[11px] text-ink-secondary tabular-nums whitespace-nowrap">
                             {new Date(cp.timestamp).toLocaleString('id-ID')}
                           </td>
-                          <td className="py-2 px-3 font-mono text-[11px] text-slate-300 whitespace-nowrap">
+                          <td className="py-2 px-3 font-mono text-[11px] text-ink-secondary whitespace-nowrap">
                             S{cp.shift || '-'} · {cp.lineName || '-'}
                           </td>
                           <td className="py-2 px-3">
-                            <div className="font-semibold text-white">{cp.skuName}</div>
-                            <div className="text-[10px] font-mono text-slate-400">{cp.skuCode || '-'}</div>
+                            <div className="font-semibold text-ink-primary">{cp.skuName}</div>
+                            <div className="text-[10px] font-mono text-ink-secondary">{cp.skuCode || '-'}</div>
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums text-sky-400">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-sky">
                             {planStats ? planStats.planned.toLocaleString('id-ID') : '-'}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-emerald-400">
+                          <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-ink-emerald">
                             {Math.round(cp.cartonsProduced).toLocaleString('id-ID')} ktn
                           </td>
                           <td
                             className={`py-2 px-3 text-right font-mono tabular-nums font-semibold ${
                               !planStats
-                                ? 'text-slate-400'
+                                ? 'text-ink-secondary'
                                 : planStats.variance >= 0
-                                ? 'text-emerald-400'
-                                : 'text-rose-400'
+                                ? 'text-ink-emerald'
+                                : 'text-ink-rose'
                             }`}
                           >
                             {planStats
@@ -1394,12 +1396,12 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                                 : planStats.variance.toLocaleString('id-ID')
                               : '-'}
                           </td>
-                          <td className="py-2 px-3 text-slate-300">{cp.operatorName || '-'}</td>
+                          <td className="py-2 px-3 text-ink-secondary">{cp.operatorName || '-'}</td>
                           <td className="py-2 px-3 text-[11px] font-semibold">
                             {isSynced ? (
-                              <span className="text-emerald-400">Tersinkron</span>
+                              <span className="text-ink-emerald">Tersinkron</span>
                             ) : (
-                              <span className="text-amber-400">Siap Input</span>
+                              <span className="text-ink-amber">Siap Input</span>
                             )}
                           </td>
                         </tr>
@@ -1412,12 +1414,12 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-3">
-              <div className="text-xs text-slate-300">
-                <span className="font-bold text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas border border-border-subtle rounded-lg p-3">
+              <div className="text-xs text-ink-secondary">
+                <span className="font-bold text-ink-primary">
                   Rekapitulasi {planComparison.plan?.weekLabel || 'Planning Mingguan'} vs Aktual per SKU
                 </span>
-                <span className="text-slate-400 ml-2 font-mono tabular-nums">
+                <span className="text-ink-secondary ml-2 font-mono tabular-nums">
                   ({planComparison.rows.length} SKU · Target {planComparison.totalPlanned.toLocaleString('id-ID')} ktn · Aktual {planComparison.totalActual.toLocaleString('id-ID')} ktn)
                 </span>
               </div>
@@ -1434,9 +1436,9 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               )}
             </div>
 
-            <div className="overflow-x-auto border border-slate-800/90 rounded-lg max-h-72 overflow-y-auto">
+            <div className="overflow-x-auto border border-border-subtle rounded-lg max-h-72 overflow-y-auto">
               <table className="w-full text-left border-collapse text-xs">
-                <thead className="sticky top-0 bg-slate-900 text-[11px] text-slate-300 border-b border-slate-800">
+                <thead className="sticky top-0 bg-surface text-[11px] text-ink-secondary border-b border-border-subtle">
                   <tr>
                     <th className="py-2 px-3">Line</th>
                     <th className="py-2 px-3">Kode &amp; Nama SKU</th>
@@ -1446,30 +1448,30 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                     <th className="py-2 px-3 text-right">Capaian</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/70">
+                <tbody className="divide-y divide-border-subtle">
                   {planComparison.rows.map(r => (
-                    <tr key={r.key} className="hover:bg-slate-800/40">
-                      <td className="py-2 px-3 font-mono text-slate-300">{r.lines}</td>
+                    <tr key={r.key} className="hover:bg-elevated">
+                      <td className="py-2 px-3 font-mono text-ink-secondary">{r.lines}</td>
                       <td className="py-2 px-3">
-                        <div className="font-semibold text-white">{r.skuName}</div>
-                        <div className="text-[10px] font-mono text-slate-400">{r.skuCode}</div>
+                        <div className="font-semibold text-ink-primary">{r.skuName}</div>
+                        <div className="text-[10px] font-mono text-ink-secondary">{r.skuCode}</div>
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-sky-400">
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-sky">
                         {r.plannedCartons.toLocaleString('id-ID')}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-emerald-400 font-semibold">
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-emerald font-semibold">
                         {r.actualCartons.toLocaleString('id-ID')}
                       </td>
                       <td
                         className={`py-2 px-3 text-right font-mono tabular-nums font-bold ${
-                          r.varianceCartons >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          r.varianceCartons >= 0 ? 'text-ink-emerald' : 'text-ink-rose'
                         }`}
                       >
                         {r.varianceCartons > 0
                           ? `+${r.varianceCartons.toLocaleString('id-ID')}`
                           : r.varianceCartons.toLocaleString('id-ID')}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono tabular-nums text-slate-200">
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-primary">
                         {r.achievementPct.toFixed(1)}%
                       </td>
                     </tr>
@@ -1484,11 +1486,11 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       {/* Row 3: Live Sheet Preview & Sync Execution History */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Live Sheet Preview */}
-        <div className="xl:col-span-7 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+        <div className="xl:col-span-7 bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-border-subtle">
             <div className="flex items-center gap-2">
-              <Table2 className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-sm font-bold text-white">
+              <Table2 className="w-4 h-4 text-ink-emerald" />
+              <h3 className="text-sm font-bold text-ink-primary">
                 Pratinjau Isi Sheet: {settings.selectedSheetName || '-'}
               </h3>
             </div>
@@ -1499,7 +1501,7 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                   loadPreviewForTab(googleToken, settings.spreadsheetId, settings.selectedSheetName)
                 }
                 disabled={isLoadingPreview}
-                className="px-2.5 py-1 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-md text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+                className="px-2.5 py-1 bg-canvas hover:bg-elevated border border-border-strong text-ink-secondary rounded-md text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
               >
                 <RefreshCw className={`w-3 h-3 ${isLoadingPreview ? 'animate-spin' : ''}`} />
                 <span>Refresh Isi Sheet</span>
@@ -1508,20 +1510,20 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
           </div>
 
           {!googleToken ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="py-8 text-center text-xs text-ink-secondary">
               Hubungkan akun Google di atas untuk melihat isi live dari Google Spreadsheet.
             </div>
           ) : isLoadingPreview ? (
-            <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+            <div className="py-8 flex items-center justify-center gap-2 text-xs text-ink-secondary">
+              <Loader2 className="w-4 h-4 animate-spin text-ink-emerald" />
               <span>Membaca baris dari Google Sheets...</span>
             </div>
           ) : previewRows.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="py-8 text-center text-xs text-ink-secondary">
               Tab "{settings.selectedSheetName}" masih kosong. Header tabel akan dibuat otomatis saat pengiriman data pertama.
             </div>
           ) : (
-            <div className="overflow-x-auto border border-slate-800/90 rounded-lg max-h-64 overflow-y-auto">
+            <div className="overflow-x-auto border border-border-subtle rounded-lg max-h-64 overflow-y-auto">
               <table className="w-full text-left border-collapse text-[11px] font-mono">
                 <tbody>
                   {previewRows.map((row, rIdx) => (
@@ -1529,11 +1531,11 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                       key={rIdx}
                       className={
                         rIdx === 0
-                          ? 'bg-slate-900 font-bold text-cyan-300 border-b border-slate-700'
-                          : 'border-b border-slate-800/60 text-slate-300'
+                          ? 'bg-surface font-bold text-brand border-b border-border-strong'
+                          : 'border-b border-border-subtle text-ink-secondary'
                       }
                     >
-                      <td className="py-1.5 px-2 text-slate-500 border-r border-slate-800 w-8 text-right">
+                      <td className="py-1.5 px-2 text-ink-muted border-r border-border-subtle w-8 text-right">
                         {rIdx + 1}
                       </td>
                       {row.map((cell, cIdx) => (
@@ -1550,14 +1552,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
         </div>
 
         {/* Sync Audit History */}
-        <div className="xl:col-span-5 bg-[#0c121d]/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
-            <History className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-sm font-bold text-white">Riwayat Sinkronisasi Spreadsheet</h3>
+        <div className="xl:col-span-5 bg-surface backdrop-blur-md border border-border-subtle rounded-xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2 pb-2 border-b border-border-subtle">
+            <History className="w-4 h-4 text-brand" />
+            <h3 className="text-sm font-bold text-ink-primary">Riwayat Sinkronisasi Spreadsheet</h3>
           </div>
 
           {settings.syncHistory.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="py-8 text-center text-xs text-ink-secondary">
               Belum ada aktivitas pengiriman data ke Google Sheets pada perangkat ini.
             </div>
           ) : (
@@ -1565,12 +1567,12 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               {settings.syncHistory.map(item => (
                 <div
                   key={item.id}
-                  className="bg-[#06090f]/80 border border-slate-800/80 rounded-lg p-2.5 text-xs space-y-1"
+                  className="bg-canvas border border-border-subtle rounded-lg p-2.5 text-xs space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className={`font-bold ${
-                        item.mode === 'FORCE_SYNC_STATS' ? 'text-amber-400' : 'text-emerald-400'
+                        item.mode === 'FORCE_SYNC_STATS' ? 'text-ink-amber' : 'text-ink-emerald'
                       }`}
                     >
                       {item.mode === 'PRODUCTION_LOGS'
@@ -1579,14 +1581,14 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                         ? `Force Sync Stats (${item.rowsWritten} Baris)`
                         : `Rekap Plan vs Aktual (${item.rowsWritten} SKU)`}
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400 tabular-nums">
+                    <span className="text-[10px] font-mono text-ink-secondary tabular-nums">
                       {new Date(item.timestamp).toLocaleString('id-ID')}
                     </span>
                   </div>
-                  <div className="text-[11px] font-mono text-slate-300 truncate">
+                  <div className="text-[11px] font-mono text-ink-secondary truncate">
                     Tab: {item.sheetName} · Range: {item.updatedRange}
                   </div>
-                  <div className="text-[10px] text-slate-400">Oleh: {item.triggeredBy}</div>
+                  <div className="text-[10px] text-ink-secondary">Oleh: {item.triggeredBy}</div>
                 </div>
               ))}
             </div>
@@ -1597,46 +1599,46 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
       {/* Explicit Confirmation Modal Before Any Google Sheets Write/Mutate Operation */}
       {pendingMutation && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0c121d] border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-start gap-3 pb-3 border-b border-slate-800">
-              <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/35 shrink-0">
+          <div className="bg-surface border border-border-strong rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3 pb-3 border-b border-border-subtle">
+              <div className="p-2 rounded-lg bg-emerald-500/15 text-ink-emerald border border-emerald-500/35 shrink-0">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-white">
+                <h3 className="text-sm sm:text-base font-bold text-ink-primary">
                   {pendingMutation.title}
                 </h3>
-                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                <p className="text-xs text-ink-secondary mt-1 leading-relaxed">
                   {pendingMutation.description}
                 </p>
               </div>
             </div>
 
-            <div className="bg-[#06090f] border border-slate-800 rounded-lg p-3 text-xs space-y-1.5 font-mono">
+            <div className="bg-canvas border border-border-subtle rounded-lg p-3 text-xs space-y-1.5 font-mono">
               <div className="flex justify-between gap-2">
-                <span className="text-slate-400">Spreadsheet:</span>
-                <span className="text-white font-semibold truncate">
+                <span className="text-ink-secondary">Spreadsheet:</span>
+                <span className="text-ink-primary font-semibold truncate">
                   {metadata?.title || settings.spreadsheetId}
                 </span>
               </div>
               <div className="flex justify-between gap-2">
-                <span className="text-slate-400">Tab Sheet Tujuan:</span>
-                <span className="text-emerald-400 font-semibold">
+                <span className="text-ink-secondary">Tab Sheet Tujuan:</span>
+                <span className="text-ink-emerald font-semibold">
                   {pendingMutation.kind === 'CREATE_TAB'
                     ? pendingMutation.newTabName
                     : pendingMutation.sheetTitle}
                 </span>
               </div>
               <div className="flex justify-between gap-2">
-                <span className="text-slate-400">Jumlah Baris Diproses:</span>
-                <span className="text-cyan-400 font-semibold tabular-nums">
+                <span className="text-ink-secondary">Jumlah Baris Diproses:</span>
+                <span className="text-brand font-semibold tabular-nums">
                   {pendingMutation.rows.length} baris
                 </span>
               </div>
             </div>
 
             {/* Preview of first 5 rows */}
-            <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-44 overflow-y-auto">
+            <div className="overflow-x-auto border border-border-subtle rounded-lg max-h-44 overflow-y-auto">
               <table className="w-full text-left border-collapse text-[11px] font-mono">
                 <tbody>
                   {pendingMutation.rows.slice(0, 6).map((row, i) => (
@@ -1644,8 +1646,8 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
                       key={i}
                       className={
                         i === 0
-                          ? 'bg-slate-900 text-cyan-300 font-bold border-b border-slate-700'
-                          : 'border-b border-slate-800/60 text-slate-300'
+                          ? 'bg-surface text-brand font-bold border-b border-border-strong'
+                          : 'border-b border-border-subtle text-ink-secondary'
                       }
                     >
                       {row.slice(0, 8).map((val, j) => (
@@ -1659,12 +1661,12 @@ export const GoogleSheetsSyncView: React.FC<GoogleSheetsSyncViewProps> = ({
               </table>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border-subtle">
               <button
                 type="button"
                 onClick={() => setPendingMutation(null)}
                 disabled={isExecutingSync}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
+                className="px-4 py-2 bg-elevated hover:bg-accent text-ink-primary rounded-lg text-xs font-semibold whitespace-nowrap shrink-0"
               >
                 Batal
               </button>

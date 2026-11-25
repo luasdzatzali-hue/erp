@@ -333,26 +333,26 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto space-y-5 pb-10">
       {/* 1. HEADER & SHIFT SELECTOR BAR */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+            <div className="p-2 rounded-xl bg-cyan-500/15 text-brand border border-cyan-500/30">
               <ClipboardList className="w-5 h-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base sm:text-xl font-bold text-white">
+                <h2 className="text-base sm:text-xl font-bold text-ink-primary">
                   Ringkasan Produksi Shift
                 </h2>
                 {isViewingCurrentShift && (
-                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold">
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-ink-emerald border border-emerald-500/30 text-[11px] font-semibold">
                     Shift Aktif Saat Ini
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-ink-secondary mt-0.5">
                 Agregasi total output produksi karton, henti masalah (Six Big Losses), dan konsumsi material pada{' '}
-                <strong className="text-slate-200">{shiftMeta.name}</strong> ({shiftMeta.timeRange}).
+                <strong className="text-ink-primary">{shiftMeta.name}</strong> ({shiftMeta.timeRange}).
               </p>
             </div>
           </div>
@@ -360,17 +360,17 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
 
         {/* Filter Controls: Date, Shift Switcher, PDF & Navigation */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center space-x-1.5 bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5">
-            <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+          <div className="flex items-center space-x-1.5 bg-canvas border border-border-subtle rounded-xl px-2.5 py-1.5">
+            <Calendar className="w-3.5 h-3.5 text-brand shrink-0" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value || todayStr)}
-              className="bg-transparent text-xs font-mono font-semibold text-white focus:outline-none"
+              className="bg-transparent text-xs font-mono font-semibold text-ink-primary focus:outline-none"
             />
           </div>
 
-          <div className="flex items-center bg-slate-950/70 border border-slate-800 rounded-xl p-0.5">
+          <div className="flex items-center bg-canvas border border-border-subtle rounded-xl p-0.5">
             {([1, 2, 3] as ShiftNumber[]).map(sNum => (
               <button
                 key={sNum}
@@ -379,7 +379,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                   selectedShift === sNum
                     ? 'bg-cyan-600 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 Shift {sNum}
@@ -394,10 +394,10 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 setSelectedDate(todayStr);
                 setSelectedShift(liveShiftInfo.shift);
               }}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+              className="px-3 py-2 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
               title="Kembali ke tanggal hari ini dan shift aktif sekarang"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+              <RotateCcw className="w-3.5 h-3.5 text-brand" />
               <span>Shift Kini</span>
             </button>
           )}
@@ -416,18 +416,18 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
       </div>
 
       {/* Selected Date Caption */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-ink-secondary">
         <span>
           Periode ditampilkan:{' '}
-          <strong className="text-white">
+          <strong className="text-ink-primary">
             {formatIndonesianDate(new Date(`${selectedDate}T12:00:00`))}
           </strong>{' '}
-          · <strong className="text-cyan-300">{shiftMeta.name} ({shiftMeta.timeRange})</strong>
+          · <strong className="text-brand">{shiftMeta.name} ({shiftMeta.timeRange})</strong>
         </span>
         <button
           type="button"
           onClick={() => onSwitchTab('dashboard')}
-          className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-1 transition"
+          className="text-brand hover:text-brand font-semibold flex items-center space-x-1 transition"
         >
           <span>Kembali ke Monitoring Line</span>
           <ArrowRight className="w-3.5 h-3.5" />
@@ -437,48 +437,48 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
       {/* 2. EXECUTIVE KPI ROW */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* KPI 1: Total Output */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-lg">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2 shadow-lg">
+          <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary">
             <span>Total Output Shift</span>
-            <Package className="w-4 h-4 text-emerald-400" />
+            <Package className="w-4 h-4 text-ink-emerald" />
           </div>
           <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-bold font-mono text-white tabular-nums">
+            <span className="text-2xl font-bold font-mono text-ink-primary tabular-nums">
               {totalOutputCartons.toLocaleString()}
             </span>
-            <span className="text-xs text-slate-400 font-mono">karton</span>
+            <span className="text-xs text-ink-secondary font-mono">karton</span>
           </div>
-          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-elevated rounded-full overflow-hidden">
             <div
               className="h-full bg-emerald-500 rounded-full transition-all"
               style={{ width: `${overallAttainmentPct}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+          <div className="flex items-center justify-between text-[11px] font-mono text-ink-secondary tabular-nums">
             <span>{totalOutputKg.toFixed(1)} kg produk jadi</span>
-            <span className="text-emerald-400 font-semibold">
+            <span className="text-ink-emerald font-semibold">
               {totalPlannedCartons > 0 ? `${overallAttainmentPct}% dr ${totalPlannedCartons.toLocaleString()}` : `${outputByLineSku.length} line`}
             </span>
           </div>
         </div>
 
         {/* KPI 2: Six Big Losses Stops */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-lg">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2 shadow-lg">
+          <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary">
             <span>Henti Masalah (Six Big Losses)</span>
-            <ShieldAlert className={`w-4 h-4 ${shiftStopLogs.length > 0 ? 'text-rose-400' : 'text-slate-500'}`} />
+            <ShieldAlert className={`w-4 h-4 ${shiftStopLogs.length > 0 ? 'text-ink-rose' : 'text-ink-muted'}`} />
           </div>
           <div className="flex items-baseline space-x-2">
-            <span className={`text-2xl font-bold font-mono tabular-nums ${totalDowntimeMinutes > 0 ? 'text-rose-400' : 'text-white'}`}>
+            <span className={`text-2xl font-bold font-mono tabular-nums ${totalDowntimeMinutes > 0 ? 'text-ink-rose' : 'text-ink-primary'}`}>
               {totalDowntimeMinutes}
             </span>
-            <span className="text-xs text-slate-400 font-mono">menit downtime</span>
+            <span className="text-xs text-ink-secondary font-mono">menit downtime</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary pt-1">
             <span>Jumlah kejadian stop:</span>
-            <strong className="font-mono text-white tabular-nums">{shiftStopLogs.length} kejadian</strong>
+            <strong className="font-mono text-ink-primary tabular-nums">{shiftStopLogs.length} kejadian</strong>
           </div>
-          <p className="text-[11px] text-slate-400 truncate">
+          <p className="text-[11px] text-ink-secondary truncate">
             {sblByCategory[0]
               ? `Dominan: ${sblByCategory[0].label} (${sblByCategory[0].minutes} mnt)`
               : 'Tidak ada gangguan SBL tercatat'}
@@ -486,63 +486,63 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
         </div>
 
         {/* KPI 3: Konsumsi Bahan Baku (Material Usage) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-lg">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2 shadow-lg">
+          <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary">
             <span>Konsumsi Material Bahan Baku</span>
-            <Boxes className="w-4 h-4 text-amber-400" />
+            <Boxes className="w-4 h-4 text-ink-amber" />
           </div>
           <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-bold font-mono text-white tabular-nums">
+            <span className="text-2xl font-bold font-mono text-ink-primary tabular-nums">
               {totalRawMaterialKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
             </span>
-            <span className="text-xs text-slate-400 font-mono">kg RM</span>
+            <span className="text-xs text-ink-secondary font-mono">kg RM</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary pt-1">
             <span>Jenis material terpakai:</span>
-            <strong className="font-mono text-amber-300 tabular-nums">{materialConsumptionRows.length} item</strong>
+            <strong className="font-mono text-ink-amber tabular-nums">{materialConsumptionRows.length} item</strong>
           </div>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-ink-secondary">
             {shiftUsages.length} transaksi pemakaian · {shiftWipBatches.length} batch WIP
           </p>
         </div>
 
         {/* KPI 4: Pemotongan WIP Holding Tank */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-lg">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2 shadow-lg">
+          <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary">
             <span>Pemotongan WIP Tangki (BOM)</span>
-            <Cylinder className="w-4 h-4 text-cyan-400" />
+            <Cylinder className="w-4 h-4 text-brand" />
           </div>
           <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-bold font-mono text-cyan-300 tabular-nums">
+            <span className="text-2xl font-bold font-mono text-brand tabular-nums">
               {totalWipDepletedKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
             </span>
-            <span className="text-xs text-slate-400 font-mono">kg WIP</span>
+            <span className="text-xs text-ink-secondary font-mono">kg WIP</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary pt-1">
             <span>Tangki terintegrasi aktif:</span>
-            <strong className="font-mono text-white tabular-nums">{tankConsumptionRows.length} tangki</strong>
+            <strong className="font-mono text-ink-primary tabular-nums">{tankConsumptionRows.length} tangki</strong>
           </div>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-ink-secondary">
             Terpotong otomatis dari output {totalOutputCartons.toLocaleString()} karton
           </p>
         </div>
       </div>
 
       {/* 3. SECTION A: OUTPUT PRODUKSI PER LINE & SKU */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2.5">
-            <Factory className="w-4 h-4 text-emerald-400" />
+            <Factory className="w-4 h-4 text-ink-emerald" />
             <div>
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-sm font-bold text-ink-primary">
                 1. Rincian Output Produksi per Line &amp; SKU ({outputByLineSku.length} Baris)
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Realisasi karton vs planning per shift beserta konsumsi WIP tangki masing-masing line.
               </p>
             </div>
           </div>
-          <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+          <span className="text-xs font-mono font-bold text-ink-emerald tabular-nums">
             Total: {totalOutputCartons.toLocaleString()} ktn ({totalOutputKg.toFixed(1)} kg)
           </span>
         </div>
@@ -550,7 +550,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-950/70 text-[11px] font-bold text-slate-400 uppercase border-b border-slate-800 whitespace-nowrap">
+              <tr className="bg-canvas text-[11px] font-bold text-ink-secondary uppercase border-b border-border-subtle whitespace-nowrap">
                 <th className="py-2.5 px-3">Line Produksi</th>
                 <th className="py-2.5 px-3">SKU Produk</th>
                 <th className="py-2.5 px-3">Status</th>
@@ -562,7 +562,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 <th className="py-2.5 px-3">Operator</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-border-subtle">
               {outputByLineSku.length > 0 ? (
                 outputByLineSku.map(row => {
                   const pct =
@@ -570,59 +570,59 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                       ? Math.min(100, Math.round((row.cartonsProduced / row.plannedCartons) * 100))
                       : 0;
                   return (
-                    <tr key={row.key} className="hover:bg-slate-800/30 transition">
-                      <td className="py-2.5 px-3 font-bold text-cyan-300 whitespace-nowrap">
+                    <tr key={row.key} className="hover:bg-elevated transition">
+                      <td className="py-2.5 px-3 font-bold text-brand whitespace-nowrap">
                         {row.lineName}
                       </td>
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-white">{row.skuName}</div>
-                        <div className="text-[10px] font-mono text-slate-400">
+                        <div className="font-semibold text-ink-primary">{row.skuName}</div>
+                        <div className="text-[10px] font-mono text-ink-secondary">
                           {row.skuCode}{row.isKite ? ' · KITE' : ''}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         {row.status === 'RUNNING' ? (
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-ink-emerald border border-emerald-500/30 text-[10px] font-bold">
                             Berjalan
                           </span>
                         ) : row.status === 'STOPPED_SHORTAGE' ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-ink-amber border border-amber-500/30 text-[10px] font-bold">
                             Material Shortage
                           </span>
                         ) : row.status === 'STOPPED_SBL' ? (
-                          <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-rose-500/15 text-ink-rose border border-rose-500/30 text-[10px] font-bold">
                             Stop SBL
                           </span>
                         ) : row.status === 'SHIFT_HANDOVER' ? (
-                          <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-ink-indigo border border-indigo-500/30 text-[10px] font-bold">
                             Pergantian Shift
                           </span>
                         ) : row.status === 'COMPLETED' ? (
-                          <span className="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-cyan-500/15 text-brand border border-cyan-500/30 text-[10px] font-bold">
                             Selesai
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-semibold">
+                          <span className="px-2 py-0.5 rounded bg-elevated text-ink-secondary border border-border-strong text-[10px] font-semibold">
                             Tercatat
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono text-ink-secondary tabular-nums">
                         {row.plannedCartons.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-white tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-primary tabular-nums">
                         {row.cartonsProduced.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-emerald tabular-nums">
                         {pct}%
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-200 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono text-ink-primary tabular-nums">
                         {row.totalKgOutput.toFixed(1)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-cyan-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono text-brand tabular-nums">
                         {row.wipKgConsumed.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-slate-400 text-[11px] max-w-[160px] truncate">
+                      <td className="py-2.5 px-3 text-ink-secondary text-[11px] max-w-[160px] truncate">
                         {row.operators.length > 0 ? row.operators.join(', ') : '-'}
                       </td>
                     </tr>
@@ -630,7 +630,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-slate-400 text-xs">
+                  <td colSpan={9} className="py-6 text-center text-ink-secondary text-xs">
                     Belum ada output produksi karton tercatat pada {shiftMeta.name} tanggal {selectedDate}.
                   </td>
                 </tr>
@@ -641,15 +641,15 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
       </div>
 
       {/* 4. SECTION B: SIX BIG LOSSES (SBL) STOPS AGGREGATION */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2.5">
-            <ShieldAlert className="w-4 h-4 text-rose-400" />
+            <ShieldAlert className="w-4 h-4 text-ink-rose" />
             <div>
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-sm font-bold text-ink-primary">
                 2. Henti Produksi &amp; Analisa Six Big Losses ({shiftStopLogs.length} Kejadian)
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Rekap downtime dan klasifikasi kerugian OEE TPM pada shift terpilih.
               </p>
             </div>
@@ -663,7 +663,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                     recapLogs: shiftStopLogs.filter(l => isWhatsAppEligibleSblCategory(l.category))
                   })
                 }
-                className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition"
+                className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/35 text-ink-emerald border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
                 <span>
@@ -672,7 +672,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 </span>
               </button>
             )}
-            <span className="text-xs font-mono font-bold text-rose-300 tabular-nums">
+            <span className="text-xs font-mono font-bold text-ink-rose tabular-nums">
               Total Downtime: {totalDowntimeMinutes} Menit
             </span>
           </div>
@@ -680,28 +680,28 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
 
         {/* Category breakdown strip */}
         {sblByCategory.length > 0 && (
-          <div className="p-4 pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 border-b border-slate-800/70 bg-slate-950/30">
+          <div className="p-4 pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 border-b border-border-subtle bg-canvas">
             {sblByCategory.map((cat, idx) => {
               const sharePct =
                 totalDowntimeMinutes > 0 ? Math.round((cat.minutes / totalDowntimeMinutes) * 100) : 0;
               return (
                 <div
                   key={idx}
-                  className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 space-y-1.5"
+                  className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-1.5"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-white truncate">{cat.label}</span>
-                    <span className="text-[10px] font-mono font-semibold text-rose-300 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-xs font-bold text-ink-primary truncate">{cat.label}</span>
+                    <span className="text-[10px] font-mono font-semibold text-ink-rose bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded shrink-0">
                       {LOSS_TYPE_LABELS[cat.lossType]}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 tabular-nums">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-ink-secondary tabular-nums">
                     <span>{cat.count} kejadian</span>
-                    <span className="text-white font-bold">
+                    <span className="text-ink-primary font-bold">
                       {cat.minutes} mnt ({sharePct}%)
                     </span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-elevated rounded-full overflow-hidden">
                     <div className="h-full bg-rose-500 rounded-full" style={{ width: `${sharePct}%` }} />
                   </div>
                 </div>
@@ -713,7 +713,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-950/70 text-[11px] font-bold text-slate-400 uppercase border-b border-slate-800 whitespace-nowrap">
+              <tr className="bg-canvas text-[11px] font-bold text-ink-secondary uppercase border-b border-border-subtle whitespace-nowrap">
                 <th className="py-2.5 px-3">Waktu Stop</th>
                 <th className="py-2.5 px-3">Line</th>
                 <th className="py-2.5 px-3">SKU</th>
@@ -724,7 +724,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 <th className="py-2.5 px-3 text-center">Laporan WA</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-border-subtle">
               {shiftStopLogs.length > 0 ? (
                 shiftStopLogs
                   .slice()
@@ -732,36 +732,36 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                   .map(log => {
                     const canSendWa = isWhatsAppEligibleSblCategory(log.category);
                     return (
-                      <tr key={log.id} className="hover:bg-slate-800/30 transition">
-                        <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap tabular-nums">
+                      <tr key={log.id} className="hover:bg-elevated transition">
+                        <td className="py-2.5 px-3 font-mono text-ink-secondary whitespace-nowrap tabular-nums">
                           {new Date(log.stoppedAt).toLocaleTimeString('id-ID', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-cyan-300 whitespace-nowrap">
+                        <td className="py-2.5 px-3 font-semibold text-brand whitespace-nowrap">
                           {log.lineName || '-'}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-white">
+                        <td className="py-2.5 px-3 font-semibold text-ink-primary">
                           {log.skuName}
                         </td>
                         <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[10px] font-semibold">
+                          <span className="px-2 py-0.5 rounded bg-rose-500/15 text-ink-rose border border-rose-500/30 text-[10px] font-semibold">
                             {log.categoryLabel}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-slate-200 max-w-xs truncate">
+                        <td className="py-2.5 px-3 text-ink-primary max-w-xs truncate">
                           {log.reasonTitle}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-300 tabular-nums whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-rose tabular-nums whitespace-nowrap">
                           <div>{log.durationMinutes} mnt</div>
                           {log.resumedAt && log.estimatedRepairMinutes && (
-                            <div className="text-[10px] font-normal text-emerald-400">
+                            <div className="text-[10px] font-normal text-ink-emerald">
                               Est. {log.estimatedRepairMinutes}m → Aktual {log.actualRepairMinutes ?? log.durationMinutes}m
                             </div>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                        <td className="py-2.5 px-3 text-ink-secondary text-[11px]">
                           {log.actionTaken || log.operatorName || '-'}
                         </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -769,7 +769,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setWaModalState({ stopLog: log })}
-                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold inline-flex items-center space-x-1 transition"
+                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/35 text-ink-emerald border border-emerald-500/40 rounded-lg text-[10px] font-bold inline-flex items-center space-x-1 transition"
                             >
                               <MessageCircle className="w-3 h-3" />
                               <span>Kirim WA</span>
@@ -783,8 +783,8 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                   })
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-slate-400 text-xs">
-                    <span className="inline-flex items-center space-x-1.5 text-emerald-400 font-medium">
+                  <td colSpan={8} className="py-6 text-center text-ink-secondary text-xs">
+                    <span className="inline-flex items-center space-x-1.5 text-ink-emerald font-medium">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Tidak ada kejadian stop masalah (SBL) pada {shiftMeta.name} tanggal {selectedDate}.</span>
                     </span>
@@ -799,20 +799,20 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
       {/* 5. SECTION C: MATERIAL CONSUMPTION & HOLDING TANK WIP DEPLETION */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* C1. Raw Material Consumption Table */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-2">
+        <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl flex flex-col">
+          <div className="p-4 border-b border-border-subtle flex items-center justify-between gap-2">
             <div className="flex items-center space-x-2">
-              <Boxes className="w-4 h-4 text-amber-400" />
+              <Boxes className="w-4 h-4 text-ink-amber" />
               <div>
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-ink-primary">
                   3A. Konsumsi Bahan Baku ({materialConsumptionRows.length} Material)
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Pemakaian bahan baku aktual untuk produksi batch WIP pada shift ini.
                 </p>
               </div>
             </div>
-            <span className="text-xs font-mono font-bold text-amber-300 tabular-nums">
+            <span className="text-xs font-mono font-bold text-ink-amber tabular-nums">
               {totalRawMaterialKg.toFixed(2)} kg
             </span>
           </div>
@@ -820,7 +820,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-950/70 text-[11px] font-bold text-slate-400 uppercase border-b border-slate-800 whitespace-nowrap">
+                <tr className="bg-canvas text-[11px] font-bold text-ink-secondary uppercase border-b border-border-subtle whitespace-nowrap">
                   <th className="py-2.5 px-3">Material</th>
                   <th className="py-2.5 px-3">Digunakan di WIP</th>
                   <th className="py-2.5 px-3">Lokasi</th>
@@ -828,31 +828,31 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                   <th className="py-2.5 px-3 text-right">Terpakai (Kg)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/70">
+              <tbody className="divide-y divide-border-subtle">
                 {materialConsumptionRows.length > 0 ? (
                   materialConsumptionRows.map(m => (
-                    <tr key={m.materialId} className="hover:bg-slate-800/30 transition">
+                    <tr key={m.materialId} className="hover:bg-elevated transition">
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-white">{m.materialName}</div>
-                        <div className="text-[10px] font-mono text-slate-400">{m.materialCode}</div>
+                        <div className="font-semibold text-ink-primary">{m.materialName}</div>
+                        <div className="text-[10px] font-mono text-ink-secondary">{m.materialCode}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-slate-300 max-w-[160px] truncate">
+                      <td className="py-2.5 px-3 text-ink-secondary max-w-[160px] truncate">
                         {m.wipNames.length > 0 ? m.wipNames.join(', ') : '-'}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-[10px] text-slate-300">
+                      <td className="py-2.5 px-3 font-mono text-[10px] text-ink-secondary">
                         {m.locations.join(', ') || '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono text-ink-secondary tabular-nums">
                         {m.totalBatches}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-amber tabular-nums">
                         {m.totalKg.toFixed(2)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-400 text-xs">
+                    <td colSpan={5} className="py-6 text-center text-ink-secondary text-xs">
                       Belum ada pemakaian bahan baku (Work Order WIP) tercatat pada shift ini.
                     </td>
                   </tr>
@@ -862,11 +862,11 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
           </div>
 
           {usageGroups.length > 0 && (
-            <div className="p-3 bg-slate-950/50 border-t border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+            <div className="p-3 bg-canvas border-t border-border-subtle text-[11px] text-ink-secondary flex flex-wrap items-center justify-between gap-2">
               <span>
-                Terdapat <strong className="text-white">{usageGroups.length}</strong> kelompok formulasi SKU/WIP pada shift ini.
+                Terdapat <strong className="text-ink-primary">{usageGroups.length}</strong> kelompok formulasi SKU/WIP pada shift ini.
               </span>
-              <span className="font-mono text-amber-300 tabular-nums">
+              <span className="font-mono text-ink-amber tabular-nums">
                 {shiftUsages.length} entri pemakaian
               </span>
             </div>
@@ -874,20 +874,20 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
         </div>
 
         {/* C2. WIP Holding & Storage Tank Depletion Table */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-2">
+        <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl flex flex-col">
+          <div className="p-4 border-b border-border-subtle flex items-center justify-between gap-2">
             <div className="flex items-center space-x-2">
-              <Cylinder className="w-4 h-4 text-cyan-400" />
+              <Cylinder className="w-4 h-4 text-brand" />
               <div>
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-ink-primary">
                   3B. Pemakaian WIP Holding Tank ({tankConsumptionRows.length} Tangki)
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Akumulasi pengurangan massa WIP otomatis dari produksi karton SKU.
                 </p>
               </div>
             </div>
-            <span className="text-xs font-mono font-bold text-cyan-300 tabular-nums">
+            <span className="text-xs font-mono font-bold text-brand tabular-nums">
               {totalWipDepletedKg.toFixed(2)} kg
             </span>
           </div>
@@ -895,35 +895,35 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-950/70 text-[11px] font-bold text-slate-400 uppercase border-b border-slate-800 whitespace-nowrap">
+                <tr className="bg-canvas text-[11px] font-bold text-ink-secondary uppercase border-b border-border-subtle whitespace-nowrap">
                   <th className="py-2.5 px-3">Tangki</th>
                   <th className="py-2.5 px-3">Jenis WIP</th>
                   <th className="py-2.5 px-3 text-right">Terpotong (Kg)</th>
                   <th className="py-2.5 px-3 text-right">Sisa Saat Ini (Kg)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/70">
+              <tbody className="divide-y divide-border-subtle">
                 {tankConsumptionRows.length > 0 ? (
                   tankConsumptionRows.map(t => (
-                    <tr key={t.tankId} className="hover:bg-slate-800/30 transition">
+                    <tr key={t.tankId} className="hover:bg-elevated transition">
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-white">{t.tankCode} · {t.tankName}</div>
-                        <div className="text-[10px] font-mono text-slate-400">
+                        <div className="font-semibold text-ink-primary">{t.tankCode} · {t.tankName}</div>
+                        <div className="text-[10px] font-mono text-ink-secondary">
                           {t.tankType === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-slate-200">{t.wipName}</td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-cyan-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-ink-primary">{t.wipName}</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-brand tabular-nums">
                         {t.totalDeductedKg.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-300 tabular-nums">
+                      <td className="py-2.5 px-3 text-right font-mono text-ink-secondary tabular-nums">
                         {t.currentLevelKg.toFixed(1)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-6 text-center text-slate-400 text-xs">
+                    <td colSpan={4} className="py-6 text-center text-ink-secondary text-xs">
                       Belum ada pemotongan WIP tangki tercatat pada shift ini.
                     </td>
                   </tr>
@@ -932,14 +932,14 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
             </table>
           </div>
 
-          <div className="p-3 bg-slate-950/50 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between gap-2">
+          <div className="p-3 bg-canvas border-t border-border-subtle text-[11px] text-ink-secondary flex items-center justify-between gap-2">
             <span>
-              Batch WIP pada shift ini: <strong className="text-white">{shiftWipBatches.length} batch</strong>
+              Batch WIP pada shift ini: <strong className="text-ink-primary">{shiftWipBatches.length} batch</strong>
             </span>
             <button
               type="button"
               onClick={() => onSwitchTab('tank-monitoring')}
-              className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center space-x-1 transition"
+              className="text-brand hover:text-brand font-semibold flex items-center space-x-1 transition"
             >
               <span>Lihat Monitoring Tangki</span>
               <ArrowRight className="w-3 h-3" />
@@ -950,30 +950,30 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
 
       {/* Unused icon suppression / Batch WIP Quick Summary if any active batches */}
       {shiftWipBatches.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5 shadow-lg">
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2.5 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-purple-400" />
-              <h3 className="text-xs sm:text-sm font-bold text-white">
+              <Layers className="w-4 h-4 text-ink-purple" />
+              <h3 className="text-xs sm:text-sm font-bold text-ink-primary">
                 Perintah Kerja Batch WIP pada {shiftMeta.name} ({shiftWipBatches.length})
               </h3>
             </div>
-            <Clock className="w-4 h-4 text-slate-400" />
+            <Clock className="w-4 h-4 text-ink-secondary" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
             {shiftWipBatches.map(b => (
               <div
                 key={b.id}
-                className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-2"
+                className="bg-canvas border border-border-subtle rounded-xl p-3 flex items-center justify-between gap-2"
               >
                 <div className="min-w-0">
-                  <div className="font-mono font-bold text-purple-300 text-[11px]">{b.batchCode}</div>
-                  <div className="font-semibold text-white truncate">{b.wipName}</div>
-                  <div className="text-[10px] text-slate-400 font-mono tabular-nums">
+                  <div className="font-mono font-bold text-ink-purple text-[11px]">{b.batchCode}</div>
+                  <div className="font-semibold text-ink-primary truncate">{b.wipName}</div>
+                  <div className="text-[10px] text-ink-secondary font-mono tabular-nums">
                     {b.batchWeightKg.toFixed(1)} kg · Op: {b.operatorName}
                   </div>
                   {b.pauseLogs && b.pauseLogs.length > 0 && (
-                    <div className="text-[10px] text-sky-300 truncate mt-0.5">
+                    <div className="text-[10px] text-ink-sky truncate mt-0.5">
                       Jeda ({b.pauseLogs.length}x): {b.pauseLogs[b.pauseLogs.length - 1].reason}
                     </div>
                   )}
@@ -981,12 +981,12 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                     b.status === 'SELESAI'
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      ? 'bg-emerald-500/15 text-ink-emerald border border-emerald-500/30'
                       : b.status === 'SEDANG_PRODUKSI'
-                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      ? 'bg-amber-500/15 text-ink-amber border border-amber-500/30'
                       : b.status === 'DIJEDA'
-                      ? 'bg-sky-950 text-sky-300 border border-sky-700'
-                      : 'bg-slate-800 text-slate-400'
+                      ? 'bg-tint-sky text-ink-sky border border-sky-700'
+                      : 'bg-elevated text-ink-secondary'
                   }`}
                 >
                   {b.status === 'SELESAI'

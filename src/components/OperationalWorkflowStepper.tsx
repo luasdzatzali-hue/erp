@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getActiveWeeklyPlan } from '../utils/weeklyPlanComparison';
+import { resolveEffectiveRole } from '../utils/roleAccess';
 
 interface OperationalWorkflowStepperProps {
   state: AppState;
@@ -48,9 +49,9 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
     }
   });
 
-  const role = state.currentUserRole;
-  const isAdmin = role === 'ADMINISTRATOR';
-  const isManagement = role === 'MANAGEMENT';
+  const effectiveRole = resolveEffectiveRole(state);
+  const isAdmin = effectiveRole.isAdmin;
+  const isManagement = effectiveRole.isManagement;
 
   const toggleCollapsed = () => {
     setIsCollapsed(prev => {
@@ -196,28 +197,28 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
   return (
     <section
       aria-label="Alur Kerja Operasional 7 Tahap"
-      className="shrink-0 bg-[#080c14] border-b border-slate-800/90 z-10 no-print"
+      className="shrink-0 bg-surface-header border-b border-border-subtle z-10 no-print"
     >
       <div className="max-w-[1440px] mx-auto">
         {/* Top Bar of Stepper */}
         <div
           className={`px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 ${
-            !isCollapsed ? 'border-b border-slate-800/80' : ''
+            !isCollapsed ? 'border-b border-border-subtle' : ''
           }`}
         >
           <div className="flex flex-wrap items-center gap-2 min-w-0 text-xs">
-            <span className="font-bold text-white tracking-tight">
+            <span className="font-bold text-ink-primary tracking-tight">
               Alur Kerja Operasional Pabrik
             </span>
-            <span className="text-slate-600" aria-hidden="true">·</span>
-            <span className="font-mono text-[11px] text-cyan-400 tabular-nums">
+            <span className="text-ink-secondary" aria-hidden="true">·</span>
+            <span className="font-mono text-[11px] text-accent-primary tabular-nums font-semibold">
               {completedCount}/7 Tahap Terisi
             </span>
             {currentStep && (
               <>
-                <span className="text-slate-600 hidden sm:inline" aria-hidden="true">·</span>
-                <span className="text-[11px] text-slate-300 hidden sm:inline truncate">
-                  Posisi saat ini: <strong className="text-white">{currentStep.stepNumber}. {currentStep.title}</strong>
+                <span className="text-ink-secondary hidden sm:inline" aria-hidden="true">·</span>
+                <span className="text-[11px] text-ink-secondary hidden sm:inline truncate">
+                  Posisi saat ini: <strong className="text-ink-primary">{currentStep.stepNumber}. {currentStep.title}</strong>
                 </span>
               </>
             )}
@@ -228,7 +229,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
               <button
                 type="button"
                 onClick={() => onSwitchTab(nextAccessibleStep.tab)}
-                className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
+                className="px-3 py-1 bg-accent-primary hover:bg-accent-primary-hover text-accent-primary-foreground rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 whitespace-nowrap shrink-0"
                 title={nextAccessibleStep.hint}
               >
                 <span>
@@ -241,7 +242,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
               type="button"
               onClick={toggleCollapsed}
               aria-expanded={!isCollapsed}
-              className="px-2.5 py-1 bg-[#0c121d] hover:bg-slate-800 border border-slate-700/80 text-slate-300 rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              className="px-2.5 py-1 bg-surface hover:bg-elevated border border-border-subtle text-ink-primary rounded-lg text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {isCollapsed ? (
                 <>
@@ -278,12 +279,12 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
                     }
                     className={`text-left px-2.5 py-2 rounded-lg border transition flex flex-col justify-between gap-1 min-h-[58px] ${
                       isActive
-                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-sm'
+                        ? 'bg-accent-primary border-accent-primary text-accent-primary-foreground shadow-sm'
                         : !step.isAllowed
-                        ? 'bg-[#0c121d]/70 border-slate-800/70 text-slate-500 opacity-75 hover:opacity-90'
+                        ? 'bg-canvas/75 border-border-subtle/75 text-ink-secondary opacity-75 hover:opacity-95'
                         : step.isReady
-                        ? 'bg-[#0c121d] border-emerald-500/35 text-slate-200 hover:border-cyan-500/60 hover:bg-slate-800/60'
-                        : 'bg-[#0c121d] border-slate-800 text-slate-300 hover:border-cyan-500/50 hover:bg-slate-800/60'
+                        ? 'bg-surface border-tint-emerald-border text-ink-primary hover:border-accent-primary hover:bg-elevated/60'
+                        : 'bg-surface border-border-subtle text-ink-primary hover:border-accent-primary/60 hover:bg-elevated/60'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1.5 w-full">
@@ -291,10 +292,10 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
                         <span
                           className={`text-[10px] font-mono font-bold tabular-nums ${
                             isActive
-                              ? 'text-cyan-100'
+                              ? 'text-accent-primary-foreground/90'
                               : step.isReady
-                              ? 'text-emerald-400'
-                              : 'text-slate-400'
+                              ? 'text-ink-emerald'
+                              : 'text-ink-secondary'
                           }`}
                         >
                           {step.stepNumber}
@@ -302,21 +303,21 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
                         <Icon
                           className={`w-3.5 h-3.5 shrink-0 ${
                             isActive
-                              ? 'text-white'
+                              ? 'text-accent-primary-foreground'
                               : !step.isAllowed
-                              ? 'text-slate-500'
+                              ? 'text-ink-secondary'
                               : step.isReady
-                              ? 'text-emerald-400'
-                              : 'text-cyan-400'
+                              ? 'text-ink-emerald'
+                              : 'text-accent-primary'
                           }`}
                         />
                       </div>
                       {!step.isAllowed ? (
-                        <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                        <Lock className="w-3 h-3 text-ink-secondary shrink-0" />
                       ) : step.isReady ? (
                         <CheckCircle2
                           className={`w-3.5 h-3.5 shrink-0 ${
-                            isActive ? 'text-white' : 'text-emerald-400'
+                            isActive ? 'text-accent-primary-foreground' : 'text-ink-emerald'
                           }`}
                         />
                       ) : null}
@@ -325,7 +326,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
                     <div className="min-w-0">
                       <p
                         className={`text-xs font-bold leading-tight truncate ${
-                          isActive ? 'text-white' : 'text-slate-100'
+                          isActive ? 'text-accent-primary-foreground' : 'text-ink-primary'
                         }`}
                       >
                         {step.shortTitle}
@@ -333,10 +334,10 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
                       <p
                         className={`text-[10px] font-mono tabular-nums truncate mt-0.5 ${
                           isActive
-                            ? 'text-cyan-100'
+                            ? 'text-accent-primary-foreground/90'
                             : step.isReady
-                            ? 'text-emerald-400'
-                            : 'text-slate-400'
+                            ? 'text-ink-emerald'
+                            : 'text-ink-secondary'
                         }`}
                       >
                         {step.isAllowed ? step.statusLabel : step.restrictedReason}

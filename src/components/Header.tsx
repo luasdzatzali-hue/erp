@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
+import { resolveEffectiveRole } from '../utils/roleAccess';
 import {
   GoogleSheetsSyncSettings,
   loadSheetsSyncSettings,
@@ -51,11 +52,11 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const isTempNormal = state.tank.temp >= state.tank.minTempTarget && state.tank.temp <= state.tank.maxTempTarget;
   const currentShift = getCurrentShift();
-  const role = state.currentUserRole;
+  const effectiveRole = resolveEffectiveRole(state);
 
-  const isManagement = role === 'MANAGEMENT';
-  const isAdmin = role === 'ADMINISTRATOR';
-  const isOperator = role === 'OPERATOR';
+  const isManagement = effectiveRole.isManagement;
+  const isAdmin = effectiveRole.isAdmin;
+  const isOperator = effectiveRole.isOperator;
 
   const [syncSettings, setSyncSettings] = useState<GoogleSheetsSyncSettings>(() =>
     loadSheetsSyncSettings()
@@ -129,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
     .join('\n');
 
   return (
-    <header className="bg-[#080c14] border-b border-slate-800 z-20 shrink-0 sticky top-0 text-slate-100">
+    <header className="bg-surface-header border-b border-border-subtle z-20 shrink-0 sticky top-0 text-ink-primary">
       <div className="px-3 sm:px-5 py-2.5 flex items-center justify-between gap-4">
         {/* Left Zone: Navigation Drawer Trigger & Breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
@@ -137,20 +138,20 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenSidebar}
             aria-label="Buka Menu Navigasi Samping"
             title="Buka Menu Navigasi (Popup Drawer)"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0c121d] text-slate-200 hover:text-white hover:border-cyan-500/50 transition border border-slate-800 active:scale-95 whitespace-nowrap shrink-0"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface hover:bg-elevated text-ink-primary hover:border-accent-primary/60 transition border border-border-subtle active:scale-95 whitespace-nowrap shrink-0"
           >
-            <Menu className="w-4 h-4 text-cyan-400" />
+            <Menu className="w-4 h-4 text-accent-primary" />
             <span className="text-xs font-semibold hidden sm:inline">Menu</span>
           </button>
 
           <div className="flex items-center gap-2 text-xs min-w-0">
-            <span className="text-slate-500 font-mono hidden sm:inline whitespace-nowrap">Konsol Kendali</span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-600 hidden sm:inline shrink-0" />
-            <h1 className="font-bold text-white text-xs sm:text-sm tracking-tight truncate">
+            <span className="text-ink-secondary font-mono hidden sm:inline whitespace-nowrap">Konsol Kendali</span>
+            <ChevronRight className="w-3.5 h-3.5 text-ink-secondary hidden sm:inline shrink-0" />
+            <h1 className="font-bold text-ink-primary text-xs sm:text-sm tracking-tight truncate">
               {currentViewTitle}
             </h1>
             {isManagement && (
-              <span className="hidden md:inline text-[11px] font-mono text-indigo-300 whitespace-nowrap shrink-0">
+              <span className="hidden md:inline text-[11px] font-mono text-ink-indigo whitespace-nowrap shrink-0">
                 · Mode Pantau
               </span>
             )}
@@ -165,58 +166,58 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onSwitchTab?.('sheets-sync')}
             title={syncTooltip}
             aria-label={`Status Sinkronisasi Google Sheets: ${syncStatus}`}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-[#0c121d] border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-surface hover:bg-elevated border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
               syncStatus === 'Syncing'
-                ? 'border-cyan-500/50 text-cyan-300 hover:border-cyan-400'
+                ? 'border-tint-cyan-border text-ink-cyan hover:border-accent-primary'
                 : syncStatus === 'Success'
-                ? 'border-emerald-500/40 text-slate-200 hover:border-emerald-400'
+                ? 'border-tint-emerald-border text-ink-primary hover:border-ink-emerald'
                 : syncStatus === 'Error'
-                ? 'border-rose-500/50 text-rose-300 hover:border-rose-400'
-                : 'border-slate-800 text-slate-300 hover:border-cyan-500/50'
+                ? 'border-tint-rose-border text-ink-rose hover:border-ink-rose'
+                : 'border-border-subtle text-ink-primary hover:border-accent-primary/60'
             }`}
           >
             {syncStatus === 'Syncing' ? (
-              <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin shrink-0" />
+              <Loader2 className="w-3.5 h-3.5 text-ink-cyan animate-spin shrink-0" />
             ) : syncStatus === 'Success' ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
             ) : syncStatus === 'Error' ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <AlertTriangle className="w-3.5 h-3.5 text-ink-rose shrink-0" />
             ) : (
-              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-ink-secondary shrink-0" />
             )}
 
             <span
               className={`font-semibold ${
                 syncStatus === 'Syncing'
-                  ? 'text-cyan-400'
+                  ? 'text-ink-cyan'
                   : syncStatus === 'Success'
-                  ? 'text-emerald-400'
+                  ? 'text-ink-emerald'
                   : syncStatus === 'Error'
-                  ? 'text-rose-400'
-                  : 'text-slate-300'
+                  ? 'text-ink-rose'
+                  : 'text-ink-primary'
               }`}
             >
               {syncStatus}
             </span>
 
             {syncStatus === 'Syncing' ? (
-              <span className="text-[11px] text-cyan-300 hidden md:inline">· Sheets</span>
+              <span className="text-[11px] text-ink-cyan hidden md:inline">· Sheets</span>
             ) : syncStatus === 'Error' ? (
-              <span className="text-[11px] text-rose-400 hidden md:inline">
+              <span className="text-[11px] text-ink-rose hidden md:inline">
                 {formattedLastSyncTime ? `· ${formattedLastSyncTime.short}` : '· Gagal'}
               </span>
             ) : formattedLastSyncTime ? (
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
+              <span className="text-[11px] text-ink-secondary hidden sm:inline">
                 · {formattedLastSyncTime.short}
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400 hidden lg:inline">
+              <span className="text-[11px] text-ink-secondary hidden lg:inline">
                 · {unsyncedCount > 0 ? `${unsyncedCount} antrean` : 'Belum sync'}
               </span>
             )}
 
             {syncStatus !== 'Syncing' && unsyncedCount > 0 && (formattedLastSyncTime || syncStatus === 'Error') && (
-              <span className="text-[11px] text-amber-400 font-semibold hidden xl:inline">
+              <span className="text-[11px] text-ink-amber font-semibold hidden xl:inline">
                 · {unsyncedCount} baru
               </span>
             )}
@@ -226,22 +227,22 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenTankModal}
             title="Klik untuk membuka detail Storage Tank Liquid"
-            className={`flex items-center gap-2 px-2.5 py-1.5 bg-[#0c121d] border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-2 px-2.5 py-1.5 border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
               isTempNormal
-                ? 'border-slate-800 text-slate-200 hover:border-cyan-500/60'
-                : 'border-amber-500/50 text-amber-300 bg-amber-950/20'
+                ? 'bg-surface hover:bg-elevated border-border-subtle text-ink-primary hover:border-accent-primary/60'
+                : 'bg-tint-amber border-tint-amber-border text-ink-amber'
             }`}
           >
-            <Droplet className={`w-3.5 h-3.5 ${isTempNormal ? 'text-cyan-400' : 'text-amber-400'}`} />
+            <Droplet className={`w-3.5 h-3.5 ${isTempNormal ? 'text-accent-primary' : 'text-ink-amber'}`} />
             <span className="font-semibold">{state.tank.temp.toFixed(1)}°C</span>
-            <span className="text-[11px] text-slate-400 hidden sm:inline">· {state.tank.level.toFixed(0)} kg</span>
+            <span className="text-[11px] text-ink-secondary hidden sm:inline">· {state.tank.level.toFixed(0)} kg</span>
           </button>
 
           {/* Shift Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0c121d] border border-slate-800 text-xs font-mono text-slate-200 tabular-nums whitespace-nowrap shrink-0">
-            <span className="text-emerald-400 font-semibold">S{currentShift.shift}</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-[11px] text-slate-400">{currentShift.timeRange}</span>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border-subtle text-xs font-mono text-ink-primary tabular-nums whitespace-nowrap shrink-0">
+            <span className="text-ink-emerald font-semibold">S{currentShift.shift}</span>
+            <span className="text-ink-secondary">·</span>
+            <span className="text-[11px] text-ink-secondary">{currentShift.timeRange}</span>
           </div>
 
           {/* Theme Toggle Button (Midnight vs Daylight) */}
@@ -255,16 +256,16 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'Beralih ke Tema Daylight (Cerah Terang Pabrik)'
               }
               aria-label="Toggle Theme"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0c121d] border border-slate-800 hover:border-slate-700 text-xs font-medium text-slate-200 hover:text-white transition active:scale-95 whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface hover:bg-elevated border border-border-subtle hover:border-accent-primary/50 text-xs font-medium text-ink-primary transition active:scale-95 whitespace-nowrap shrink-0"
             >
               {theme === 'daylight' || theme === 'light' ? (
                 <>
-                  <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <Moon className="w-3.5 h-3.5 text-ink-indigo" />
                   <span className="hidden md:inline text-[11px] font-semibold">Midnight</span>
                 </>
               ) : (
                 <>
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <Sun className="w-3.5 h-3.5 text-ink-amber" />
                   <span className="hidden md:inline text-[11px] font-semibold">Daylight</span>
                 </>
               )}
@@ -272,16 +273,16 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* User Profile & Sign Out */}
-          <div className="flex items-center gap-1 bg-[#0c121d] p-0.5 rounded-lg border border-slate-800 shrink-0">
+          <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-border-subtle shrink-0">
             <button
               onClick={onOpenRoleSwitcher}
               title="Ganti Jenis Pengguna"
               className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition whitespace-nowrap ${
                 isAdmin
-                  ? 'text-amber-300 hover:bg-amber-500/10'
+                  ? 'text-ink-amber hover:bg-tint-amber'
                   : isOperator
-                  ? 'text-cyan-300 hover:bg-cyan-500/10'
-                  : 'text-indigo-300 hover:bg-indigo-500/10'
+                  ? 'text-ink-cyan hover:bg-tint-cyan'
+                  : 'text-ink-indigo hover:bg-tint-indigo'
               }`}
             >
               <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shrink-0 ${
@@ -289,7 +290,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-amber-500 text-slate-950'
                   : isOperator
                   ? 'bg-cyan-500 text-slate-950'
-                  : 'bg-indigo-500 text-white'
+                  : 'bg-indigo-600 text-white'
               }`}>
                 {isAdmin ? <Shield className="w-3 h-3" /> : isOperator ? <UserCheck className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               </div>
@@ -304,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({
                 else onOpenRoleSwitcher();
               }}
               title="Logout Total (Keluar ke Halaman Login & Sign Up)"
-              className="p-1.5 rounded-md text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition"
+              className="p-1.5 rounded-md text-ink-secondary hover:text-ink-rose hover:bg-tint-rose transition"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

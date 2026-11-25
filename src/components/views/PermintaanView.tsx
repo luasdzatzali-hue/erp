@@ -60,6 +60,7 @@ import {
   getRoundingAppliedInfo,
   hasDecimalPart
 } from '../../utils/orderRounding';
+import { resolveEffectiveRole } from '../../utils/roleAccess';
 import {
   getSelectableProductionLines,
   resolveProductionLineForItem
@@ -834,12 +835,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
   if (!hasMasterData) {
     return (
-      <div className="max-w-md mx-auto text-center py-12 px-4 bg-slate-900 border border-slate-800 rounded-2xl mt-6 shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto mb-3">
+      <div className="max-w-md mx-auto text-center py-12 px-4 bg-surface border border-border-subtle rounded-2xl mt-6 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-ink-amber flex items-center justify-center mx-auto mb-3">
           <AlertTriangle className="w-6 h-6" />
         </div>
-        <h3 className="font-bold text-base text-white mb-1">Master Data / BOM Belum Terisi</h3>
-        <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+        <h3 className="font-bold text-base text-ink-primary mb-1">Master Data / BOM Belum Terisi</h3>
+        <p className="text-xs text-ink-secondary mb-5 leading-relaxed">
           Sebelum permintaan material dapat diajukan, komponen penyusun WIP, SKU, dan hierarki BOM perlu dikonfigurasi oleh administrator.
         </p>
         <button
@@ -978,30 +979,30 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       {/* SOP Rule Banner: Permintaan Hanya di Shift 1 */}
       <div className="bg-sky-500/10 border border-sky-500/30 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
         <div className="flex items-start sm:items-center space-x-3">
-          <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 shrink-0">
+          <div className="p-2 rounded-xl bg-sky-500/20 text-ink-sky shrink-0">
             <Clock className="w-5 h-5" />
           </div>
           <div className="space-y-0.5">
             <div className="flex items-center space-x-2">
-              <span className="text-xs sm:text-sm font-bold text-sky-300">
+              <span className="text-xs sm:text-sm font-bold text-ink-sky">
                 Aturan SOP: Permintaan Material HANYA Dapat Dilakukan di Shift 1
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 font-mono">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-500/20 text-ink-sky border border-sky-500/40 font-mono">
                 Shift 1 (07:01 - 15:00)
               </span>
             </div>
-            <p className="text-[11px] text-slate-300">
+            <p className="text-[11px] text-ink-secondary">
               Sesuai SOP produksi pabrik, seluruh formulir order permintaan material ke gudang/supplier (GDRM / Formulasi) hanya diterbitkan pada Shift 1. Pengiriman & kedatangan material dilayani pada Shift 1 dan Shift 2.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+          {resolveEffectiveRole(state).isAdmin && onOpenStockAdjustment && (
             <button
               type="button"
               onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
-              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
+              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-ink-amber border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
               title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
             >
               <Scale className="w-3.5 h-3.5" />
@@ -1032,25 +1033,25 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           : 0;
 
         return (
-          <div className="bg-[#0c121d] border border-slate-800 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-surface border border-border-subtle px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start sm:items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-ink-emerald flex items-center justify-center shrink-0">
                 <CalendarRange className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="font-bold text-white">Acuan Planning Mingguan (Tahap 02):</span>
+                  <span className="font-bold text-ink-primary">Acuan Planning Mingguan (Tahap 02):</span>
                   {activePlan ? (
-                    <span className="font-mono text-emerald-400 font-semibold tabular-nums">
+                    <span className="font-mono text-ink-emerald font-semibold tabular-nums">
                       {activePlan.weekLabel} · {activePlan.items.length} SKU · {totalPlannedCartons.toLocaleString('id-ID')} ktn
                     </span>
                   ) : (
-                    <span className="text-amber-300 font-medium">
+                    <span className="text-ink-amber font-medium">
                       Belum ada planning mingguan aktif
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                <p className="text-[11px] text-ink-secondary mt-0.5 truncate">
                   {activePlan
                     ? `Periode ${activePlan.periodStart} s/d ${activePlan.periodEnd}. Gunakan Tahap 02 untuk mengubah jadwal atau kirim otomatis daftar kebutuhan ke keranjang ini.`
                     : 'Susun jadwal mingguan pada Tahap 02 untuk menghitung kebutuhan material otomatis sebelum membuat bon permintaan.'}
@@ -1062,7 +1063,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTab('weekly-planning')}
-                className="px-3 py-1.5 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition active:scale-95"
+                className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-border-strong text-ink-emerald rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition active:scale-95"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>{activePlan ? 'Edit Planning Mingguan (Tahap 02)' : 'Buka Tahap 02: Planning Mingguan'}</span>
@@ -1070,9 +1071,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTab('bom-calculator')}
-                className="px-3 py-1.5 bg-[#06090f] hover:bg-slate-800 border border-slate-700 text-cyan-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
+                className="px-3 py-1.5 bg-canvas hover:bg-elevated border border-border-strong text-brand rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition"
               >
-                <Calculator className="w-3.5 h-3.5 text-cyan-400" />
+                <Calculator className="w-3.5 h-3.5 text-brand" />
                 <span>Kalkulator BOM</span>
               </button>
             </div>
@@ -1081,23 +1082,23 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       })()}
 
       {/* Request Form */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className={`flex flex-wrap items-center justify-between gap-2 ${isRequestFormOpen ? 'mb-3 border-b border-slate-800 pb-3' : ''}`}>
-          <h3 className="font-bold text-sm text-white flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+      <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl">
+        <div className={`flex flex-wrap items-center justify-between gap-2 ${isRequestFormOpen ? 'mb-3 border-b border-border-subtle pb-3' : ''}`}>
+          <h3 className="font-bold text-sm text-ink-primary flex items-center space-x-2">
+            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-brand">
               <FilePlus className="w-4 h-4" />
             </div>
             <span>Form Permintaan Material ke Supplier (GDRM / Formulasi)</span>
           </h3>
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
-            <span className="text-slate-400">
-              Saldo Aktual: <strong className="text-cyan-400">{currentSaldoAwal.toFixed(4)} kg</strong>
+            <span className="text-ink-secondary">
+              Saldo Aktual: <strong className="text-brand">{currentSaldoAwal.toFixed(4)} kg</strong>
             </span>
-            {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && selectedMatId && (
+            {resolveEffectiveRole(state).isAdmin && onOpenStockAdjustment && selectedMatId && (
               <button
                 type="button"
                 onClick={() => onOpenStockAdjustment(selectedMatId)}
-                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold"
+                className="text-[10px] text-ink-amber hover:text-ink-amber underline font-sans font-semibold"
                 title="Sesuaikan Saldo Awal Material Ini"
               >
                 (Adjust Saldo Awal)
@@ -1107,7 +1108,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               type="button"
               onClick={() => setIsRequestFormOpen(prev => !prev)}
               aria-expanded={isRequestFormOpen}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-sans text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+              className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary font-sans text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
             >
               {isRequestFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{isRequestFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1116,23 +1117,23 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         </div>
 
         {isRequestFormOpen && (
-        <form onSubmit={handleAddToCart} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+        <form onSubmit={handleAddToCart} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
           {/* Shift Indicator (Locked to Shift 1 per Factory SOP) */}
-          <div className="sm:col-span-2 bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between">
+          <div className="sm:col-span-2 bg-canvas border border-border-subtle p-2.5 rounded-xl flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Lock className="w-3.5 h-3.5 text-sky-400" />
-              <span className="text-[11px] text-slate-300">
-                Shift Operasional Permintaan: <strong className="text-sky-300 font-bold">Shift 1 (Pagi • 07:01 - 15:00)</strong>
+              <Lock className="w-3.5 h-3.5 text-ink-sky" />
+              <span className="text-[11px] text-ink-secondary">
+                Shift Operasional Permintaan: <strong className="text-ink-sky font-bold">Shift 1 (Pagi • 07:01 - 15:00)</strong>
               </span>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/30 font-semibold">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-ink-sky border border-sky-500/30 font-semibold">
               Terkunci Sesuai Aturan SOP
             </span>
           </div>
 
           {/* SKU Selection */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Pilih SKU Produk
             </label>
             <select
@@ -1143,7 +1144,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 setSelectedMatId('');
               }}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
             >
               <option value="">-- Pilih SKU Produk --</option>
               {state.master.skus.map(s => (
@@ -1153,7 +1154,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               ))}
             </select>
             {selectedSkuObj && (
-              <span className="text-[10px] text-slate-400 mt-1 block">
+              <span className="text-[10px] text-ink-secondary mt-1 block">
                 Target: {selectedSkuObj.targetHour} ktn/jam | Status: {selectedSkuObj.isKite ? 'Fasilitas KITE Ekspor' : 'Pasar Domestik'}
               </span>
             )}
@@ -1161,7 +1162,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
           {/* WIP Selection */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Pilih Jenis WIP
             </label>
             <select
@@ -1171,7 +1172,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 setSelectedMatId('');
               }}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
             >
               <option value="">-- Pilih WIP --</option>
               {availableWips.map(w => (
@@ -1181,7 +1182,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               ))}
             </select>
             {selectedWipObj && (
-              <span className="text-[10px] text-amber-400/90 mt-1 block">
+              <span className="text-[10px] text-ink-amber mt-1 block">
                 Bobot Batch Acuan: {selectedWipObj.batchWeightKg.toFixed(4)} kg
               </span>
             )}
@@ -1190,17 +1191,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           {/* Line Produksi Selection (Otomatis deteksi dari Planning / Mesin WIP, bisa diubah) */}
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-medium text-slate-300">
+              <label className="block text-[11px] font-medium text-ink-secondary">
                 Line Produksi Tujuan (Pemisah Lembar Slip Order)
               </label>
-              <span className="text-[10px] text-emerald-400 font-mono">
+              <span className="text-[10px] text-ink-emerald font-mono">
                 Rekomendasi otomatis: {resolvedAutoLine.lineName}
               </span>
             </div>
             <select
               value={activeRequestLine.lineId}
               onChange={(e) => setSelectedLineId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary font-medium"
             >
               {!selectableLines.some(l => l.lineId === activeRequestLine.lineId) && (
                 <option value={activeRequestLine.lineId}>
@@ -1220,20 +1221,20 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
           {/* OPSI PILIH MATERIAL DARI RESEP FORMULASI WIP */}
           {selectedWipId && (
-            <div className="sm:col-span-2 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-cyan-500/30 rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-lg">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-2.5">
+            <div className="sm:col-span-2 bg-gradient-to-r from-canvas via-surface to-canvas border border-cyan-500/30 rounded-2xl p-3.5 sm:p-4 space-y-3 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border-subtle pb-2.5">
                 <div className="flex items-center space-x-2">
-                  <div className="p-1.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <div className="p-1.5 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20">
                     <BookOpen className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-xs sm:text-sm text-white">Resep Formulasi Acuan WIP</h4>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-medium">
+                      <h4 className="font-bold text-xs sm:text-sm text-ink-primary">Resep Formulasi Acuan WIP</h4>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-brand font-medium">
                         Pilihan Cepat Sesuai Resep SKU
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-ink-secondary">
                       Pilih bahan baku langsung dari resep formulasi untuk mempercepat pembuatan order permintaan
                     </p>
                   </div>
@@ -1247,7 +1248,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         setSelectedRecipeId(e.target.value);
                         setSelectedMatId('');
                       }}
-                      className="bg-slate-800 border border-cyan-500/40 rounded-xl px-3 py-1.5 text-xs text-cyan-300 focus:outline-none focus:border-cyan-400 font-bold"
+                      className="bg-elevated border border-cyan-500/40 rounded-xl px-3 py-1.5 text-xs text-brand focus:outline-none focus:border-accent-primary font-bold"
                     >
                       {recipesForWip.map(r => (
                         <option key={r.id} value={r.id}>
@@ -1257,7 +1258,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                     </select>
                   </div>
                 ) : (
-                  <span className="text-[11px] text-amber-400 font-medium bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
+                  <span className="text-[11px] text-ink-amber font-medium bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
                     Belum ada resep di Master BOM
                   </span>
                 )}
@@ -1265,18 +1266,18 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
               {activeRecipe ? (
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface p-2.5 rounded-xl border border-border-subtle text-xs">
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      <span className="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded text-xs border border-amber-500/20">
+                      <span className="font-mono text-ink-amber font-bold bg-amber-500/10 px-2 py-0.5 rounded text-xs border border-amber-500/20">
                         {activeRecipe.recipeCode}
                       </span>
-                      <span className="font-bold text-white text-xs">{activeRecipe.recipeName}</span>
+                      <span className="font-bold text-ink-primary text-xs">{activeRecipe.recipeName}</span>
                       {activeRecipe.isDefault && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-brand border border-cyan-500/30 font-medium">
                           Resep Default
                         </span>
                       )}
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-ink-secondary font-mono">
                         • {activeRecipe.items?.length || 0} Material • Total Resep: {activeRecipe.totalWeightKg.toFixed(4)} kg/batch
                       </span>
                     </div>
@@ -1298,7 +1299,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   {/* Clickable Recipe Material Pills for instant selection */}
                   {activeRecipe.items && activeRecipe.items.length > 0 ? (
                     <div>
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">
+                      <span className="text-[10px] text-ink-secondary font-semibold uppercase tracking-wider block mb-1.5">
                         Klik Cepat Material Resep untuk Mengisi Formulir Order ({effectiveBatchCount} batch{orderCalc.batchWasRoundedUp ? ` [bulat dari ${batchCount}]` : ''}):
                       </span>
                       <div className="flex flex-wrap gap-1.5">
@@ -1322,15 +1323,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                               onClick={() => handleSelectMaterialFromRecipe(it)}
                               className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs transition border font-medium active:scale-95 ${
                                 isSelected
-                                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 ring-1 ring-cyan-400/50 shadow-md shadow-cyan-500/20'
-                                  : 'bg-slate-900 border-slate-700/80 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-800 hover:text-white'
+                                  ? 'bg-cyan-500/20 border-cyan-400 text-brand ring-1 ring-cyan-400/50 shadow-md shadow-cyan-500/20'
+                                  : 'bg-surface border-border-strong text-ink-primary hover:border-cyan-500/50 hover:bg-elevated hover:text-ink-primary'
                               }`}
                             >
                               <span className="font-semibold">{it.materialName || matObj?.name}</span>
-                              <span className="font-mono text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              <span className="font-mono text-[10px] text-ink-amber bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                                 {it.amount} {it.unit}/batch
                               </span>
-                              <span className="font-mono text-[10px] text-cyan-400">
+                              <span className="font-mono text-[10px] text-brand">
                                 ({itemCalc.finalOrderQtyKg.toFixed(2)} kg{itemCalc.packageCount > 0 ? ` / ${itemCalc.packageCount} ${pkgCfg.unitLabel}` : ''})
                               </span>
                             </button>
@@ -1339,14 +1340,14 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 italic">
+                    <p className="text-[11px] text-ink-secondary italic">
                       Resep formulasi ini belum memiliki daftar material di Master BOM. Silakan tambahkan material di tab Master BOM.
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-400">
-                  Untuk menggunakan fitur pemilihan cepat formulasi, buat resep di tab <strong className="text-cyan-400">Master BOM &gt; 1. Hierarki BOM &gt; Resep Formulasi</strong>.
+                <p className="text-[11px] text-ink-secondary">
+                  Untuk menggunakan fitur pemilihan cepat formulasi, buat resep di tab <strong className="text-brand">Master BOM &gt; 1. Hierarki BOM &gt; Resep Formulasi</strong>.
                 </p>
               )}
             </div>
@@ -1355,11 +1356,11 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           {/* Material Selection (Autosaved Database) */}
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-medium text-slate-300">
+              <label className="block text-[11px] font-medium text-ink-secondary">
                 Pilih Material Dibutuhkan (Database Acuan Terhubung)
               </label>
               {recipeItemMatch && (
-                <span className="text-[10px] text-cyan-400 font-mono font-semibold">
+                <span className="text-[10px] text-brand font-mono font-semibold">
                   ✓ Sesuai Resep: {recipeItemMatch.amount} {recipeItemMatch.unit}/batch ({recipeItemMatch.amountKg.toFixed(4)} kg)
                 </span>
               )}
@@ -1368,8 +1369,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               value={selectedMatId}
               onChange={(e) => setSelectedMatId(e.target.value)}
               required
-              className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white focus:outline-none font-medium ${
-                recipeItemMatch ? 'border-cyan-500/70' : 'border-slate-700 focus:border-cyan-500'
+              className={`w-full bg-elevated border rounded-xl px-3 py-2 text-ink-primary focus:outline-none font-medium ${
+                recipeItemMatch ? 'border-cyan-500/70' : 'border-border-strong focus:border-accent-primary'
               }`}
             >
               <option value="">-- Pilih Material dari Database --</option>
@@ -1400,15 +1401,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-medium text-slate-300">
+                <label className="block text-[11px] font-medium text-ink-secondary">
                   Jumlah Batch WIP
                 </label>
-                <label className="inline-flex items-center space-x-1 text-[10px] text-amber-300 cursor-pointer select-none">
+                <label className="inline-flex items-center space-x-1 text-[10px] text-ink-amber cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={roundDecimalBatch}
                     onChange={(e) => setRoundDecimalBatch(e.target.checked)}
-                    className="rounded border-slate-600 bg-slate-800 text-amber-500"
+                    className="rounded border-border-strong bg-elevated text-amber-500"
                   />
                   <span>Bulatkan desimal ke atas</span>
                 </label>
@@ -1420,25 +1421,25 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 value={batchCount}
                 onChange={(e) => setBatchCount(parseFloat(e.target.value) || 0)}
                 required
-                className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white font-mono ${
-                  orderCalc.batchWasRoundedUp ? 'border-amber-500/60' : 'border-slate-700'
+                className={`w-full bg-elevated border rounded-xl px-3 py-2 text-ink-primary font-mono ${
+                  orderCalc.batchWasRoundedUp ? 'border-amber-500/60' : 'border-border-strong'
                 }`}
               />
               {orderCalc.batchWasRoundedUp && (
-                <span className="mt-1 inline-block text-[10px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+                <span className="mt-1 inline-block text-[10px] font-mono text-ink-amber bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
                   Desimal {batchCount} → dibulatkan ke atas: <strong>{effectiveBatchCount} Batch</strong>
                 </span>
               )}
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Supplier Tujuan
               </label>
               <select
                 value={supplier}
                 onChange={(e) => setSupplier(e.target.value as MaterialSource)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary"
               >
                 <option value="GDRM">GDRM (Gudang Bahan Baku)</option>
                 <option value="Formulasi">Formulasi (Premix / Custom)</option>
@@ -1447,20 +1448,20 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </div>
 
           {/* Allowance Penambahan Kebutuhan Order (0%, +3%, +5%, +7%) */}
-          <div className="sm:col-span-2 bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="sm:col-span-2 bg-canvas border border-border-subtle rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-[11px] font-bold text-white">
+                <span className="text-[11px] font-bold text-ink-primary">
                   Allowance Kebutuhan Order
                 </span>
                 {allowancePercent > 0 && selectedMatObj && (
-                  <span className="text-[10px] font-mono tabular-nums text-emerald-400 font-semibold">
+                  <span className="text-[10px] font-mono tabular-nums text-ink-emerald font-semibold">
                     (+{allowanceKg.toFixed(2)} kg dari {orderCalc.afterBatchNeedKg.toFixed(2)} kg →{' '}
                     {theoreticalNeed.toFixed(2)} kg)
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">
+              <p className="text-[10px] text-ink-secondary mt-0.5">
                 Tambahan toleransi stok (3%, 5%, atau 7%) untuk mengantisipasi susut timbangan/proses sebelum pembulatan kemasan.
               </p>
             </div>
@@ -1476,7 +1477,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       ? pct === 0
                         ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
                         : 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
-                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      : 'bg-elevated text-ink-secondary border-border-strong hover:bg-accent hover:text-ink-primary'
                   }`}
                 >
                   {pct === 0 ? '0% (Normal)' : `+${pct}%`}
@@ -1487,33 +1488,33 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
           {/* ATURAN PEMBULATAN KE ATAS: KEMASAN CUSTOM / PABRIKASI & BATCH DESIMAL */}
           {selectedMatObj && (
-            <div className="sm:col-span-2 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/20 border border-amber-500/35 p-3.5 sm:p-4 rounded-xl space-y-3 shadow-inner">
+            <div className="sm:col-span-2 bg-gradient-to-r from-tint-amber via-surface to-tint-amber border border-amber-500/35 p-3.5 sm:p-4 rounded-xl space-y-3 shadow-inner">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-500/25 pb-2">
                 <div className="flex items-center space-x-2">
-                  <div className="p-1 rounded-lg bg-amber-500/20 text-amber-400">
+                  <div className="p-1 rounded-lg bg-amber-500/20 text-ink-amber">
                     <Package className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs sm:text-sm text-white flex flex-wrap items-center gap-1.5">
+                    <h4 className="font-bold text-xs sm:text-sm text-ink-primary flex flex-wrap items-center gap-1.5">
                       <span>
                         Format Kemasan &amp; Pembulatan Order ({selectedMatObj.packaging || activePackUnitLabel})
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-ink-amber font-mono">
                         {isPackagingRoundingActive ? 'Auto-Round Up Kemasan' : 'Berat Eksak (kg)'}
                       </span>
                     </h4>
-                    <p className="text-[11px] text-amber-200/80">
+                    <p className="text-[11px] text-ink-amber">
                       Jika pesanan memakai kemasan custom / pabrikasi atau batch desimal, kuantitas otomatis dibulatkan ke atas ke satuan utuh.
                     </p>
                   </div>
                 </div>
 
-                <label className="inline-flex items-center space-x-2 text-[11px] font-semibold text-white bg-slate-950/70 border border-slate-700 px-2.5 py-1.5 rounded-lg cursor-pointer select-none shrink-0">
+                <label className="inline-flex items-center space-x-2 text-[11px] font-semibold text-ink-primary bg-canvas border border-border-strong px-2.5 py-1.5 rounded-lg cursor-pointer select-none shrink-0">
                   <input
                     type="checkbox"
                     checked={packagingRoundingEnabled}
                     onChange={(e) => setPackagingRoundingEnabled(e.target.checked)}
-                    className="rounded border-slate-600 bg-slate-800 text-amber-500"
+                    className="rounded border-border-strong bg-elevated text-amber-500"
                   />
                   <span>Bulatkan Kemasan</span>
                 </label>
@@ -1523,7 +1524,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <>
                   {/* Packaging Size Selector: Standard 15/20/25/50 + Native Material Pack + Custom Size */}
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-semibold text-slate-400 mr-1">
+                    <span className="text-[10px] font-semibold text-ink-secondary mr-1">
                       Ukuran Kemasan:
                     </span>
                     {selectedMatPkgConfig.defaultPackSizeKg > 0 &&
@@ -1540,7 +1541,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                             isCustomPackSize &&
                             Math.abs((parseFloat(customPackSizeInput) || 0) - selectedMatPkgConfig.defaultPackSizeKg) < 1e-6
                               ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
-                              : 'bg-slate-800 text-cyan-300 border border-cyan-500/40 hover:bg-slate-700'
+                              : 'bg-elevated text-brand border border-cyan-500/40 hover:bg-accent'
                           }`}
                         >
                           {selectedMatPkgConfig.unitLabel}: {selectedMatPkgConfig.defaultPackSizeKg} kg
@@ -1558,7 +1559,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
                           !isCustomPackSize && gdrmBagSize === size
                             ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                            : 'bg-elevated text-ink-secondary hover:bg-accent'
                         }`}
                       >
                         {size} kg
@@ -1578,7 +1579,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                         isCustomPackSize
                           ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          : 'bg-elevated text-ink-secondary hover:bg-accent'
                       }`}
                     >
                       Custom (kg)
@@ -1593,9 +1594,9 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           value={customPackSizeInput}
                           onChange={(e) => setCustomPackSizeInput(e.target.value)}
                           placeholder="kg/kemasan"
-                          className="w-24 bg-slate-950 border border-cyan-500/50 rounded-lg px-2 py-1 text-xs font-mono text-cyan-300 font-bold"
+                          className="w-24 bg-canvas border border-cyan-500/50 rounded-lg px-2 py-1 text-xs font-mono text-brand font-bold"
                         />
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-ink-secondary font-mono">
                           kg / {activePackUnitLabel}
                         </span>
                       </div>
@@ -1604,46 +1605,46 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
                   {/* Metrics: Teoretis vs Kemasan vs Pembulatan vs Form Order */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block mb-0.5">
+                    <div className="bg-canvas p-2.5 rounded-lg border border-border-subtle">
+                      <span className="text-[10px] text-ink-secondary block mb-0.5">
                         Kebutuhan {allowancePercent > 0 ? `(+${allowancePercent}% Allowance)` : 'Awal'}:
                       </span>
-                      <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">
-                        {theoreticalNeed.toFixed(4)} <span className="text-[10px] text-slate-500">kg</span>
+                      <span className="font-mono font-bold text-ink-primary text-xs sm:text-sm">
+                        {theoreticalNeed.toFixed(4)} <span className="text-[10px] text-ink-muted">kg</span>
                       </span>
-                      <span className="text-[10px] text-slate-500 block">
+                      <span className="text-[10px] text-ink-muted block">
                         {allowancePercent > 0
                           ? `Dasar ${orderCalc.afterBatchNeedKg.toFixed(2)} kg + ${allowanceKg.toFixed(2)} kg`
                           : `(${batchCount} batch${orderCalc.batchWasRoundedUp ? ` → ${effectiveBatchCount} bulat` : ''})`}
                       </span>
                     </div>
 
-                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block mb-0.5">Satuan Kemasan:</span>
-                      <span className="font-mono font-bold text-amber-400 text-xs sm:text-sm">
-                        {activePackSizeKg} <span className="text-[10px] text-slate-500">kg / {activePackUnitLabel}</span>
+                    <div className="bg-canvas p-2.5 rounded-lg border border-border-subtle">
+                      <span className="text-[10px] text-ink-secondary block mb-0.5">Satuan Kemasan:</span>
+                      <span className="font-mono font-bold text-ink-amber text-xs sm:text-sm">
+                        {activePackSizeKg} <span className="text-[10px] text-ink-muted">kg / {activePackUnitLabel}</span>
                       </span>
                       <span className="text-[10px] text-amber-500/90 block">
                         {selectedMatPkgConfig.isCustomPackaging || isCustomPackSize ? 'Kemasan Custom' : 'Kemasan Standar'}
                       </span>
                     </div>
 
-                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block mb-0.5">Pembulatan ke Atas:</span>
-                      <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
-                        {bagCount} <span className="text-[10px] text-slate-500">{activePackUnitLabel} Utuh</span>
+                    <div className="bg-canvas p-2.5 rounded-lg border border-border-subtle">
+                      <span className="text-[10px] text-ink-secondary block mb-0.5">Pembulatan ke Atas:</span>
+                      <span className="font-mono font-bold text-brand text-xs sm:text-sm">
+                        {bagCount} <span className="text-[10px] text-ink-muted">{activePackUnitLabel} Utuh</span>
                       </span>
-                      <span className="text-[10px] text-emerald-400 block">
+                      <span className="text-[10px] text-ink-emerald block">
                         Surplus: +{surplusQty.toFixed(2)} kg
                       </span>
                     </div>
 
-                    <div className="bg-gradient-to-br from-cyan-950/50 to-slate-900 p-2.5 rounded-lg border border-cyan-500/40">
-                      <span className="text-[10px] text-cyan-300 font-semibold block mb-0.5">Form Order Dikirim:</span>
-                      <span className="font-mono font-bold text-cyan-400 text-sm sm:text-base">
-                        {roundedOrderQty.toFixed(4)} <span className="text-[10px] text-slate-400">kg</span>
+                    <div className="bg-gradient-to-br from-tint-cyan to-surface p-2.5 rounded-lg border border-cyan-500/40">
+                      <span className="text-[10px] text-brand font-semibold block mb-0.5">Form Order Dikirim:</span>
+                      <span className="font-mono font-bold text-brand text-sm sm:text-base">
+                        {roundedOrderQty.toFixed(4)} <span className="text-[10px] text-ink-secondary">kg</span>
                       </span>
-                      <span className="text-[10px] text-cyan-300/80 block">Otomatis Disesuaikan</span>
+                      <span className="text-[10px] text-brand block">Otomatis Disesuaikan</span>
                     </div>
                   </div>
                 </>
@@ -1654,12 +1655,12 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           {/* Total Qty (Autofill with manual edit capability) */}
           <div className={isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp ? "sm:col-span-2" : ""}>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-medium text-slate-300">
+              <label className="block text-[11px] font-medium text-ink-secondary">
                 {isPackagingRoundingActive
                   ? `Qty Form Order Resmi Dikirim ke ${supplier} (kg)`
                   : 'Qty Total Permintaan (kg)'}
               </label>
-              <span className="text-[10px] text-cyan-400 font-mono">
+              <span className="text-[10px] text-brand font-mono">
                 {isPackagingRoundingActive
                   ? `(Dibulatkan: ${bagCount} ${activePackUnitLabel} @ ${activePackSizeKg} kg${allowancePercent > 0 ? `, incl. +${allowancePercent}%` : ''} = ${roundedOrderQty.toFixed(4)} kg)`
                   : selectedMatObj
@@ -1674,14 +1675,14 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               value={totalQty}
               onChange={(e) => setTotalQty(e.target.value)}
               placeholder="0.0000"
-              className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none ${
+              className={`w-full bg-elevated border rounded-xl px-3 py-2 text-ink-primary font-mono font-bold focus:outline-none ${
                 isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp
-                  ? 'border-amber-500/50 text-cyan-300 text-sm'
-                  : 'border-slate-700 text-cyan-400 text-xs focus:border-cyan-500'
+                  ? 'border-amber-500/50 text-brand text-sm'
+                  : 'border-border-strong text-brand text-xs focus:border-accent-primary'
               }`}
             />
             {(isPackagingRoundingActive || orderCalc.batchWasRoundedUp || orderCalc.qtyWasRoundedUp || allowancePercent > 0) && (
-              <p className="text-[10px] text-amber-300 mt-1">
+              <p className="text-[10px] text-ink-amber mt-1">
                 ✓ Kalkulasi order:
                 {orderCalc.batchWasRoundedUp ? ` Batch ${batchCount} → ${effectiveBatchCount}` : ''}
                 {allowancePercent > 0 ? ` • Allowance +${allowancePercent}% (+${allowanceKg.toFixed(2)} kg)` : ''}
@@ -1697,7 +1698,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
           {/* Notes */}
           <div className="sm:col-span-2">
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Catatan Permintaan (Shift / Line Produksi)
             </label>
             <input
@@ -1705,7 +1706,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Contoh: Kebutuhan Shift 1 Line Wafer Ekspor KITE"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted"
             />
           </div>
 
@@ -1715,10 +1716,10 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               type="submit"
               className="w-full sm:flex-1 py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-cyan-600/25 transition flex items-center justify-center space-x-2 active:scale-95 border border-cyan-400/30"
             >
-              <ShoppingCart className="w-4 h-4 text-cyan-200" />
+              <ShoppingCart className="w-4 h-4 text-brand" />
               <span>1. Masukkan ke Keranjang untuk Crosscheck</span>
               {cartItems.length > 0 && (
-                <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-mono font-bold">
+                <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-ink-primary font-mono font-bold">
                   {cartItems.length} di keranjang
                 </span>
               )}
@@ -1727,10 +1728,10 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             <button
               type="button"
               onClick={handleDirectSend}
-              className="w-full sm:w-auto py-2.5 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition flex items-center justify-center space-x-1.5 active:scale-95"
+              className="w-full sm:w-auto py-2.5 px-4 bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary rounded-xl text-xs font-medium transition flex items-center justify-center space-x-1.5 active:scale-95"
               title="Kirim permintaan 1 item ini langsung tanpa memasukkan ke keranjang"
             >
-              <Send className="w-3.5 h-3.5 text-slate-400" />
+              <Send className="w-3.5 h-3.5 text-ink-secondary" />
               <span>Kirim Langsung</span>
             </button>
           </div>
@@ -1739,25 +1740,25 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       </div>
 
       {/* STEP 2: KERANJANG PERMINTAAN MATERIAL & CROSSCHECK SECTION */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
         {/* Cart Header */}
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-slate-900/90 to-cyan-950/30">
+        <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-surface via-surface to-tint-cyan">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div className="p-2 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20">
               <ShoppingCart className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-sm text-white">Keranjang Permintaan Material</h3>
+                <h3 className="font-bold text-sm text-ink-primary">Keranjang Permintaan Material</h3>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                   cartItems.length > 0
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                    : 'bg-slate-800 text-slate-400'
+                    ? 'bg-cyan-500/20 text-brand border border-cyan-500/30'
+                    : 'bg-elevated text-ink-secondary'
                 }`}>
                   {cartItems.length} Item Siap Di-Crosscheck
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Tampung dan crosscheck seluruh pesanan material antar SKU & WIP sebelum dikirim resmi ke gudang.
               </p>
             </div>
@@ -1790,8 +1791,8 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                     onClick={() => handlePrintCart(group.key)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 whitespace-nowrap shrink-0 ${
                       group.supplier === 'GDRM'
-                        ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
-                        : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/40'
+                        ? 'bg-amber-500/20 hover:bg-amber-500/30 text-ink-amber border-amber-500/40'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30 text-ink-purple border-purple-500/40'
                     }`}
                     title={`Pratinjau & atur Slip Bon Permintaan RM & PM untuk ${group.lineName} — ${group.supplier} — WIP ${group.wipName} (${group.items.length} item, ${group.pageCount} lembar A4)`}
                   >
@@ -1805,7 +1806,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <button
                   type="button"
                   onClick={handleClearCart}
-                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-xl text-xs font-medium border border-rose-500/20 transition flex items-center space-x-1.5 whitespace-nowrap shrink-0"
+                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-ink-rose rounded-xl text-xs font-medium border border-rose-500/20 transition flex items-center space-x-1.5 whitespace-nowrap shrink-0"
                   title="Kosongkan seluruh item dari keranjang"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -1818,41 +1819,41 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
         {/* Cart Summary Metrics Strip */}
         {cartItems.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 sm:p-4 bg-slate-950/70 border-b border-slate-800 text-xs">
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Total Item Permintaan:</span>
-              <span className="font-mono font-bold text-white text-sm sm:text-base">
-                {cartItems.length} <span className="text-[10px] text-slate-400 font-normal">Material</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 sm:p-4 bg-canvas border-b border-border-subtle text-xs">
+            <div className="bg-surface p-2.5 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Total Item Permintaan:</span>
+              <span className="font-mono font-bold text-ink-primary text-sm sm:text-base">
+                {cartItems.length} <span className="text-[10px] text-ink-secondary font-normal">Material</span>
               </span>
-              <span className="text-[10px] text-slate-500 block">Antrean Crosscheck</span>
+              <span className="text-[10px] text-ink-muted block">Antrean Crosscheck</span>
             </div>
 
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Total Tonase Form Order:</span>
-              <span className="font-mono font-bold text-cyan-400 text-sm sm:text-base">
-                {totalCartQty.toFixed(2)} <span className="text-[10px] text-slate-400">kg</span>
+            <div className="bg-surface p-2.5 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Total Tonase Form Order:</span>
+              <span className="font-mono font-bold text-brand text-sm sm:text-base">
+                {totalCartQty.toFixed(2)} <span className="text-[10px] text-ink-secondary">kg</span>
               </span>
-              <span className="text-[10px] text-slate-500 block">
+              <span className="text-[10px] text-ink-muted block">
                 Teoretis: {totalCartTheoretical.toFixed(2)} kg
               </span>
             </div>
 
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Pesanan Supplier GDRM:</span>
-              <span className="font-mono font-bold text-amber-400 text-sm sm:text-base">
-                {totalGdrmBags} <span className="text-[10px] text-slate-400">Zak</span>
+            <div className="bg-surface p-2.5 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Pesanan Supplier GDRM:</span>
+              <span className="font-mono font-bold text-ink-amber text-sm sm:text-base">
+                {totalGdrmBags} <span className="text-[10px] text-ink-secondary">Zak</span>
               </span>
               <span className="text-[10px] text-amber-500/80 block">
                 {gdrmCartItems.length} Item (Surplus: +{totalCartSurplus.toFixed(1)} kg)
               </span>
             </div>
 
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block mb-0.5">Pesanan Formulasi:</span>
-              <span className="font-mono font-bold text-purple-400 text-sm sm:text-base">
-                {formulasiCartItems.length} <span className="text-[10px] text-slate-400">Item</span>
+            <div className="bg-surface p-2.5 rounded-xl border border-border-subtle">
+              <span className="text-[10px] text-ink-secondary block mb-0.5">Pesanan Formulasi:</span>
+              <span className="font-mono font-bold text-ink-purple text-sm sm:text-base">
+                {formulasiCartItems.length} <span className="text-[10px] text-ink-secondary">Item</span>
               </span>
-              <span className="text-[10px] text-purple-400/80 block">
+              <span className="text-[10px] text-ink-purple block">
                 {formulasiCartItems.reduce((acc, curr) => acc + curr.qty, 0).toFixed(2)} kg Premix
               </span>
             </div>
@@ -1861,23 +1862,23 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
         {/* Cart Items Table (Dikelompokkan Per Line Produksi, Supplier & Jenis WIP untuk Slip PDF Terpisah) */}
         {cartItems.length > 0 ? (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border-subtle">
             {cartItemsBySlipGroup.map((group, groupIdx) => (
               <div key={group.key}>
                 {/* Line Produksi + Supplier + WIP Group Sub-header */}
-                <div className="px-4 py-2.5 bg-slate-950/80 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80">
+                <div className="px-4 py-2.5 bg-canvas flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border font-mono ${
                         group.supplier === 'GDRM'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                          ? 'bg-amber-500/20 text-ink-amber border-amber-500/40'
+                          : 'bg-purple-500/20 text-ink-purple border-purple-500/40'
                       }`}
                     >
                       SLIP #{groupIdx + 1} • {group.lineName.toUpperCase()} • SUPPLIER {group.supplier.toUpperCase()} • WIP:{' '}
                       {group.wipName.toUpperCase()}
                     </span>
-                    <span className="text-[11px] text-slate-300 font-mono">
+                    <span className="text-[11px] text-ink-secondary font-mono">
                       {group.items.length} Item ({group.pageCount} Lembar A4 @ 10 baris) •{' '}
                       {group.totalQty.toFixed(2)} kg
                       {group.totalBags > 0 ? ` (${group.totalBags} Zak)` : ''}
@@ -1886,7 +1887,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handlePrintCart(group.key)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-[11px] font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+                    className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent text-brand border border-border-strong text-[11px] font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
                   >
                     <Printer className="w-3 h-3" />
                     <span>
@@ -1898,7 +1899,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-800/80 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                      <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                         <th className="py-2.5 px-3">No</th>
                         <th className="py-2.5 px-3">Material &amp; Kode</th>
                         <th className="py-2.5 px-3">Tujuan (SKU &amp; WIP)</th>
@@ -1910,53 +1911,53 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         <th className="py-2.5 px-3 text-center">Hapus</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-border-subtle">
                       {group.items.map((item, index) => {
                         const sheetNum = Math.floor(index / REQUEST_SLIP_ROWS_PER_PAGE) + 1;
                         return (
-                        <tr key={item.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-3 font-mono text-slate-400">
+                        <tr key={item.id} className="hover:bg-elevated transition">
+                          <td className="py-3 px-3 font-mono text-ink-secondary">
                             <div className="flex items-center space-x-1">
                               <span>#{index + 1}</span>
                               {group.items.length > REQUEST_SLIP_ROWS_PER_PAGE && (
-                                <span className="px-1 py-0.2 rounded text-[9px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                                <span className="px-1 py-0.2 rounded text-[9px] bg-cyan-500/15 text-brand border border-cyan-500/30">
                                   Lbr {sheetNum}
                                 </span>
                               )}
                             </div>
-                            <span className="block text-[9px] text-slate-500">{item.addedAt}</span>
+                            <span className="block text-[9px] text-ink-muted">{item.addedAt}</span>
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-bold text-white block">{item.materialName}</span>
-                            <span className="text-[10px] text-cyan-400 font-mono">
+                            <span className="font-bold text-ink-primary block">{item.materialName}</span>
+                            <span className="text-[10px] text-brand font-mono">
                               {item.materialCode || item.materialId} • {item.materialType.toUpperCase()}
                             </span>
                           </td>
                           <td className="py-3 px-3">
                             <div className="flex items-center space-x-1">
-                              <span className="font-medium text-slate-200">{item.skuName}</span>
+                              <span className="font-medium text-ink-primary">{item.skuName}</span>
                               {item.isKite ? (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-ink-amber font-mono">
                                   KITE
                                 </span>
                               ) : (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300 font-mono">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-elevated text-ink-secondary font-mono">
                                   DOM
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-amber-400/90 block">
-                              WIP: {item.wipName} · <strong className="text-emerald-300">{group.lineName}</strong>
+                            <span className="text-[10px] text-ink-amber block">
+                              WIP: {item.wipName} · <strong className="text-ink-emerald">{group.lineName}</strong>
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-center font-mono text-slate-300">
+                          <td className="py-3 px-3 text-center font-mono text-ink-secondary">
                             {Number.isInteger(item.batch) ? item.batch : item.batch.toFixed(2)}
                           </td>
                           <td className="py-3 px-3">
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
                               item.supplier === 'GDRM'
-                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                                : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                                ? 'bg-amber-500/15 text-ink-amber border-amber-500/30'
+                                : 'bg-purple-500/15 text-ink-purple border-purple-500/30'
                             }`}>
                               {item.supplier}
                             </span>
@@ -1964,42 +1965,42 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                               const matObj = state.master.materials.find(m => m.id === item.materialId);
                               const uLbl = detectMaterialPackageConfig(matObj).unitLabel || 'Zak';
                               return (
-                                <span className="block text-[10px] text-amber-400 font-mono font-medium mt-0.5">
+                                <span className="block text-[10px] text-ink-amber font-mono font-medium mt-0.5">
                                   {item.packageCount} {uLbl} @ {item.packageSizeKg} kg
                                 </span>
                               );
                             })()}
                           </td>
                           <td className="py-3 px-3 text-right font-mono">
-                            <span className="font-bold text-cyan-400 text-xs block">
+                            <span className="font-bold text-brand text-xs block">
                               {item.qty.toFixed(4)} kg
                             </span>
                             {item.allowancePercent && item.allowancePercent > 0 ? (
-                              <span className="text-[9px] text-emerald-300 block font-semibold">
+                              <span className="text-[9px] text-ink-emerald block font-semibold">
                                 Incl. Allowance +{item.allowancePercent}%
                               </span>
                             ) : null}
                             {item.surplusKg ? (
-                              <span className="text-[9px] text-emerald-400 block font-normal">
+                              <span className="text-[9px] text-ink-emerald block font-normal">
                                 +{item.surplusKg.toFixed(2)} kg (Kemasan)
                               </span>
                             ) : (
-                              <span className="text-[9px] text-slate-500 block font-normal">
+                              <span className="text-[9px] text-ink-muted block font-normal">
                                 Acuan Batch
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-400">
+                          <td className="py-3 px-3 text-right font-mono text-ink-secondary">
                             {item.saldoAwal.toFixed(2)} kg
                           </td>
-                          <td className="py-3 px-3 text-[11px] text-slate-400 max-w-[140px] truncate" title={item.notes || '-'}>
+                          <td className="py-3 px-3 text-[11px] text-ink-secondary max-w-[140px] truncate" title={item.notes || '-'}>
                             {item.notes || '-'}
                           </td>
                           <td className="py-3 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleRemoveFromCart(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                              className="p-1.5 text-ink-secondary hover:text-ink-rose hover:bg-rose-500/10 rounded-lg transition"
                               title="Hapus dari keranjang"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -2016,21 +2017,21 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
           </div>
         ) : (
           <div className="py-8 px-4 text-center">
-            <div className="w-10 h-10 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-2">
+            <div className="w-10 h-10 rounded-full bg-elevated text-ink-muted flex items-center justify-center mx-auto mb-2">
               <ShoppingCart className="w-5 h-5" />
             </div>
-            <p className="text-xs font-semibold text-slate-300 mb-0.5">Keranjang Permintaan Masih Kosong</p>
-            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-              Pilih SKU, WIP, dan Material pada formulir di atas lalu klik tombol <strong className="text-cyan-400">"1. Masukkan ke Keranjang untuk Crosscheck"</strong> untuk menampung seluruh daftar belanja material sebelum diajukan resmi ke gudang.
+            <p className="text-xs font-semibold text-ink-secondary mb-0.5">Keranjang Permintaan Masih Kosong</p>
+            <p className="text-[11px] text-ink-muted max-w-md mx-auto">
+              Pilih SKU, WIP, dan Material pada formulir di atas lalu klik tombol <strong className="text-brand">"1. Masukkan ke Keranjang untuk Crosscheck"</strong> untuk menampung seluruh daftar belanja material sebelum diajukan resmi ke gudang.
             </p>
           </div>
         )}
 
         {/* Bottom Cart Verification Strip & Submit All Action */}
         {cartItems.length > 0 && (
-          <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center space-x-2 text-slate-400 text-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <div className="p-4 bg-canvas border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center space-x-2 text-ink-secondary text-xs">
+              <ShieldCheck className="w-4 h-4 text-ink-emerald flex-shrink-0" />
               <span>
                 Langkah Verifikasi: Pastikan item, bobot batch, dan supplier telah sesuai sebelum mengklik tombol kirim.
               </span>
@@ -2049,19 +2050,19 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
       </div>
 
       {/* History Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-2.5">
-            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+            <div className="p-1.5 rounded-lg bg-amber-500/10 text-ink-amber">
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">History Permintaan Material</h3>
+              <h3 className="font-bold text-sm text-ink-primary">History Permintaan Material</h3>
               {filteredRequests.length > 0 && (
-                <p className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                <p className="text-[11px] text-ink-secondary font-mono tabular-nums mt-0.5">
                   {filteredRequests.length} permintaan • {historyRoundingSummary.roundedCount} dengan{' '}
-                  <span className="text-amber-300 font-semibold">Rounding Applied</span> (Total selisih:{' '}
-                  <span className="text-amber-300 font-semibold">
+                  <span className="text-ink-amber font-semibold">Rounding Applied</span> (Total selisih:{' '}
+                  <span className="text-ink-amber font-semibold">
                     +{formatKgCompact(historyRoundingSummary.totalDeltaKg)} kg
                   </span>
                   )
@@ -2074,10 +2075,10 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               <button
                 type="button"
                 onClick={handleExportHistoryCsv}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5"
+                className="px-3 py-1.5 bg-elevated hover:bg-accent text-ink-primary border border-border-strong rounded-xl text-xs font-semibold transition flex items-center space-x-1.5"
                 title="Unduh Laporan Riwayat Permintaan Material (termasuk kolom Rounding Applied) dalam format CSV"
               >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <Download className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>Export CSV</span>
               </button>
             )}
@@ -2090,7 +2091,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   )
                 }
                 disabled={isBatchPrintingPdf}
-                className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
+                className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-brand border border-cyan-500/40 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
                 title="Cetak semua permintaan berstatus Menunggu dalam file PDF terpisah per Line Produksi, Supplier & WIP"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -2098,13 +2099,13 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               </button>
             )}
             <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchHistory}
                 onChange={(e) => setSearchHistory(e.target.value)}
                 placeholder="Cari no req, line, atau material..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+                className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
               />
             </div>
           </div>
@@ -2113,7 +2114,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+              <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                 <th className="py-2.5 px-3">No. Req / Tanggal</th>
                 <th className="py-2.5 px-3">SKU &amp; Line Produksi</th>
                 <th className="py-2.5 px-3">WIP Terkait</th>
@@ -2125,7 +2126,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <th className="py-2.5 px-3 text-center">Tindakan</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-border-subtle text-xs">
               {filteredRequests.length > 0 ? (
                 filteredRequests.map((req, idx) => {
                   const sObj = state.master.skus.find(s => s.id === req.skuId);
@@ -2140,45 +2141,45 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   const rounding = getRoundingAppliedInfo(req, mObj);
 
                   return (
-                    <tr key={`${req.id}_${idx}`} className="hover:bg-slate-800/40 transition">
+                    <tr key={`${req.id}_${idx}`} className="hover:bg-elevated transition">
                       <td className="py-3 px-3">
                         <div className="flex items-center space-x-1.5">
-                          <span className="font-mono font-semibold text-white block">{req.requestNumber}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold font-mono">
+                          <span className="font-mono font-semibold text-ink-primary block">{req.requestNumber}</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] bg-sky-500/20 text-ink-sky border border-sky-500/40 font-bold font-mono">
                             Shift {req.shift || 1}
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-400">{req.date}</span>
+                        <span className="text-[10px] text-ink-secondary">{req.date}</span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="font-medium text-white block">{sObj ? sObj.name : '-'}</span>
-                        <span className={`text-[10px] ${sObj?.isKite ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
+                        <span className="font-medium text-ink-primary block">{sObj ? sObj.name : '-'}</span>
+                        <span className={`text-[10px] ${sObj?.isKite ? 'text-ink-amber font-semibold' : 'text-ink-secondary'}`}>
                           {sObj?.isKite ? 'Ekspor KITE' : 'Domestik'} ·{' '}
-                          <strong className="text-emerald-300 font-mono">{reqLine.lineName}</strong>
+                          <strong className="text-ink-emerald font-mono">{reqLine.lineName}</strong>
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-slate-300">
+                      <td className="py-3 px-3 text-ink-secondary">
                         {wObj ? wObj.name : '-'}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="font-medium text-white block">{mObj ? mObj.name : '-'}</span>
-                        <span className="text-[10px] text-cyan-400">Supplier: {req.supplier}</span>
+                        <span className="font-medium text-ink-primary block">{mObj ? mObj.name : '-'}</span>
+                        <span className="text-[10px] text-brand">Supplier: {req.supplier}</span>
                       </td>
                       <td className="py-3 px-3 text-right font-mono tabular-nums">
-                        <span className="font-bold text-cyan-400 block text-xs">
+                        <span className="font-bold text-brand block text-xs">
                           {req.qty.toFixed(4)} kg
                         </span>
                         {req.allowancePercent && req.allowancePercent > 0 ? (
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold mt-0.5 mr-1">
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/15 text-ink-emerald border border-emerald-500/30 font-semibold mt-0.5 mr-1">
                             Allowance +{req.allowancePercent}%
                           </span>
                         ) : null}
                         {req.packageCount && req.packageSizeKg ? (
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold mt-0.5">
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-ink-amber border border-amber-500/30 font-semibold mt-0.5">
                             {req.packageCount} {detectMaterialPackageConfig(mObj).unitLabel} @ {req.packageSizeKg} kg
                           </span>
                         ) : (
-                          <span className="block text-[10px] text-slate-400 font-normal">
+                          <span className="block text-[10px] text-ink-secondary font-normal">
                             {Number.isInteger(req.batch) ? req.batch : req.batch.toFixed(4)} batch
                           </span>
                         )}
@@ -2186,35 +2187,35 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       <td className="py-3 px-3" title={rounding.detailNote}>
                         {rounding.hasRounding ? (
                           <div className="space-y-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold tabular-nums bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold tabular-nums bg-amber-500/15 text-ink-amber border border-amber-500/30">
                               +{formatKgCompact(rounding.deltaKg)} kg
                             </span>
-                            <span className="block text-[10px] font-mono tabular-nums text-slate-300">
+                            <span className="block text-[10px] font-mono tabular-nums text-ink-secondary">
                               Aktual: {formatKgCompact(rounding.actualKg)} kg → Bulat: {formatKgCompact(rounding.roundedKg)} kg
                             </span>
-                            <span className="block text-[10px] text-amber-400/90">
+                            <span className="block text-[10px] text-ink-amber">
                               {rounding.reasonTag}
                             </span>
                           </div>
                         ) : (
                           <div className="space-y-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono tabular-nums bg-slate-800 text-slate-400 border border-slate-700">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono tabular-nums bg-elevated text-ink-secondary border border-border-strong">
                               Tidak ada (0.00 kg)
                             </span>
-                            <span className="block text-[10px] font-mono tabular-nums text-slate-500">
+                            <span className="block text-[10px] font-mono tabular-nums text-ink-muted">
                               Aktual = Order ({formatKgCompact(rounding.roundedKg)} kg)
                             </span>
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-400">
+                      <td className="py-3 px-3 text-right font-mono tabular-nums text-ink-secondary">
                         {req.saldoAwal.toFixed(4)} kg
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-[10px] border font-medium ${
                           req.status === 'Received'
-                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                            : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                            ? 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30'
+                            : 'bg-amber-500/15 text-ink-amber border-amber-500/30'
                         }`}>
                           {req.status === 'Received' ? 'Diterima' : 'Menunggu'}
                         </span>
@@ -2224,7 +2225,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handlePrintHistoryRequest(req)}
-                            className="p-1.5 bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-300 rounded-lg transition active:scale-95"
+                            className="p-1.5 bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/30 text-brand rounded-lg transition active:scale-95"
                             title={`Cetak Slip PDF & QR untuk ${req.requestNumber}`}
                           >
                             <Printer className="w-3.5 h-3.5" />
@@ -2232,13 +2233,13 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           {req.status !== 'Received' ? (
                             <button
                               onClick={() => onJumpToReceive(req)}
-                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
+                              className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-ink-emerald rounded-lg text-[10px] font-semibold transition active:scale-95 inline-flex items-center space-x-1"
                             >
                               <span>Terima</span>
                               <ArrowRight className="w-3 h-3" />
                             </button>
                           ) : (
-                            <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
+                            <span className="text-[10px] text-ink-muted flex items-center justify-center space-x-1">
                               <CheckCircle className="w-3 h-3 text-emerald-500" />
                               <span>Selesai</span>
                             </span>
@@ -2250,7 +2251,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="text-center py-8 text-slate-500 text-xs">
+                  <td colSpan={9} className="text-center py-8 text-ink-muted text-xs">
                     Belum ada riwayat permintaan material. Silakan buat permintaan melalui formulir di atas.
                   </td>
                 </tr>
@@ -2262,19 +2263,19 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
       {/* MODAL VERIFIKASI & CROSSCHECK PENGIRIMAN MATERIAL */}
       {isCrosscheckModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40">
+            <div className="p-4 sm:p-5 border-b border-border-subtle flex items-center justify-between bg-gradient-to-r from-surface via-elevated to-tint-cyan">
               <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-brand border border-cyan-500/30">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base text-white">
+                  <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                     Verifikasi & Crosscheck Pesanan Material
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink-secondary">
                     Cek dan pastikan seluruh item ({cartItems.length} item) sebelum pesanan disubmit resmi ke gudang.
                   </p>
                 </div>
@@ -2282,7 +2283,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCrosscheckModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                className="p-1.5 text-ink-secondary hover:text-ink-primary hover:bg-elevated rounded-lg transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2291,18 +2292,18 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             {/* Modal Content - Scrollable List */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               {/* Summary Metric Chips */}
-              <div className="grid grid-cols-3 gap-2 p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-center">
+              <div className="grid grid-cols-3 gap-2 p-3 bg-canvas rounded-xl border border-border-subtle text-center">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Total Item</span>
-                  <span className="font-mono font-bold text-white text-sm">{cartItems.length} Material</span>
+                  <span className="text-[10px] text-ink-secondary block">Total Item</span>
+                  <span className="font-mono font-bold text-ink-primary text-sm">{cartItems.length} Material</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Total Berat Kirim</span>
-                  <span className="font-mono font-bold text-cyan-400 text-sm">{totalCartQty.toFixed(2)} kg</span>
+                  <span className="text-[10px] text-ink-secondary block">Total Berat Kirim</span>
+                  <span className="font-mono font-bold text-brand text-sm">{totalCartQty.toFixed(2)} kg</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Supplier</span>
-                  <span className="font-mono font-bold text-amber-400 text-xs">
+                  <span className="text-[10px] text-ink-secondary block">Supplier</span>
+                  <span className="font-mono font-bold text-ink-amber text-xs">
                     {gdrmCartItems.length} GDRM / {formulasiCartItems.length} Formulasi
                   </span>
                 </div>
@@ -2310,41 +2311,41 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
               {/* Items List Preview */}
               <div>
-                <h4 className="font-bold text-slate-200 mb-2 flex items-center justify-between">
+                <h4 className="font-bold text-ink-primary mb-2 flex items-center justify-between">
                   <span>Daftar Material yang Akan Diajukan:</span>
-                  <span className="text-[11px] text-slate-400 font-normal">Periksa kesesuaian SKU & WIP</span>
+                  <span className="text-[11px] text-ink-secondary font-normal">Periksa kesesuaian SKU & WIP</span>
                 </h4>
                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {cartItems.map((item, idx) => (
                     <div
                       key={item.id}
-                      className="p-3 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 rounded-xl flex items-center justify-between gap-3 transition"
+                      className="p-3 bg-elevated hover:bg-elevated border border-border-strong rounded-xl flex items-center justify-between gap-3 transition"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <span className="font-mono font-bold text-slate-400 text-xs flex-shrink-0">
+                        <span className="font-mono font-bold text-ink-secondary text-xs flex-shrink-0">
                           #{idx + 1}
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center space-x-1.5">
-                            <span className="font-bold text-white truncate">{item.materialName}</span>
+                            <span className="font-bold text-ink-primary truncate">{item.materialName}</span>
                             <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
                               item.supplier === 'GDRM'
-                                ? 'bg-amber-500/20 text-amber-300'
-                                : 'bg-purple-500/20 text-purple-300'
+                                ? 'bg-amber-500/20 text-ink-amber'
+                                : 'bg-purple-500/20 text-ink-purple'
                             }`}>
                               {item.supplier}
                             </span>
                             {(item.allowancePercent ?? 0) > 0 && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-cyan-500/15 text-brand border border-cyan-500/30">
                                 +{item.allowancePercent}%
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-slate-400 block truncate">
-                            Untuk: <strong className="text-slate-300">{item.skuName}</strong> ({item.wipName})
+                          <span className="text-[10px] text-ink-secondary block truncate">
+                            Untuk: <strong className="text-ink-secondary">{item.skuName}</strong> ({item.wipName})
                           </span>
                           {item.notes && (
-                            <span className="text-[10px] text-slate-500 italic block truncate">
+                            <span className="text-[10px] text-ink-muted italic block truncate">
                               Catatan: {item.notes}
                             </span>
                           )}
@@ -2352,19 +2353,19 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       </div>
 
                       <div className="text-right flex-shrink-0">
-                        <span className="font-mono font-bold text-cyan-400 block text-xs sm:text-sm">
+                        <span className="font-mono font-bold text-brand block text-xs sm:text-sm">
                           {item.qty.toFixed(2)} kg
                         </span>
                         {item.packageCount && item.packageSizeKg ? (() => {
                           const matObj = state.master.materials.find(m => m.id === item.materialId);
                           const uLbl = detectMaterialPackageConfig(matObj).unitLabel || 'Zak';
                           return (
-                            <span className="text-[9px] font-mono text-amber-300 block">
+                            <span className="text-[9px] font-mono text-ink-amber block">
                               {item.packageCount} {uLbl} @ {item.packageSizeKg} kg
                             </span>
                           );
                         })() : (
-                          <span className="text-[9px] text-slate-400 block">
+                          <span className="text-[9px] text-ink-secondary block">
                             {Number.isInteger(item.batch) ? item.batch : item.batch.toFixed(2)} Batch
                           </span>
                         )}
@@ -2379,22 +2380,22 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 onClick={() => setIsCrosscheckVerified(!isCrosscheckVerified)}
                 className={`p-3.5 rounded-xl border cursor-pointer transition flex items-start space-x-3 ${
                   isCrosscheckVerified
-                    ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-emerald'
+                    : 'bg-canvas border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5">
                   {isCrosscheckVerified ? (
-                    <CheckSquare className="w-5 h-5 text-emerald-400" />
+                    <CheckSquare className="w-5 h-5 text-ink-emerald" />
                   ) : (
-                    <Square className="w-5 h-5 text-slate-500" />
+                    <Square className="w-5 h-5 text-ink-muted" />
                   )}
                 </div>
                 <div>
-                  <span className="font-bold block text-xs text-white">
+                  <span className="font-bold block text-xs text-ink-primary">
                     Konfirmasi & Verifikasi Pesanan Operator
                   </span>
-                  <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                  <p className="text-[11px] text-ink-secondary leading-relaxed mt-0.5">
                     Saya menyatakan telah mencocokkan jumlah material, target SKU/WIP, dan pembulatan kemasan pabrikasi GDRM dengan kebutuhan jadwal produksi shift berjalan.
                   </p>
                 </div>
@@ -2402,7 +2403,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
+            <div className="p-4 border-t border-border-subtle bg-canvas flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
@@ -2420,7 +2421,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handlePrintCart(cartItemsBySlipGroup[0]?.key)}
-                  className="px-3 py-2.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/40 transition"
+                  className="px-3 py-2.5 rounded-xl text-xs font-semibold text-brand hover:text-ink-primary bg-cyan-600/15 hover:bg-cyan-600/30 border border-cyan-500/40 transition"
                 >
                   Pratinjau
                 </button>
@@ -2430,7 +2431,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCrosscheckModalOpen(false)}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-ink-secondary hover:text-ink-primary hover:bg-elevated border border-border-strong transition"
                 >
                   Kembali & Periksa Keranjang
                 </button>
@@ -2442,7 +2443,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                   className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg ${
                     isCrosscheckVerified
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 active:scale-95 border border-emerald-400/40'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
+                      : 'bg-elevated text-ink-muted cursor-not-allowed border border-border-subtle'
                   }`}
                 >
                   <Send className="w-4 h-4" />
@@ -2486,15 +2487,15 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
         });
 
         return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-surface border border-cyan-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-border-subtle flex items-center justify-between bg-gradient-to-r from-surface via-elevated to-tint-cyan">
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base text-white flex items-center space-x-2">
-                    <FileText className="w-4 h-4 text-cyan-400" />
+                  <h3 className="font-bold text-sm sm:text-base text-ink-primary flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-brand" />
                     <span>Detail Permintaan Material (QR Slip)</span>
                   </h3>
-                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                  <p className="text-[11px] text-ink-secondary font-mono mt-0.5">
                     Bon: {activeQrDetailData.bonNumber}
                     {activeQrDetailData.lineName ? ` • Line: ${activeQrDetailData.lineName}` : ''} • Supplier: {activeQrDetailData.supplier || '-'}
                     {activeQrDetailData.wipName ? ` • WIP: ${activeQrDetailData.wipName}` : ''}
@@ -2508,7 +2509,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                     setActiveQrDetailData(null);
                     onClearDeepLinkSlip?.();
                   }}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                  className="p-1.5 text-ink-secondary hover:text-ink-primary hover:bg-elevated rounded-lg transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2517,13 +2518,13 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
               <div className="p-4 overflow-y-auto space-y-4 text-xs">
                 {/* Encoded Items from QR */}
                 <div>
-                  <h4 className="font-bold text-slate-200 mb-2">
+                  <h4 className="font-bold text-ink-primary mb-2">
                     Daftar Item Pada Slip ({activeQrDetailData.items.length} Item):
                   </h4>
-                  <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                  <div className="overflow-x-auto border border-border-subtle rounded-xl">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800">
+                        <tr className="bg-elevated text-[11px] text-ink-secondary border-b border-border-subtle">
                           <th className="py-2 px-3">No</th>
                           <th className="py-2 px-3">Kode SAP / Material</th>
                           <th className="py-2 px-3">Nama Material (BOM)</th>
@@ -2531,7 +2532,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           <th className="py-2 px-3 text-center">SAT</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/70">
+                      <tbody className="divide-y divide-border-subtle">
                         {activeQrDetailData.items.map((it, idx) => {
                           const bomMat = state.master.materials.find(
                             m =>
@@ -2540,17 +2541,17 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                           );
                           return (
                             <tr key={`${it.code}_${idx}`}>
-                              <td className="py-2 px-3 font-mono text-slate-400">#{idx + 1}</td>
-                              <td className="py-2 px-3 font-mono text-cyan-300 font-semibold">
+                              <td className="py-2 px-3 font-mono text-ink-secondary">#{idx + 1}</td>
+                              <td className="py-2 px-3 font-mono text-brand font-semibold">
                                 {bomMat?.code || it.code}
                               </td>
-                              <td className="py-2 px-3 text-white font-medium">
+                              <td className="py-2 px-3 text-ink-primary font-medium">
                                 {bomMat?.name || it.code}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-white">
+                              <td className="py-2 px-3 text-right font-mono font-bold text-ink-primary">
                                 {it.qty}
                               </td>
-                              <td className="py-2 px-3 text-center font-mono text-amber-300">
+                              <td className="py-2 px-3 text-center font-mono text-ink-amber">
                                 {it.sat}
                               </td>
                             </tr>
@@ -2563,7 +2564,7 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
 
                 {/* Matched Live Requests in Database */}
                 <div>
-                  <h4 className="font-bold text-slate-200 mb-2">
+                  <h4 className="font-bold text-ink-primary mb-2">
                     Status Permintaan Terdaftar di Aplikasi ({matchedRequests.length}):
                   </h4>
                   {matchedRequests.length > 0 ? (
@@ -2574,24 +2575,24 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                         return (
                           <div
                             key={req.id}
-                            className="p-3 bg-slate-800/60 border border-slate-700 rounded-xl flex items-center justify-between gap-3"
+                            className="p-3 bg-elevated border border-border-strong rounded-xl flex items-center justify-between gap-3"
                           >
                             <div>
                               <div className="flex items-center space-x-2">
-                                <span className="font-mono font-bold text-white">
+                                <span className="font-mono font-bold text-ink-primary">
                                   {req.requestNumber}
                                 </span>
                                 <span
                                   className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                     req.status === 'Received'
-                                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                      : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                      ? 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-ink-amber border-amber-500/30'
                                   }`}
                                 >
                                   {req.status === 'Received' ? 'Diterima' : 'Menunggu'}
                                 </span>
                               </div>
-                              <div className="text-[11px] text-slate-300 mt-0.5">
+                              <div className="text-[11px] text-ink-secondary mt-0.5">
                                 {mat?.code ? `[${mat.code}] ` : ''}
                                 {mat?.name || 'Material'} • {req.qty.toFixed(2)} kg • SKU: {sku?.name || '-'}
                               </div>
@@ -2615,21 +2616,21 @@ export const PermintaanView: React.FC<PermintaanViewProps> = ({
                       })}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 bg-slate-950/70 border border-slate-800 rounded-xl p-3">
+                    <p className="text-[11px] text-ink-secondary bg-canvas border border-border-subtle rounded-xl p-3">
                       Belum ditemukan nomor permintaan yang tersimpan di riwayat untuk item ini (kemungkinan slip dicetak dari draft keranjang sebelum dikirim resmi).
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="p-3.5 border-t border-slate-800 bg-slate-950 flex justify-end">
+              <div className="p-3.5 border-t border-border-subtle bg-canvas flex justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setActiveQrDetailData(null);
                     onClearDeepLinkSlip?.();
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-elevated hover:bg-accent text-ink-primary border border-border-strong"
                 >
                   Tutup Detail
                 </button>

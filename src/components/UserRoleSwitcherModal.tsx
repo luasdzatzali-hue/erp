@@ -12,8 +12,9 @@ import {
   Eye,
   Info
 } from 'lucide-react';
-import { AppState, UserRole, RegisteredOperator, RegisteredManagement } from '../types';
+import { AppState, UserRole } from '../types';
 import { verifyPasswordSlow } from '../utils/security';
+import { resolveEffectiveRole } from '../utils/roleAccess';
 
 interface UserRoleSwitcherModalProps {
   isOpen: boolean;
@@ -30,7 +31,10 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
   onSelectRole,
   showToast
 }) => {
-  const [selectedRoleTab, setSelectedRoleTab] = useState<UserRole>(state.currentUserRole);
+  const effectiveRole = resolveEffectiveRole(state);
+  const [selectedRoleTab, setSelectedRoleTab] = useState<UserRole>(
+    effectiveRole.isAdmin ? 'ADMINISTRATOR' : effectiveRole.role
+  );
   const [adminPinInput, setAdminPinInput] = useState('');
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>(
     state.registeredOperators[0]?.id || ''
@@ -69,12 +73,13 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
       onSelectRole('ADMINISTRATOR', {
         id: 'admin_root',
         name: state.currentAdminUser?.displayName || 'Administrator MES & BOM',
-        email: state.adminGoogleEmails?.[0] || '',
-        subtitle: 'Kewenangan Penuh: Master BOM, Mesin, Tangki & User Access'
+        email: state.currentAdminUser?.email || undefined,
+        subtitle: state.currentAdminUser?.email
+          ? 'Kewenangan Penuh: Master BOM, Mesin, Tangki & User Access'
+          : 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
       });
       setAdminPinInput('');
       setPinError('');
-      showToast('Berhasil masuk sebagai Administrator (Akses Penuh)');
       onClose();
     } else {
       const nextFails = failedAttempts + 1;
@@ -156,29 +161,31 @@ export const UserRoleSwitcherModal: React.FC<UserRoleSwitcherModalProps> = ({
         <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2.5">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-              state.currentUserRole === 'ADMINISTRATOR'
+              effectiveRole.isAdmin
                 ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                : state.currentUserRole === 'OPERATOR'
+                : effectiveRole.isOperator
                 ? 'bg-sky-100 text-sky-800 border border-sky-300'
                 : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
             }`}>
-              {state.currentUserRole === 'ADMINISTRATOR' ? <Shield className="w-4 h-4" /> : state.currentUserRole === 'OPERATOR' ? <UserCheck className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {effectiveRole.isAdmin ? <Shield className="w-4 h-4" /> : effectiveRole.isOperator ? <UserCheck className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-slate-900">{state.currentSession?.name || 'User'}</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                  state.currentUserRole === 'ADMINISTRATOR'
+                  effectiveRole.isAdmin
                     ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                    : state.currentUserRole === 'OPERATOR'
+                    : effectiveRole.isOperator
                     ? 'bg-sky-100 text-sky-900 border border-sky-300'
                     : 'bg-indigo-100 text-indigo-900 border border-indigo-300'
                 }`}>
-                  {state.currentUserRole}
+                  {effectiveRole.role}
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 font-mono truncate max-w-xs">
-                {state.currentSession?.subtitle || 'Sesi Aktif'}
+                {effectiveRole.isOfflinePinAdmin
+                  ? 'Mode PIN Lokal (Perubahan Master Tidak Tersimpan ke Cloud)'
+                  : (state.currentSession?.subtitle || 'Sesi Aktif')}
               </p>
             </div>
           </div>

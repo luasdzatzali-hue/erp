@@ -368,6 +368,10 @@
           "type": "object",
           "description": "Status tangki utama"
         },
+        "tanks": {
+          "type": "array",
+          "description": "Status operasional tangki Holding & Storage berjalan"
+        },
         "lastShiftHandover": {
           "type": "object",
           "description": "Informasi serah terima shift terakhir"
@@ -377,8 +381,17 @@
           "description": "Rencana produksi mingguan PPIC per SKU & Shift (maks 20)"
         },
         "activeWeeklyPlanId": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "ID planning mingguan aktif sebagai acuan pemesanan material"
+        },
+        "activeChangeovers": {
+          "type": "array",
+          "description": "Daftar changeover mesin yang sedang berlangsung"
+        },
+        "transactionsMigratedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu selesainya migrasi transaksi lama ke sub-koleksi /transactions"
         },
         "updatedAt": {
           "type": "string",
@@ -393,7 +406,51 @@
           "description": "UID pengguna pengubah"
         }
       },
-      "required": ["workspaceId", "ownerUid", "requests", "receipts", "usages", "wipBatches", "cartonProductions", "tankLogs", "changeovers", "productionStops", "stockAdjustments", "activeSkuRuns", "tank", "updatedAt", "updatedByUid"]
+      "required": ["workspaceId", "ownerUid", "activeSkuRuns", "tank", "updatedAt", "updatedByUid"]
+    },
+    "WorkspaceTransaction": {
+      "title": "WorkspaceTransaction",
+      "description": "Dokumen transaksi individual immutable pada sub-koleksi /workspaces/{workspaceId}/transactions/{txId}",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID unik transaksi (identik dengan txId)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["REQUEST", "RECEIPT", "USAGE", "CARTON_PROD", "TANK_LOG", "ADJUSTMENT"],
+          "description": "Jenis transaksi produksi atau gudang"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ISO-8601 transaksi"
+        },
+        "actorEmail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Email pengguna pencatat transaksi"
+        },
+        "payload": {
+          "type": "object",
+          "description": "Detail payload transaksi"
+        },
+        "shift": {
+          "type": "integer",
+          "description": "Nomor shift produksi (1-3, atau null jika lintas shift)"
+        },
+        "skuCode": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Kode atau ID SKU terkait"
+        }
+      },
+      "required": ["id", "type", "timestamp", "actorEmail", "payload", "shift", "skuCode"]
     },
     "WorkspaceDirectoryEntry": {
       "title": "WorkspaceDirectoryEntry",
@@ -486,7 +543,11 @@
     },
     "/workspaces/{workspaceId}/data/operations": {
       "schema": { "$ref": "#/entities/WorkspaceOperationsData" },
-      "description": "Log transaksi harian produksi dan status operasional berjalan"
+      "description": "State operasional aktif berjalan (activeSkuRuns, tanks, weeklyPlannings, activeChangeovers)"
+    },
+    "/workspaces/{workspaceId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WorkspaceTransaction" },
+      "description": "Dokumen transaksi individual (REQUEST, RECEIPT, USAGE, CARTON_PROD, TANK_LOG, ADJUSTMENT)"
     }
   }
 }

@@ -173,26 +173,63 @@ service cloud.firestore {
     }
 
     function isValidWorkspaceOperationsData(data) {
-      return data.keys().hasAll(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'updatedAt', 'updatedByUid']) &&
-        data.keys().hasOnly(['workspaceId', 'ownerUid', 'requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'weeklyPlannings', 'activeWeeklyPlanId', 'updatedAt', 'updatedByUid']) &&
+      return data.keys().hasAll(['workspaceId', 'ownerUid', 'activeSkuRuns', 'tank', 'updatedAt', 'updatedByUid']) &&
+        data.keys().hasOnly([
+          'workspaceId',
+          'ownerUid',
+          'activeSkuRuns',
+          'tank',
+          'tanks',
+          'lastShiftHandover',
+          'weeklyPlannings',
+          'activeWeeklyPlanId',
+          'activeChangeovers',
+          'wipBatches',
+          'changeovers',
+          'productionStops',
+          'transactionsMigratedAt',
+          'requests',
+          'receipts',
+          'usages',
+          'cartonProductions',
+          'tankLogs',
+          'stockAdjustments',
+          'updatedAt',
+          'updatedByUid'
+        ]) &&
         isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
         isValidId(data.ownerUid) &&
-        data.requests is list && data.requests.size() <= 1000 && (data.requests.size() == 0 || data.requests[0] is map) &&
-        data.receipts is list && data.receipts.size() <= 1000 && (data.receipts.size() == 0 || data.receipts[0] is map) &&
-        data.usages is list && data.usages.size() <= 1500 && (data.usages.size() == 0 || data.usages[0] is map) &&
-        data.wipBatches is list && data.wipBatches.size() <= 1000 && (data.wipBatches.size() == 0 || data.wipBatches[0] is map) &&
-        data.cartonProductions is list && data.cartonProductions.size() <= 1500 && (data.cartonProductions.size() == 0 || data.cartonProductions[0] is map) &&
-        data.tankLogs is list && data.tankLogs.size() <= 1500 && (data.tankLogs.size() == 0 || data.tankLogs[0] is map) &&
-        data.changeovers is list && data.changeovers.size() <= 500 && (data.changeovers.size() == 0 || data.changeovers[0] is map) &&
-        data.productionStops is list && data.productionStops.size() <= 1000 && (data.productionStops.size() == 0 || data.productionStops[0] is map) &&
-        data.stockAdjustments is list && data.stockAdjustments.size() <= 500 && (data.stockAdjustments.size() == 0 || data.stockAdjustments[0] is map) &&
         data.activeSkuRuns is list && data.activeSkuRuns.size() <= 100 && (data.activeSkuRuns.size() == 0 || data.activeSkuRuns[0] is map) &&
         data.tank is map &&
+        (!('tanks' in data) || (data.tanks is list && data.tanks.size() <= 200 && (data.tanks.size() == 0 || data.tanks[0] is map))) &&
         (!('lastShiftHandover' in data) || data.lastShiftHandover == null || data.lastShiftHandover is map) &&
         (!('weeklyPlannings' in data) || (data.weeklyPlannings is list && data.weeklyPlannings.size() <= 20 && (data.weeklyPlannings.size() == 0 || data.weeklyPlannings[0] is map))) &&
         (!('activeWeeklyPlanId' in data) || data.activeWeeklyPlanId == null || (data.activeWeeklyPlanId is string && data.activeWeeklyPlanId.size() <= 128)) &&
+        (!('activeChangeovers' in data) || (data.activeChangeovers is list && data.activeChangeovers.size() <= 300 && (data.activeChangeovers.size() == 0 || data.activeChangeovers[0] is map))) &&
+        (!('wipBatches' in data) || (data.wipBatches is list && data.wipBatches.size() <= 1000 && (data.wipBatches.size() == 0 || data.wipBatches[0] is map))) &&
+        (!('changeovers' in data) || (data.changeovers is list && data.changeovers.size() <= 500 && (data.changeovers.size() == 0 || data.changeovers[0] is map))) &&
+        (!('productionStops' in data) || (data.productionStops is list && data.productionStops.size() <= 1000 && (data.productionStops.size() == 0 || data.productionStops[0] is map))) &&
+        (!('transactionsMigratedAt' in data) || data.transactionsMigratedAt == null || data.transactionsMigratedAt is timestamp) &&
+        (!('requests' in data) || (data.requests is list && data.requests.size() <= 1000 && (data.requests.size() == 0 || data.requests[0] is map))) &&
+        (!('receipts' in data) || (data.receipts is list && data.receipts.size() <= 1000 && (data.receipts.size() == 0 || data.receipts[0] is map))) &&
+        (!('usages' in data) || (data.usages is list && data.usages.size() <= 1500 && (data.usages.size() == 0 || data.usages[0] is map))) &&
+        (!('cartonProductions' in data) || (data.cartonProductions is list && data.cartonProductions.size() <= 1500 && (data.cartonProductions.size() == 0 || data.cartonProductions[0] is map))) &&
+        (!('tankLogs' in data) || (data.tankLogs is list && data.tankLogs.size() <= 1500 && (data.tankLogs.size() == 0 || data.tankLogs[0] is map))) &&
+        (!('stockAdjustments' in data) || (data.stockAdjustments is list && data.stockAdjustments.size() <= 500 && (data.stockAdjustments.size() == 0 || data.stockAdjustments[0] is map))) &&
         data.updatedAt is timestamp &&
         isValidId(data.updatedByUid);
+    }
+
+    function isValidWorkspaceTransaction(data) {
+      return data.keys().hasAll(['id', 'type', 'timestamp', 'actorEmail', 'payload', 'shift', 'skuCode']) &&
+        data.keys().hasOnly(['id', 'type', 'timestamp', 'actorEmail', 'payload', 'shift', 'skuCode']) &&
+        isValidId(data.id) &&
+        data.type in ['REQUEST', 'RECEIPT', 'USAGE', 'CARTON_PROD', 'TANK_LOG', 'ADJUSTMENT'] &&
+        data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64 &&
+        data.actorEmail is string && data.actorEmail.size() >= 1 && data.actorEmail.size() <= 160 &&
+        data.payload is map &&
+        (data.shift == null || (data.shift is int && data.shift >= 0 && data.shift <= 3)) &&
+        data.skuCode is string && data.skuCode.size() <= 128;
     }
 
     // 4. Connection Health Check (No PII, Read-Only Get)
@@ -505,9 +542,57 @@ service cloud.firestore {
           incoming().ownerUid == existing().ownerUid &&
           incoming().updatedByUid == request.auth.uid &&
           incoming().updatedAt == request.time &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['requests', 'receipts', 'usages', 'wipBatches', 'cartonProductions', 'tankLogs', 'changeovers', 'productionStops', 'stockAdjustments', 'activeSkuRuns', 'tank', 'lastShiftHandover', 'weeklyPlannings', 'activeWeeklyPlanId', 'updatedAt', 'updatedByUid']) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'activeSkuRuns',
+            'tank',
+            'tanks',
+            'lastShiftHandover',
+            'weeklyPlannings',
+            'activeWeeklyPlanId',
+            'activeChangeovers',
+            'wipBatches',
+            'changeovers',
+            'productionStops',
+            'transactionsMigratedAt',
+            'requests',
+            'receipts',
+            'usages',
+            'cartonProductions',
+            'tankLogs',
+            'stockAdjustments',
+            'updatedAt',
+            'updatedByUid'
+          ]) &&
           (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
         allow delete: if false;
+      }
+
+      // 9. Individual Transaction Sub-Collection (Scales past 1MB limit & avoids write contention)
+      match /transactions/{txId} {
+        allow get: if isValidId(workspaceId) && isValidId(txId) && isWorkspaceAuthorized(workspaceId);
+        allow list: if isValidId(workspaceId) &&
+          isWorkspaceAuthorized(workspaceId) &&
+          request.query.limit <= 500;
+        allow create: if isValidId(workspaceId) &&
+          isValidId(txId) &&
+          isVerified() &&
+          isValidWorkspaceTransaction(incoming()) &&
+          incoming().id == txId &&
+          (
+            isWorkspaceAdmin(workspaceId) ||
+            (isWorkspaceOperator(workspaceId) && incoming().actorEmail.lower() == userEmailLower())
+          );
+        allow update: if isValidId(workspaceId) &&
+          isValidId(txId) &&
+          isVerified() &&
+          isValidWorkspaceTransaction(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().type == existing().type &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['timestamp', 'actorEmail', 'payload', 'shift', 'skuCode']) &&
+          isWorkspaceAdmin(workspaceId);
+        allow delete: if isValidId(workspaceId) &&
+          isValidId(txId) &&
+          isWorkspaceAdmin(workspaceId);
       }
     }
   }

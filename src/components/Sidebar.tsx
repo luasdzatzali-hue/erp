@@ -33,6 +33,7 @@ import {
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
 import { getActiveWeeklyPlan } from '../utils/weeklyPlanComparison';
+import { resolveEffectiveRole } from '../utils/roleAccess';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -63,10 +64,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenUserManagement,
   onSignOut
 }) => {
-  const role = state.currentUserRole;
-  const isAdmin = role === 'ADMINISTRATOR';
-  const isOperator = role === 'OPERATOR';
-  const isManagement = role === 'MANAGEMENT';
+  const effectiveRole = resolveEffectiveRole(state);
+  const role = effectiveRole.role;
+  const isAdmin = effectiveRole.isAdmin;
+  const isOperator = effectiveRole.isOperator;
+  const isManagement = effectiveRole.isManagement;
   const currentShift = getCurrentShift();
   const activeWeeklyPlan = getActiveWeeklyPlan(state);
   const pendingReqCount = state.transactions.requests.filter(r => r.status !== 'Received').length;
@@ -98,21 +100,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const navContent = (
-    <div className="flex flex-col h-full justify-between bg-[#080c14] border-r border-slate-800 text-slate-200 select-none">
+    <div className="flex flex-col h-full justify-between bg-[var(--surface-header)] border-r border-border text-foreground select-none">
       {/* Top Header & Branding */}
-      <div className="p-4 border-b border-slate-800 bg-[#06090f] flex items-center justify-between shrink-0">
+      <div className="p-4 border-b border-border bg-background flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0">
-            <PackageOpen className="w-5 h-5 text-cyan-400" />
+            <PackageOpen className="w-5 h-5 text-brand" />
           </div>
           <div>
             <div className="flex items-center space-x-1.5">
-              <span className="font-extrabold text-sm text-white tracking-tight">ProdTrack MES</span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+              <span className="font-extrabold text-sm text-ink-primary tracking-tight">ProdTrack MES</span>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-tint-cyan text-brand border border-tint-cyan-border font-bold">
                 MRP & WMS
               </span>
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-ink-secondary">
               Pabrik Biskuit & Coating
             </p>
           </div>
@@ -123,33 +125,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={onClose}
           aria-label="Tutup Menu Navigasi"
           title="Tutup Menu (Esc)"
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 hover:bg-slate-750 transition flex items-center space-x-1 border border-slate-750"
+          className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated hover:bg-accent transition flex items-center space-x-1 border border-border-strong"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* User Session Profile Card */}
-      <div className="px-3.5 py-3 bg-[#0c121d] border-b border-slate-800 shrink-0">
+      <div className="px-3.5 py-3 bg-surface border-b border-border-subtle shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center space-x-2.5 truncate">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
               isAdmin
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40'
                 : isOperator
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
-                : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
+                ? 'bg-cyan-500/20 text-brand border border-cyan-500/40'
+                : 'bg-indigo-500/20 text-ink-indigo border border-indigo-500/40'
             }`}>
               {isAdmin ? <Shield className="w-4 h-4" /> : isOperator ? <UserCheck className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </div>
             <div className="truncate">
-              <p className="text-xs font-bold text-white truncate">
+              <p className="text-xs font-bold text-ink-primary truncate">
                 {state.currentSession?.name || (isAdmin ? 'Administrator' : isOperator ? 'Operator Lini' : 'Executive Management')}
               </p>
               <span className={`text-[9px] font-mono font-bold uppercase tracking-wider block ${
-                isAdmin ? 'text-amber-400' : isOperator ? 'text-cyan-400' : 'text-indigo-400'
+                isAdmin ? 'text-ink-amber' : isOperator ? 'text-brand' : 'text-ink-indigo'
               }`}>
-                {role} {isManagement ? '(Pantau Saja)' : ''}
+                {effectiveRole.isOfflinePinAdmin ? 'Mode PIN Lokal' : role} {isManagement ? '(Pantau Saja)' : ''}
               </span>
             </div>
           </div>
@@ -162,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClose();
             }}
             title="Logout Total (Keluar ke Halaman Login & Sign Up)"
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-300 text-slate-400 transition text-xs shrink-0 border border-slate-700/60"
+            className="p-1.5 rounded-lg bg-elevated hover:bg-rose-500/20 hover:text-ink-rose text-ink-secondary transition text-xs shrink-0 border border-border-strong"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>
@@ -174,29 +176,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* SECTION 1: HALAMAN AWAL MODUL MRP & WMS (ADMINISTRATOR ONLY) */}
         {isAdmin && (
           <div className="space-y-1">
-            <p className="px-2.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-400/90 flex items-center space-x-1.5">
+            <p className="px-2.5 text-[10px] font-extrabold uppercase tracking-wider text-ink-amber flex items-center space-x-1.5">
               <span>Halaman Utama Admin</span>
             </p>
             <div className={`w-full flex items-center justify-between rounded-xl font-bold transition ${
               state.currentTab === 'admin-portal'
-                ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/40 shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-ink-amber border border-amber-500/40 shadow-sm'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('admin-portal')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-2.5 text-left"
               >
-                <Home className="w-4 h-4 text-amber-400 shrink-0" />
+                <Home className="w-4 h-4 text-ink-amber shrink-0" />
                 <div className="flex-1 truncate">
                   <span className="block leading-tight">Portal Alur Operasional</span>
-                  <span className="text-[10px] text-amber-400/70 font-normal">Ringkasan 7 Tahap MRP &amp; WMS</span>
+                  <span className="text-[10px] text-ink-amber font-normal">Ringkasan 7 Tahap MRP &amp; WMS</span>
                 </div>
               </button>
               <button
                 type="button"
                 onClick={(e) => handleOpenInNewTab('admin-portal', e)}
                 title="Buka Portal Admin di tab baru"
-                className="p-2 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-2 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -206,7 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* SECTION 2: ALUR KERJA OPERASIONAL BERURUTAN (TAHAP 1 - 7) */}
         <div className="space-y-1">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
             Alur Kerja Operasional (1 → 7)
           </p>
 
@@ -214,17 +216,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {isAdmin && (
             <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
               state.currentTab === 'master'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 font-bold'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('master')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
               >
-                <Database className="w-4 h-4 text-amber-400 shrink-0" />
+                <Database className="w-4 h-4 text-ink-amber shrink-0" />
                 <div className="flex-1 truncate">
                   <span className="block leading-tight">1. Konfigurasi Master BOM</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-ink-secondary font-mono">
                     {state.master.skus.length} SKU · {state.master.materials.length} Mat · Mesin
                   </span>
                 </div>
@@ -233,7 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={(e) => handleOpenInNewTab('master', e)}
                 title="Buka Konfigurasi Master BOM di tab baru"
-                className="p-1.5 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -243,17 +245,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* 2. Penentuan Planning Mingguan */}
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'weekly-planning'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('weekly-planning')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
             >
-              <CalendarRange className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CalendarRange className="w-4 h-4 text-ink-emerald shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">2. Planning Mingguan</span>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className="text-[10px] text-ink-secondary font-mono">
                   {activeWeeklyPlan ? activeWeeklyPlan.weekLabel : 'Atur Target SKU/Shift'}
                 </span>
               </div>
@@ -262,7 +264,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={(e) => handleOpenInNewTab('weekly-planning', e)}
               title="Buka Planning Mingguan di tab baru"
-              className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -272,17 +274,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
               state.currentTab === 'permintaan'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 font-bold'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('permintaan')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
               >
-                <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                <FileText className="w-4 h-4 text-ink-amber shrink-0" />
                 <div className="flex-1 truncate">
                   <span className="block leading-tight">3. Permintaan Material</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-ink-secondary font-mono">
                     {pendingReqCount > 0 ? `${pendingReqCount} Order Menunggu` : 'Slip Order & Allowance'}
                   </span>
                 </div>
@@ -291,7 +293,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={(e) => handleOpenInNewTab('permintaan', e)}
                 title="Buka Permintaan Material di tab baru"
-                className="p-1.5 mr-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -302,17 +304,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
               state.currentTab === 'penerimaan'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('penerimaan')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
               >
-                <Truck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Truck className="w-4 h-4 text-ink-emerald shrink-0" />
                 <div className="flex-1 truncate">
                   <span className="block leading-tight">4. Penerimaan Fisik</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-ink-secondary font-mono">
                     Kedatangan, Zak &amp; Lot GDRM
                   </span>
                 </div>
@@ -321,7 +323,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={(e) => handleOpenInNewTab('penerimaan', e)}
                 title="Buka Penerimaan Fisik Material di tab baru"
-                className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -332,17 +334,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
               state.currentTab === 'pemakaian'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                ? 'bg-purple-500/20 text-ink-purple border border-purple-500/40 font-bold'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('pemakaian')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
               >
-                <Layers className="w-4 h-4 text-purple-400 shrink-0" />
+                <Layers className="w-4 h-4 text-ink-purple shrink-0" />
                 <div className="flex-1 truncate">
                   <span className="block leading-tight">5. Work Order WIP</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-ink-secondary font-mono">
                     {activeBatchCount > 0 ? `${activeBatchCount} Batch Jalan` : 'Batch Mesin & FIFO'}
                   </span>
                 </div>
@@ -351,7 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={(e) => handleOpenInNewTab('pemakaian', e)}
                 title="Buka Work Order WIP di tab baru"
-                className="p-1.5 mr-1 text-slate-400 hover:text-purple-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-purple rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -361,17 +363,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* 6. Transfer WIP ke Storage & Tangki */}
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'tank-monitoring'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('tank-monitoring')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
             >
-              <Cylinder className="w-4 h-4 text-emerald-400 shrink-0" />
+              <Cylinder className="w-4 h-4 text-ink-emerald shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">6. Transfer WIP ke Storage</span>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className="text-[10px] text-ink-secondary font-mono">
                   {state.master.tanks.length} Tangki Storage &amp; Holding
                 </span>
               </div>
@@ -380,7 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={(e) => handleOpenInNewTab('tank-monitoring', e)}
               title="Buka Transfer WIP & Tangki di tab baru"
-              className="p-1.5 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -389,24 +391,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* 7. Manufacturing (Control Room Produksi SKU) */}
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'dashboard'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-cyan-500/20 text-brand border border-cyan-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('dashboard')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
             >
-              <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
+              <Cpu className="w-4 h-4 text-brand shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">7. Manufacturing</span>
-                <span className="text-[10px] text-slate-400 font-mono">Control Room Lini &amp; OEE</span>
+                <span className="text-[10px] text-ink-secondary font-mono">Control Room Lini &amp; OEE</span>
               </div>
             </button>
             <button
               type="button"
               onClick={(e) => handleOpenInNewTab('dashboard', e)}
               title="Buka Manufacturing di tab baru"
-              className="p-1.5 mr-1 text-slate-400 hover:text-cyan-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1.5 mr-1 text-ink-secondary hover:text-brand rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -414,31 +416,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* SECTION 3: LAPORAN, KALKULATOR & INTEGRASI */}
-        <div className="space-y-1 pt-1 border-t border-slate-800/70">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="space-y-1 pt-1 border-t border-border-subtle">
+          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
             Laporan, Kalkulator &amp; Sync
           </p>
 
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'shift-summary'
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-sky-500/20 text-ink-sky border border-sky-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('shift-summary')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
             >
-              <ClipboardList className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <ClipboardList className="w-3.5 h-3.5 text-ink-sky shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">Ringkasan Shift</span>
-                <span className="text-[10px] text-slate-400 font-mono">Output, SBL &amp; Konsumsi</span>
+                <span className="text-[10px] text-ink-secondary font-mono">Output, SBL &amp; Konsumsi</span>
               </div>
             </button>
             <button
               type="button"
               onClick={(e) => handleOpenInNewTab('shift-summary', e)}
               title="Buka Ringkasan Shift di tab baru"
-              className="p-1 mr-1 text-slate-400 hover:text-sky-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1 mr-1 text-ink-secondary hover:text-ink-sky rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -449,35 +451,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (onOpenPdfModal) onOpenPdfModal();
               onClose();
             }}
-            className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl font-medium transition text-left text-slate-300 hover:text-white hover:bg-slate-800/60"
+            className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl font-medium transition text-left text-ink-secondary hover:text-ink-primary hover:bg-elevated"
           >
-            <Printer className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <Printer className="w-3.5 h-3.5 text-ink-rose shrink-0" />
             <div className="flex-1 truncate">
               <span className="block leading-tight">Report PDF Shift</span>
-              <span className="text-[10px] text-slate-400 font-mono">Landscape A4</span>
+              <span className="text-[10px] text-ink-secondary font-mono">Landscape A4</span>
             </div>
           </button>
 
           <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
             state.currentTab === 'sheets-sync'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('sheets-sync')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">Integrasi Google Sheets</span>
-                <span className="text-[10px] text-slate-400 font-mono">Sync Hasil Produksi</span>
+                <span className="text-[10px] text-ink-secondary font-mono">Sync Hasil Produksi</span>
               </div>
             </button>
             <button
               type="button"
               onClick={(e) => handleOpenInNewTab('sheets-sync', e)}
               title="Buka Integrasi Google Sheets di tab baru"
-              className="p-1 mr-1 text-slate-400 hover:text-emerald-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -486,21 +488,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isManagement && (
             <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
               state.currentTab === 'bom-calculator'
-                ? 'bg-indigo-500/20 text-indigo-300 font-bold'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                ? 'bg-indigo-500/20 text-ink-indigo font-bold'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}>
               <button
                 onClick={() => handleNavClick('bom-calculator')}
                 className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
               >
-                <Calculator className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <Calculator className="w-3.5 h-3.5 text-ink-indigo shrink-0" />
                 <span>Kalkulator Kebutuhan BOM</span>
               </button>
               <button
                 type="button"
                 onClick={(e) => handleOpenInNewTab('bom-calculator', e)}
                 title="Buka Kalkulator BOM di tab baru"
-                className="p-1 mr-1 text-slate-400 hover:text-indigo-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+                className="p-1 mr-1 text-ink-secondary hover:text-ink-indigo rounded-lg hover:bg-elevated transition shrink-0"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
@@ -510,8 +512,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* SECTION 4: ADMINISTRATOR UTILITIES */}
         {isAdmin && (
-          <div className="space-y-1 pt-1 border-t border-slate-800/70">
-            <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="space-y-1 pt-1 border-t border-border-subtle">
+            <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
               Utilitas & Otoritas
             </p>
 
@@ -521,9 +523,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onOpenUserManagement();
                   onClose();
                 }}
-                className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-300 hover:bg-cyan-500/10 transition text-left"
+                className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-brand hover:bg-cyan-500/10 transition text-left"
               >
-                <Users className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <Users className="w-3.5 h-3.5 text-brand shrink-0" />
                 <span>Kelola Pengguna ({state.registeredOperators.length + state.registeredManagement.length})</span>
               </button>
             )}
@@ -533,9 +535,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onLoadSampleData();
                 onClose();
               }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 transition text-left"
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary hover:text-ink-primary hover:bg-elevated transition text-left"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <Sparkles className="w-3.5 h-3.5 text-ink-amber shrink-0" />
               <span>Muat Preset Data Contoh</span>
             </button>
 
@@ -544,9 +546,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onExportData();
                 onClose();
               }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 transition text-left"
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary hover:text-ink-primary hover:bg-elevated transition text-left"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <Download className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
               <span>Export Database (JSON)</span>
             </button>
 
@@ -555,38 +557,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenResetModal();
                 onClose();
               }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-rose-400/90 hover:bg-rose-500/10 transition text-left"
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-rose hover:bg-rose-500/10 transition text-left"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <RefreshCw className="w-3.5 h-3.5 text-ink-rose shrink-0" />
               <span>Reset Sistem</span>
             </button>
           </div>
         )}
         {/* SECTION 5: DUKUNGAN & KONTAK TEKNIS */}
-        <div className="space-y-1 pt-1 border-t border-slate-800/70">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="space-y-1 pt-1 border-t border-border-subtle">
+          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
             Bantuan &amp; Layanan
           </p>
           <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
             state.currentTab === 'contact'
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              ? 'bg-cyan-500/20 text-brand border border-cyan-500/40 font-bold'
+              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
           }`}>
             <button
               onClick={() => handleNavClick('contact')}
               className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <MessageSquare className="w-3.5 h-3.5 text-brand shrink-0" />
               <div className="flex-1 truncate">
                 <span className="block leading-tight">Kontak &amp; Dukungan</span>
-                <span className="text-[10px] text-slate-400 font-mono">Helpdesk Teknis MES</span>
+                <span className="text-[10px] text-ink-secondary font-mono">Helpdesk Teknis MES</span>
               </div>
             </button>
             <button
               type="button"
               onClick={(e) => handleOpenInNewTab('contact', e)}
               title="Buka Kontak & Dukungan di tab baru"
-              className="p-1 mr-1 text-slate-400 hover:text-cyan-300 rounded-lg hover:bg-slate-800 transition shrink-0"
+              className="p-1 mr-1 text-ink-secondary hover:text-brand rounded-lg hover:bg-elevated transition shrink-0"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
@@ -595,8 +597,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer / Exit Action */}
-      <div className="p-3 border-t border-slate-800 bg-[#06090f] space-y-2 shrink-0">
-        <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
+      <div className="p-3 border-t border-border-subtle bg-canvas space-y-2 shrink-0">
+        <div className="flex items-center justify-between text-[10px] text-ink-muted font-mono px-1">
           <span>Shift {currentShift.shift} Terkini</span>
           <span>ProdTrack v4.2</span>
         </div>
@@ -607,7 +609,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             else if (onOpenRoleSwitcher) onOpenRoleSwitcher();
             onClose();
           }}
-          className="w-full py-2 px-3 bg-slate-800 hover:bg-rose-950/40 hover:border-rose-500/50 hover:text-rose-300 text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition border border-slate-700/80 active:scale-95"
+          className="w-full py-2 px-3 bg-elevated hover:bg-tint-rose hover:border-rose-500/50 hover:text-ink-rose text-ink-secondary font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition border border-border-strong active:scale-95"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Logout Total / Ganti Akun</span>

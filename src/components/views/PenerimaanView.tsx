@@ -32,6 +32,7 @@ import { getCurrentShift } from '../../utils/shifts';
 import { MaterialQrScannerModal } from '../MaterialQrScannerModal';
 import { MaterialQrLabelModal } from '../MaterialQrLabelModal';
 import { ParsedMaterialQrResult } from '../../utils/materialQr';
+import { resolveEffectiveRole } from '../../utils/roleAccess';
 
 interface PenerimaanViewProps {
   state: AppState;
@@ -50,6 +51,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
   onSwitchTab,
   showToast
 }) => {
+  const isAdmin = resolveEffectiveRole(state).isAdmin;
   const [selectedReqId, setSelectedReqId] = useState(preselectedRequestId || '');
   const [selectedMatId, setSelectedMatId] = useState('');
   const [location, setLocation] = useState<StorageLocation>('CK');
@@ -463,30 +465,30 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
       {/* SOP Rule Banner: Pengiriman di Shift 1 dan Shift 2 */}
       <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
         <div className="flex items-start sm:items-center space-x-3">
-          <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+          <div className="p-2 rounded-xl bg-emerald-500/20 text-ink-emerald shrink-0">
             <Truck className="w-5 h-5" />
           </div>
           <div className="space-y-0.5">
             <div className="flex items-center space-x-2">
-              <span className="text-xs sm:text-sm font-bold text-emerald-300">
+              <span className="text-xs sm:text-sm font-bold text-ink-emerald">
                 Aturan SOP: Pengiriman Material Dilakukan di Shift 1 dan Shift 2
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-mono">
                 Shift 1 & 2 Aktif
               </span>
             </div>
-            <p className="text-[11px] text-slate-300">
+            <p className="text-[11px] text-ink-secondary">
               Pengiriman dan penerimaan fisik material dari supplier / gudang dilayani pada Shift 1 (07:01 - 15:00) dan Shift 2 (15:01 - 23:00). Shift 3 ditutup untuk penerimaan material.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && (
+          {isAdmin && onOpenStockAdjustment && (
             <button
               type="button"
               onClick={() => onOpenStockAdjustment(selectedMatId || undefined)}
-              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
+              className="shrink-0 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-ink-amber border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-xs whitespace-nowrap"
               title="Buka Penyesuaian Saldo Awal Material (Akses Administrator)"
             >
               <Scale className="w-3.5 h-3.5" />
@@ -507,15 +509,15 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
       </div>
 
       {/* Penerimaan Form */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${isReceiveFormOpen ? 'mb-3 border-b border-slate-800 pb-3' : ''}`}>
-          <h3 className="font-bold text-sm text-white flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+      <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-xl">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${isReceiveFormOpen ? 'mb-3 border-b border-border-subtle pb-3' : ''}`}>
+          <h3 className="font-bold text-sm text-ink-primary flex items-center space-x-2">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-ink-emerald">
               <Truck className="w-4 h-4" />
             </div>
             <span>Pencatatan Kedatangan & Penerimaan Fisik Material</span>
           </h3>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-secondary">
             <button
               type="button"
               onClick={() => setIsQrScannerOpen(true)}
@@ -527,20 +529,20 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             <button
               type="button"
               onClick={() => setIsQrLabelOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
               title="Buat & unduh stiker QR Code untuk kemasan material"
             >
-              <Tag className="w-3.5 h-3.5 text-cyan-400" />
+              <Tag className="w-3.5 h-3.5 text-brand" />
               <span>Label QR</span>
             </button>
             <span className="whitespace-nowrap">
-              Pending Request: <strong className="text-amber-400 tabular-nums">{pendingRequests.length}</strong>
+              Pending Request: <strong className="text-ink-amber tabular-nums">{pendingRequests.length}</strong>
             </span>
-            {state.currentUserRole === 'ADMINISTRATOR' && onOpenStockAdjustment && selectedMatId && (
+            {isAdmin && onOpenStockAdjustment && selectedMatId && (
               <button
                 type="button"
                 onClick={() => onOpenStockAdjustment(selectedMatId)}
-                className="text-[10px] text-amber-400 hover:text-amber-300 underline font-sans font-semibold whitespace-nowrap"
+                className="text-[10px] text-ink-amber hover:text-ink-amber underline font-sans font-semibold whitespace-nowrap"
                 title="Sesuaikan Saldo Awal Material Ini"
               >
                 (Adjust Saldo Awal)
@@ -550,7 +552,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
               type="button"
               onClick={() => setIsReceiveFormOpen(prev => !prev)}
               aria-expanded={isReceiveFormOpen}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary border border-border-strong text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
             >
               {isReceiveFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               <span>{isReceiveFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -562,15 +564,15 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           <>
 
         {lastQrScanInfo && (
-          <div className="mb-3 p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 flex items-center justify-between gap-2 text-xs">
+          <div className="mb-3 p-3 rounded-xl bg-tint-cyan border border-cyan-500/40 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2.5 min-w-0">
-              <QrCode className="w-4 h-4 text-cyan-400 shrink-0" />
+              <QrCode className="w-4 h-4 text-brand shrink-0" />
               <div className="min-w-0">
-                <p className="font-semibold text-white truncate">
+                <p className="font-semibold text-ink-primary truncate">
                   Hasil Scan QR: {lastQrScanInfo.materialCode ? `[${lastQrScanInfo.materialCode}] ` : ''}
                   {lastQrScanInfo.materialName}
                 </p>
-                <p className="text-[11px] text-cyan-300/90 font-mono truncate">
+                <p className="text-[11px] text-brand font-mono truncate">
                   {[
                     lastQrScanInfo.matchedRequestNumber ? `Dokumen: ${lastQrScanInfo.matchedRequestNumber}` : 'Kedatangan Langsung',
                     lastQrScanInfo.lotNumber ? `Lot: ${lastQrScanInfo.lotNumber}` : null,
@@ -584,7 +586,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             <button
               type="button"
               onClick={() => setLastQrScanInfo(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+              className="p-1 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-elevated shrink-0"
               aria-label="Tutup info scan QR"
             >
               <X className="w-4 h-4" />
@@ -592,15 +594,15 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
           {/* Shift Pengiriman Selector (Shift 1 & Shift 2 allowed, Shift 3 locked per SOP) */}
-          <div className="sm:col-span-2 bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl space-y-1.5">
+          <div className="sm:col-span-2 bg-canvas border border-border-subtle p-2.5 rounded-xl space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold text-slate-200 flex items-center space-x-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+              <label className="text-[11px] font-semibold text-ink-primary flex items-center space-x-1.5">
+                <Clock className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>Pilih Shift Pengiriman / Kedatangan Material:</span>
               </label>
-              <span className="text-[10px] text-slate-400 font-mono">
+              <span className="text-[10px] text-ink-secondary font-mono">
                 SOP: Pengiriman Hanya Shift 1 & 2
               </span>
             </div>
@@ -610,12 +612,12 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 onClick={() => setDeliveryShift(1)}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border ${
                   deliveryShift === 1
-                    ? 'bg-sky-500/20 border-sky-400 text-sky-200 shadow-sm shadow-sky-500/30'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-sky-500/20 border-sky-400 text-ink-sky shadow-sm shadow-sky-500/30'
+                    : 'bg-elevated border-border-strong text-ink-secondary hover:bg-accent hover:text-ink-primary'
                 }`}
               >
                 <span>Shift 1 (Pagi)</span>
-                <span className="text-[10px] text-sky-300 font-mono">07:01-15:00</span>
+                <span className="text-[10px] text-ink-sky font-mono">07:01-15:00</span>
               </button>
 
               <button
@@ -623,21 +625,21 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 onClick={() => setDeliveryShift(2)}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border ${
                   deliveryShift === 2
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm shadow-amber-500/30'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-amber-500/20 border-amber-400 text-ink-amber shadow-sm shadow-amber-500/30'
+                    : 'bg-elevated border-border-strong text-ink-secondary hover:bg-accent hover:text-ink-primary'
                 }`}
               >
                 <span>Shift 2 (Sore)</span>
-                <span className="text-[10px] text-amber-300 font-mono">15:01-23:00</span>
+                <span className="text-[10px] text-ink-amber font-mono">15:01-23:00</span>
               </button>
 
               <button
                 type="button"
                 disabled
                 title="Sesuai aturan SOP pabrik, pengiriman material ditutup pada Shift 3"
-                className="py-2 px-3 rounded-xl text-xs font-bold bg-slate-900/60 border border-slate-800 text-slate-400 cursor-not-allowed flex items-center justify-center space-x-1.5"
+                className="py-2 px-3 rounded-xl text-xs font-bold bg-surface border border-border-subtle text-ink-secondary cursor-not-allowed flex items-center justify-center space-x-1.5"
               >
-                <Lock className="w-3 h-3 text-slate-400" />
+                <Lock className="w-3 h-3 text-ink-secondary" />
                 <span>Shift 3 (Ditutup)</span>
               </button>
             </div>
@@ -646,17 +648,17 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           {/* Linked Request (Excludes already received requests) */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-medium text-slate-300">
+              <label className="block text-[11px] font-medium text-ink-secondary">
                 Pilih Dokumen Permintaan (Menunggu Datang)
               </label>
-              <span className="text-[10px] text-amber-400 font-semibold">
+              <span className="text-[10px] text-ink-amber font-semibold">
                 {pendingRequests.length} Menunggu Kedatangan
               </span>
             </div>
             <select
               value={selectedReqId}
               onChange={(e) => setSelectedReqId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
             >
               <option value="">
                 {pendingRequests.length > 0
@@ -672,14 +674,14 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 );
               })}
             </select>
-            <p className="text-[10px] text-slate-400 mt-1">
+            <p className="text-[10px] text-ink-secondary mt-1">
               ✓ Material yang sudah diterima otomatis dikeluarkan dari pilihan agar operator fokus pada barang yang belum dicek fisiknya.
             </p>
           </div>
 
           {/* Direct Material Selection if no request */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Material Diterima (Database)
             </label>
             <select
@@ -690,7 +692,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 if (mat?.type === 'liquid') setLocation('STORAGE_TANK');
               }}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary font-medium"
             >
               <option value="">-- Pilih Material Database --</option>
               {state.master.materials.map(m => (
@@ -703,21 +705,21 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
           {/* Storage Destination */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Lokasi Penyimpanan Tujuan
             </label>
             <select
               value={location}
               onChange={(e) => setLocation(e.target.value as StorageLocation)}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary"
             >
               <option value="CK">Area Penyimpanan CK (Bubuk & Padat)</option>
               <option value="WINEROTO">Area WINEROTO (Campuran / Drum)</option>
               <option value="STORAGE_TANK">Storage Tank Liquid (1.000 kg)</option>
             </select>
             {location === 'STORAGE_TANK' && (
-              <span className="text-[10px] text-cyan-400 mt-1 block flex items-center space-x-1">
+              <span className="text-[10px] text-brand mt-1 block flex items-center space-x-1">
                 <Droplet className="w-3 h-3" />
                 <span>Pipa feeding aktif. Menambah persediaan Storage Tank Liquid.</span>
               </span>
@@ -726,7 +728,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
           {/* Lot / Batch Code */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               No. Lot / Batch Kedatangan
             </label>
             <input
@@ -734,38 +736,38 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
               value={batchLotNumber}
               onChange={(e) => setBatchLotNumber(e.target.value)}
               placeholder="Contoh: LOT-202610-A91"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono placeholder-slate-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary font-mono placeholder:text-ink-muted"
             />
           </div>
 
           {/* OPSI KOREKSI JUMLAH KEDATANGAN MATERIAL ZAK DARI GDRM KE AREA CK */}
           <div className={`sm:col-span-2 rounded-2xl transition-all duration-200 ${
             isZakCorrection
-              ? 'bg-amber-950/30 border border-amber-500/40 p-3.5 sm:p-4 space-y-3.5 shadow-sm text-slate-100'
-              : 'bg-slate-900/60 border border-slate-800 hover:border-slate-700 p-3 text-slate-200'
+              ? 'bg-tint-amber border border-amber-500/40 p-3.5 sm:p-4 space-y-3.5 shadow-sm text-ink-primary'
+              : 'bg-surface border border-border-subtle hover:border-border-strong p-3 text-ink-primary'
           }`}>
             {/* Header with Switch */}
             <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${isZakCorrection ? 'border-b border-amber-500/30 pb-3' : ''}`}>
               <div className="flex items-center space-x-2.5">
                 <div className={`p-2 rounded-xl border transition ${
                   isZakCorrection
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-amber-500/10 text-ink-amber border-amber-500/30'
+                    : 'bg-elevated text-ink-secondary border-border-strong'
                 }`}>
                   <Scale className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h4 className="font-bold text-xs sm:text-sm text-white">
+                    <h4 className="font-bold text-xs sm:text-sm text-ink-primary">
                       Koreksi Timbangan Kedatangan Zak (GDRM ➔ Area CK)
                     </h4>
                     {isZakCorrection && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-ink-amber font-mono font-bold">
                         Mode Koreksi Aktif
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink-secondary">
                     {isZakCorrection
                       ? `Gunakan tabel di bawah bila berat riil zak terkirim dari GDRM bervariasi (tidak persis ${standardBagWeight} kg/zak). Sistem akan otomatis mengalkulasikan total berat aktual.`
                       : `Centang opsi di samping untuk membuka formulir koreksi zak jika bobot fisik kemasan bervariasi (misal: 50 zak @ 24.8 kg & 50 zak @ 25.1 kg).`}
@@ -776,14 +778,14 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
               {/* Toggle Aktif / Nonaktif */}
               <label className={`flex items-center space-x-2.5 cursor-pointer self-start sm:self-auto px-3 py-1.5 rounded-xl border transition select-none ${
                 isZakCorrection
-                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-semibold shadow-sm'
-                  : 'bg-slate-800/90 hover:bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-300'
+                  ? 'bg-amber-500/20 border-amber-500/50 text-ink-amber font-semibold shadow-sm'
+                  : 'bg-elevated hover:bg-elevated border-border-strong hover:border-border-strong text-ink-secondary'
               }`}>
                 <input
                   type="checkbox"
                   checked={isZakCorrection}
                   onChange={(e) => setIsZakCorrection(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  className="w-4 h-4 rounded text-amber-500 bg-surface border-border-strong focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <span className="text-xs font-semibold">
                   {isZakCorrection ? 'Mode Koreksi Zak Aktif' : 'Aktifkan Koreksi Zak'}
@@ -794,11 +796,11 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
             {isZakCorrection && (
               <div className="space-y-3">
                 {/* Standar Kemasan & Tombol Cepat */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-surface p-2.5 rounded-xl border border-border-subtle">
                   {/* Standar Kemasan Pabrikan */}
                   <div className="flex items-center space-x-2">
-                    <span className="text-[11px] font-semibold text-slate-400">Kemasan Standar:</span>
-                    <div className="flex rounded-lg overflow-hidden border border-slate-700 bg-slate-800 p-0.5">
+                    <span className="text-[11px] font-semibold text-ink-secondary">Kemasan Standar:</span>
+                    <div className="flex rounded-lg overflow-hidden border border-border-strong bg-elevated p-0.5">
                       {[15, 20, 25, 50].map((size) => (
                         <button
                           key={size}
@@ -807,14 +809,14 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                           className={`px-2.5 py-1 text-[11px] font-mono font-bold rounded transition ${
                             standardBagWeight === size
                               ? 'bg-amber-500 text-slate-950 shadow-sm'
-                              : 'text-slate-400 hover:text-white'
+                              : 'text-ink-secondary hover:text-ink-primary'
                           }`}
                         >
                           {size} kg
                         </button>
                       ))}
                     </div>
-                    <span className="text-[10px] text-slate-500 hidden sm:inline">per zak nominal</span>
+                    <span className="text-[10px] text-ink-muted hidden sm:inline">per zak nominal</span>
                   </div>
 
                   {/* Tombol Aksi Cepat */}
@@ -823,7 +825,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                       type="button"
                       onClick={handleSplitEvenly}
                       title="Bagi rata zak kedatangan menjadi 2 kelompok timbangan berbeda (contoh: 50 zak dan 50 zak)"
-                      className="flex items-center space-x-1 px-2.5 py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-semibold transition active:scale-95"
+                      className="flex items-center space-x-1 px-2.5 py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-brand border border-cyan-500/40 rounded-lg text-xs font-semibold transition active:scale-95"
                     >
                       <Split className="w-3.5 h-3.5" />
                       <span>Bagi 2 Kelompok (50:50)</span>
@@ -832,7 +834,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                     <button
                       type="button"
                       onClick={handleAddZakGroup}
-                      className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold transition active:scale-95"
+                      className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-ink-emerald border border-emerald-500/40 rounded-lg text-xs font-semibold transition active:scale-95"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>+ Tambah Kelompok</span>
@@ -841,7 +843,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                     <button
                       type="button"
                       onClick={handleResetToStandard}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs transition border border-slate-700"
+                      className="px-2.5 py-1 bg-elevated hover:bg-accent text-ink-secondary hover:text-ink-primary rounded-lg text-xs transition border border-border-strong"
                     >
                       Reset Standar
                     </button>
@@ -850,7 +852,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
                 {/* Table of Zak Groups */}
                 <div className="space-y-2">
-                  <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
+                  <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold text-ink-secondary uppercase tracking-wider px-2">
                     <div className="col-span-3 sm:col-span-3">Kelompok / Pallet</div>
                     <div className="col-span-3 sm:col-span-2 text-center">Jumlah Zak</div>
                     <div className="col-span-3 sm:col-span-3 text-center">Berat / Zak (kg)</div>
@@ -862,7 +864,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                     {zakGroups.map((grp, idx) => (
                       <div
                         key={grp.id}
-                        className="grid grid-cols-12 gap-2 items-center bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition"
+                        className="grid grid-cols-12 gap-2 items-center bg-canvas p-2.5 rounded-xl border border-border-subtle hover:border-border-strong transition"
                       >
                         {/* Label / Notes */}
                         <div className="col-span-3 sm:col-span-3">
@@ -871,7 +873,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                             value={grp.notes || ''}
                             onChange={(e) => handleUpdateZakGroup(grp.id, 'notes', e.target.value)}
                             placeholder={`Kelompok ${idx + 1}`}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            className="w-full bg-surface border border-border-strong rounded-lg px-2.5 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
                           />
                         </div>
 
@@ -884,9 +886,9 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                               step="1"
                               value={grp.bagCount}
                               onChange={(e) => handleUpdateZakGroup(grp.id, 'bagCount', e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-amber-300 focus:outline-none focus:border-amber-400"
+                              className="w-full bg-surface border border-border-strong rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-ink-amber focus:outline-none focus:border-amber-400"
                             />
-                            <span className="text-[9px] text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <span className="text-[9px] text-ink-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
                               zak
                             </span>
                           </div>
@@ -900,9 +902,9 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                               step="0.001"
                               value={grp.weightPerBagKg}
                               onChange={(e) => handleUpdateZakGroup(grp.id, 'weightPerBagKg', e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-cyan-300 focus:outline-none focus:border-cyan-400"
+                              className="w-full bg-surface border border-border-strong rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-brand focus:outline-none focus:border-accent-primary"
                             />
-                            <span className="text-[9px] text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <span className="text-[9px] text-ink-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
                               kg/zak
                             </span>
                           </div>
@@ -916,9 +918,9 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                               step="0.001"
                               value={grp.subtotalKg}
                               onChange={(e) => handleUpdateZakGroup(grp.id, 'subtotalKg', e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-right text-emerald-400 focus:outline-none focus:border-emerald-400"
+                              className="w-full bg-surface border border-border-strong rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-right text-ink-emerald focus:outline-none focus:border-emerald-400"
                             />
-                            <span className="text-[9px] text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <span className="text-[9px] text-ink-muted absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
                               kg
                             </span>
                           </div>
@@ -930,7 +932,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                             type="button"
                             onClick={() => handleRemoveZakGroup(grp.id)}
                             disabled={zakGroups.length <= 1}
-                            className="text-rose-400 hover:text-rose-300 disabled:opacity-30 disabled:cursor-not-allowed p-1.5 rounded-lg hover:bg-rose-500/10 transition"
+                            className="text-ink-rose hover:text-ink-rose disabled:opacity-30 disabled:cursor-not-allowed p-1.5 rounded-lg hover:bg-rose-500/10 transition"
                             title="Hapus baris kelompok ini"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -943,32 +945,32 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
                 {/* Live Real-time Summary Card */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                  <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">Total Zak Diterima:</span>
-                    <span className="font-mono font-bold text-amber-400 text-sm">
-                      {totalZakCount} <span className="text-[10px] text-slate-500">Zak Fisik</span>
+                  <div className="bg-canvas p-2.5 rounded-xl border border-border-subtle">
+                    <span className="text-[10px] text-ink-secondary block mb-0.5">Total Zak Diterima:</span>
+                    <span className="font-mono font-bold text-ink-amber text-sm">
+                      {totalZakCount} <span className="text-[10px] text-ink-muted">Zak Fisik</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">
+                    <span className="text-[10px] text-ink-muted block">
                       ({zakGroups.length} kelompok timbangan)
                     </span>
                   </div>
 
-                  <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">Bobot Standar Pabrikan:</span>
-                    <span className="font-mono font-bold text-slate-300 text-sm">
-                      {standardTotalKg.toFixed(2)} <span className="text-[10px] text-slate-500">kg</span>
+                  <div className="bg-canvas p-2.5 rounded-xl border border-border-subtle">
+                    <span className="text-[10px] text-ink-secondary block mb-0.5">Bobot Standar Pabrikan:</span>
+                    <span className="font-mono font-bold text-ink-secondary text-sm">
+                      {standardTotalKg.toFixed(2)} <span className="text-[10px] text-ink-muted">kg</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">
+                    <span className="text-[10px] text-ink-muted block">
                       ({totalZakCount} × {standardBagWeight} kg nominal)
                     </span>
                   </div>
 
-                  <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">Rata-rata Riil / Zak:</span>
-                    <span className="font-mono font-bold text-cyan-300 text-sm">
-                      {averageWeightPerBag.toFixed(3)} <span className="text-[10px] text-slate-500">kg/zak</span>
+                  <div className="bg-canvas p-2.5 rounded-xl border border-border-subtle">
+                    <span className="text-[10px] text-ink-secondary block mb-0.5">Rata-rata Riil / Zak:</span>
+                    <span className="font-mono font-bold text-brand text-sm">
+                      {averageWeightPerBag.toFixed(3)} <span className="text-[10px] text-ink-muted">kg/zak</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">
+                    <span className="text-[10px] text-ink-muted block">
                       Std: {standardBagWeight} kg
                     </span>
                   </div>
@@ -976,22 +978,22 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                   <div className={`p-2.5 rounded-xl border ${
                     Math.abs(weightVarianceKg) > 0.001
                       ? weightVarianceKg > 0
-                        ? 'bg-emerald-950/40 border-emerald-500/40'
-                        : 'bg-amber-950/40 border-amber-500/40'
-                      : 'bg-cyan-950/30 border-cyan-500/30'
+                        ? 'bg-tint-emerald border-emerald-500/40'
+                        : 'bg-tint-amber border-amber-500/40'
+                      : 'bg-tint-cyan border-cyan-500/30'
                   }`}>
-                    <span className="text-[10px] text-slate-300 font-semibold block mb-0.5">
+                    <span className="text-[10px] text-ink-secondary font-semibold block mb-0.5">
                       Total Aktual Diterima:
                     </span>
-                    <span className="font-mono font-bold text-emerald-400 text-base block">
-                      {totalActualWeightKg.toFixed(4)} <span className="text-xs text-slate-400">kg</span>
+                    <span className="font-mono font-bold text-ink-emerald text-base block">
+                      {totalActualWeightKg.toFixed(4)} <span className="text-xs text-ink-secondary">kg</span>
                     </span>
                     <span className={`text-[10px] font-mono block ${
                       Math.abs(weightVarianceKg) < 0.001
-                        ? 'text-cyan-400'
+                        ? 'text-brand'
                         : weightVarianceKg > 0
-                        ? 'text-emerald-400'
-                        : 'text-amber-400'
+                        ? 'text-ink-emerald'
+                        : 'text-ink-amber'
                     }`}>
                       {Math.abs(weightVarianceKg) < 0.001
                         ? '✓ Pas Sesuai Standar'
@@ -1006,7 +1008,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
           {/* Requested Qty vs Received Qty */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">
+              <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                 Qty Diminta (kg)
               </label>
               <input
@@ -1014,16 +1016,16 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 step="0.0001"
                 disabled
                 value={requestedQty > 0 ? requestedQty.toFixed(4) : '-'}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-400 font-mono"
+                className="w-full bg-surface border border-border-subtle rounded-xl px-3 py-2 text-ink-secondary font-mono"
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-medium text-emerald-300">
+                <label className="block text-[11px] font-medium text-ink-emerald">
                   Qty Fisik Aktual (kg)*
                 </label>
                 {isZakCorrection && (
-                  <span className="text-[10px] text-amber-400 font-mono font-bold">
+                  <span className="text-[10px] text-ink-amber font-mono font-bold">
                     ✓ Terkalkulasi ({totalZakCount} Zak)
                   </span>
                 )}
@@ -1035,10 +1037,10 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 value={receivedQty}
                 onChange={(e) => setReceivedQty(e.target.value)}
                 placeholder="0.0000"
-                className={`w-full bg-slate-800 border rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none ${
+                className={`w-full bg-elevated border rounded-xl px-3 py-2 text-ink-primary font-mono font-bold focus:outline-none ${
                   isZakCorrection
-                    ? 'border-amber-500/60 text-emerald-300 focus:border-amber-400'
-                    : 'border-emerald-500/50 text-emerald-400 focus:border-emerald-400'
+                    ? 'border-amber-500/60 text-ink-emerald focus:border-amber-400'
+                    : 'border-emerald-500/50 text-ink-emerald focus:border-emerald-400'
                 }`}
               />
             </div>
@@ -1046,7 +1048,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
           {/* Notes */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1">
               Catatan Inspeksi / Kondisi Fisik
             </label>
             <input
@@ -1054,7 +1056,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Contoh: Kemasan utuh, segel baik"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted"
             />
           </div>
 
@@ -1074,22 +1076,22 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
       </div>
 
       {/* Receipts History */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-ink-emerald">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-white">History Penerimaan & Kedatangan Material</h3>
+            <h3 className="font-bold text-sm text-ink-primary">History Penerimaan & Kedatangan Material</h3>
           </div>
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cari penerimaan / lot / lokasi..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+              className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
             />
           </div>
         </div>
@@ -1097,68 +1099,68 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+              <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                 <th className="py-2.5 px-3">No. Surat / Tanggal</th>
                 <th className="py-2.5 px-3">Nama Material</th>
                 <th className="py-2.5 px-3">No. Lot</th>
                 <th className="py-2.5 px-3 text-right">Qty Diminta</th>
-                <th className="py-2.5 px-3 text-right font-bold text-emerald-400">Qty Diterima</th>
+                <th className="py-2.5 px-3 text-right font-bold text-ink-emerald">Qty Diterima</th>
                 <th className="py-2.5 px-3 text-center">Lokasi Simpan</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-border-subtle text-xs">
               {filteredReceipts.length > 0 ? (
                 filteredReceipts.map(rec => {
                   const mObj = state.master.materials.find(m => m.id === rec.materialId);
 
                   return (
                     <React.Fragment key={rec.id}>
-                      <tr className="hover:bg-slate-800/40 transition">
+                      <tr className="hover:bg-elevated transition">
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-1.5">
-                            <span className="font-mono font-semibold text-white block">{rec.receiptNumber}</span>
+                            <span className="font-mono font-semibold text-ink-primary block">{rec.receiptNumber}</span>
                             <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-mono border ${
                               rec.shift === 2
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                                ? 'bg-amber-500/20 text-ink-amber border-amber-500/40'
+                                : 'bg-sky-500/20 text-ink-sky border-sky-500/40'
                             }`}>
                               Shift {rec.shift || 1}
                             </span>
                           </div>
-                          <span className="text-[10px] text-slate-400">{rec.date}</span>
+                          <span className="text-[10px] text-ink-secondary">{rec.date}</span>
                         </td>
                         <td className="py-3 px-3">
-                          <span className="font-medium text-white block">{mObj ? mObj.name : 'Material'}</span>
+                          <span className="font-medium text-ink-primary block">{mObj ? mObj.name : 'Material'}</span>
                           <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap gap-y-1">
-                            <span className="text-[10px] text-slate-400">{mObj?.packaging || '-'}</span>
+                            <span className="text-[10px] text-ink-secondary">{mObj?.packaging || '-'}</span>
                             {rec.isZakCorrectionActive && rec.zakBreakdown && rec.zakBreakdown.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => setExpandedReceiptId(expandedReceiptId === rec.id ? null : rec.id)}
-                                className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-bold flex items-center space-x-1 hover:bg-amber-500/30 transition"
+                                className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-ink-amber border border-amber-500/30 font-mono font-bold flex items-center space-x-1 hover:bg-amber-500/30 transition"
                               >
                                 <span>{rec.totalBagCount || rec.zakBreakdown.reduce((sum, g) => sum + g.bagCount, 0)} Zak ({rec.zakBreakdown.length} Kelompok)</span>
                                 {expandedReceiptId === rec.id ? (
-                                  <ChevronUp className="w-3 h-3 text-amber-400" />
+                                  <ChevronUp className="w-3 h-3 text-ink-amber" />
                                 ) : (
-                                  <ChevronDown className="w-3 h-3 text-amber-400" />
+                                  <ChevronDown className="w-3 h-3 text-ink-amber" />
                                 )}
                               </button>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-3 font-mono text-slate-300">
+                        <td className="py-3 px-3 font-mono text-ink-secondary">
                           {rec.batchLotNumber || '-'}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-400">
+                        <td className="py-3 px-3 text-right font-mono text-ink-secondary">
                           {rec.requestedQty.toFixed(4)} kg
                         </td>
                         <td className="py-3 px-3 text-right font-mono">
-                          <span className="font-bold text-emerald-400 block">{rec.receivedQty.toFixed(4)} kg</span>
+                          <span className="font-bold text-ink-emerald block">{rec.receivedQty.toFixed(4)} kg</span>
                           {rec.weightVarianceKg && Math.abs(rec.weightVarianceKg) > 0.001 ? (
                             <span className={`text-[10px] font-mono block ${
-                              rec.weightVarianceKg > 0 ? 'text-emerald-400' : 'text-amber-400'
+                              rec.weightVarianceKg > 0 ? 'text-ink-emerald' : 'text-ink-amber'
                             }`}>
                               {rec.weightVarianceKg > 0 ? '+' : ''}{rec.weightVarianceKg.toFixed(2)} kg vs std
                             </span>
@@ -1167,10 +1169,10 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                         <td className="py-3 px-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                             rec.location === 'STORAGE_TANK'
-                              ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                              ? 'bg-cyan-500/15 text-brand border-cyan-500/30'
                               : rec.location === 'CK'
-                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              ? 'bg-amber-500/15 text-ink-amber border-amber-500/30'
+                              : 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30'
                           }`}>
                             {rec.location}
                           </span>
@@ -1178,8 +1180,8 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                         <td className="py-3 px-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] border font-medium ${
                             rec.status === 'Discrepancy'
-                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              ? 'bg-amber-500/15 text-ink-amber border-amber-500/30'
+                              : 'bg-emerald-500/15 text-ink-emerald border-emerald-500/30'
                           }`}>
                             {rec.status === 'Discrepancy' ? 'Selisih Qty' : 'Sesuai'}
                           </span>
@@ -1188,15 +1190,15 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
 
                       {/* Expanded Zak Breakdown Accordion */}
                       {expandedReceiptId === rec.id && rec.zakBreakdown && rec.zakBreakdown.length > 0 && (
-                        <tr className="bg-slate-950/90 border-b border-amber-500/30">
+                        <tr className="bg-canvas border-b border-amber-500/30">
                           <td colSpan={7} className="p-3">
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
+                            <div className="bg-surface border border-border-subtle rounded-xl p-3 space-y-2">
                               <div className="flex items-center justify-between text-xs">
-                                <span className="font-bold text-white flex items-center space-x-1.5">
-                                  <Scale className="w-3.5 h-3.5 text-amber-400" />
+                                <span className="font-bold text-ink-primary flex items-center space-x-1.5">
+                                  <Scale className="w-3.5 h-3.5 text-ink-amber" />
                                   <span>Rincian Timbangan Zak Kedatangan (Area {rec.location}):</span>
                                 </span>
-                                <span className="text-[11px] text-slate-400 font-mono">
+                                <span className="text-[11px] text-ink-secondary font-mono">
                                   Standar: {rec.standardBagWeightKg || 25} kg/zak • Total: {rec.totalBagCount || '-'} Zak = {rec.receivedQty.toFixed(2)} kg
                                 </span>
                               </div>
@@ -1205,22 +1207,22 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                                 {rec.zakBreakdown.map((zg, i) => (
                                   <div
                                     key={zg.id || i}
-                                    className="bg-slate-950 p-2 rounded-lg border border-slate-800 text-xs space-y-1"
+                                    className="bg-canvas p-2 rounded-lg border border-border-subtle text-xs space-y-1"
                                   >
                                     <div className="flex justify-between items-center text-[11px]">
-                                      <strong className="text-white font-semibold">{zg.notes || `Kelompok ${i + 1}`}</strong>
-                                      <span className="text-amber-400 font-mono font-bold">{zg.bagCount} Zak</span>
+                                      <strong className="text-ink-primary font-semibold">{zg.notes || `Kelompok ${i + 1}`}</strong>
+                                      <span className="text-ink-amber font-mono font-bold">{zg.bagCount} Zak</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                                    <div className="flex justify-between items-center text-[10px] text-ink-secondary font-mono">
                                       <span>Rata-rata: {zg.weightPerBagKg.toFixed(3)} kg/zak</span>
-                                      <span className="text-emerald-400 font-bold">{zg.subtotalKg.toFixed(2)} kg</span>
+                                      <span className="text-ink-emerald font-bold">{zg.subtotalKg.toFixed(2)} kg</span>
                                     </div>
                                   </div>
                                 ))}
                               </div>
 
                               {rec.notes && (
-                                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800">
+                                <p className="text-[10px] text-ink-secondary italic pt-1 border-t border-border-subtle">
                                   Catatan: {rec.notes}
                                 </p>
                               )}
@@ -1233,7 +1235,7 @@ export const PenerimaanView: React.FC<PenerimaanViewProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-500 text-xs">
+                  <td colSpan={7} className="text-center py-8 text-ink-muted text-xs">
                     Belum ada riwayat penerimaan material tercatat.
                   </td>
                 </tr>

@@ -19,7 +19,7 @@ export default function DemoContactSection() {
       {lastSubmitted && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-700 dark:text-emerald-300"
+          className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-700 dark:text-ink-emerald"
         >
           <span className="font-semibold">Ringkasan Terkirim:</span> {lastSubmitted.name} ({lastSubmitted.email}) —{' '}
           {lastSubmitted.projectType.length > 0

@@ -416,22 +416,22 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-1.5 sm:p-3 bg-slate-950/88 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-[97vw] xl:max-w-[1480px] h-[95vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-1.5 sm:p-3 bg-black/65 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-surface border border-border-strong rounded-2xl w-full max-w-[97vw] xl:max-w-[1480px] h-[95vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40 shrink-0">
+        <div className="px-4 py-3 border-b border-border-subtle flex items-center justify-between gap-3 bg-gradient-to-r from-surface via-elevated to-tint-cyan shrink-0">
           <div className="flex items-center space-x-3 min-w-0">
-            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shrink-0">
+            <div className="p-2 rounded-xl bg-cyan-500/20 text-brand border border-cyan-500/30 shrink-0">
               <Printer className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-sm sm:text-base text-white truncate">
+              <h3 className="font-bold text-sm sm:text-base text-ink-primary truncate">
                 Pratinjau &amp; Cetak Slip PDF — BON PERMINTAAN RM &amp; PM
               </h3>
-              <p className="text-[11px] sm:text-xs text-slate-400 truncate">
-                Line <strong className="text-emerald-300">{formOptions.lineName || activeLineName}</strong> · Supplier{' '}
-                <strong className="text-cyan-300">{activeSupplier}</strong> · WIP{' '}
-                <strong className="text-amber-300">{activeWipName}</strong> ·{' '}
+              <p className="text-[11px] sm:text-xs text-ink-secondary truncate">
+                Line <strong className="text-ink-emerald">{formOptions.lineName || activeLineName}</strong> · Supplier{' '}
+                <strong className="text-brand">{activeSupplier}</strong> · WIP{' '}
+                <strong className="text-ink-amber">{activeWipName}</strong> ·{' '}
                 <span className="font-mono tabular-nums">
                   {activeGroupItems.length} item · {totalPages} lembar A4 Landscape
                 </span>
@@ -442,7 +442,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Tutup pratinjau slip"
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition shrink-0"
+            className="p-2 text-ink-secondary hover:text-ink-primary hover:bg-elevated rounded-lg transition shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -450,11 +450,11 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
 
         {/* Line Produksi + Supplier + WIP Collapsible Tabs Bar */}
         {slipGroups.length > 0 && (
-          <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 shrink-0 space-y-2">
+          <div className="px-4 py-2 bg-canvas border-b border-border-subtle shrink-0 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <span className="text-[11px] font-semibold text-slate-300 flex items-center space-x-1.5 shrink-0">
-                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-[11px] font-semibold text-ink-secondary flex items-center space-x-1.5 shrink-0">
+                  <Layers className="w-3.5 h-3.5 text-brand" />
                   <span>Lembar Slip ({slipGroups.length}):</span>
                 </span>
 
@@ -464,7 +464,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                       aria-label="Pilih lembar slip aktif"
                       value={activeGroup?.key || ''}
                       onChange={e => setActiveGroupKey(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-white max-w-[360px]"
+                      className="bg-elevated border border-border-strong rounded-lg px-2.5 py-1 text-xs font-semibold text-ink-primary max-w-[360px]"
                     >
                       {slipGroups.map(grp => (
                         <option key={grp.key} value={grp.key}>
@@ -478,7 +478,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-[11px] font-mono tabular-nums text-emerald-400">
+                <span className="text-[11px] font-mono tabular-nums text-ink-emerald">
                   ✓ Kode SAP BOM: {autoSapFilledCount}/{activeGroupItems.length} item terisi
                 </span>
 
@@ -486,7 +486,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                   type="button"
                   onClick={() => setIsSlipListCollapsed(prev => !prev)}
                   aria-expanded={!isSlipListCollapsed}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
+                  className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-primary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                   title={
                     isSlipListCollapsed
                       ? 'Tampilkan daftar lembar slip agar lebih mudah memilih'
@@ -495,12 +495,12 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 >
                   {isSlipListCollapsed ? (
                     <>
-                      <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                      <ChevronDown className="w-3.5 h-3.5 text-brand" />
                       <span>Tampilkan Lembar Slip</span>
                     </>
                   ) : (
                     <>
-                      <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+                      <ChevronUp className="w-3.5 h-3.5 text-brand" />
                       <span>Collapse Lembar Slip</span>
                     </>
                   )}
@@ -522,7 +522,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                           ? grp.supplier === 'GDRM'
                             ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
                             : 'bg-purple-600 text-white border-purple-400 shadow-sm'
-                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                          : 'bg-surface text-ink-secondary border-border-strong hover:bg-elevated'
                       }`}
                     >
                       <span>
@@ -530,7 +530,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                       </span>
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums ${
-                          isSelected ? 'bg-black/20' : 'bg-slate-800 text-slate-400'
+                          isSelected ? 'bg-black/20' : 'bg-elevated text-ink-secondary'
                         }`}
                       >
                         {grp.items.length} item
@@ -545,10 +545,10 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         )}
 
         {/* Quick Preview Toolbar: SAT Mode, Zoom Controls, & Collapsible Header Editor Trigger */}
-        <div className="px-4 py-2.5 bg-slate-900/95 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
+        <div className="px-4 py-2.5 bg-surface border-b border-border-subtle flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-lg p-1">
-              <span className="text-[11px] text-slate-400 px-1.5 font-medium">SAT:</span>
+            <div className="flex items-center gap-1.5 bg-canvas border border-border-subtle rounded-lg p-1">
+              <span className="text-[11px] text-ink-secondary px-1.5 font-medium">SAT:</span>
               {(
                 [
                   { id: 'kg', label: 'kg' },
@@ -563,7 +563,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
                     formOptions.satMode === mode.id
                       ? 'bg-cyan-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      : 'text-ink-secondary hover:bg-elevated'
                   }`}
                 >
                   {mode.label}
@@ -571,7 +571,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               ))}
             </div>
 
-            <label className="inline-flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800">
+            <label className="inline-flex items-center space-x-1.5 text-[11px] text-ink-secondary cursor-pointer select-none px-2 py-1 rounded-lg bg-canvas border border-border-subtle">
               <input
                 type="checkbox"
                 checked={formOptions.includeMaterialCodeInSap}
@@ -581,7 +581,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                     includeMaterialCodeInSap: e.target.checked
                   }))
                 }
-                className="rounded border-slate-600 bg-slate-800 text-cyan-500"
+                className="rounded border-border-strong bg-elevated text-cyan-500"
               />
               <span>Auto Kode SAP BOM</span>
             </label>
@@ -591,8 +591,8 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               onClick={() => setIsHeaderEditorOpen(prev => !prev)}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition flex items-center space-x-1.5 ${
                 isHeaderEditorOpen
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  ? 'bg-cyan-500/20 text-brand border-cyan-500/40'
+                  : 'bg-elevated hover:bg-accent text-ink-primary border-border-strong'
               }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -608,7 +608,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleTestQrDetail(primaryQrUrl)}
-                className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-[11px] font-semibold flex items-center space-x-1.5 transition"
+                className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-brand text-[11px] font-semibold flex items-center space-x-1.5 transition"
               >
                 <QrCode className="w-3.5 h-3.5" />
                 <span>Uji QR</span>
@@ -618,12 +618,12 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
           </div>
 
           {/* Paper Zoom Controls */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-lg p-1">
+          <div className="flex items-center gap-1.5 bg-canvas border border-border-subtle rounded-lg p-1">
             <button
               type="button"
               onClick={() => handleStepZoom(-15)}
               title="Perkecil tampilan pratinjau"
-              className="p-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition"
+              className="p-1.5 rounded-md text-ink-secondary hover:text-ink-primary hover:bg-elevated transition"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -640,7 +640,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 className={`px-2 py-1 rounded-md text-[11px] font-mono font-semibold transition ${
                   zoomMode === preset.key
                     ? 'bg-cyan-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
+                    : 'text-ink-secondary hover:bg-elevated'
                 }`}
               >
                 {preset.label}
@@ -650,12 +650,12 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               type="button"
               onClick={() => handleStepZoom(15)}
               title="Perbesar tampilan pratinjau"
-              className="p-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition"
+              className="p-1.5 rounded-md text-ink-secondary hover:text-ink-primary hover:bg-elevated transition"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
-            <span className="px-1.5 text-[11px] font-mono tabular-nums text-cyan-300 border-l border-slate-800 flex items-center gap-1">
-              <Maximize2 className="w-3 h-3 text-slate-400" />
+            <span className="px-1.5 text-[11px] font-mono tabular-nums text-brand border-l border-border-subtle flex items-center gap-1">
+              <Maximize2 className="w-3 h-3 text-ink-secondary" />
               {displayedZoomPercent}%
             </span>
           </div>
@@ -663,9 +663,9 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
 
         {/* Collapsible Header Metadata & Kode SAP Editor Drawer */}
         {isHeaderEditorOpen && (
-          <div className="px-4 py-3 bg-slate-950/90 border-b border-slate-800 space-y-3 overflow-y-auto max-h-[38vh] shrink-0 text-xs">
+          <div className="px-4 py-3 bg-canvas border-b border-border-subtle space-y-3 overflow-y-auto max-h-[38vh] shrink-0 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-cyan-300 flex items-center space-x-1.5">
+              <span className="font-bold text-brand flex items-center space-x-1.5">
                 <FileText className="w-4 h-4" />
                 <span>
                   Pengaturan Header Slip ({formOptions.lineName || activeLineName} — {activeSupplier} — {activeWipName})
@@ -674,7 +674,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsHeaderEditorOpen(false)}
-                className="text-[11px] text-slate-400 hover:text-white underline"
+                className="text-[11px] text-ink-secondary hover:text-ink-primary underline"
               >
                 Tutup Editor Header
               </button>
@@ -682,33 +682,33 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Line Produksi Tujuan</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Line Produksi Tujuan</label>
                 <input
                   type="text"
                   value={formOptions.lineName || ''}
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, lineName: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Line A / Line 1"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Kepada Warehouse</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Kepada Warehouse</label>
                 <input
                   type="text"
                   value={formOptions.kepadaWarehouse}
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, kepadaWarehouse: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="GDRM / Warehouse RM"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">
+                <label className="block text-[10px] text-ink-secondary mb-1">
                   Tujuan Pengiriman (Lokasi Penyimpanan)
                 </label>
                 <input
@@ -718,7 +718,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, tujuanPengiriman: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Area Penyimpanan CK / WINEROTO / Storage Tank Liquid"
                 />
                 <datalist id="slip-tujuan-lokasi-options">
@@ -730,127 +730,127 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Permintaan Shift</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Permintaan Shift</label>
                 <input
                   type="text"
                   value={formOptions.permintaanShift}
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, permintaanShift: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Shift 1"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">No. Bon Permintaan</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">No. Bon Permintaan</label>
                 <input
                   type="text"
                   value={formOptions.bonNumber}
                   onChange={e => setFormOptions(prev => ({ ...prev, bonNumber: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary font-mono text-xs"
                   placeholder="BON-261120-GDRM-WIP-01"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Tanggal</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Tanggal</label>
                 <input
                   type="text"
                   value={formOptions.tanggal}
                   onChange={e => setFormOptions(prev => ({ ...prev, tanggal: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary font-mono text-xs"
                   placeholder="20-11-2026"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Nama Pengirim (WH)</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Nama Pengirim (WH)</label>
                 <input
                   type="text"
                   value={formOptions.namaPengirim}
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, namaPengirim: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="(Kosongkan u/ diisi WH)"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Nama Penerima (Prod)</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Nama Penerima (Prod)</label>
                 <input
                   type="text"
                   value={formOptions.namaPenerima}
                   onChange={e =>
                     setFormOptions(prev => ({ ...prev, namaPenerima: e.target.value }))
                   }
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Nama penerima produksi"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Departemen</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Departemen</label>
                 <input
                   type="text"
                   value={formOptions.department || 'Warehouse'}
                   onChange={e => setFormOptions(prev => ({ ...prev, department: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Warehouse"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Kode Form (Kanan Atas)</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Kode Form (Kanan Atas)</label>
                 <input
                   type="text"
                   value={formOptions.docCode || ''}
                   onChange={e => setFormOptions(prev => ({ ...prev, docCode: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary font-mono text-xs"
                   placeholder="MAY PRC LLA WFR UTG WHRxx/09/001-08-4"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Dibuat Oleh</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Dibuat Oleh</label>
                 <input
                   type="text"
                   value={formOptions.dibuatOleh}
                   onChange={e => setFormOptions(prev => ({ ...prev, dibuatOleh: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Operator / Pembuat"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">Menyetujui</label>
+                <label className="block text-[10px] text-ink-secondary mb-1">Menyetujui</label>
                 <input
                   type="text"
                   value={formOptions.menyetujui}
                   onChange={e => setFormOptions(prev => ({ ...prev, menyetujui: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs"
                   placeholder="Leader / Supervisor"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">
+                <label className="block text-[10px] text-ink-secondary mb-1">
                   Keterangan (Box Kanan Bawah)
                 </label>
                 <textarea
                   rows={2}
                   value={formOptions.keterangan}
                   onChange={e => setFormOptions(prev => ({ ...prev, keterangan: e.target.value }))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs resize-none"
+                  className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-ink-primary text-xs resize-none"
                   placeholder="Contoh: u/ cream tanpa..."
                 />
               </div>
             </div>
 
             {formOptions.includeMaterialCodeInSap && activeGroupItems.length > 0 && (
-              <div className="bg-slate-900/80 border border-slate-800 rounded-lg p-2.5">
-                <div className="text-[10px] font-semibold text-slate-400 mb-1.5">
+              <div className="bg-surface border border-border-subtle rounded-lg p-2.5">
+                <div className="text-[10px] font-semibold text-ink-secondary mb-1.5">
                   Kode SAP* Terhubung dari Master BOM ({activeGroupItems.length} item — dapat
                   disesuaikan manual jika perlu):
                 </div>
@@ -865,14 +865,14 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center space-x-2 bg-slate-950/70 border border-slate-800 rounded-lg px-2 py-1"
+                        className="flex items-center space-x-2 bg-canvas border border-border-subtle rounded-lg px-2 py-1"
                       >
-                        <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                        <span className="text-[10px] font-mono text-ink-muted shrink-0">
                           #{idx + 1}
                           {totalPages > 1 ? ` (L${sheetNo})` : ''}
                         </span>
                         <span
-                          className="text-[10px] text-slate-300 truncate flex-1"
+                          className="text-[10px] text-ink-secondary truncate flex-1"
                           title={item.materialName}
                         >
                           {item.materialName}
@@ -887,7 +887,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                             }))
                           }
                           placeholder="Kode SAP"
-                          className="w-24 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[10px] font-mono text-cyan-300"
+                          className="w-24 bg-elevated border border-border-strong rounded px-1.5 py-0.5 text-[10px] font-mono text-brand"
                         />
                       </div>
                     );
@@ -901,28 +901,28 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         {/* Live Full-Size A4 Landscape Paper Preview Stage */}
         <div
           ref={stageRef}
-          className="flex-1 overflow-auto bg-slate-950/80 p-3 sm:p-5 space-y-5"
+          className="flex-1 overflow-auto bg-canvas p-3 sm:p-5 space-y-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2 max-w-[1180px] mx-auto">
-            <span className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-xs font-semibold text-ink-secondary flex items-center space-x-1.5">
+              <CheckCircle2 className="w-4 h-4 text-ink-emerald shrink-0" />
               <span>
                 Pratinjau Kertas A4 Landscape ({displayedZoomPercent}%) — Bon{' '}
-                <span className="font-mono text-cyan-300">{formOptions.bonNumber || '-'}</span>
+                <span className="font-mono text-brand">{formOptions.bonNumber || '-'}</span>
               </span>
             </span>
-            <div className="flex items-center gap-3 text-[11px] text-slate-400">
+            <div className="flex items-center gap-3 text-[11px] text-ink-secondary">
               <span>
-                Shift: <strong className="text-slate-200">{formOptions.permintaanShift}</strong>
+                Shift: <strong className="text-ink-primary">{formOptions.permintaanShift}</strong>
               </span>
               <span aria-hidden="true">·</span>
               <span>
-                Tgl: <strong className="font-mono text-slate-200">{formOptions.tanggal}</strong>
+                Tgl: <strong className="font-mono text-ink-primary">{formOptions.tanggal}</strong>
               </span>
               {totalPages > 1 && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="text-amber-300 font-mono">
+                  <span className="text-ink-amber font-mono">
                     {totalPages} Lembar (@ 10 baris/lembar)
                   </span>
                 </>
@@ -933,7 +933,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
           {previewSheets.map(sheet => (
             <div key={sheet.pageNumber} className="space-y-2">
               {totalPages > 1 && (
-                <div className="flex items-center justify-between text-xs font-mono text-cyan-300 max-w-[1180px] mx-auto px-1">
+                <div className="flex items-center justify-between text-xs font-mono text-brand max-w-[1180px] mx-auto px-1">
                   <span>
                     Lembar {sheet.pageNumber} dari {totalPages}
                     {sheet.pageNumber > 1 ? ' (Lanjutan)' : ''} — Baris #
@@ -947,7 +947,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleTestQrDetail(sheet.sheetQrUrl)}
-                      className="text-xs underline hover:text-cyan-200"
+                      className="text-xs underline hover:text-brand"
                     >
                       Uji QR Lembar {sheet.pageNumber}
                     </button>
@@ -1317,8 +1317,8 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 py-3 border-t border-slate-800 bg-slate-950 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5 shrink-0">
-          <span className="text-[11px] text-slate-400">
+        <div className="px-4 py-3 border-t border-border-subtle bg-canvas flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5 shrink-0">
+          <span className="text-[11px] text-ink-secondary">
             Slip dipisah per Line Produksi, Supplier &amp; WIP (10 baris/lembar A4 Landscape dengan QR per lembar).
           </span>
 
@@ -1326,7 +1326,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700 transition whitespace-nowrap shrink-0"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-ink-secondary hover:text-ink-primary hover:bg-elevated border border-border-strong transition whitespace-nowrap shrink-0"
             >
               Tutup
             </button>
@@ -1336,7 +1336,7 @@ export const RequestSlipPdfModal: React.FC<RequestSlipPdfModalProps> = ({
                 type="button"
                 onClick={handleDownloadAllGroupsPdf}
                 disabled={isExporting}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/40 transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
+                className="px-4 py-2.5 bg-elevated hover:bg-accent text-ink-amber font-bold rounded-xl text-xs border border-amber-500/40 transition flex items-center space-x-1.5 disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 <Layers className="w-4 h-4" />
                 <span>Download Semua Slip ({slipGroups.length} File PDF)</span>

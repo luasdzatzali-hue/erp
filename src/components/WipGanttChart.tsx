@@ -620,24 +620,24 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
   return (
     <section
       aria-label="Gantt Chart Jadwal Produksi WIP"
-      className="bg-[#0c121d] border border-slate-800 rounded-xl overflow-hidden shadow-lg"
+      className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-lg"
     >
       {/* Top Control Room Header */}
-      <div className="px-4 py-3 border-b border-slate-800 bg-[#080c14] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="px-4 py-3 border-b border-border-subtle bg-surface-header flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-brand flex items-center justify-center shrink-0">
             <Activity className="w-4 h-4" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-100 tracking-tight">
+              <h3 className="text-sm font-bold text-ink-primary tracking-tight">
                 Gantt Chart Produksi &amp; Penjadwalan WIP
               </h3>
-              <span className="text-[11px] font-mono text-slate-400 tabular-nums">
+              <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
                 {formatDateShort(windowStartMs)} {formatTimeShort(windowStartMs)} — {formatTimeShort(windowEndMs)}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-ink-secondary mt-0.5">
               Pantau alokasi mesin batching, durasi siklus resep, changeover CIP, serta aliran transfer ke tangki WIP secara kronologis.
             </p>
           </div>
@@ -646,14 +646,14 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         {/* Control Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Group By Switch */}
-          <div className="inline-flex items-center p-0.5 bg-[#06090f] border border-slate-800 rounded-lg">
+          <div className="inline-flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
             <button
               type="button"
               onClick={() => setGroupBy('machine')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 groupBy === 'machine'
                   ? 'bg-cyan-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               <Cpu className="w-3 h-3" />
@@ -665,7 +665,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 groupBy === 'wip'
                   ? 'bg-cyan-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >
               <Layers className="w-3 h-3" />
@@ -674,7 +674,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
           </div>
 
           {/* Time Horizon Switch */}
-          <div className="inline-flex items-center p-0.5 bg-[#06090f] border border-slate-800 rounded-lg">
+          <div className="inline-flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
             {(
               [
                 { id: 'live-5h', label: '5 Jam Live' },
@@ -688,8 +688,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                 onClick={() => setHorizon(opt.id)}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition whitespace-nowrap shrink-0 ${
                   horizon === opt.id
-                    ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-elevated text-brand border border-cyan-500/40'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 {opt.label}
@@ -699,7 +699,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
 
           {/* Shift Picker when Shift-8h active */}
           {horizon === 'shift-8h' && (
-            <div className="inline-flex items-center p-0.5 bg-[#06090f] border border-slate-800 rounded-lg">
+            <div className="inline-flex items-center p-0.5 bg-canvas border border-border-subtle rounded-lg">
               {([1, 2, 3] as ShiftNumber[]).map(sNum => (
                 <button
                   key={sNum}
@@ -708,7 +708,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                   className={`px-2 py-1 rounded-md text-[11px] font-mono font-semibold transition whitespace-nowrap shrink-0 ${
                     focusShift === sNum
                       ? 'bg-amber-500 text-slate-950'
-                      : 'text-slate-400 hover:text-slate-200'
+                      : 'text-ink-secondary hover:text-ink-primary'
                   }`}
                 >
                   S{sNum}
@@ -719,11 +719,11 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
 
           {/* Day Offset Navigation (for Shift-8h or Day-24h) */}
           {horizon !== 'live-5h' && (
-            <div className="inline-flex items-center bg-[#06090f] border border-slate-800 rounded-lg">
+            <div className="inline-flex items-center bg-canvas border border-border-subtle rounded-lg">
               <button
                 type="button"
                 onClick={() => setDayOffset(d => d - 1)}
-                className="p-1.5 text-slate-400 hover:text-white transition"
+                className="p-1.5 text-ink-secondary hover:text-ink-primary transition"
                 title="Hari operasional sebelumnya"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -734,7 +734,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                   setDayOffset(0);
                   setFocusShift(liveShift.shift);
                 }}
-                className="px-2 py-1 text-[11px] font-mono font-semibold text-slate-300 hover:text-cyan-300 whitespace-nowrap shrink-0"
+                className="px-2 py-1 text-[11px] font-mono font-semibold text-ink-secondary hover:text-brand whitespace-nowrap shrink-0"
                 title="Kembali ke hari ini"
               >
                 {dayOffset === 0 ? 'Hari Ini' : dayOffset > 0 ? `+${dayOffset}h` : `${dayOffset}h`}
@@ -742,7 +742,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               <button
                 type="button"
                 onClick={() => setDayOffset(d => d + 1)}
-                className="p-1.5 text-slate-400 hover:text-white transition"
+                className="p-1.5 text-ink-secondary hover:text-ink-primary transition"
                 title="Hari operasional berikutnya"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -754,7 +754,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
             <button
               type="button"
               onClick={onExpandFullView}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[11px] font-semibold flex items-center gap-1.5 transition whitespace-nowrap shrink-0"
+              className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-brand text-[11px] font-semibold flex items-center gap-1.5 transition whitespace-nowrap shrink-0"
             >
               <Maximize2 className="w-3 h-3" />
               <span>Buka Gantt Penuh</span>
@@ -764,30 +764,30 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
       </div>
 
       {/* Sub-Bar: Telemetry KPI Strip + Filter Tools */}
-      <div className="px-4 py-2.5 border-b border-slate-800 bg-[#06090f] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+      <div className="px-4 py-2.5 border-b border-border-subtle bg-canvas flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         {/* KPI Counters */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-mono tabular-nums">
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-500">Batch Jendela:</span>
-            <span className="font-bold text-slate-100">{ganttStats.totalBatches}</span>
+            <span className="text-ink-muted">Batch Jendela:</span>
+            <span className="font-bold text-ink-primary">{ganttStats.totalBatches}</span>
             <span className="text-slate-600">·</span>
-            <span className="text-amber-400 font-semibold">{ganttStats.activeCount} Aktif</span>
+            <span className="text-ink-amber font-semibold">{ganttStats.activeCount} Aktif</span>
             <span className="text-slate-600">/</span>
-            <span className="text-emerald-400 font-semibold">{ganttStats.completedCount} Selesai</span>
+            <span className="text-ink-emerald font-semibold">{ganttStats.completedCount} Selesai</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-500">Volume WIP:</span>
-            <span className="font-bold text-cyan-400">{ganttStats.totalKg.toFixed(1)} kg</span>
+            <span className="text-ink-muted">Volume WIP:</span>
+            <span className="font-bold text-brand">{ganttStats.totalKg.toFixed(1)} kg</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-500">Mesin Aktif:</span>
-            <span className="font-bold text-slate-100">
+            <span className="text-ink-muted">Mesin Aktif:</span>
+            <span className="font-bold text-ink-primary">
               {ganttStats.activeMachineCount}/{ganttStats.totalMachines}
             </span>
           </div>
           <div className="hidden xl:flex items-center gap-1.5">
-            <span className="text-slate-500">Rata-rata Siklus:</span>
-            <span className="font-bold text-slate-200">
+            <span className="text-ink-muted">Rata-rata Siklus:</span>
+            <span className="font-bold text-ink-primary">
               {ganttStats.avgDurationMins > 0 ? `${ganttStats.avgDurationMins.toFixed(0)} mnt` : '-'}
             </span>
           </div>
@@ -796,19 +796,19 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         {/* Search & Overlay Toggles */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-44 sm:w-52">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={laneSearch}
               onChange={(e) => setLaneSearch(e.target.value)}
               placeholder="Filter mesin, WIP, batch..."
-              className="w-full bg-[#0c121d] border border-slate-800 rounded-lg pl-8 pr-6 py-1 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-surface border border-border-subtle rounded-lg pl-8 pr-6 py-1 text-[11px] text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
             />
             {laneSearch && (
               <button
                 type="button"
                 onClick={() => setLaneSearch('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-primary"
                 aria-label="Hapus filter"
               >
                 <X className="w-3 h-3" />
@@ -821,8 +821,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
             onClick={() => setShowProjectedNext(v => !v)}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               showProjectedNext
-                ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
-                : 'bg-[#0c121d] border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-500/15 border-cyan-500/40 text-brand'
+                : 'bg-surface border-border-subtle text-ink-secondary hover:text-ink-primary'
             }`}
             title="Proyeksikan estimasi jadwal batch berikutnya setelah batch aktif selesai"
           >
@@ -835,8 +835,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
             onClick={() => setShowCancelled(v => !v)}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               showCancelled
-                ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-                : 'bg-[#0c121d] border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-rose-500/15 border-rose-500/40 text-ink-rose'
+                : 'bg-surface border-border-subtle text-ink-secondary hover:text-ink-primary'
             }`}
           >
             {showCancelled ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -850,8 +850,8 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
         <div className="min-w-[820px]">
           {/* Shift Bands Row (24h view) */}
           {horizon === 'day-24h' && (
-            <div className="flex border-b border-slate-800 bg-[#080c14]">
-              <div className="w-56 shrink-0 px-3 py-1.5 border-r border-slate-800 text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <div className="flex border-b border-border-subtle bg-surface-header">
+              <div className="w-56 shrink-0 px-3 py-1.5 border-r border-border-subtle text-[10px] font-mono text-ink-secondary uppercase tracking-wider flex items-center justify-between">
                 <span>Zona Shift</span>
                 <span>24 Jam</span>
               </div>
@@ -862,12 +862,12 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                     <div
                       key={band.shift}
                       style={{ left: `${band.leftPct}%`, width: `${band.widthPct}%` }}
-                      className={`absolute top-0 bottom-0 border-r border-slate-800/90 px-2 flex items-center justify-between text-[10px] font-mono ${
-                        isCurrentBand ? 'bg-cyan-500/10 text-cyan-300 font-bold' : 'text-slate-400'
+                      className={`absolute top-0 bottom-0 border-r border-border-subtle px-2 flex items-center justify-between text-[10px] font-mono ${
+                        isCurrentBand ? 'bg-cyan-500/10 text-brand font-bold' : 'text-ink-secondary'
                       }`}
                     >
                       <span className="truncate">{band.label}</span>
-                      {isCurrentBand && <span className="text-[9px] text-cyan-400 shrink-0">AKTIF</span>}
+                      {isCurrentBand && <span className="text-[9px] text-brand shrink-0">AKTIF</span>}
                     </div>
                   );
                 })}
@@ -876,10 +876,10 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
           )}
 
           {/* Time Axis Header */}
-          <div className="flex border-b border-slate-800 bg-[#080c14]">
-            <div className="w-56 shrink-0 px-3 py-2 border-r border-slate-800 flex items-center justify-between text-[11px] font-semibold text-slate-300">
+          <div className="flex border-b border-border-subtle bg-surface-header">
+            <div className="w-56 shrink-0 px-3 py-2 border-r border-border-subtle flex items-center justify-between text-[11px] font-semibold text-ink-secondary">
               <span>{groupBy === 'machine' ? 'Mesin Produksi' : 'Jenis WIP & Tangki'}</span>
-              <span className="font-mono text-[10px] text-slate-500">{displayedLanes.length} jalur</span>
+              <span className="font-mono text-[10px] text-ink-muted">{displayedLanes.length} jalur</span>
             </div>
             <div className="flex-1 relative h-8 select-none">
               {ticks.map(tick => (
@@ -890,12 +890,12 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                 >
                   <span
                     className={`font-mono text-[10px] tabular-nums ${
-                      tick.isHour ? 'text-slate-300 font-semibold' : 'text-slate-500'
+                      tick.isHour ? 'text-ink-secondary font-semibold' : 'text-ink-muted'
                     }`}
                   >
                     {tick.label}
                   </span>
-                  <span className="w-px h-1.5 bg-slate-700 mt-0.5" />
+                  <span className="w-px h-1.5 bg-elevated mt-0.5" />
                 </div>
               ))}
 
@@ -914,38 +914,38 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
           </div>
 
           {/* Resource Lanes */}
-          <div className="divide-y divide-slate-800/80 scada-grid-surface relative">
+          <div className="divide-y divide-border-subtle scada-grid-surface relative">
             {displayedLanes.length > 0 ? (
               displayedLanes.map(lane => (
                 <div
                   key={lane.id}
-                  className="flex items-stretch min-h-[54px] hover:bg-slate-900/40 transition-colors group"
+                  className="flex items-stretch min-h-[54px] hover:bg-surface transition-colors group"
                 >
                   {/* Left Fixed Resource Cell */}
-                  <div className="w-56 shrink-0 px-3 py-2 border-r border-slate-800 bg-[#0c121d]/90 flex items-center justify-between gap-2">
+                  <div className="w-56 shrink-0 px-3 py-2 border-r border-border-subtle bg-surface flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[11px] font-bold text-cyan-400">
+                        <span className="font-mono text-[11px] font-bold text-brand">
                           {lane.code}
                         </span>
                         <span
                           className={`text-[10px] font-mono font-semibold ${
                             lane.isPaused
-                              ? 'text-sky-400'
+                              ? 'text-ink-sky'
                               : lane.isRunning
-                              ? 'text-amber-400'
+                              ? 'text-ink-amber'
                               : lane.isMaintenance
-                              ? 'text-rose-400'
-                              : 'text-emerald-400'
+                              ? 'text-ink-rose'
+                              : 'text-ink-emerald'
                           }`}
                         >
                           · {lane.statusTag}
                         </span>
                       </div>
-                      <p className="text-xs font-semibold text-slate-100 truncate" title={lane.name}>
+                      <p className="text-xs font-semibold text-ink-primary truncate" title={lane.name}>
                         {lane.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-mono truncate">{lane.meta}</p>
+                      <p className="text-[10px] text-ink-muted font-mono truncate">{lane.meta}</p>
                     </div>
 
                     {onQuickSelectLane && !lane.isRunning && !lane.isMaintenance && lane.id !== '__UNASSIGNED_MACHINE__' && (
@@ -962,7 +962,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                             ? `Siapkan batch baru pada mesin ${lane.code}`
                             : `Pilih WIP ${lane.name} di formulir perintah kerja`
                         }
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-cyan-600 text-slate-300 hover:text-white border border-slate-700 hover:border-cyan-500 transition shrink-0 opacity-80 group-hover:opacity-100"
+                        className="p-1.5 rounded-lg bg-elevated hover:bg-cyan-600 text-ink-secondary hover:text-white border border-border-strong hover:border-cyan-500 transition shrink-0 opacity-80 group-hover:opacity-100"
                       >
                         <Play className="w-3 h-3" />
                       </button>
@@ -977,7 +977,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                         key={tick.ms}
                         style={{ left: `${tick.leftPct}%` }}
                         className={`absolute top-0 bottom-0 w-px pointer-events-none ${
-                          tick.isHour ? 'bg-slate-800/90' : 'bg-slate-800/40'
+                          tick.isHour ? 'bg-elevated' : 'bg-elevated'
                         }`}
                       />
                     ))}
@@ -1008,16 +1008,16 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
 
                         const barStyles =
                           item.status === 'SEDANG_PRODUKSI'
-                            ? 'gantt-bar-active bg-amber-950/90 border-amber-500/80 text-amber-100 hover:border-amber-400'
+                            ? 'gantt-bar-active bg-tint-amber border-amber-500/80 text-amber-100 hover:border-amber-400'
                             : item.status === 'DIJEDA'
-                            ? 'gantt-bar-pause bg-sky-950/90 border-sky-500/80 border-dashed text-sky-100 hover:border-sky-400'
+                            ? 'gantt-bar-pause bg-tint-sky border-sky-500/80 border-dashed text-sky-100 hover:border-sky-400'
                             : item.status === 'SELESAI'
-                            ? 'gantt-bar-done bg-emerald-950/85 border-emerald-500/60 text-emerald-100 hover:border-emerald-400'
+                            ? 'gantt-bar-done bg-tint-emerald border-emerald-500/60 text-emerald-100 hover:border-emerald-400'
                             : item.status === 'CHANGEOVER'
-                            ? 'gantt-bar-co bg-indigo-950/85 border-indigo-400/60 text-indigo-100 hover:border-indigo-300'
+                            ? 'gantt-bar-co bg-tint-indigo border-indigo-400/60 text-indigo-100 hover:border-indigo-300'
                             : item.status === 'PROJECTED'
-                            ? 'gantt-bar-proj bg-cyan-950/50 border-cyan-500/50 border-dashed text-cyan-200 hover:border-cyan-400'
-                            : 'gantt-bar-cancel bg-rose-950/60 border-rose-500/50 border-dashed text-rose-200 hover:border-rose-400';
+                            ? 'gantt-bar-proj bg-tint-cyan border-cyan-500/50 border-dashed text-brand hover:border-cyan-400'
+                            : 'gantt-bar-cancel bg-tint-rose border-rose-500/50 border-dashed text-ink-rose hover:border-rose-400';
 
                         return (
                           <button
@@ -1054,7 +1054,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                             <div className="relative z-10 flex items-center justify-between gap-1 text-[9px] opacity-90 truncate">
                               <span className="truncate">{item.subtitle}</span>
                               {item.tankCode && (
-                                <span className="font-mono shrink-0 text-cyan-300">➔ {item.tankCode}</span>
+                                <span className="font-mono shrink-0 text-brand">➔ {item.tankCode}</span>
                               )}
                             </div>
                           </button>
@@ -1065,7 +1065,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                 </div>
               ))
             ) : (
-              <div className="py-10 text-center text-xs text-slate-500">
+              <div className="py-10 text-center text-xs text-ink-muted">
                 Tidak ada mesin atau WIP yang cocok dengan filter pencarian.
               </div>
             )}
@@ -1075,14 +1075,14 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
 
       {/* Compact mode notice if more lanes exist */}
       {compact && hiddenLanesCount > 0 && onExpandFullView && (
-        <div className="px-4 py-2 border-t border-slate-800 bg-[#080c14] flex items-center justify-between text-[11px]">
-          <span className="text-slate-400 font-mono">
+        <div className="px-4 py-2 border-t border-border-subtle bg-surface-header flex items-center justify-between text-[11px]">
+          <span className="text-ink-secondary font-mono">
             Menampilkan 6 dari {lanes.length} jalur ({hiddenLanesCount} jalur lainnya tersedia)
           </span>
           <button
             type="button"
             onClick={onExpandFullView}
-            className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
+            className="text-brand hover:text-brand font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
           >
             <span>Lihat Semua Jalur di Gantt Penuh</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -1091,67 +1091,67 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
       )}
 
       {/* Legend Bar */}
-      <div className="px-4 py-2 border-t border-slate-800 bg-[#080c14] flex flex-wrap items-center justify-between gap-2 text-[11px]">
-        <div className="flex flex-wrap items-center gap-4 text-slate-400">
+      <div className="px-4 py-2 border-t border-border-subtle bg-surface-header flex flex-wrap items-center justify-between gap-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-4 text-ink-secondary">
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-3 h-2.5 rounded-sm bg-amber-950 border border-amber-500" />
+            <span className="w-3 h-2.5 rounded-sm bg-tint-amber border border-amber-500" />
             <span>Sedang Produksi (Live)</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-3 h-2.5 rounded-sm bg-sky-950 border border-dashed border-sky-500" />
+            <span className="w-3 h-2.5 rounded-sm bg-tint-sky border border-dashed border-sky-500" />
             <span>Dijeda / Pause</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-3 h-2.5 rounded-sm bg-emerald-950 border border-emerald-500" />
+            <span className="w-3 h-2.5 rounded-sm bg-tint-emerald border border-emerald-500" />
             <span>Selesai &amp; Transfer Tangki</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-3 h-2.5 rounded-sm bg-indigo-950 border border-indigo-400" />
+            <span className="w-3 h-2.5 rounded-sm bg-tint-indigo border border-indigo-400" />
             <span>CIP / Changeover Mesin</span>
           </span>
           {showProjectedNext && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-2.5 rounded-sm bg-cyan-950/60 border border-dashed border-cyan-500" />
+              <span className="w-3 h-2.5 rounded-sm bg-tint-cyan border border-dashed border-cyan-500" />
               <span>Proyeksi Antrean +1</span>
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 font-mono text-cyan-400">
+          <span className="inline-flex items-center gap-1.5 font-mono text-brand">
             <span className="w-0.5 h-3 bg-cyan-400" />
             <span>Garis Waktu Aktual ({formatTimeShort(currentTime)})</span>
           </span>
         </div>
 
-        <span className="text-[10px] font-mono text-slate-500">
+        <span className="text-[10px] font-mono text-ink-muted">
           Klik bar jadwal untuk inspeksi detail batch &amp; aksi cepat
         </span>
       </div>
 
       {/* Interactive Batch / Event Inspector Drawer */}
       {selectedItem && (
-        <div className="p-4 border-t border-cyan-500/30 bg-[#06090f] space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+        <div className="p-4 border-t border-cyan-500/30 bg-canvas space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border-subtle">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-bold text-cyan-400">
+              <span className="font-mono text-xs font-bold text-brand">
                 {selectedItem.title}
               </span>
               <span className="text-slate-600">·</span>
-              <span className="text-sm font-bold text-white">
+              <span className="text-sm font-bold text-ink-primary">
                 {selectedItem.batch ? selectedItem.batch.wipName : selectedItem.subtitle}
               </span>
               <span className="text-slate-600">·</span>
               <span
                 className={`text-[11px] font-mono font-bold ${
                   selectedItem.status === 'SEDANG_PRODUKSI'
-                    ? 'text-amber-400'
+                    ? 'text-ink-amber'
                     : selectedItem.status === 'DIJEDA'
-                    ? 'text-sky-400'
+                    ? 'text-ink-sky'
                     : selectedItem.status === 'SELESAI'
-                    ? 'text-emerald-400'
+                    ? 'text-ink-emerald'
                     : selectedItem.status === 'CHANGEOVER'
-                    ? 'text-indigo-300'
+                    ? 'text-ink-indigo'
                     : selectedItem.status === 'PROJECTED'
-                    ? 'text-cyan-300'
-                    : 'text-rose-400'
+                    ? 'text-brand'
+                    : 'text-ink-rose'
                 }`}
               >
                 {selectedItem.status === 'SEDANG_PRODUKSI'
@@ -1178,7 +1178,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
                         onCancelWipBatch(selectedItem.batch!.id);
                         setSelectedItemId(null);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/40 text-rose-300 text-[11px] font-semibold transition whitespace-nowrap shrink-0"
+                      className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-tint-rose border border-border-strong hover:border-rose-500/40 text-ink-rose text-[11px] font-semibold transition whitespace-nowrap shrink-0"
                     >
                       Batalkan Batch
                     </button>
@@ -1221,7 +1221,7 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedItemId(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-1 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-elevated"
                 aria-label="Tutup inspektor"
               >
                 <X className="w-4 h-4" />
@@ -1231,56 +1231,56 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs font-mono tabular-nums">
             <div>
-              <span className="text-[10px] text-slate-500 block">Jalur Mesin</span>
-              <span className="text-slate-100 font-semibold">
+              <span className="text-[10px] text-ink-muted block">Jalur Mesin</span>
+              <span className="text-ink-primary font-semibold">
                 {selectedItem.machineCode ? `${selectedItem.machineCode} (${selectedItem.machineName})` : selectedItem.machineName || '-'}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block">Tangki Tujuan</span>
-              <span className="text-cyan-300 font-semibold">
+              <span className="text-[10px] text-ink-muted block">Tangki Tujuan</span>
+              <span className="text-brand font-semibold">
                 {selectedItem.tankCode || '-'}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block">Waktu Mulai — Akhir</span>
-              <span className="text-slate-100 font-semibold">
+              <span className="text-[10px] text-ink-muted block">Waktu Mulai — Akhir</span>
+              <span className="text-ink-primary font-semibold">
                 {formatTimeShort(selectedItem.startMs)} — {formatTimeShort(selectedItem.endMs)}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block">Durasi / Progres</span>
-              <span className="text-amber-300 font-semibold">
+              <span className="text-[10px] text-ink-muted block">Durasi / Progres</span>
+              <span className="text-ink-amber font-semibold">
                 {formatDurationLabel(selectedItem.durationMinutes)}
                 {typeof selectedItem.progressPct === 'number' ? ` (${selectedItem.progressPct.toFixed(0)}%)` : ''}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block">Bobot 1 Batch</span>
-              <span className="text-emerald-400 font-bold">
+              <span className="text-[10px] text-ink-muted block">Bobot 1 Batch</span>
+              <span className="text-ink-emerald font-bold">
                 {selectedItem.weightKg !== undefined ? `${selectedItem.weightKg.toFixed(2)} kg` : '-'}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 block">Shift &amp; Operator</span>
-              <span className="text-slate-200 truncate block">
+              <span className="text-[10px] text-ink-muted block">Shift &amp; Operator</span>
+              <span className="text-ink-primary truncate block">
                 S{selectedItem.shift} · {selectedItem.operatorName || '-'}
               </span>
             </div>
           </div>
 
           {selectedItem.batch && selectedItem.batch.pauseLogs && selectedItem.batch.pauseLogs.length > 0 && (
-            <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px]">
-              <span className="text-sky-300 font-semibold block">
+            <div className="pt-2 border-t border-border-subtle space-y-1.5 text-[11px]">
+              <span className="text-ink-sky font-semibold block">
                 Audit Trail Penghentian Sementara ({selectedItem.batch.pauseLogs.length} Kejadian):
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {selectedItem.batch.pauseLogs.map(log => (
                   <span
                     key={log.id}
-                    className="text-[10px] px-2 py-1 rounded bg-sky-950/60 border border-sky-700/60 text-slate-200"
+                    className="text-[10px] px-2 py-1 rounded bg-tint-sky border border-sky-700/60 text-ink-primary"
                   >
-                    <strong className="text-sky-300">{log.category}</strong>: {log.reason} · Oleh {log.pausedBy}
+                    <strong className="text-ink-sky">{log.category}</strong>: {log.reason} · Oleh {log.pausedBy}
                     {log.pausedDurationMs !== undefined
                       ? ` (${Math.max(1, Math.round(log.pausedDurationMs / 60000))} mnt)`
                       : ' (Masih Dijeda)'}
@@ -1291,16 +1291,16 @@ export const WipGanttChart: React.FC<WipGanttChartProps> = ({
           )}
 
           {selectedItem.batch && selectedItem.batch.materials.length > 0 && (
-            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="text-slate-400 font-semibold">
+            <div className="pt-2 border-t border-border-subtle flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="text-ink-secondary font-semibold">
                 Resep {selectedItem.batch.recipeCode ? `[${selectedItem.batch.recipeCode}]` : 'BOM'} ({selectedItem.batch.materials.length} Bahan):
               </span>
               {selectedItem.batch.materials.map(m => (
                 <span
                   key={m.materialId}
-                  className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#0c121d] border border-slate-800 text-slate-300"
+                  className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface border border-border-subtle text-ink-secondary"
                 >
-                  {m.materialName}: <strong className="text-cyan-300">{m.actualUsedKg.toFixed(2)} kg</strong> ({m.sourceLocation})
+                  {m.materialName}: <strong className="text-brand">{m.actualUsedKg.toFixed(2)} kg</strong> ({m.sourceLocation})
                 </span>
               ))}
             </div>

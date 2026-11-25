@@ -70,7 +70,7 @@ const CHANGEOVER_PROFILES: Record<
     label: 'Minor / Pergantian Rasa Senada',
     defaultMinutes: 20,
     desc: 'Varian aroma/warna senada tanpa perpindahan alergen. Dry cleaning / vacuuming hopper & conveyor.',
-    badgeColor: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
+    badgeColor: 'border-cyan-500/30 bg-cyan-500/10 text-brand',
     defaultChecklist: {
       lineClearanceDone: true,
       cleaningSanitationDone: true,
@@ -83,7 +83,7 @@ const CHANGEOVER_PROFILES: Record<
     label: 'Major / Pergantian Alergen & Warna Kontras',
     defaultMinutes: 60,
     desc: 'Pergantian formula mengandung susu, gluten, atau kacang. Wajib wet washdown, flushing pipa, & swab test QC.',
-    badgeColor: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+    badgeColor: 'border-rose-500/30 bg-rose-500/10 text-ink-rose',
     defaultChecklist: {
       lineClearanceDone: true,
       cleaningSanitationDone: true,
@@ -96,7 +96,7 @@ const CHANGEOVER_PROFILES: Record<
     label: 'Full Sanitasi & CIP Kimiawi',
     defaultMinutes: 75,
     desc: 'Siklus CIP sirkulasi panas & larutan alkali/asam untuk pipa transfer dan ruang mixing vessel.',
-    badgeColor: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
+    badgeColor: 'border-purple-500/30 bg-purple-500/10 text-ink-purple',
     defaultChecklist: {
       lineClearanceDone: true,
       cleaningSanitationDone: true,
@@ -109,7 +109,7 @@ const CHANGEOVER_PROFILES: Record<
     label: 'Pergantian Tooling / Cetakan / Nozzle',
     defaultMinutes: 45,
     desc: 'Penggantian part mekanikal (dies, forming roll, nozzle depositor) disesuaikan dengan dimensi produk baru.',
-    badgeColor: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    badgeColor: 'border-amber-500/30 bg-amber-500/10 text-ink-amber',
     defaultChecklist: {
       lineClearanceDone: true,
       cleaningSanitationDone: true,
@@ -333,63 +333,63 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-3xl bg-surface border border-border-subtle rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40">
+        <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between bg-gradient-to-r from-surface via-surface to-tint-indigo">
           <div className="flex items-center space-x-3">
             <div className={`p-2.5 rounded-2xl ${
               isAlreadyChanging
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
-                : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/30 animate-pulse'
+                : 'bg-indigo-500/20 text-ink-indigo border border-indigo-500/30'
             }`}>
               <RotateCw className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800">
+                <span className="font-mono text-xs font-bold text-brand bg-tint-cyan px-2 py-0.5 rounded border border-tint-cyan-border">
                   {machine.code}
                 </span>
-                <h3 className="font-bold text-sm sm:text-base text-white">
+                <h3 className="font-bold text-sm sm:text-base text-ink-primary">
                   Opsi Changeover Produk Mesin
                 </h3>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                   machine.status === 'CHANGEOVER'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                    ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 animate-pulse'
                     : machine.status === 'OPERATIONAL'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-slate-800 text-slate-300'
+                    ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/30'
+                    : 'bg-elevated text-ink-secondary'
                 }`}>
                   {machine.status === 'CHANGEOVER' ? 'Sedang Changeover' : machine.status}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-secondary">
                 {machine.name} • {machine.line} (Kapasitas: {machine.capacityKgPerHour} kg/jam)
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+            className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-xl hover:bg-elevated transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-5 text-xs text-slate-300">
+        <div className="p-5 overflow-y-auto space-y-5 text-xs text-ink-secondary">
           {/* Active Changeover In-Progress Alert */}
           {isAlreadyChanging && (
-            <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-300 shadow-xl">
+            <div className="bg-gradient-to-r from-tint-amber via-surface to-tint-amber border border-amber-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-ink-amber shadow-xl">
               <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 animate-spin">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-ink-amber shrink-0 animate-spin">
                   <RotateCw className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-white text-xs sm:text-sm flex items-center space-x-2">
+                  <h4 className="font-bold text-ink-primary text-xs sm:text-sm flex items-center space-x-2">
                     <span>Sedang Dalam Proses Changeover Aktif</span>
                   </h4>
-                  <p className="text-[11px] text-amber-200/90 mt-0.5">
+                  <p className="text-[11px] text-ink-amber mt-0.5">
                     Mesin sedang dialihkan dari <strong>{machine.activeChangeover?.fromWipName || 'WIP Sebelumnya'}</strong> &rarr; <strong>{machine.activeChangeover?.toWipName}</strong>. Dimulai: {new Date(machine.activeChangeover?.startedAt || '').toLocaleTimeString()} WIB ({machine.activeChangeover?.estimatedMinutes} menit).
                   </p>
                 </div>
@@ -397,7 +397,7 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 rounded-xl text-xs font-semibold transition shrink-0"
+                className="px-3 py-1.5 bg-tint-rose hover:bg-tint-rose border border-rose-700/60 text-ink-rose rounded-xl text-xs font-semibold transition shrink-0"
               >
                 Batalkan Changeover
               </button>
@@ -405,26 +405,26 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
           )}
 
           {/* Section 1: Alur Pergantian Produk (From -> To) */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-white flex items-center space-x-2">
-                <ArrowRight className="w-4 h-4 text-cyan-400" />
+          <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+              <span className="font-bold text-ink-primary flex items-center space-x-2">
+                <ArrowRight className="w-4 h-4 text-brand" />
                 <span>1. Pemilihan Alur Formula Produk (WIP)</span>
               </span>
-              <span className="text-[10px] text-slate-500 font-mono">Mesin &rarr; Output Penampung</span>
+              <span className="text-[10px] text-ink-muted font-mono">Mesin &rarr; Output Penampung</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Dari WIP Saat Ini */}
               <div className="space-y-1.5">
-                <label className="block text-slate-400 font-medium text-[11px]">
+                <label className="block text-ink-secondary font-medium text-[11px]">
                   Produk / WIP Asal (Sebelumnya)
                 </label>
                 <select
                   value={fromWipId}
                   onChange={(e) => setFromWipId(e.target.value)}
                   disabled={isAlreadyChanging}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 disabled:opacity-60"
+                  className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary disabled:opacity-60"
                 >
                   <option value="">-- Tanpa Produk Asal (Mesin Baru / Kosong) --</option>
                   {availableWips.map((wip) => (
@@ -434,24 +434,24 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                   ))}
                 </select>
                 {currentWipObj && (
-                  <div className="text-[10px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-850 flex items-center justify-between">
+                  <div className="text-[10px] text-ink-secondary bg-surface p-2 rounded-lg border border-border-subtle flex items-center justify-between">
                     <span>Formula Terpasang:</span>
-                    <span className="font-mono text-cyan-300 font-medium">{currentWipObj.name}</span>
+                    <span className="font-mono text-brand font-medium">{currentWipObj.name}</span>
                   </div>
                 )}
               </div>
 
               {/* Menuju Target WIP Baru */}
               <div className="space-y-1.5">
-                <label className="block text-cyan-400 font-bold text-[11px] flex items-center space-x-1">
+                <label className="block text-brand font-bold text-[11px] flex items-center space-x-1">
                   <span>Target Produk / WIP Baru *</span>
-                  <span className="text-[10px] text-slate-400 font-normal">(Formula Tujuan)</span>
+                  <span className="text-[10px] text-ink-secondary font-normal">(Formula Tujuan)</span>
                 </label>
                 <select
                   value={toWipId}
                   onChange={(e) => handleTargetWipChange(e.target.value)}
                   disabled={isAlreadyChanging}
-                  className="w-full bg-slate-900 border border-cyan-500/50 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400 font-semibold disabled:opacity-60"
+                  className="w-full bg-surface border border-cyan-500/50 rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary font-semibold disabled:opacity-60"
                 >
                   <option value="">-- Pilih Target Formula WIP --</option>
                   {availableWips.map((wip) => (
@@ -461,25 +461,25 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                   ))}
                 </select>
                 {targetWipObj && (
-                  <div className="text-[10px] text-slate-400 bg-cyan-950/40 p-2 rounded-lg border border-cyan-800/40 flex items-center justify-between">
+                  <div className="text-[10px] text-ink-secondary bg-tint-cyan p-2 rounded-lg border border-tint-cyan-border flex items-center justify-between">
                     <span>Bobot 1 Batch WIP:</span>
-                    <span className="font-mono text-cyan-300 font-bold">{targetWipObj.batchWeightKg.toFixed(2)} kg</span>
+                    <span className="font-mono text-brand font-bold">{targetWipObj.batchWeightKg.toFixed(2)} kg</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Target Tank WIP Output */}
-            <div className="pt-2 border-t border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                <Cylinder className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="pt-2 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 text-[11px] text-ink-secondary">
+                <Cylinder className="w-3.5 h-3.5 text-ink-indigo" />
                 <span>Tangki Penampung Output WIP (Holding / Storage Tank):</span>
               </div>
               <select
                 value={targetTankId}
                 onChange={(e) => setTargetTankId(e.target.value)}
                 disabled={isAlreadyChanging}
-                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white text-[11px] focus:outline-none focus:border-indigo-400 disabled:opacity-60"
+                className="bg-surface border border-border-strong rounded-xl px-2.5 py-1.5 text-ink-primary text-[11px] focus:outline-none focus:border-indigo-400 disabled:opacity-60"
               >
                 <option value="">-- Tanpa Tangki Khusus (Direct Line) --</option>
                 {availableTanks.map((tank) => (
@@ -494,11 +494,11 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
           {/* Section 2: Klasifikasi Tipe Changeover & Matriks Sanitasi */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-white flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="font-bold text-ink-primary flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-ink-amber" />
                 <span>2. Klasifikasi Tipe Changeover & Matriks Sanitasi</span>
               </span>
-              <span className="text-[10px] text-slate-400">Pilih protokol sesuai resiko alergen & formula</span>
+              <span className="text-[10px] text-ink-secondary">Pilih protokol sesuai resiko alergen & formula</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -512,24 +512,24 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                     onClick={() => !isAlreadyChanging && handleTypeChange(typeKey)}
                     className={`p-3 rounded-2xl border transition text-left cursor-pointer flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-slate-850 border-cyan-500 shadow-md shadow-cyan-950'
-                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                        ? 'bg-elevated border-cyan-500 shadow-md shadow-cyan-950'
+                        : 'bg-canvas border-border-subtle hover:border-border-strong hover:bg-surface'
                     } ${isAlreadyChanging ? 'cursor-default opacity-80' : ''}`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-bold text-white text-xs">{profile.label}</span>
+                        <span className="font-bold text-ink-primary text-xs">{profile.label}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${profile.badgeColor}`}>
                           ~{profile.defaultMinutes} mnt
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-ink-secondary leading-relaxed">
                         {profile.desc}
                       </p>
                     </div>
-                    <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500">Standar GMP</span>
-                      <span className={`font-semibold ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`}>
+                    <div className="pt-2 mt-2 border-t border-border-subtle flex items-center justify-between text-[10px]">
+                      <span className="text-ink-muted">Standar GMP</span>
+                      <span className={`font-semibold ${isSelected ? 'text-brand' : 'text-ink-muted'}`}>
                         {isSelected ? '✓ Terpilih' : 'Pilih'}
                       </span>
                     </div>
@@ -540,14 +540,14 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
           </div>
 
           {/* Section 3: Estimasi Durasi & Timer */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-canvas border border-border-subtle rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <div className="p-2 rounded-xl bg-cyan-500/10 text-brand border border-cyan-500/20">
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-bold text-white block">Estimasi Durasi Changeover (Menit)</span>
-                <span className="text-[11px] text-slate-400">
+                <span className="font-bold text-ink-primary block">Estimasi Durasi Changeover (Menit)</span>
+                <span className="text-[11px] text-ink-secondary">
                   Target waktu henti operasional (downtime terencana) untuk setup formula baru
                 </span>
               </div>
@@ -562,24 +562,24 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 20)}
                 disabled={isAlreadyChanging}
-                className="w-24 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-center text-cyan-400 font-mono font-bold text-sm focus:outline-none focus:border-cyan-400 disabled:opacity-60"
+                className="w-24 bg-surface border border-border-strong rounded-xl px-3 py-1.5 text-center text-brand font-mono font-bold text-sm focus:outline-none focus:border-accent-primary disabled:opacity-60"
               />
-              <span className="text-slate-400 text-xs font-semibold">Menit</span>
+              <span className="text-ink-secondary text-xs font-semibold">Menit</span>
             </div>
           </div>
 
           {/* Section 4: Checklist Standard Line Clearance & Sanitasi */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="bg-canvas border border-border-subtle rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-2">
               <div className="flex items-center space-x-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="font-bold text-white">4. Checklist Line Clearance & Verifikasi Sanitasi</span>
+                <ShieldCheck className="w-4 h-4 text-ink-emerald" />
+                <span className="font-bold text-ink-primary">4. Checklist Line Clearance & Verifikasi Sanitasi</span>
               </div>
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
                   onClick={() => setAllChecklist(true)}
-                  className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-medium"
+                  className="text-[10px] text-brand hover:text-brand underline font-medium"
                 >
                   Tandai Semua Selesai
                 </button>
@@ -587,7 +587,7 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setAllChecklist(false)}
-                  className="text-[10px] text-slate-400 hover:text-white underline font-medium"
+                  className="text-[10px] text-ink-secondary hover:text-ink-primary underline font-medium"
                 >
                   Reset
                 </button>
@@ -600,22 +600,22 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 onClick={() => toggleChecklist('lineClearanceDone')}
                 className={`p-2.5 rounded-xl border flex items-start space-x-3 cursor-pointer transition ${
                   checklist.lineClearanceDone
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-primary'
+                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5 shrink-0">
                   {checklist.lineClearanceDone ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    <CheckSquare className="w-4 h-4 text-ink-emerald" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-500" />
+                    <Square className="w-4 h-4 text-ink-muted" />
                   )}
                 </div>
                 <div>
                   <span className="font-semibold block text-xs">
                     1. Line Clearance & Pengosongan Sisa Material Sebelumnya
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-ink-secondary">
                     Semua sisa adonan, remah, bahan kemasan lama, dan sisa batch formula lama sudah dikeluarkan dari hopper mesin.
                   </span>
                 </div>
@@ -626,22 +626,22 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 onClick={() => toggleChecklist('cleaningSanitationDone')}
                 className={`p-2.5 rounded-xl border flex items-start space-x-3 cursor-pointer transition ${
                   checklist.cleaningSanitationDone
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-primary'
+                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5 shrink-0">
                   {checklist.cleaningSanitationDone ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    <CheckSquare className="w-4 h-4 text-ink-emerald" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-500" />
+                    <Square className="w-4 h-4 text-ink-muted" />
                   )}
                 </div>
                 <div>
                   <span className="font-semibold block text-xs">
                     2. Pembersihan Fisik / Flushing Sanitasi Jalur Pipa Transfer
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-ink-secondary">
                     Proses cuci basah (washdown), vacuuming, atau sirkulasi flushing air sanitasi pada vessel & pipa menuju tangki selesai.
                   </span>
                 </div>
@@ -652,22 +652,22 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 onClick={() => toggleChecklist('toolingMouldSwapped')}
                 className={`p-2.5 rounded-xl border flex items-start space-x-3 cursor-pointer transition ${
                   checklist.toolingMouldSwapped
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-primary'
+                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5 shrink-0">
                   {checklist.toolingMouldSwapped ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    <CheckSquare className="w-4 h-4 text-ink-emerald" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-500" />
+                    <Square className="w-4 h-4 text-ink-muted" />
                   )}
                 </div>
                 <div>
                   <span className="font-semibold block text-xs">
                     3. Penggantian / Penyesuaian Tooling, Cetakan, & Nozzle Dosing
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-ink-secondary">
                     Dies, mata pisau, mould biskuit, atau nozzle depositor terpasang kencang sesuai spesifikasi bentuk SKU/WIP target.
                   </span>
                 </div>
@@ -678,22 +678,22 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 onClick={() => toggleChecklist('parameterConfigured')}
                 className={`p-2.5 rounded-xl border flex items-start space-x-3 cursor-pointer transition ${
                   checklist.parameterConfigured
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-primary'
+                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5 shrink-0">
                   {checklist.parameterConfigured ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    <CheckSquare className="w-4 h-4 text-ink-emerald" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-500" />
+                    <Square className="w-4 h-4 text-ink-muted" />
                   )}
                 </div>
                 <div>
                   <span className="font-semibold block text-xs">
                     4. Konfigurasi Parameter Mesin (Suhu, Speed Mixer, Tekanan)
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-ink-secondary">
                     Setting temperatur heater/cooling jacket, rpm pengaduk, dan timer siklus batching telah disesuaikan dengan resep.
                   </span>
                 </div>
@@ -704,22 +704,22 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 onClick={() => toggleChecklist('qcSwabClearanceDone')}
                 className={`p-2.5 rounded-xl border flex items-start space-x-3 cursor-pointer transition ${
                   checklist.qcSwabClearanceDone
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-white'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-tint-emerald border-emerald-500/50 text-ink-primary'
+                    : 'bg-surface border-border-subtle text-ink-secondary hover:border-border-strong'
                 }`}
               >
                 <div className="mt-0.5 shrink-0">
                   {checklist.qcSwabClearanceDone ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
+                    <CheckSquare className="w-4 h-4 text-ink-emerald" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-500" />
+                    <Square className="w-4 h-4 text-ink-muted" />
                   )}
                 </div>
                 <div>
                   <span className="font-semibold block text-xs">
                     5. Inspeksi Visual Kebersihan & Swab Test Alergen / QC Clearance
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-ink-secondary">
                     Inspeksi visual bebas residu asing, dan verifikasi kelayakan higienitas oleh petugas Quality Control (QC).
                   </span>
                 </div>
@@ -728,10 +728,10 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
           </div>
 
           {/* Section 5: Operator, QC & Catatan Teknis */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/70 border border-slate-800 rounded-2xl p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-canvas border border-border-subtle rounded-2xl p-4">
             <div>
-              <label className="block text-slate-400 font-medium text-[11px] mb-1 flex items-center space-x-1">
-                <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <label className="block text-ink-secondary font-medium text-[11px] mb-1 flex items-center space-x-1">
+                <UserCheck className="w-3.5 h-3.5 text-brand" />
                 <span>Teknisi / Operator Pelaksana *</span>
               </label>
               <input
@@ -739,13 +739,13 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 value={operatorName}
                 onChange={(e) => setOperatorName(e.target.value)}
                 placeholder="e.g. Supriyadi (Shift 1)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
               />
             </div>
 
             <div>
-              <label className="block text-slate-400 font-medium text-[11px] mb-1 flex items-center space-x-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <label className="block text-ink-secondary font-medium text-[11px] mb-1 flex items-center space-x-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-ink-emerald" />
                 <span>Inspektur QC / QA Verifikator</span>
               </label>
               <input
@@ -753,13 +753,13 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 value={qcInspectorName}
                 onChange={(e) => setQcInspectorName(e.target.value)}
                 placeholder="e.g. Siti Rahayu (QC On-Duty)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-slate-400 font-medium text-[11px] mb-1 flex items-center space-x-1">
-                <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <label className="block text-ink-secondary font-medium text-[11px] mb-1 flex items-center space-x-1">
+                <FileText className="w-3.5 h-3.5 text-ink-secondary" />
                 <span>Catatan Teknis / Kondisi Mesin Saat Changeover</span>
               </label>
               <input
@@ -767,16 +767,16 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Suhu jacket awal 45°C stabil, seal nozzle diganti baru, siap transfer ke HT-01"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                className="w-full bg-surface border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent-primary"
               />
             </div>
           </div>
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-            <Info className="w-4 h-4 text-cyan-400 shrink-0" />
+        <div className="p-4 border-t border-border-subtle bg-canvas flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center space-x-2 text-[11px] text-ink-secondary">
+            <Info className="w-4 h-4 text-brand shrink-0" />
             <span>
               Perubahan produk akan mencatat log downtime & memperbarui produk aktif mesin.
             </span>
@@ -786,7 +786,7 @@ export const MachineChangeoverModal: React.FC<MachineChangeoverModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition"
+              className="px-4 py-2 bg-elevated hover:bg-accent text-ink-secondary rounded-xl font-medium transition"
             >
               Tutup
             </button>

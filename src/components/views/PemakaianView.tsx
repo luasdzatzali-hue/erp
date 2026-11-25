@@ -756,30 +756,30 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   return (
     <div className="max-w-[1440px] mx-auto space-y-4">
       {/* OIL & GAS CONTROL ROOM DISPATCH TELEMETRY STRIP */}
-      <div className="bg-[#0c121d] border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-        <div className="px-4 py-3 border-b border-slate-800 bg-[#080c14] flex flex-col md:flex-row md:items-center justify-between gap-2">
+      <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-lg">
+        <div className="px-4 py-3 border-b border-border-subtle bg-surface-header flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-brand flex items-center justify-center shrink-0">
               <Cpu className="w-4 h-4" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-bold text-sm text-white tracking-tight">
+                <h2 className="font-bold text-sm text-ink-primary tracking-tight">
                   Pusat Kendali Produksi WIP &amp; Penyaluran Batch
                 </h2>
                 <span className={`text-[11px] font-mono font-semibold ${currentLiveShift.colorClass}`}>
                   · {currentLiveShift.name} ({currentLiveShift.timeRange})
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-secondary">
                 Pemantauan mesin batching, penjadwalan Gantt, pemotongan FIFO pallet, dan transfer otomatis ke tangki holding/storage.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <span className="text-[11px] font-mono text-slate-400 tabular-nums">
-              Jam Pabrik: <strong className="text-slate-100">{new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</strong>
+            <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
+              Jam Pabrik: <strong className="text-ink-primary">{new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</strong>
             </span>
             {onSwitchTab && (
               <button
@@ -795,27 +795,27 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
         </div>
 
         {/* 4-Column Control Room Readouts */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border-subtle">
           <div className="p-3.5">
-            <span className="text-[11px] text-slate-400 block">Shift Operasional Aktif</span>
+            <span className="text-[11px] text-ink-secondary block">Shift Operasional Aktif</span>
             <div className="flex items-baseline justify-between mt-1">
               <span className={`text-lg font-bold font-mono tabular-nums ${currentLiveShift.colorClass}`}>
                 Shift {currentLiveShift.shift}
               </span>
-              <span className="text-[11px] font-mono text-slate-400 tabular-nums">{currentLiveShift.timeRange}</span>
+              <span className="text-[11px] font-mono text-ink-secondary tabular-nums">{currentLiveShift.timeRange}</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">Sinkronisasi otomatis jam kerja 24 jam</p>
+            <p className="text-[10px] text-ink-muted mt-1">Sinkronisasi otomatis jam kerja 24 jam</p>
           </div>
 
           <div className="p-3.5">
-            <span className="text-[11px] text-slate-400 block">Batch WIP Sedang Jalan</span>
+            <span className="text-[11px] text-ink-secondary block">Batch WIP Sedang Jalan</span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className={`text-lg font-bold font-mono tabular-nums ${allActiveBatches.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+              <span className={`text-lg font-bold font-mono tabular-nums ${allActiveBatches.length > 0 ? 'text-ink-amber' : 'text-ink-emerald'}`}>
                 {allActiveBatches.length} Batch
               </span>
-              <span className="text-[11px] font-mono text-cyan-400 tabular-nums">{activeBatchTotalKg.toFixed(1)} kg</span>
+              <span className="text-[11px] font-mono text-brand tabular-nums">{activeBatchTotalKg.toFixed(1)} kg</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-ink-muted mt-1">
               {pausedBatchesCount > 0
                 ? `${runningBatchesCount} jalan · ${pausedBatchesCount} dijeda (maks 1/mesin)`
                 : 'Kapasitas terkunci: maks 1 batch / mesin'}
@@ -823,43 +823,43 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           </div>
 
           <div className="p-3.5">
-            <span className="text-[11px] text-slate-400 block">Utilisasi Mesin Batching</span>
+            <span className="text-[11px] text-ink-secondary block">Utilisasi Mesin Batching</span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-bold font-mono tabular-nums text-slate-100">
+              <span className="text-lg font-bold font-mono tabular-nums text-ink-primary">
                 {busyMachineIds.size} / {state.master.machines.length}
               </span>
-              <span className="text-[11px] font-mono text-emerald-400 tabular-nums">{operationalMachinesCount} Operasional</span>
+              <span className="text-[11px] font-mono text-ink-emerald tabular-nums">{operationalMachinesCount} Operasional</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-ink-muted mt-1">
               {Math.max(0, operationalMachinesCount - busyMachineIds.size)} unit mesin siaga menerima dispatch
             </p>
           </div>
 
           <div className="p-3.5">
-            <span className="text-[11px] text-slate-400 block">Konsumsi Material Shift {currentLiveShift.shift}</span>
+            <span className="text-[11px] text-ink-secondary block">Konsumsi Material Shift {currentLiveShift.shift}</span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-bold font-mono tabular-nums text-cyan-400">
+              <span className="text-lg font-bold font-mono tabular-nums text-brand">
                 {currentShiftStats.totalKg.toFixed(1)} kg
               </span>
-              <span className="text-[11px] font-mono text-slate-300 tabular-nums">{currentShiftStats.batchesCount} Batch</span>
+              <span className="text-[11px] font-mono text-ink-secondary tabular-nums">{currentShiftStats.batchesCount} Batch</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">{currentShiftStats.count} transaksi pemotongan stok BOM</p>
+            <p className="text-[10px] text-ink-muted mt-1">{currentShiftStats.count} transaksi pemotongan stok BOM</p>
           </div>
         </div>
       </div>
 
       {/* Active & Paused WIP Batches Pipeline Monitor */}
       {allActiveBatches.length > 0 && (
-        <div className="bg-[#0c121d] border border-amber-500/40 rounded-xl p-3.5 space-y-2.5 shadow-lg">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+        <div className="bg-surface border border-amber-500/40 rounded-xl p-3.5 space-y-2.5 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border-subtle">
             <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-amber-400 shrink-0" />
-              <h4 className="font-bold text-xs sm:text-sm text-white">
+              <Activity className="w-4 h-4 text-ink-amber shrink-0" />
+              <h4 className="font-bold text-xs sm:text-sm text-ink-primary">
                 Aliran Batch Aktif di Lantai Produksi ({runningBatchesCount} Berjalan
                 {pausedBatchesCount > 0 ? ` · ${pausedBatchesCount} Dijeda` : ''})
               </h4>
             </div>
-            <span className="text-[11px] font-mono text-amber-300">
+            <span className="text-[11px] font-mono text-ink-amber">
               Aturan Disiplin · 1 Batch Aktif / Mesin
             </span>
           </div>
@@ -890,27 +890,27 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               return (
                 <div
                   key={batch.id}
-                  className={`bg-[#06090f] border p-3 rounded-lg space-y-2 transition ${
-                    isPaused ? 'border-sky-500/50' : 'border-slate-800 hover:border-amber-500/50'
+                  className={`bg-canvas border p-3 rounded-lg space-y-2 transition ${
+                    isPaused ? 'border-sky-500/50' : 'border-border-subtle hover:border-amber-500/50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                        <span className={`font-bold ${isPaused ? 'text-sky-400' : 'text-amber-400'}`}>
+                        <span className={`font-bold ${isPaused ? 'text-ink-sky' : 'text-ink-amber'}`}>
                           {batch.batchCode}
                         </span>
                         {isPaused && (
-                          <span className="text-[10px] font-bold text-sky-300">
+                          <span className="text-[10px] font-bold text-ink-sky">
                             · DIJEDA
                           </span>
                         )}
                         {batch.recipeCode && (
-                          <span className="text-slate-400">· {batch.recipeCode}</span>
+                          <span className="text-ink-secondary">· {batch.recipeCode}</span>
                         )}
                       </div>
-                      <p className="font-semibold text-xs text-white truncate mt-0.5">{batch.wipName}</p>
-                      <p className="text-[10px] font-mono text-slate-400 mt-0.5 truncate">
+                      <p className="font-semibold text-xs text-ink-primary truncate mt-0.5">{batch.wipName}</p>
+                      <p className="text-[10px] font-mono text-ink-secondary mt-0.5 truncate">
                         {bMach ? bMach.code : 'Mesin'} ➔ {bTank ? bTank.code : 'Tangki'} · {batch.batchWeightKg.toFixed(1)} kg · {batch.operatorName}
                       </p>
                     </div>
@@ -952,14 +952,14 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   </div>
 
                   {isPaused && batch.pauseReason && (
-                    <div className="px-2 py-1 rounded bg-sky-950/60 border border-sky-700/60 text-[10px] text-sky-200 truncate" title={batch.pauseReason}>
+                    <div className="px-2 py-1 rounded bg-tint-sky border border-sky-700/60 text-[10px] text-ink-sky truncate" title={batch.pauseReason}>
                       Alasan jeda: <strong>{batch.pauseReason}</strong>
                     </div>
                   )}
 
                   {/* Elapsed Progress Gauge (Frozen when paused) */}
                   <div className="space-y-1">
-                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-elevated rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-500 ${
                           isPaused ? 'bg-sky-400' : remMs <= 0 ? 'bg-emerald-400' : 'bg-amber-400'
@@ -968,16 +968,16 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       />
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
-                      <span className="text-slate-400">
+                      <span className="text-ink-secondary">
                         Progres {pct.toFixed(0)}%{isPaused ? ' (Berhenti)' : ''}
                       </span>
                       <span
                         className={
                           isPaused
-                            ? 'text-sky-300 font-semibold'
+                            ? 'text-ink-sky font-semibold'
                             : remMs <= 0
-                            ? 'text-emerald-400 font-bold'
-                            : 'text-amber-300 font-semibold'
+                            ? 'text-ink-emerald font-bold'
+                            : 'text-ink-amber font-semibold'
                         }
                       >
                         {isPaused
@@ -996,14 +996,14 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
       )}
 
       {/* Control Room Workspace Selector Bar */}
-      <div className="bg-[#0c121d] border border-slate-800 p-1.5 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+      <div className="bg-surface border border-border-subtle p-1.5 rounded-xl flex items-center justify-between gap-2 shadow-sm">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('batch-order')}
             className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'batch-order'
                 ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <PlayCircle className="w-3.5 h-3.5" />
@@ -1015,7 +1015,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'gantt-schedule'
                 ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -1027,7 +1027,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'batch-history'
                 ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -1039,7 +1039,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'material-history'
                 ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <History className="w-3.5 h-3.5" />
@@ -1051,7 +1051,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition flex items-center gap-1.5 ${
               activeTab === 'shift-activity'
                 ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -1065,8 +1065,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             onClick={() => setShowInlineGantt(v => !v)}
             className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap shrink-0 ${
               showInlineGantt
-                ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
-                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                ? 'bg-cyan-500/15 border-cyan-500/40 text-brand'
+                : 'bg-surface border-border-strong text-ink-secondary hover:text-ink-primary'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -1106,17 +1106,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             />
           )}
 
-          <div className="bg-[#0c121d] border border-slate-800 p-4 sm:p-5 rounded-xl shadow-lg space-y-4">
-            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isBatchOrderFormOpen ? 'pb-3 border-b border-slate-800' : ''}`}>
+          <div className="bg-surface border border-border-subtle p-4 sm:p-5 rounded-xl shadow-lg space-y-4">
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isBatchOrderFormOpen ? 'pb-3 border-b border-border-subtle' : ''}`}>
               <div className="flex items-center space-x-2.5">
-                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-brand">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">
+                  <h3 className="font-bold text-sm text-ink-primary">
                     Perintah Kerja Produksi WIP (Kapasitas 1 Batch per Periode)
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink-secondary">
                     Pilih jenis WIP &amp; mesin untuk memuat formulasi resep BOM serta alokasi FIFO secara otomatis
                   </p>
                 </div>
@@ -1133,20 +1133,20 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsQrLabelOpen(true)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent text-ink-primary border border-border-strong text-xs font-semibold flex items-center space-x-1.5 transition whitespace-nowrap shrink-0"
                   title="Buat & unduh label QR untuk kemasan bahan baku"
                 >
-                  <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                  <Tag className="w-3.5 h-3.5 text-brand" />
                   <span>Label QR</span>
                 </button>
-                <span className="text-[11px] font-mono text-slate-400">
+                <span className="text-[11px] font-mono text-ink-secondary">
                   1 Batch / Mesin
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsBatchOrderFormOpen(prev => !prev)}
                   aria-expanded={isBatchOrderFormOpen}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-ink-secondary hover:text-ink-primary text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
                 >
                   {isBatchOrderFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   <span>{isBatchOrderFormOpen ? 'Tutup Form' : 'Buka Form'}</span>
@@ -1158,11 +1158,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             <>
 
           {suggestedWipsFromScan && (
-            <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 space-y-2 text-xs">
+            <div className="p-3.5 rounded-xl bg-tint-cyan border border-cyan-500/40 space-y-2 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <QrCode className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <p className="font-semibold text-white truncate">
+                  <QrCode className="w-4 h-4 text-brand shrink-0" />
+                  <p className="font-semibold text-ink-primary truncate">
                     Material Terpindai: {suggestedWipsFromScan.materialCode ? `[${suggestedWipsFromScan.materialCode}] ` : ''}
                     {suggestedWipsFromScan.materialName} · Pilih Target WIP:
                   </p>
@@ -1170,7 +1170,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSuggestedWipsFromScan(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+                  className="p-1 rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-elevated shrink-0"
                   aria-label="Tutup saran WIP"
                 >
                   <X className="w-4 h-4" />
@@ -1189,7 +1189,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       setWipId(w.id);
                       setSuggestedWipsFromScan(null);
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-600 text-white border border-slate-700 hover:border-cyan-400 text-xs font-semibold transition whitespace-nowrap shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-elevated hover:bg-cyan-600 text-ink-primary border border-border-strong hover:border-cyan-400 text-xs font-semibold transition whitespace-nowrap shrink-0"
                   >
                     [{w.code}] {w.name}
                   </button>
@@ -1198,12 +1198,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleStartBatchSubmit} className="space-y-4 text-xs bg-slate-950/40 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4">
+          <form onSubmit={handleStartBatchSubmit} className="space-y-4 text-xs bg-canvas border border-border-subtle rounded-2xl p-3.5 sm:p-4">
             {/* Header Form Row: SKU, WIP Selection, Recipe Selection, Machine Selection, Target Tank Selection, Fixed Batch Count */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
               {/* Optional SKU context */}
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                   SKU Target (Opsional)
                 </label>
                 <select
@@ -1212,7 +1212,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     setSkuId(e.target.value);
                     setWipId('');
                   }}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 text-xs"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-purple-500 text-xs"
                 >
                   <option value="">-- Semua / Pilih SKU --</option>
                   {state.master.skus.map(s => (
@@ -1226,11 +1226,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               {/* WIP Selection (1 WIP = 1 Unique Code, Integrates with BOM immediately) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-purple-300 font-semibold">
+                  <label className="block text-[11px] font-medium text-ink-purple font-semibold">
                     Target WIP *
                   </label>
                   {selectedWipObj?.code && (
-                    <span className="font-mono text-[10px] text-amber-300 font-bold px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/20">
+                    <span className="font-mono text-[10px] text-ink-amber font-bold px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/20">
                       {selectedWipObj.code}
                     </span>
                   )}
@@ -1239,7 +1239,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   value={wipId}
                   onChange={(e) => setWipId(e.target.value)}
                   required
-                  className="w-full bg-slate-800 border border-purple-500/40 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400 font-semibold text-xs"
+                  className="w-full bg-elevated border border-purple-500/40 rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-purple-400 font-semibold text-xs"
                 >
                   <option value="">-- Pilih Jenis WIP --</option>
                   {availableWips.map(w => (
@@ -1253,12 +1253,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               {/* Recipe Selection (Required step after selecting target WIP) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-amber-300 font-semibold flex items-center space-x-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <label className="block text-[11px] font-medium text-ink-amber font-semibold flex items-center space-x-1">
+                    <Sparkles className="w-3.5 h-3.5 text-ink-amber" />
                     <span>Resep Formulasi *</span>
                   </label>
                   {activeRecipeObj && (
-                    <span className="text-[10px] text-amber-400 font-mono">
+                    <span className="text-[10px] text-ink-amber font-mono">
                       {activeRecipeObj.recipeCode}
                     </span>
                   )}
@@ -1268,7 +1268,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   onChange={(e) => setSelectedRecipeId(e.target.value)}
                   disabled={!wipId}
                   required
-                  className="w-full bg-slate-800 border border-amber-500/50 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400 font-semibold text-xs disabled:opacity-50"
+                  className="w-full bg-elevated border border-amber-500/50 rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-amber-400 font-semibold text-xs disabled:opacity-50"
                 >
                   {availableRecipesForWip.length === 0 ? (
                     <option value="">-- {wipId ? 'Belum Ada Resep (Default BOM)' : 'Pilih WIP Dahulu'} --</option>
@@ -1288,12 +1288,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               {/* Production Machine Selection from Master Database */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-cyan-300 font-semibold flex items-center space-x-1">
-                    <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                  <label className="block text-[11px] font-medium text-brand font-semibold flex items-center space-x-1">
+                    <Cpu className="w-3.5 h-3.5 text-brand" />
                     <span>Mesin Produksi *</span>
                   </label>
                   {selectedMachineId && (
-                    <span className="text-[10px] text-cyan-400 font-mono">
+                    <span className="text-[10px] text-brand font-mono">
                       {state.master.machines.find(m => m.id === selectedMachineId)?.code || ''}
                     </span>
                   )}
@@ -1302,7 +1302,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   value={selectedMachineId}
                   onChange={(e) => setSelectedMachineId(e.target.value)}
                   required
-                  className="w-full bg-slate-800 border border-cyan-500/50 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400 font-semibold text-xs"
+                  className="w-full bg-elevated border border-cyan-500/50 rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-accent-primary font-semibold text-xs"
                 >
                   <option value="">-- Pilih Mesin Master --</option>
                   {state.master.machines.map(m => {
@@ -1323,12 +1323,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               {/* Target Transfer Tank Selection (Multi-tank support: Holding Tanks & Storage Tanks) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-purple-300 font-semibold flex items-center space-x-1">
-                    <Database className="w-3.5 h-3.5 text-purple-400" />
+                  <label className="block text-[11px] font-medium text-ink-purple font-semibold flex items-center space-x-1">
+                    <Database className="w-3.5 h-3.5 text-ink-purple" />
                     <span>Tangki Transfer *</span>
                   </label>
                   {selectedTargetTankId && (
-                    <span className="text-[10px] text-purple-400 font-mono">
+                    <span className="text-[10px] text-ink-purple font-mono">
                       {state.master.tanks.find(t => t.id === selectedTargetTankId)?.code || ''}
                     </span>
                   )}
@@ -1338,7 +1338,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   onChange={(e) => setSelectedTargetTankId(e.target.value)}
                   disabled={!wipId}
                   required
-                  className="w-full bg-slate-800 border border-purple-500/50 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400 font-semibold text-xs disabled:opacity-50"
+                  className="w-full bg-elevated border border-purple-500/50 rounded-xl px-3 py-2 text-ink-primary focus:outline-none focus:border-purple-400 font-semibold text-xs disabled:opacity-50"
                 >
                   <option value="">-- Pilih Tangki Penampungan --</option>
                   {state.master.tanks.map(t => {
@@ -1357,19 +1357,19 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               {/* Fixed Batch Count (1 batch per production period rule) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[11px] font-medium text-slate-300">
+                  <label className="block text-[11px] font-medium text-ink-secondary">
                     Jumlah Batch
                   </label>
-                  <span className="text-[10px] text-amber-400 font-mono">Terkunci: 1 Batch</span>
+                  <span className="text-[10px] text-ink-amber font-mono">Terkunci: 1 Batch</span>
                 </div>
                 <div className="relative">
                   <input
                     type="number"
                     disabled
                     value="1.0000"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-400 font-mono font-bold cursor-not-allowed text-xs"
+                    className="w-full bg-canvas border border-border-subtle rounded-xl px-3 py-2 text-ink-amber font-mono font-bold cursor-not-allowed text-xs"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 font-mono">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-mono">
                     1 Batch
                   </span>
                 </div>
@@ -1378,33 +1378,33 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
             {/* Active Recipe Summary Preview */}
             {activeRecipeObj && (
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-800/80 rounded-xl border border-amber-500/30 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-elevated rounded-xl border border-amber-500/30 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="p-1 rounded-lg bg-amber-500/20 text-amber-400">
+                  <div className="p-1 rounded-lg bg-amber-500/20 text-ink-amber">
                     <Sparkles className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-slate-300">
-                    Resep Formulasi Acuan: <strong className="text-white font-mono">[{activeRecipeObj.recipeCode}]</strong> <strong className="text-amber-300">{activeRecipeObj.recipeName}</strong>
+                  <span className="text-ink-secondary">
+                    Resep Formulasi Acuan: <strong className="text-ink-primary font-mono">[{activeRecipeObj.recipeCode}]</strong> <strong className="text-ink-amber">{activeRecipeObj.recipeName}</strong>
                   </span>
                   {activeRecipeObj.isDefault && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-tint-cyan text-brand border border-tint-cyan-border">
                       Resep Utama (Default)
                     </span>
                   )}
                   {activeRecipeObj.description && (
-                    <span className="text-slate-400 text-[11px] hidden md:inline">({activeRecipeObj.description})</span>
+                    <span className="text-ink-secondary text-[11px] hidden md:inline">({activeRecipeObj.description})</span>
                   )}
                 </div>
-                <div className="flex items-center space-x-3 text-[11px] font-mono text-slate-400">
-                  <span>Bobot Resep: <strong className="text-cyan-300">{activeRecipeObj.totalWeightKg.toFixed(4)} kg/batch</strong></span>
-                  <span>Komposisi: <strong className="text-amber-300">{activeRecipeObj.items.length} Bahan (Padat/Bubuk/Liquid)</strong></span>
+                <div className="flex items-center space-x-3 text-[11px] font-mono text-ink-secondary">
+                  <span>Bobot Resep: <strong className="text-brand">{activeRecipeObj.totalWeightKg.toFixed(4)} kg/batch</strong></span>
+                  <span>Komposisi: <strong className="text-ink-amber">{activeRecipeObj.items.length} Bahan (Padat/Bubuk/Liquid)</strong></span>
                 </div>
               </div>
             )}
 
             {/* Selected Machine Detail Card Preview */}
             {selectedMachineId && (
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-800/70 rounded-xl border border-cyan-500/30 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-elevated rounded-xl border border-cyan-500/30 text-xs">
                 {(() => {
                   const m = state.master.machines.find(mach => mach.id === selectedMachineId);
                   if (!m) return null;
@@ -1414,30 +1414,30 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   return (
                     <>
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="p-1 rounded-lg bg-cyan-500/20 text-cyan-400">
+                        <div className="p-1 rounded-lg bg-cyan-500/20 text-brand">
                           <Cpu className="w-3.5 h-3.5" />
                         </div>
-                        <span className="text-slate-300">
-                          Mesin: <strong className="text-white">{m.code} - {m.name}</strong> ({m.line})
+                        <span className="text-ink-secondary">
+                          Mesin: <strong className="text-ink-primary">{m.code} - {m.name}</strong> ({m.line})
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           m.status === 'OPERATIONAL'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                            : 'bg-amber-950 text-amber-400 border border-amber-800'
+                            ? 'bg-tint-emerald text-ink-emerald border border-tint-emerald-border'
+                            : 'bg-tint-amber text-ink-amber border border-tint-amber-border'
                         }`}>
                           {m.status === 'OPERATIONAL' ? 'Status: Operasional' : `Status: ${m.status}`}
                         </span>
                         {isBusy && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-tint-rose text-ink-rose border border-tint-rose-border animate-pulse">
                             Sedang Memproses Batch Lain
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-3 text-[11px] font-mono text-slate-400">
-                        <span>Kapasitas: <strong className="text-cyan-300">{m.capacityKgPerHour} kg/jam</strong></span>
+                      <div className="flex items-center space-x-3 text-[11px] font-mono text-ink-secondary">
+                        <span>Kapasitas: <strong className="text-brand">{m.capacityKgPerHour} kg/jam</strong></span>
                         {selectedWipObj && (
                           <span>
-                            Tangki Tujuan: <strong className="text-purple-300">{state.master.tanks.find(t => t.id === selectedWipObj.targetTankId)?.code || 'Holding Tank'}</strong>
+                            Tangki Tujuan: <strong className="text-ink-purple">{state.master.tanks.find(t => t.id === selectedWipObj.targetTankId)?.code || 'Holding Tank'}</strong>
                           </span>
                         )}
                       </div>
@@ -1450,43 +1450,43 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             {/* Operator, Shift Selection, Duration, and Notes row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                   Operator Penanggung Jawab
                 </label>
                 <div className="relative">
-                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <User className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     required
                     value={operatorName}
                     onChange={(e) => setOperatorName(e.target.value)}
                     placeholder="Contoh: Sutrisno (Leader Batching)"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl pl-9 pr-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-purple-500"
                   />
                 </div>
               </div>
 
               {/* Shift Otomatis Sesuai Jam Shift Berjalan */}
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                   Shift Pemakaian Material (Jam Aktual)
                 </label>
-                <div className={`w-full bg-slate-800/90 border ${currentLiveShift.borderClass} rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-between`}>
+                <div className={`w-full bg-elevated border ${currentLiveShift.borderClass} rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-between`}>
                   <span className={currentLiveShift.colorClass}>
                     {currentLiveShift.name} ({currentLiveShift.timeRange})
                   </span>
-                  <span className="text-[10px] font-mono text-emerald-400">Otomatis</span>
+                  <span className="text-[10px] font-mono text-ink-emerald">Otomatis</span>
                 </div>
               </div>
 
               {/* Konfigurasi Lama Waktu Produksi WIP (Menit) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-amber-300 flex items-center space-x-1">
-                    <Clock className="w-3 h-3 text-amber-400" />
+                  <label className="block text-[11px] font-medium text-ink-amber flex items-center space-x-1">
+                    <Clock className="w-3 h-3 text-ink-amber" />
                     <span>Lama Waktu Produksi</span>
                   </label>
-                  <span className="text-[10px] text-amber-400 font-mono font-bold">
+                  <span className="text-[10px] text-ink-amber font-mono font-bold">
                     {batchDurationMinutes} mnt
                   </span>
                 </div>
@@ -1498,7 +1498,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     value={batchDurationMinutes}
                     onChange={(e) => setBatchDurationMinutes(e.target.value)}
                     required
-                    className="w-20 bg-slate-800 border border-amber-500/50 rounded-xl px-2.5 py-2 text-white font-mono font-bold focus:outline-none focus:border-amber-400 text-xs"
+                    className="w-20 bg-elevated border border-amber-500/50 rounded-xl px-2.5 py-2 text-ink-primary font-mono font-bold focus:outline-none focus:border-amber-400 text-xs"
                   />
                   <div className="grid grid-cols-4 gap-0.5 flex-1">
                     {['15', '30', '45', '60'].map(mins => (
@@ -1509,7 +1509,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                         className={`py-1 rounded text-[10px] font-mono transition text-center ${
                           batchDurationMinutes === mins
                             ? 'bg-amber-500 text-slate-950 font-bold'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            : 'bg-elevated hover:bg-accent text-ink-secondary'
                         }`}
                       >
                         {mins}m
@@ -1520,7 +1520,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1">
                   Catatan Batch / Line
                 </label>
                 <input
@@ -1528,7 +1528,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Contoh: Batching line wafer shift 1"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl px-3 py-2 text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-purple-500"
                 />
               </div>
             </div>
@@ -1557,8 +1557,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 <div
                   className={`p-4 rounded-2xl space-y-3 shadow-xl border ${
                     isPaused
-                      ? 'bg-sky-950/40 border-sky-500/60'
-                      : 'bg-gradient-to-r from-amber-950/40 via-purple-950/40 to-slate-900 border-amber-500/50'
+                      ? 'bg-tint-sky border-sky-500/60'
+                      : 'bg-gradient-to-r from-tint-amber via-tint-purple to-surface border-amber-500/50'
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -1566,14 +1566,14 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       <div
                         className={`p-2 rounded-xl shrink-0 ${
                           isPaused
-                            ? 'bg-sky-950 border border-sky-700 text-sky-300'
-                            : 'bg-amber-500/20 text-amber-400 animate-pulse'
+                            ? 'bg-tint-sky border border-sky-700 text-ink-sky'
+                            : 'bg-amber-500/20 text-ink-amber animate-pulse'
                         }`}
                       >
                         {isPaused ? <PauseCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
                       </div>
                       <div>
-                        <h4 className="font-bold text-white text-xs sm:text-sm flex flex-wrap items-center gap-2">
+                        <h4 className="font-bold text-ink-primary text-xs sm:text-sm flex flex-wrap items-center gap-2">
                           <span>
                             {isPaused
                               ? 'Batch WIP Sedang Di-Pause Sementara (Timer Dihentikan)'
@@ -1582,26 +1582,26 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-mono ${
                               isPaused
-                                ? 'bg-sky-950 text-sky-300 border border-sky-700'
-                                : 'bg-amber-500/30 text-amber-200'
+                                ? 'bg-tint-sky text-ink-sky border border-sky-700'
+                                : 'bg-amber-500/30 text-ink-amber'
                             }`}
                           >
                             {activeBatchForSelectedMachine.batchCode}
                           </span>
                         </h4>
-                        <p className="text-xs text-slate-300 mt-0.5">
-                          Mesin: <strong className="text-cyan-400">{targetMach ? `${targetMach.code} - ${targetMach.name}` : 'Mesin'}</strong> • WIP: <strong>"{activeBatchForSelectedMachine.wipName}"</strong> • {activeBatchForSelectedMachine.batchWeightKg.toFixed(2)} kg • Operator: <strong>{activeBatchForSelectedMachine.operatorName}</strong>
+                        <p className="text-xs text-ink-secondary mt-0.5">
+                          Mesin: <strong className="text-brand">{targetMach ? `${targetMach.code} - ${targetMach.name}` : 'Mesin'}</strong> • WIP: <strong>"{activeBatchForSelectedMachine.wipName}"</strong> • {activeBatchForSelectedMachine.batchWeightKg.toFixed(2)} kg • Operator: <strong>{activeBatchForSelectedMachine.operatorName}</strong>
                         </p>
                       </div>
                     </div>
 
                     {/* Live or Frozen Timer Box */}
                     <div
-                      className={`text-right shrink-0 bg-slate-950/80 px-3 py-1.5 rounded-xl border ${
+                      className={`text-right shrink-0 bg-canvas px-3 py-1.5 rounded-xl border ${
                         isPaused ? 'border-sky-500/50' : 'border-amber-500/40'
                       }`}
                     >
-                      <span className="text-[10px] text-slate-400 block uppercase font-mono">
+                      <span className="text-[10px] text-ink-secondary block uppercase font-mono">
                         {isPaused
                           ? 'Waktu Dihentikan Sementara'
                           : isOverdue
@@ -1611,10 +1611,10 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       <span
                         className={`font-mono tabular-nums text-sm font-black ${
                           isPaused
-                            ? 'text-sky-300'
+                            ? 'text-ink-sky'
                             : isOverdue
-                            ? 'text-emerald-400 animate-pulse'
-                            : 'text-amber-400'
+                            ? 'text-ink-emerald animate-pulse'
+                            : 'text-ink-amber'
                         }`}
                       >
                         {isPaused
@@ -1628,17 +1628,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                   {/* Active Pause Reason & Audit Banner */}
                   {isPaused && (activeBatchForSelectedMachine.pauseReason || latestPauseLog) && (
-                    <div className="p-2.5 rounded-xl bg-sky-950/60 border border-sky-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-tint-sky border border-sky-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                       <div className="space-y-0.5">
-                        <span className="text-[11px] font-bold text-sky-300 block">
+                        <span className="text-[11px] font-bold text-ink-sky block">
                           Log Alasan Pause ({latestPauseLog?.category || 'Lainnya'}):
                         </span>
-                        <p className="text-white font-medium">
+                        <p className="text-ink-primary font-medium">
                           {latestPauseLog?.reason || activeBatchForSelectedMachine.pauseReason}
                         </p>
                       </div>
                       {latestPauseLog && (
-                        <div className="text-[10px] font-mono text-slate-300 sm:text-right shrink-0">
+                        <div className="text-[10px] font-mono text-ink-secondary sm:text-right shrink-0">
                           <div>Oleh: <strong>{latestPauseLog.pausedBy}</strong></div>
                           <div>Mulai jeda: {new Date(latestPauseLog.pausedAt).toLocaleTimeString('id-ID')}</div>
                         </div>
@@ -1647,23 +1647,23 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   )}
 
                   {/* Destination Tank & Machine Badges */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t border-slate-800">
+                  <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t border-border-subtle">
                     {targetMach && (
-                      <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 font-mono text-[11px]">
-                        Mesin: <strong className="text-cyan-400">{targetMach.code} - {targetMach.name}</strong>
+                      <span className="px-2 py-1 rounded-lg bg-elevated text-ink-secondary border border-border-strong font-mono text-[11px]">
+                        Mesin: <strong className="text-brand">{targetMach.code} - {targetMach.name}</strong>
                       </span>
                     )}
                     {targetTank && (
-                      <span className="px-2 py-1 rounded-lg bg-cyan-950/70 text-cyan-200 border border-cyan-700/60 font-mono text-[11px]">
-                        ➔ Tujuan Transfer: <strong className="text-cyan-300">{targetTank.code} ({targetTank.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})</strong>
+                      <span className="px-2 py-1 rounded-lg bg-tint-cyan text-brand border border-cyan-700/60 font-mono text-[11px]">
+                        ➔ Tujuan Transfer: <strong className="text-brand">{targetTank.code} ({targetTank.type === 'HOLDING_TANK' ? 'Holding Tank' : 'Storage Tank'})</strong>
                       </span>
                     )}
                     {typeof activeBatchForSelectedMachine.totalPausedMs === 'number' && activeBatchForSelectedMachine.totalPausedMs > 0 && (
-                      <span className="px-2 py-1 rounded-lg bg-sky-950/60 text-sky-300 border border-sky-800 font-mono text-[11px]">
+                      <span className="px-2 py-1 rounded-lg bg-tint-sky text-ink-sky border border-tint-sky-border font-mono text-[11px]">
                         Akumulasi Jeda: {formatPauseDurationMs(activeBatchForSelectedMachine.totalPausedMs)}
                       </span>
                     )}
-                    <span className="text-[11px] text-slate-400 ml-auto italic">
+                    <span className="text-[11px] text-ink-secondary ml-auto italic">
                       {isPaused
                         ? 'Tekan "Lanjutkan Produksi" agar penghitungan estimasi berjalan kembali.'
                         : 'Otomatis tertransfer ke tangki & alarm berbunyi saat durasi tuntas.'}
@@ -1671,11 +1671,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   </div>
 
                   {/* Direct Actions: Cancel, Pause/Resume, Complete */}
-                  <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-border-subtle">
                     <button
                       type="button"
                       onClick={() => onCancelWipBatch(activeBatchForSelectedMachine.id)}
-                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-rose-400 hover:bg-slate-700 text-xs font-semibold transition"
+                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-elevated border border-border-strong text-ink-rose hover:bg-accent text-xs font-semibold transition"
                     >
                       Batalkan Perintah Kerja
                     </button>
@@ -1717,17 +1717,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
             {/* INTEGRATED BOM MATERIAL BREAKDOWN CARD (Auto-determined when WIP and Recipe are selected) */}
             {selectedWipObj && (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3 shadow-inner">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800 gap-2">
+              <div className="bg-canvas border border-border-subtle rounded-xl p-4 space-y-3 shadow-inner">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-border-subtle gap-2">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400">
+                    <div className="p-1 rounded-lg bg-amber-500/10 text-ink-amber">
                       <Boxes className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-white">
+                      <h4 className="font-bold text-xs sm:text-sm text-ink-primary">
                         Formulasi {activeRecipeObj ? `Resep [${activeRecipeObj.recipeCode}]` : 'BOM Terpisah'} untuk 1 Batch: {selectedWipObj.name}
                       </h4>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px] text-ink-secondary">
                         {activeRecipeObj
                           ? `Komposisi bahan baku ditentukan dari Resep Formulasi: ${activeRecipeObj.recipeName} (${activeRecipeObj.items.length} bahan: Padat, Bubuk, Liquid)`
                           : 'Material terpakai langsung ditentukan otomatis dari database BOM terhubung'}
@@ -1737,13 +1737,13 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   <div className="flex flex-wrap items-center gap-3">
                     {configuredMaterials.length > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono text-slate-300 tabular-nums">
-                          Verifikasi QR: <strong className={verifiedCountInBom === configuredMaterials.length ? 'text-emerald-400' : 'text-cyan-400'}>{verifiedCountInBom}/{configuredMaterials.length}</strong>
+                        <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
+                          Verifikasi QR: <strong className={verifiedCountInBom === configuredMaterials.length ? 'text-ink-emerald' : 'text-brand'}>{verifiedCountInBom}/{configuredMaterials.length}</strong>
                         </span>
                         <button
                           type="button"
                           onClick={() => setIsQrScannerOpen(true)}
-                          className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
+                          className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-brand border border-cyan-500/40 text-[11px] font-semibold flex items-center gap-1 transition whitespace-nowrap shrink-0"
                         >
                           <QrCode className="w-3 h-3" />
                           <span>Scan Verifikasi</span>
@@ -1751,11 +1751,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       </div>
                     )}
                     <div className="text-right">
-                      <span className="text-[11px] text-slate-400">Bobot Formulasi: </span>
-                      <span className="font-mono font-bold text-cyan-400 text-xs sm:text-sm">
+                      <span className="text-[11px] text-ink-secondary">Bobot Formulasi: </span>
+                      <span className="font-mono font-bold text-brand text-xs sm:text-sm">
                         {totalBOMKg.toFixed(4)} kg
                       </span>
-                      <span className="text-[10px] text-slate-500 ml-1">
+                      <span className="text-[10px] text-ink-muted ml-1">
                         / Target: {selectedWipObj.batchWeightKg.toFixed(4)} kg
                       </span>
                     </div>
@@ -1766,18 +1766,18 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-900/80 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                        <tr className="bg-surface text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                           <th className="py-2.5 px-3">Bahan Baku (Database)</th>
                           <th className="py-2.5 px-3">Tipe & Kemasan</th>
                           <th className="py-2.5 px-3">Takaran Resep</th>
                           <th className="py-2.5 px-3">Lokasi Ambil</th>
                           <th className="py-2.5 px-3 text-right">Stok Tersedia</th>
                           <th className="py-2.5 px-3 text-right">Standar Resep (kg)</th>
-                          <th className="py-2.5 px-3 text-right font-bold text-purple-300">Aktual Dipakai (kg)</th>
+                          <th className="py-2.5 px-3 text-right font-bold text-ink-purple">Aktual Dipakai (kg)</th>
                           <th className="py-2.5 px-3 text-center">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/80">
+                      <tbody className="divide-y divide-border-subtle">
                         {configuredMaterials.map(item => {
                           const bal = stockBalances[item.materialId];
                           let available = 0;
@@ -1790,10 +1790,10 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                           const typeBadgeColor =
                             item.materialType === 'padat'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              ? 'bg-amber-500/20 text-ink-amber border-amber-500/30'
                               : item.materialType === 'liquid'
-                              ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                              ? 'bg-blue-500/20 text-ink-blue border-blue-500/30'
+                              : 'bg-emerald-500/20 text-ink-emerald border-emerald-500/30';
 
                           const availablePallets = getMaterialPalletInventory(state, item.materialId, item.sourceLocation);
                           const hasPallets = availablePallets.length > 0;
@@ -1803,15 +1803,15 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                           return (
                             <React.Fragment key={item.materialId}>
-                              <tr className={`hover:bg-slate-900/50 transition ${isExpanded ? 'bg-slate-900/90' : qrVerification ? 'bg-emerald-950/15' : ''}`}>
-                                <td className="py-2.5 px-3 font-medium text-white">
+                              <tr className={`hover:bg-surface transition ${isExpanded ? 'bg-surface' : qrVerification ? 'bg-tint-emerald' : ''}`}>
+                                <td className="py-2.5 px-3 font-medium text-ink-primary">
                                   <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                                    <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-800 text-cyan-400 border border-slate-700">
+                                    <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-elevated text-brand border border-border-strong">
                                       {item.materialCode}
                                     </span>
                                     <span>{item.materialName}</span>
                                     {qrVerification && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-ink-emerald">
                                         <CheckCircle2 className="w-3 h-3" />
                                         <span>QR Terverifikasi{qrVerification.scannedLot ? ` · Lot ${qrVerification.scannedLot}` : ''}</span>
                                       </span>
@@ -1824,38 +1824,38 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                         onClick={() => setExpandedPalletMatId(isExpanded ? null : item.materialId)}
                                         className={`inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono transition border ${
                                           isExpanded
-                                            ? 'bg-purple-900/60 text-purple-200 border-purple-500/60 shadow-sm'
-                                            : 'bg-slate-800 text-amber-300 border-amber-500/30 hover:bg-slate-700'
+                                            ? 'bg-tint-purple text-ink-purple border-purple-500/60 shadow-sm'
+                                            : 'bg-elevated text-ink-amber border-amber-500/30 hover:bg-accent'
                                         }`}
                                         title="Klik untuk membuka rincian alokasi kelompok/pallet FIFO terkunci"
                                       >
-                                        <Lock className="w-2.5 h-2.5 text-amber-400" />
+                                        <Lock className="w-2.5 h-2.5 text-ink-amber" />
                                         <span>Pallet FIFO ({totalAllocatedBags} Zak)</span>
                                         {isExpanded ? (
-                                          <ChevronUp className="w-3 h-3 text-purple-300" />
+                                          <ChevronUp className="w-3 h-3 text-ink-purple" />
                                         ) : (
-                                          <ChevronDown className="w-3 h-3 text-amber-400" />
+                                          <ChevronDown className="w-3 h-3 text-ink-amber" />
                                         )}
                                       </button>
-                                      <span className="text-[9px] text-slate-400 font-mono">
+                                      <span className="text-[9px] text-ink-secondary font-mono">
                                         ({availablePallets.length} pallet tersedia)
                                       </span>
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-2.5 px-3 text-slate-400">
+                                <td className="py-2.5 px-3 text-ink-secondary">
                                   <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] uppercase font-bold border mr-1 ${typeBadgeColor}`}>
                                     {item.materialType}
                                   </span>
                                   <span className="text-[10px]">{item.packaging}</span>
                                 </td>
-                                <td className="py-2.5 px-3 font-mono text-amber-300">
+                                <td className="py-2.5 px-3 font-mono text-ink-amber">
                                   <div className="flex flex-col">
                                     <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[11px] font-semibold w-fit">
                                       {item.recipeAmount !== undefined ? `${item.recipeAmount} ${item.unit || 'kg'}` : `${item.requiredKg.toFixed(4)} kg`}
                                     </span>
                                     {item.palletAllocations && item.palletAllocations.length > 0 && Math.abs(item.actualUsedKg - item.requiredKg) > 0.001 && (
-                                      <span className="text-[9px] text-cyan-300 font-mono mt-0.5" title="Disesuaikan berat kemasan FIFO tanpa mengambil zak tambahan dari lot selanjutnya">
+                                      <span className="text-[9px] text-brand font-mono mt-0.5" title="Disesuaikan berat kemasan FIFO tanpa mengambil zak tambahan dari lot selanjutnya">
                                         ➔ Pas FIFO: {item.actualUsedKg.toFixed(2)} kg
                                       </span>
                                     )}
@@ -1865,19 +1865,19 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                   <select
                                     value={item.sourceLocation}
                                     onChange={(e) => handleLocationChange(item.materialId, e.target.value as StorageLocation)}
-                                    className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                                    className="bg-elevated border border-border-strong rounded-lg px-2 py-1 text-[11px] text-ink-primary"
                                   >
                                     <option value="CK">Area CK</option>
                                     <option value="WINEROTO">Area WINEROTO</option>
                                     <option value="STORAGE_TANK">Tank Liquid (1.000 kg)</option>
                                   </select>
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-mono text-slate-300">
-                                  <span className={isInsufficient ? 'text-rose-400 font-bold' : 'text-slate-300'}>
+                                <td className="py-2.5 px-3 text-right font-mono text-ink-secondary">
+                                  <span className={isInsufficient ? 'text-ink-rose font-bold' : 'text-ink-secondary'}>
                                     {available.toFixed(4)} kg
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                                <td className="py-2.5 px-3 text-right font-mono text-ink-secondary">
                                   {item.requiredKg.toFixed(4)} kg
                                 </td>
                                 <td className="py-2.5 px-3 text-right">
@@ -1892,15 +1892,15 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                           value={item.actualUsedKg}
                                           onClick={() => setExpandedPalletMatId(isExpanded ? null : item.materialId)}
                                           title="Bobot aktual terkunci otomatis dari timbangan unit kelompok/pallet FIFO. Klik untuk atur zak per pallet."
-                                          className="w-24 bg-slate-950 border border-amber-500/60 rounded-lg px-2 py-1 text-right text-amber-300 font-mono font-bold cursor-pointer hover:border-amber-400"
+                                          className="w-24 bg-canvas border border-amber-500/60 rounded-lg px-2 py-1 text-right text-ink-amber font-mono font-bold cursor-pointer hover:border-amber-400"
                                         />
-                                        <Lock className="w-2.5 h-2.5 text-amber-400 absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        <Lock className="w-2.5 h-2.5 text-ink-amber absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                                       </div>
-                                      <span className="text-[9px] text-amber-400/90 font-mono mt-0.5">
+                                      <span className="text-[9px] text-ink-amber font-mono mt-0.5">
                                         🔒 Pas FIFO ({totalAllocatedBags} Zak)
                                       </span>
                                       {item.palletAllocations && item.palletAllocations.length > 0 && Math.abs(item.actualUsedKg - item.requiredKg) > 0.001 && (
-                                        <span className="text-[8px] text-slate-400 font-mono">
+                                        <span className="text-[8px] text-ink-secondary font-mono">
                                           (Tanpa ambil zak lain)
                                         </span>
                                       )}
@@ -1916,17 +1916,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                           actualUsedKg: parseFloat(e.target.value) || 0
                                         })
                                       }
-                                      className="w-24 bg-slate-900 border border-purple-500/50 rounded-lg px-2 py-1 text-right text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400"
+                                      className="w-24 bg-surface border border-purple-500/50 rounded-lg px-2 py-1 text-right text-ink-purple font-mono font-bold focus:outline-none focus:border-purple-400"
                                     />
                                   )}
                                 </td>
                                 <td className="py-2.5 px-3 text-center">
                                   {isInsufficient ? (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-rose-500/20 text-ink-rose border border-rose-500/30">
                                       Stok Kurang
                                     </span>
                                   ) : (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/15 text-ink-emerald border border-emerald-500/30">
                                       Cukup
                                     </span>
                                   )}
@@ -1935,23 +1935,23 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                               {/* EXPANDED FIFO PALLET ALLOCATION DRAWER */}
                               {isExpanded && hasPallets && (
-                                <tr className="bg-slate-950/90 border-b border-purple-500/30">
+                                <tr className="bg-canvas border-b border-purple-500/30">
                                   <td colSpan={8} className="p-3">
-                                    <div className="bg-slate-900/90 border border-purple-500/40 rounded-xl p-3.5 space-y-3 shadow-xl">
+                                    <div className="bg-surface border border-purple-500/40 rounded-xl p-3.5 space-y-3 shadow-xl">
                                       {/* Header Drawer */}
-                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800 gap-2">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-border-subtle gap-2">
                                         <div className="flex items-center space-x-2">
-                                          <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+                                          <div className="p-1.5 rounded-lg bg-amber-500/20 text-ink-amber">
                                             <PackageCheck className="w-4 h-4" />
                                           </div>
                                           <div>
-                                            <h5 className="font-bold text-xs text-white flex items-center space-x-1.5">
+                                            <h5 className="font-bold text-xs text-ink-primary flex items-center space-x-1.5">
                                               <span>Alokasi Unit Kelompok / Pallet FIFO: {item.materialName}</span>
-                                              <span className="px-2 py-0.2 rounded text-[10px] font-mono bg-purple-950 border border-purple-500/40 text-purple-300">
+                                              <span className="px-2 py-0.2 rounded text-[10px] font-mono bg-tint-purple border border-purple-500/40 text-ink-purple">
                                                 Lokasi {item.sourceLocation}
                                               </span>
                                             </h5>
-                                            <p className="text-[10px] text-slate-400">
+                                            <p className="text-[10px] text-ink-secondary">
                                               Penyimpanan dikunci per pallet dengan berat per zak dari penerimaan GDRM. Alokasi otomatis urut FIFO (terlama didahulukan).
                                             </p>
                                           </div>
@@ -1961,7 +1961,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                           <button
                                             type="button"
                                             onClick={() => handleResetFifo(item.materialId)}
-                                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-[10px] font-semibold flex items-center space-x-1 transition"
+                                            className="px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-brand text-[10px] font-semibold flex items-center space-x-1 transition"
                                           >
                                             <RefreshCw className="w-3 h-3" />
                                             <span>⚡ Reset ke FIFO Otomatis</span>
@@ -1970,27 +1970,27 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                       </div>
 
                                       {/* Summary Metrics Bar */}
-                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-[11px] font-mono">
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-canvas p-2.5 rounded-xl border border-border-subtle text-[11px] font-mono">
                                         <div>
-                                          <span className="text-slate-400 block text-[10px]">Target Kebutuhan Resep:</span>
-                                          <span className="text-white font-bold">{item.requiredKg.toFixed(4)} kg</span>
+                                          <span className="text-ink-secondary block text-[10px]">Target Kebutuhan Resep:</span>
+                                          <span className="text-ink-primary font-bold">{item.requiredKg.toFixed(4)} kg</span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-400 block text-[10px]">Total Aktual Dialokasikan:</span>
-                                          <span className="text-cyan-400 font-bold">
+                                          <span className="text-ink-secondary block text-[10px]">Total Aktual Dialokasikan:</span>
+                                          <span className="text-brand font-bold">
                                             {item.actualUsedKg.toFixed(4)} kg ({totalAllocatedBags} Zak)
                                           </span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-400 block text-[10px]">Selisih dari Resep:</span>
-                                          <span className={item.actualUsedKg >= item.requiredKg ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                                          <span className="text-ink-secondary block text-[10px]">Selisih dari Resep:</span>
+                                          <span className={item.actualUsedKg >= item.requiredKg ? 'text-ink-emerald font-bold' : 'text-ink-amber font-bold'}>
                                             {(item.actualUsedKg - item.requiredKg) > 0 ? '+' : ''}{(item.actualUsedKg - item.requiredKg).toFixed(4)} kg
                                           </span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-400 block text-[10px]">Status Kunci Bobot:</span>
-                                          <span className="text-amber-300 font-bold flex items-center space-x-1">
-                                            <Lock className="w-3 h-3 text-amber-400" />
+                                          <span className="text-ink-secondary block text-[10px]">Status Kunci Bobot:</span>
+                                          <span className="text-ink-amber font-bold flex items-center space-x-1">
+                                            <Lock className="w-3 h-3 text-ink-amber" />
                                             <span>Terkunci Unit Pallet</span>
                                           </span>
                                         </div>
@@ -1998,7 +1998,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                                       {/* List of Available Pallets in strict FIFO order */}
                                       <div className="space-y-2">
-                                        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 font-semibold">
+                                        <div className="flex items-center justify-between text-[11px] text-ink-secondary px-1 font-semibold">
                                           <span>Daftar Pallet Gudang (Urutan FIFO: Tanggal Kedatangan Terlama ➔ Terbaru)</span>
                                           <span>Jumlah Zak Dialokasikan ke Batch</span>
                                         </div>
@@ -2016,8 +2016,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                                 key={lot.palletId}
                                                 className={`p-3 rounded-xl border transition flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                                                   isAllocated
-                                                    ? 'bg-purple-950/30 border-purple-500/50 shadow-md shadow-purple-950/20'
-                                                    : 'bg-slate-950/60 border-slate-800 opacity-80 hover:opacity-100'
+                                                    ? 'bg-tint-purple border-purple-500/50 shadow-md shadow-purple-950/20'
+                                                    : 'bg-canvas border-border-subtle opacity-80 hover:opacity-100'
                                                 }`}
                                               >
                                                 {/* Left Details */}
@@ -2025,33 +2025,33 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                                   <div className="flex flex-wrap items-center gap-2">
                                                     <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
                                                       isOldestFifo
-                                                        ? 'bg-amber-950 text-amber-300 border-amber-600/50'
-                                                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                                                        ? 'bg-tint-amber text-ink-amber border-amber-600/50'
+                                                        : 'bg-elevated text-ink-secondary border-border-strong'
                                                     }`}>
                                                       FIFO #{pIdx + 1} {isOldestFifo ? '⭐ Tertua / Prioritas' : ''}
                                                     </span>
-                                                    <span className="font-bold text-white text-xs">
+                                                    <span className="font-bold text-ink-primary text-xs">
                                                       {lot.palletLabel}
                                                     </span>
-                                                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-elevated text-ink-secondary border border-border-strong">
                                                       {lot.receiptNumber}
                                                     </span>
                                                     {lot.batchLotNumber && (
-                                                      <span className="text-[10px] text-slate-400 font-mono">
+                                                      <span className="text-[10px] text-ink-secondary font-mono">
                                                         (Lot: {lot.batchLotNumber})
                                                       </span>
                                                     )}
-                                                    <span className="text-[10px] text-slate-500">
+                                                    <span className="text-[10px] text-ink-muted">
                                                       Masuk: {lot.date}
                                                     </span>
                                                   </div>
 
-                                                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-300">
+                                                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-ink-secondary">
                                                     <span>
-                                                      Sisa Gudang: <strong className="text-white">{lot.remainingBags} Zak</strong> ({(lot.remainingKg).toFixed(2)} kg)
+                                                      Sisa Gudang: <strong className="text-ink-primary">{lot.remainingBags} Zak</strong> ({(lot.remainingKg).toFixed(2)} kg)
                                                     </span>
-                                                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold inline-flex items-center space-x-1">
-                                                      <Lock className="w-2.5 h-2.5 text-amber-400" />
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-ink-amber border border-amber-500/20 font-bold inline-flex items-center space-x-1">
+                                                      <Lock className="w-2.5 h-2.5 text-ink-amber" />
                                                       <span>Terkunci: {lot.weightPerBagKg.toFixed(2)} kg/zak</span>
                                                     </span>
                                                   </div>
@@ -2059,12 +2059,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                                                 {/* Right Allocation Controls */}
                                                 <div className="flex items-center space-x-3 shrink-0 self-end md:self-center">
-                                                  <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-700">
+                                                  <div className="flex items-center space-x-1 bg-surface p-1 rounded-xl border border-border-strong">
                                                     <button
                                                       type="button"
                                                       onClick={() => handleAdjustPalletBags(item.materialId, lot.palletId, bagsUsed - 1)}
                                                       disabled={bagsUsed <= 0}
-                                                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold text-sm"
+                                                      className="w-7 h-7 rounded-lg bg-elevated hover:bg-accent text-ink-primary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold text-sm"
                                                     >
                                                       -
                                                     </button>
@@ -2074,21 +2074,21 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                                       max={lot.remainingBags}
                                                       value={bagsUsed}
                                                       onChange={(e) => handleAdjustPalletBags(item.materialId, lot.palletId, parseInt(e.target.value) || 0)}
-                                                      className="w-14 text-center bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                                                      className="w-14 text-center bg-transparent text-ink-primary font-mono font-bold text-xs focus:outline-none"
                                                     />
                                                     <button
                                                       type="button"
                                                       onClick={() => handleAdjustPalletBags(item.materialId, lot.palletId, bagsUsed + 1)}
                                                       disabled={bagsUsed >= lot.remainingBags}
-                                                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold text-sm"
+                                                      className="w-7 h-7 rounded-lg bg-elevated hover:bg-accent text-ink-primary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center font-bold text-sm"
                                                     >
                                                       +
                                                     </button>
                                                   </div>
 
                                                   <div className="text-right font-mono min-w-[90px]">
-                                                    <span className="text-[10px] text-slate-400 block">Bobot Terpakai:</span>
-                                                    <span className={`text-xs font-bold ${isAllocated ? 'text-cyan-400' : 'text-slate-500'}`}>
+                                                    <span className="text-[10px] text-ink-secondary block">Bobot Terpakai:</span>
+                                                    <span className={`text-xs font-bold ${isAllocated ? 'text-brand' : 'text-ink-muted'}`}>
                                                       {subtotalKg.toFixed(2)} kg
                                                     </span>
                                                   </div>
@@ -2109,11 +2109,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     </table>
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-500 text-xs">
-                    <p className="font-medium text-slate-400">
+                  <div className="text-center py-6 text-ink-muted text-xs">
+                    <p className="font-medium text-ink-secondary">
                       WIP ini belum memiliki bahan baku di hierarki BOM Master.
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-ink-muted mt-1">
                       Silakan hubungkan bahan baku ke WIP ini pada modul Master Data & BOM Hierarki.
                     </p>
                   </div>
@@ -2128,7 +2128,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 disabled={Boolean(activeBatchForSelectedMachine) || !wipId || !selectedMachineId || configuredMaterials.length === 0}
                 className={`w-full py-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg ${
                   activeBatchForSelectedMachine || !wipId || !selectedMachineId || configuredMaterials.length === 0
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    ? 'bg-elevated text-ink-muted cursor-not-allowed border border-border-strong'
                     : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/25 active:scale-95'
                 }`}
               >
@@ -2154,7 +2154,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
       {/* TAB 2: DAFTAR STATUS PERINTAH KERJA BATCH WIP */}
       {activeTab === 'batch-history' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
+        <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl space-y-0">
           {/* Printable Report Header */}
           <div className="print-only p-4 border-b-2 border-slate-900 mb-2">
             <h1 className="text-lg font-bold">PRODTRACK - LAPORAN STATUS PERINTAH KERJA BATCH WIP</h1>
@@ -2163,16 +2163,16 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             </p>
           </div>
 
-          <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 no-print">
+          <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 no-print">
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-ink-amber">
                 <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">
+                <h3 className="font-bold text-sm text-ink-primary">
                   Daftar Perintah Kerja Produksi Batch WIP
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink-secondary">
                   Pelacakan siklus batch 1-per-periode per jenis WIP
                 </p>
               </div>
@@ -2180,7 +2180,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               {/* Shift Filter Pills */}
-              <div className="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center space-x-1 bg-canvas p-1 rounded-xl border border-border-subtle">
                 {(['all', '1', '2', '3'] as const).map(tab => (
                   <button
                     key={tab}
@@ -2189,7 +2189,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition ${
                       filterShift === tab
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     {tab === 'all' ? 'Semua Shift' : `Shift ${tab}`}
@@ -2198,22 +2198,22 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </div>
 
               <div className="relative w-full sm:w-56">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Cari kode PK / nama WIP..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
                 />
               </div>
 
               <button
                 onClick={() => window.print()}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
+                className="px-3 py-1.5 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
                 title="Cetak Laporan Perintah Kerja Batch"
               >
-                <Printer className="w-3.5 h-3.5 text-amber-400" />
+                <Printer className="w-3.5 h-3.5 text-ink-amber" />
                 <span className="hidden sm:inline">Cetak</span>
               </button>
             </div>
@@ -2222,7 +2222,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                   <th className="py-2.5 px-3">No. Perintah Kerja</th>
                   <th className="py-2.5 px-3">Shift</th>
                   <th className="py-2.5 px-3">Jenis WIP</th>
@@ -2235,7 +2235,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   <th className="py-2.5 px-3 text-center">Tindakan</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-border-subtle">
                 {filteredBatches.length > 0 ? (
                   filteredBatches.map(batch => {
                     const pauseLogsCount = batch.pauseLogs?.length || 0;
@@ -2250,14 +2250,14 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                     return (
                       <React.Fragment key={batch.id}>
-                        <tr className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-3 font-mono font-bold text-white">
+                        <tr className="hover:bg-elevated transition">
+                          <td className="py-3 px-3 font-mono font-bold text-ink-primary">
                             <span>{batch.batchCode}</span>
-                            <span className="block text-[10px] text-slate-500 font-normal">
+                            <span className="block text-[10px] text-ink-muted font-normal">
                               {batch.materials.length} komponen bahan
                             </span>
                             {batch.materials.some(m => m.palletAllocations && m.palletAllocations.length > 0) && (
-                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-ink-amber border border-amber-500/30 text-[9px] font-mono">
                                 FIFO Pallet
                               </span>
                             )}
@@ -2274,9 +2274,9 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                             })()}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="font-medium text-white block">{batch.wipName}</span>
+                            <span className="font-medium text-ink-primary block">{batch.wipName}</span>
                             {batch.recipeCode && (
-                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono">
+                              <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-500/10 text-ink-amber border border-amber-500/20 text-[10px] font-mono">
                                 {batch.recipeCode} {batch.recipeName ? `(${batch.recipeName})` : ''}
                               </span>
                             )}
@@ -2284,31 +2284,31 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                           <td className="py-3 px-3">
                             {(() => {
                               const mach = state.master.machines.find(m => m.id === batch.targetMachineId);
-                              if (!mach) return <span className="text-slate-500 font-mono text-[11px]">-</span>;
+                              if (!mach) return <span className="text-ink-muted font-mono text-[11px]">-</span>;
                               return (
                                 <div>
-                                  <span className="font-mono text-cyan-300 font-semibold block text-[11px]">{mach.code}</span>
-                                  <span className="text-[10px] text-slate-300 block">{mach.name}</span>
-                                  <span className="text-[9px] text-slate-500 font-mono">{mach.line}</span>
+                                  <span className="font-mono text-brand font-semibold block text-[11px]">{mach.code}</span>
+                                  <span className="text-[10px] text-ink-secondary block">{mach.name}</span>
+                                  <span className="text-[9px] text-ink-muted font-mono">{mach.line}</span>
                                 </div>
                               );
                             })()}
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-ink-secondary">
                             {batch.skuName || '-'}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono tabular-nums font-bold text-cyan-400">
+                          <td className="py-3 px-3 text-right font-mono tabular-nums font-bold text-brand">
                             {batch.batchWeightKg.toFixed(4)} kg
                           </td>
-                          <td className="py-3 px-3 text-slate-400 text-[11px] space-y-0.5">
+                          <td className="py-3 px-3 text-ink-secondary text-[11px] space-y-0.5">
                             <div>Mulai: {batch.startedAt}</div>
                             {batch.durationMinutes && (
-                              <div className="text-[10px] text-amber-400/90 font-mono tabular-nums">
+                              <div className="text-[10px] text-ink-amber font-mono tabular-nums">
                                 Durasi target: {batch.durationMinutes} menit
                               </div>
                             )}
                             {batch.completedAt && (
-                              <div className="text-emerald-400 text-[10px] font-semibold">Selesai: {batch.completedAt}</div>
+                              <div className="text-ink-emerald text-[10px] font-semibold">Selesai: {batch.completedAt}</div>
                             )}
                             {batch.status === 'SEDANG_PRODUKSI' && batch.estimatedCompletionTime && (() => {
                               const rem = new Date(batch.estimatedCompletionTime).getTime() - currentTime;
@@ -2316,18 +2316,18 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                               const m = Math.floor(Math.abs(rem) / 60000);
                               const s = Math.floor((Math.abs(rem) % 60000) / 1000);
                               return (
-                                <div className={`text-[10px] font-mono tabular-nums font-bold ${isDone ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`}>
+                                <div className={`text-[10px] font-mono tabular-nums font-bold ${isDone ? 'text-ink-emerald animate-pulse' : 'text-ink-amber'}`}>
                                   {isDone ? 'Selesai (Alarm)' : `Sisa: ${m}m ${String(s).padStart(2, '0')}s`}
                                 </div>
                               );
                             })()}
                             {isPaused && (
-                              <div className="text-[10px] font-mono tabular-nums font-bold text-sky-300">
+                              <div className="text-[10px] font-mono tabular-nums font-bold text-ink-sky">
                                 Dijeda · Sisa Berhenti: {frozenM}m {String(frozenS).padStart(2, '0')}s
                               </div>
                             )}
                             {typeof batch.totalPausedMs === 'number' && batch.totalPausedMs > 0 && (
-                              <div className="text-[10px] font-mono tabular-nums text-sky-400">
+                              <div className="text-[10px] font-mono tabular-nums text-ink-sky">
                                 Total Jeda: {formatPauseDurationMs(batch.totalPausedMs)}
                               </div>
                             )}
@@ -2338,7 +2338,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                 onClick={() =>
                                   setExpandedAuditBatchIds(prev => ({ ...prev, [batch.id]: !prev[batch.id] }))
                                 }
-                                className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-950/60 hover:bg-sky-950 border border-sky-700 text-sky-300 text-[10px] font-semibold transition"
+                                className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-tint-sky hover:bg-tint-sky border border-sky-700 text-ink-sky text-[10px] font-semibold transition"
                               >
                                 <ShieldCheck className="w-3 h-3" />
                                 <span>Audit Jeda ({pauseLogsCount})</span>
@@ -2346,19 +2346,19 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                               </button>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-ink-secondary">
                             {batch.operatorName}
                           </td>
                           <td className="py-3 px-3 text-center">
                             <span
                               className={`px-2 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap ${
                                 batch.status === 'SEDANG_PRODUKSI'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                                  ? 'bg-amber-500/20 text-ink-amber border-amber-500/40 animate-pulse'
                                   : isPaused
-                                  ? 'bg-sky-950 text-sky-300 border-sky-700'
+                                  ? 'bg-tint-sky text-ink-sky border-sky-700'
                                   : batch.status === 'SELESAI'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                                  ? 'bg-emerald-500/20 text-ink-emerald border-emerald-500/30'
+                                  : 'bg-elevated text-ink-secondary border-border-strong'
                               }`}
                             >
                               {batch.status === 'SEDANG_PRODUKSI'
@@ -2417,7 +2417,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[10px] text-slate-500 flex items-center justify-center space-x-1">
+                              <span className="text-[10px] text-ink-muted flex items-center justify-center space-x-1">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                 <span>{batch.status === 'DIBATALKAN' ? 'Dibatalkan' : 'Tuntas'}</span>
                               </span>
@@ -2425,22 +2425,22 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                           </td>
                         </tr>
                         {isAuditExpanded && batch.pauseLogs && batch.pauseLogs.length > 0 && (
-                          <tr className="bg-slate-950/60">
-                            <td colSpan={10} className="px-4 py-3 border-b border-slate-800">
+                          <tr className="bg-canvas">
+                            <td colSpan={10} className="px-4 py-3 border-b border-border-subtle">
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between text-[11px]">
-                                  <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                                  <span className="font-bold text-ink-sky flex items-center gap-1.5">
                                     <ShieldCheck className="w-3.5 h-3.5" />
                                     <span>Audit Trail Penghentian Sementara ({batch.batchCode})</span>
                                   </span>
-                                  <span className="font-mono tabular-nums text-slate-400">
+                                  <span className="font-mono tabular-nums text-ink-secondary">
                                     Total Kejadian: {batch.pauseLogs.length} · Akumulasi Jeda: {formatPauseDurationMs(batch.totalPausedMs)}
                                   </span>
                                 </div>
-                                <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                                <div className="overflow-x-auto border border-border-subtle rounded-xl">
                                   <table className="w-full text-left border-collapse text-[11px]">
                                     <thead>
-                                      <tr className="bg-slate-900 text-slate-300 border-b border-slate-800">
+                                      <tr className="bg-surface text-ink-secondary border-b border-border-subtle">
                                         <th className="py-1.5 px-2.5">No</th>
                                         <th className="py-1.5 px-2.5">Kategori</th>
                                         <th className="py-1.5 px-2.5">Alasan Penghentian Sementara</th>
@@ -2450,13 +2450,13 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                         <th className="py-1.5 px-2.5">Petugas Audit</th>
                                       </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800/60">
+                                    <tbody className="divide-y divide-border-subtle">
                                       {batch.pauseLogs.map((log, lIdx) => (
                                         <tr key={log.id}>
-                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-400">{lIdx + 1}</td>
-                                          <td className="py-1.5 px-2.5 font-semibold text-sky-300 whitespace-nowrap">{log.category}</td>
-                                          <td className="py-1.5 px-2.5 text-white">{log.reason}</td>
-                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-ink-secondary">{lIdx + 1}</td>
+                                          <td className="py-1.5 px-2.5 font-semibold text-ink-sky whitespace-nowrap">{log.category}</td>
+                                          <td className="py-1.5 px-2.5 text-ink-primary">{log.reason}</td>
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-ink-secondary whitespace-nowrap">
                                             {new Date(log.pausedAt).toLocaleString('id-ID', {
                                               day: '2-digit',
                                               month: 'short',
@@ -2465,7 +2465,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                               second: '2-digit'
                                             })}
                                           </td>
-                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                          <td className="py-1.5 px-2.5 font-mono tabular-nums text-ink-secondary whitespace-nowrap">
                                             {log.resumedAt
                                               ? new Date(log.resumedAt).toLocaleString('id-ID', {
                                                   day: '2-digit',
@@ -2476,12 +2476,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                                                 })
                                               : 'Masih Dijeda'}
                                           </td>
-                                          <td className="py-1.5 px-2.5 text-right font-mono tabular-nums text-amber-300 whitespace-nowrap">
+                                          <td className="py-1.5 px-2.5 text-right font-mono tabular-nums text-ink-amber whitespace-nowrap">
                                             {log.pausedDurationMs !== undefined
                                               ? formatPauseDurationMs(log.pausedDurationMs)
                                               : formatPauseDurationMs(Math.max(0, currentTime - new Date(log.pausedAt).getTime()))}
                                           </td>
-                                          <td className="py-1.5 px-2.5 text-slate-300 whitespace-nowrap">
+                                          <td className="py-1.5 px-2.5 text-ink-secondary whitespace-nowrap">
                                             Pause: <strong>{log.pausedBy}</strong>
                                             {log.resumedBy ? ` · Lanjut: ${log.resumedBy}` : ''}
                                           </td>
@@ -2499,7 +2499,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={10} className="text-center py-8 text-slate-500 text-xs">
+                    <td colSpan={10} className="text-center py-8 text-ink-muted text-xs">
                       Belum ada perintah kerja batch WIP yang cocok dengan filter pencarian / shift.
                     </td>
                   </tr>
@@ -2512,15 +2512,15 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
       {/* TAB 3: RIWAYAT DETAIL LOG PEMAKAIAN BAHAN BAKU */}
       {activeTab === 'material-history' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
-          <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl space-y-0">
+          <div className="p-4 border-b border-border-subtle flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 text-ink-purple">
                 <History className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">Laporan Pemakaian Bahan Baku</h3>
-                <p className="text-[11px] text-slate-400">
+                <h3 className="font-bold text-sm text-ink-primary">Laporan Pemakaian Bahan Baku</h3>
+                <p className="text-[11px] text-ink-secondary">
                   {usageViewMode === 'breakdown-sku-wip'
                     ? 'Dipisahkan sesuai dengan SKU dan Jenis WIP yang diproduksi'
                     : 'Daftar riwayat pemotongan stok bahan baku per transaksi kronologis'}
@@ -2530,7 +2530,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto no-print">
               {/* Shift Filter Pills */}
-              <div className="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center space-x-1 bg-canvas p-1 rounded-xl border border-border-subtle">
                 {(['all', '1', '2', '3'] as const).map(tab => (
                   <button
                     key={tab}
@@ -2539,7 +2539,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition ${
                       filterShift === tab
                         ? 'bg-purple-600 text-white font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-ink-secondary hover:text-ink-primary'
                     }`}
                   >
                     {tab === 'all' ? 'Semua Shift' : `Shift ${tab}`}
@@ -2548,37 +2548,37 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
               </div>
 
               <div className="relative w-full sm:w-56">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Cari SKU, WIP, material..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+                  className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
                 />
               </div>
 
               <button
                 onClick={() => window.print()}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
+                className="px-3 py-1.5 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
                 title="Cetak Log Pemakaian Material"
               >
-                <Printer className="w-3.5 h-3.5 text-purple-400" />
+                <Printer className="w-3.5 h-3.5 text-ink-purple" />
                 <span>Cetak</span>
               </button>
             </div>
           </div>
 
           {/* Subheader: View Mode Switch & SKU/WIP Filters */}
-          <div className="px-4 py-2.5 bg-slate-950/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
-            <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+          <div className="px-4 py-2.5 bg-canvas border-b border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs no-print">
+            <div className="flex items-center space-x-1 bg-surface p-1 rounded-xl border border-border-subtle">
               <button
                 type="button"
                 onClick={() => setUsageViewMode('breakdown-sku-wip')}
                 className={`px-2.5 py-1 rounded-lg font-bold text-xs transition flex items-center space-x-1.5 ${
                   usageViewMode === 'breakdown-sku-wip'
                     ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
@@ -2591,7 +2591,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 className={`px-2.5 py-1 rounded-lg font-bold text-xs transition flex items-center space-x-1.5 ${
                   usageViewMode === 'list'
                     ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-ink-secondary hover:text-ink-primary'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -2602,11 +2602,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             {usageViewMode === 'breakdown-sku-wip' && (
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-1">
-                  <span className="text-[11px] text-slate-400">SKU:</span>
+                  <span className="text-[11px] text-ink-secondary">SKU:</span>
                   <select
                     value={usageFilterSkuId}
                     onChange={(e) => setUsageFilterSkuId(e.target.value)}
-                    className="bg-slate-850 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500 font-medium"
+                    className="bg-elevated border border-border-strong rounded-lg px-2 py-1 text-[11px] text-ink-primary focus:outline-none focus:border-purple-500 font-medium"
                   >
                     <option value="all">Semua SKU ({state.master.skus.length})</option>
                     {state.master.skus.map(s => (
@@ -2619,11 +2619,11 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1">
-                  <span className="text-[11px] text-slate-400">WIP:</span>
+                  <span className="text-[11px] text-ink-secondary">WIP:</span>
                   <select
                     value={usageFilterWipId}
                     onChange={(e) => setUsageFilterWipId(e.target.value)}
-                    className="bg-slate-850 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500 font-medium"
+                    className="bg-elevated border border-border-strong rounded-lg px-2 py-1 text-[11px] text-ink-primary focus:outline-none focus:border-purple-500 font-medium"
                   >
                     <option value="all">Semua Jenis WIP ({state.master.wips.length})</option>
                     {state.master.wips.map(w => (
@@ -2644,27 +2644,27 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 usageBreakdownGroups.map((group) => (
                   <div
                     key={group.groupKey}
-                    className="bg-slate-950/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg transition hover:border-slate-700"
+                    className="bg-canvas border border-border-subtle rounded-2xl overflow-hidden shadow-lg transition hover:border-border-strong"
                   >
                     {/* Header Group per SKU & WIP */}
-                    <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-purple-950/40 p-3.5 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="bg-gradient-to-r from-surface via-slate-850 to-tint-purple p-3.5 sm:p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700 font-bold">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-elevated text-brand border border-border-strong font-bold">
                             {group.skuCode}
                           </span>
-                          <h4 className="font-bold text-sm text-white">
+                          <h4 className="font-bold text-sm text-ink-primary">
                             {group.skuName}
                           </h4>
                           {group.isKite && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-ink-amber border border-amber-500/30">
                               KITE
                             </span>
                           )}
                         </div>
                         <div className="flex items-center space-x-2 text-xs">
-                          <span className="text-slate-400">Jenis WIP:</span>
-                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold">
+                          <span className="text-ink-secondary">Jenis WIP:</span>
+                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-ink-purple border border-purple-500/30 font-semibold">
                             {group.wipName}
                           </span>
                         </div>
@@ -2672,15 +2672,15 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                       {/* Summary Metrics Pill for this SKU & WIP */}
                       <div className="flex items-center space-x-2">
-                        <div className="bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-700/80 text-right">
-                          <span className="text-[10px] text-slate-400 block font-mono">Total Terpakai:</span>
-                          <span className="text-xs font-bold font-mono text-rose-400">
+                        <div className="bg-surface px-3 py-1.5 rounded-xl border border-border-strong text-right">
+                          <span className="text-[10px] text-ink-secondary block font-mono">Total Terpakai:</span>
+                          <span className="text-xs font-bold font-mono text-ink-rose">
                             -{group.totalGroupKg.toFixed(4)} kg
                           </span>
                         </div>
-                        <div className="bg-purple-950/40 px-3 py-1.5 rounded-xl border border-purple-500/30 text-right">
-                          <span className="text-[10px] text-purple-300 block font-mono">Est. Output Batch:</span>
-                          <span className="text-xs font-bold font-mono text-purple-300">
+                        <div className="bg-tint-purple px-3 py-1.5 rounded-xl border border-purple-500/30 text-right">
+                          <span className="text-[10px] text-ink-purple block font-mono">Est. Output Batch:</span>
+                          <span className="text-xs font-bold font-mono text-ink-purple">
                             {group.totalGroupBatches.toFixed(2)} btc
                           </span>
                         </div>
@@ -2691,50 +2691,50 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
-                          <tr className="bg-slate-900/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                          <tr className="bg-surface text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                             <th className="py-2 px-3 text-center w-10">No</th>
                             <th className="py-2 px-3">Kode Material</th>
                             <th className="py-2 px-3">Nama Bahan Baku</th>
                             <th className="py-2 px-3">Gudang Sumber</th>
                             <th className="py-2 px-3">Shift & Frekuensi</th>
-                            <th className="py-2 px-3 text-right text-rose-400 font-bold">Qty Terpakai (kg)</th>
-                            <th className="py-2 px-3 text-right text-purple-300 font-bold">Kesetaraan Batch</th>
+                            <th className="py-2 px-3 text-right text-ink-rose font-bold">Qty Terpakai (kg)</th>
+                            <th className="py-2 px-3 text-right text-ink-purple font-bold">Kesetaraan Batch</th>
                             <th className="py-2 px-3">Operator PIC</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/60">
+                        <tbody className="divide-y divide-border-subtle">
                           {group.materials.map((m, mIdx) => (
-                            <tr key={m.materialId} className="hover:bg-slate-800/30 transition text-xs">
-                              <td className="py-2.5 px-3 text-center text-slate-500 font-mono">
+                            <tr key={m.materialId} className="hover:bg-elevated transition text-xs">
+                              <td className="py-2.5 px-3 text-center text-ink-muted font-mono">
                                 {mIdx + 1}
                               </td>
-                              <td className="py-2.5 px-3 font-mono font-bold text-cyan-400">
-                                <span className="px-1.5 py-0.5 rounded bg-slate-850 border border-slate-750 text-[10px]">
+                              <td className="py-2.5 px-3 font-mono font-bold text-brand">
+                                <span className="px-1.5 py-0.5 rounded bg-elevated border border-border-strong text-[10px]">
                                   {m.materialCode}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-3 font-medium text-white">
+                              <td className="py-2.5 px-3 font-medium text-ink-primary">
                                 <div>{m.materialName}</div>
-                                <div className="text-[10px] text-slate-500 font-mono">
+                                <div className="text-[10px] text-ink-muted font-mono">
                                   Standar Formula: {m.batchSizeKg.toFixed(2)} kg/batch
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
-                                <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-750 text-[10px] text-slate-300">
+                                <span className="px-1.5 py-0.5 rounded bg-elevated border border-border-strong text-[10px] text-ink-secondary">
                                   {m.locations.join(', ') || 'CK'}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-3 text-slate-300">
+                              <td className="py-2.5 px-3 text-ink-secondary">
                                 <span>{m.shifts.map(s => `Shift ${s}`).join(', ') || '-'}</span>
-                                <span className="text-[10px] text-slate-500 block">({m.usageCount}x pemakaian)</span>
+                                <span className="text-[10px] text-ink-muted block">({m.usageCount}x pemakaian)</span>
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-400">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-rose">
                                 -{m.totalUsageKg.toFixed(4)} kg
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-300">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-purple">
                                 {m.estimatedBatch.toFixed(2)} btc
                               </td>
-                              <td className="py-2.5 px-3 text-slate-300 text-[11px]">
+                              <td className="py-2.5 px-3 text-ink-secondary text-[11px]">
                                 {m.operators.join(', ') || '-'}
                               </td>
                             </tr>
@@ -2745,12 +2745,12 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   </div>
                 ))
               ) : (
-                <div className="text-center py-12 text-slate-500 text-xs">
+                <div className="text-center py-12 text-ink-muted text-xs">
                   <Boxes className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-semibold text-ink-primary">
                     Belum ada riwayat pemakaian bahan baku yang cocok dengan filter.
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-ink-muted mt-1">
                     Pastikan sudah terdapat transaksi Work Order pemakaian bahan baku pada shift ini.
                   </p>
                 </div>
@@ -2761,19 +2761,19 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                  <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                     <th className="py-2.5 px-3">No. Transaksi</th>
                     <th className="py-2.5 px-3">Shift</th>
                     <th className="py-2.5 px-3">Tanggal</th>
                     <th className="py-2.5 px-3">SKU Produk</th>
                     <th className="py-2.5 px-3">WIP Terkait</th>
                     <th className="py-2.5 px-3">Nama Material</th>
-                    <th className="py-2.5 px-3 text-right font-bold text-rose-400">Qty Terpakai</th>
+                    <th className="py-2.5 px-3 text-right font-bold text-ink-rose">Qty Terpakai</th>
                     <th className="py-2.5 px-3 text-center">Gudang</th>
                     <th className="py-2.5 px-3">Operator / Catatan</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-border-subtle">
                   {filteredUsages.length > 0 ? (
                     filteredUsages.map(u => {
                       const sObj = state.master.skus.find(s => s.id === u.skuId);
@@ -2781,8 +2781,8 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       const mObj = state.master.materials.find(m => m.id === u.materialId);
 
                       return (
-                        <tr key={u.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-3 font-mono font-semibold text-white">
+                        <tr key={u.id} className="hover:bg-elevated transition">
+                          <td className="py-3 px-3 font-mono font-semibold text-ink-primary">
                             {u.usageNumber}
                           </td>
                           <td className="py-3 px-3">
@@ -2796,38 +2796,38 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                               );
                             })()}
                           </td>
-                          <td className="py-3 px-3 text-slate-400 text-[11px]">
+                          <td className="py-3 px-3 text-ink-secondary text-[11px]">
                             {u.date}
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-ink-secondary">
                             {sObj ? sObj.name : 'Produksi WIP Langsung'}
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-ink-secondary">
                             {wObj ? wObj.name : '-'}
                           </td>
-                          <td className="py-3 px-3 font-medium text-white">
+                          <td className="py-3 px-3 font-medium text-ink-primary">
                             {mObj ? mObj.name : '-'}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-rose-400">
+                          <td className="py-3 px-3 text-right font-mono font-bold text-ink-rose">
                             <div>-{u.usageQty.toFixed(4)} kg</div>
                             {u.palletAllocations && u.palletAllocations.length > 0 && (
-                              <div className="text-[9px] text-amber-400 font-normal mt-0.5">
+                              <div className="text-[9px] text-ink-amber font-normal mt-0.5">
                                 🔒 FIFO ({u.palletAllocations.reduce((sum, a) => sum + a.bagsUsed, 0)} Zak)
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-300">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-elevated border border-border-strong text-ink-secondary">
                               {u.sourceLocation}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
-                            <span className="text-white block">{u.operatorName || '-'}</span>
-                            <span className="text-[10px] text-slate-400 block">{u.notes || ''}</span>
+                          <td className="py-3 px-3 text-ink-secondary">
+                            <span className="text-ink-primary block">{u.operatorName || '-'}</span>
+                            <span className="text-[10px] text-ink-secondary block">{u.notes || ''}</span>
                             {u.palletAllocations && u.palletAllocations.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {u.palletAllocations.map((a, aIdx) => (
-                                  <span key={aIdx} className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950/80 text-purple-300 border border-purple-500/30">
+                                  <span key={aIdx} className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-tint-purple text-ink-purple border border-purple-500/30">
                                     {a.palletLabel}: {a.bagsUsed} zak @ {a.weightPerBagKg.toFixed(2)} kg = {a.subtotalKg.toFixed(2)} kg
                                   </span>
                                 ))}
@@ -2839,7 +2839,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9} className="text-center py-8 text-slate-500 text-xs">
+                      <td colSpan={9} className="text-center py-8 text-ink-muted text-xs">
                         Belum ada riwayat pemakaian material yang cocok dengan filter pencarian / shift.
                       </td>
                     </tr>
@@ -2874,38 +2874,38 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   key={sNum}
                   className={`p-4 rounded-2xl border shadow-xl space-y-2 transition ${
                     isCurrent
-                      ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 border-cyan-500/40 ring-1 ring-cyan-500/20'
-                      : 'bg-slate-900 border-slate-800'
+                      ? 'bg-gradient-to-br from-surface via-surface to-tint-indigo border-cyan-500/40 ring-1 ring-cyan-500/20'
+                      : 'bg-surface border-border-subtle'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${sInfo.badgeBg} border ${sInfo.borderClass}`}>
                       {sInfo.name}
                     </span>
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-ink-secondary">
                       {sInfo.timeRange}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Total Material Terpakai:</span>
-                    <div className="text-2xl font-bold font-mono text-white mt-0.5">
-                      {sStat.totalKg.toFixed(2)} <span className="text-xs text-slate-400 font-normal">kg</span>
+                    <span className="text-[10px] text-ink-secondary block">Total Material Terpakai:</span>
+                    <div className="text-2xl font-bold font-mono text-ink-primary mt-0.5">
+                      {sStat.totalKg.toFixed(2)} <span className="text-xs text-ink-secondary font-normal">kg</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800/80 text-xs text-slate-400 space-y-1">
+                  <div className="pt-2 border-t border-border-subtle text-xs text-ink-secondary space-y-1">
                     <div className="flex justify-between">
                       <span>Perintah Kerja Batch WIP:</span>
-                      <strong className="text-slate-200 font-mono">{sStat.batchesCount} Batch</strong>
+                      <strong className="text-ink-primary font-mono">{sStat.batchesCount} Batch</strong>
                     </div>
                     <div className="flex justify-between">
                       <span>Total Transaksi Pemakaian:</span>
-                      <strong className="text-slate-200 font-mono">{sStat.count} Catatan</strong>
+                      <strong className="text-ink-primary font-mono">{sStat.count} Catatan</strong>
                     </div>
                     <div className="flex justify-between items-center pt-0.5">
                       <span>Operator Bertugas:</span>
-                      <span className="text-cyan-400 truncate max-w-[130px] font-medium text-[11px]">
+                      <span className="text-brand truncate max-w-[130px] font-medium text-[11px]">
                         {sStat.operators.length > 0 ? sStat.operators.join(', ') : '-'}
                       </span>
                     </div>
@@ -2913,7 +2913,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
                   {isCurrent && (
                     <div className="pt-1">
-                      <span className="w-full py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-[10px] font-semibold flex items-center justify-center space-x-1 border border-cyan-500/20">
+                      <span className="w-full py-1 rounded-lg bg-cyan-500/10 text-brand text-[10px] font-semibold flex items-center justify-center space-x-1 border border-cyan-500/20">
                         <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span>
                         <span>Shift Sedang Beroperasi (Live)</span>
                       </span>
@@ -2925,17 +2925,17 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
           </div>
 
           {/* Grouped Tables by Shift */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
-            <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 no-print">
+          <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl space-y-0">
+            <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 no-print">
               <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
+                <div className="p-1.5 rounded-lg bg-purple-500/10 text-ink-purple">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">
+                  <h3 className="font-bold text-sm text-ink-primary">
                     Shift Activity Log: Pemakaian Material Terkelompok 3 Shift
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink-secondary">
                     Shift 1 (07:01 - 15:00) • Shift 2 (15:01 - 23:00) • Shift 3 (23:01 - 07:00)
                   </p>
                 </div>
@@ -2943,7 +2943,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 {/* Shift Filter Pills */}
-                <div className="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center space-x-1 bg-canvas p-1 rounded-xl border border-border-subtle">
                   {(['all', '1', '2', '3'] as const).map(tab => (
                     <button
                       key={tab}
@@ -2952,7 +2952,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition ${
                         filterShift === tab
                           ? 'bg-purple-600 text-white font-bold shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          : 'text-ink-secondary hover:text-ink-primary'
                       }`}
                     >
                       {tab === 'all' ? 'Semua Shift' : `Shift ${tab}`}
@@ -2961,29 +2961,29 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                 </div>
 
                 <div className="relative w-full sm:w-48">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-ink-secondary absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Filter nama/kode..."
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500"
+                    className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
                   />
                 </div>
 
                 <button
                   onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
+                  className="px-3 py-1.5 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
                   title="Cetak Log Aktivitas Shift"
                 >
-                  <Printer className="w-3.5 h-3.5 text-purple-400" />
+                  <Printer className="w-3.5 h-3.5 text-ink-purple" />
                   <span className="hidden sm:inline">Cetak Log</span>
                 </button>
               </div>
             </div>
 
             {/* List of Shift Sections */}
-            <div className="divide-y divide-slate-800">
+            <div className="divide-y divide-border-subtle">
               {([1, 2, 3] as ShiftNumber[])
                 .filter(sNum => filterShift === 'all' || String(sNum) === filterShift)
                 .map(sNum => {
@@ -2995,89 +2995,89 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                   return (
                     <div key={sNum} className="p-4 space-y-3">
                       {/* Shift Header Bar */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-canvas p-3 rounded-xl border border-border-subtle">
                         <div className="flex items-center space-x-2.5">
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${sInfo.badgeBg} border ${sInfo.borderClass}`}>
                             {sInfo.name}
                           </span>
-                          <span className="text-xs text-slate-300 font-mono">
+                          <span className="text-xs text-ink-secondary font-mono">
                             {sInfo.timeRange}
                           </span>
                           {isCurrent && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold animate-pulse">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-ink-emerald border border-emerald-500/30 font-semibold animate-pulse">
                               ● Sedang Berjalan
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center space-x-3 text-xs">
-                          <span className="text-slate-400">
-                            Total Pemakaian: <strong className="text-rose-400 font-mono">-{totalKgInShift.toFixed(4)} kg</strong>
+                          <span className="text-ink-secondary">
+                            Total Pemakaian: <strong className="text-ink-rose font-mono">-{totalKgInShift.toFixed(4)} kg</strong>
                           </span>
                           <span className="text-slate-600">•</span>
-                          <span className="text-slate-400 font-mono">
+                          <span className="text-ink-secondary font-mono">
                             {usagesInShift.length} Transaksi
                           </span>
                         </div>
                       </div>
 
                       {/* Shift Usages Table */}
-                      <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+                      <div className="overflow-x-auto rounded-xl border border-border-subtle">
                         <table className="w-full text-left border-collapse text-xs">
                           <thead>
-                            <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                            <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                               <th className="py-2.5 px-3">No. Transaksi</th>
                               <th className="py-2.5 px-3">Tanggal</th>
                               <th className="py-2.5 px-3">WIP / SKU Terkait</th>
                               <th className="py-2.5 px-3">Material & Kode</th>
-                              <th className="py-2.5 px-3 text-right font-bold text-rose-400">Qty Digunakan</th>
+                              <th className="py-2.5 px-3 text-right font-bold text-ink-rose">Qty Digunakan</th>
                               <th className="py-2.5 px-3 text-center">Gudang</th>
                               <th className="py-2.5 px-3">Operator & Catatan</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/60">
+                          <tbody className="divide-y divide-border-subtle">
                             {usagesInShift.length > 0 ? (
                               usagesInShift.map(u => {
                                 const wObj = state.master.wips.find(w => w.id === u.wipId);
                                 const mObj = state.master.materials.find(m => m.id === u.materialId);
 
                                 return (
-                                  <tr key={u.id} className="hover:bg-slate-800/40 transition">
-                                    <td className="py-2.5 px-3 font-mono font-semibold text-white">
+                                  <tr key={u.id} className="hover:bg-elevated transition">
+                                    <td className="py-2.5 px-3 font-mono font-semibold text-ink-primary">
                                       {u.usageNumber}
                                     </td>
-                                    <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                                    <td className="py-2.5 px-3 text-ink-secondary text-[11px]">
                                       {u.date}
                                     </td>
-                                    <td className="py-2.5 px-3 text-slate-300">
+                                    <td className="py-2.5 px-3 text-ink-secondary">
                                       {wObj ? wObj.name : '-'}
                                     </td>
-                                    <td className="py-2.5 px-3 font-medium text-white">
+                                    <td className="py-2.5 px-3 font-medium text-ink-primary">
                                       <div className="flex items-center space-x-1.5">
-                                        <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-800 text-cyan-400 border border-slate-700">
+                                        <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-elevated text-brand border border-border-strong">
                                           {mObj?.code || `MAT-${u.materialId.slice(-4)}`}
                                         </span>
                                         <span>{mObj ? mObj.name : '-'}</span>
                                       </div>
                                     </td>
-                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-400">
+                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-rose">
                                       -{u.usageQty.toFixed(4)} kg
                                     </td>
                                     <td className="py-2.5 px-3 text-center">
-                                      <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-300">
+                                      <span className="px-2 py-0.5 rounded text-[10px] bg-elevated border border-border-strong text-ink-secondary">
                                         {u.sourceLocation}
                                       </span>
                                     </td>
-                                    <td className="py-2.5 px-3 text-slate-300">
-                                      <span className="text-white block font-medium">{u.operatorName || '-'}</span>
-                                      <span className="text-[10px] text-slate-500">{u.notes || ''}</span>
+                                    <td className="py-2.5 px-3 text-ink-secondary">
+                                      <span className="text-ink-primary block font-medium">{u.operatorName || '-'}</span>
+                                      <span className="text-[10px] text-ink-muted">{u.notes || ''}</span>
                                     </td>
                                   </tr>
                                 );
                               })
                             ) : (
                               <tr>
-                                <td colSpan={7} className="text-center py-6 text-slate-500 text-xs">
+                                <td colSpan={7} className="text-center py-6 text-ink-muted text-xs">
                                   Belum ada aktivitas pemakaian material yang tercatat pada {sInfo.name} ({sInfo.timeRange}).
                                 </td>
                               </tr>
@@ -3085,14 +3085,14 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                           </tbody>
                           {usagesInShift.length > 0 && (
                             <tfoot>
-                              <tr className="bg-slate-950/80 font-bold border-t border-slate-800 text-xs">
-                                <td colSpan={4} className="py-2 px-3 text-slate-300 text-right">
+                              <tr className="bg-canvas font-bold border-t border-border-subtle text-xs">
+                                <td colSpan={4} className="py-2 px-3 text-ink-secondary text-right">
                                   Subtotal Pemakaian {sInfo.name}:
                                 </td>
-                                <td className="py-2 px-3 text-right font-mono text-rose-400">
+                                <td className="py-2 px-3 text-right font-mono text-ink-rose">
                                   -{totalKgInShift.toFixed(4)} kg
                                 </td>
-                                <td colSpan={2} className="py-2 px-3 text-slate-400 font-mono text-[11px]">
+                                <td colSpan={2} className="py-2 px-3 text-ink-secondary font-mono text-[11px]">
                                   {usagesInShift.length} transaksi
                                 </td>
                               </tr>
@@ -3117,29 +3117,29 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             });
             if (pauseAuditRows.length === 0) return null;
             return (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-2">
+              <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+                <div className="p-4 border-b border-border-subtle flex items-center justify-between gap-2">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1.5 rounded-lg bg-sky-950 border border-sky-800 text-sky-300">
+                    <div className="p-1.5 rounded-lg bg-tint-sky border border-tint-sky-border text-ink-sky">
                       <ShieldCheck className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-white">
+                      <h3 className="font-bold text-sm text-ink-primary">
                         Audit Trail Penghentian Sementara (Pause) Batch WIP
                       </h3>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-ink-secondary">
                         Catatan kronologis setiap jeda perintah kerja batch WIP beserta kategori, alasan, dan durasinya
                       </p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-mono tabular-nums text-sky-300 font-semibold">
+                  <span className="text-[11px] font-mono tabular-nums text-ink-sky font-semibold">
                     {pauseAuditRows.length} Catatan Pause
                   </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-800/60 text-[11px] font-semibold text-slate-300 border-b border-slate-800">
+                      <tr className="bg-elevated text-[11px] font-semibold text-ink-secondary border-b border-border-subtle">
                         <th className="py-2.5 px-3">Batch &amp; WIP</th>
                         <th className="py-2.5 px-3">Mesin</th>
                         <th className="py-2.5 px-3">Kategori</th>
@@ -3149,30 +3149,30 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                         <th className="py-2.5 px-3">Petugas Audit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-border-subtle">
                       {pauseAuditRows.map(({ batch, machLabel, log }) => (
-                        <tr key={log.id} className="hover:bg-slate-800/40 transition">
+                        <tr key={log.id} className="hover:bg-elevated transition">
                           <td className="py-2.5 px-3">
-                            <span className="font-mono font-bold text-sky-300 block">{batch.batchCode}</span>
-                            <span className="text-[11px] text-white">{batch.wipName}</span>
+                            <span className="font-mono font-bold text-ink-sky block">{batch.batchCode}</span>
+                            <span className="text-[11px] text-ink-primary">{batch.wipName}</span>
                           </td>
-                          <td className="py-2.5 px-3 text-slate-300 text-[11px]">{machLabel}</td>
-                          <td className="py-2.5 px-3 font-semibold text-sky-300 whitespace-nowrap">{log.category}</td>
-                          <td className="py-2.5 px-3 text-white">{log.reason}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums text-[11px] text-slate-300 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-ink-secondary text-[11px]">{machLabel}</td>
+                          <td className="py-2.5 px-3 font-semibold text-ink-sky whitespace-nowrap">{log.category}</td>
+                          <td className="py-2.5 px-3 text-ink-primary">{log.reason}</td>
+                          <td className="py-2.5 px-3 font-mono tabular-nums text-[11px] text-ink-secondary whitespace-nowrap">
                             <div>Pause: {new Date(log.pausedAt).toLocaleString('id-ID')}</div>
-                            <div className="text-slate-400">
+                            <div className="text-ink-secondary">
                               Lanjut: {log.resumedAt ? new Date(log.resumedAt).toLocaleString('id-ID') : 'Masih Dijeda'}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-300 font-semibold whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-mono tabular-nums text-ink-amber font-semibold whitespace-nowrap">
                             {log.pausedDurationMs !== undefined
                               ? formatPauseDurationMs(log.pausedDurationMs)
                               : formatPauseDurationMs(Math.max(0, currentTime - new Date(log.pausedAt).getTime()))}
                           </td>
-                          <td className="py-2.5 px-3 text-[11px] text-slate-300">
+                          <td className="py-2.5 px-3 text-[11px] text-ink-secondary">
                             <div>Pause: <strong>{log.pausedBy}</strong></div>
-                            {log.resumedBy && <div className="text-slate-400">Lanjut: {log.resumedBy}</div>}
+                            {log.resumedBy && <div className="text-ink-secondary">Lanjut: {log.resumedBy}</div>}
                           </td>
                         </tr>
                       ))}

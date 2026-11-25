@@ -529,8 +529,29 @@ export interface AdminGoogleUser {
   role?: 'SUPER_ADMIN' | 'ADMIN';
 }
 
-// 3 Jenis Pengguna (Role-Based Access Control)
-export type UserRole = 'ADMINISTRATOR' | 'OPERATOR' | 'MANAGEMENT';
+// 4 Jenis Peran Efektif (Role-Based Access Control)
+export type UserRole = 'ADMINISTRATOR' | 'OFFLINE_PIN_ADMIN' | 'OPERATOR' | 'MANAGEMENT';
+
+export interface WorkspaceAccessConfig {
+  workspaceId?: string;
+  ownerUid?: string;
+  adminEmails: string[];
+  operatorEmails?: string[];
+  managementEmails?: string[];
+}
+
+export interface EffectiveRoleResolution {
+  role: UserRole;
+  isAdmin: boolean;
+  isCloudAdmin: boolean;
+  isOfflinePinAdmin: boolean;
+  isOperator: boolean;
+  isManagement: boolean;
+  canWriteCloudMaster: boolean;
+  canWriteCloudOperations: boolean;
+  hasRegisteredGoogleAdminEmail: boolean;
+  activeGoogleEmail?: string;
+}
 
 export interface RegisteredOperator {
   id: string;
@@ -616,13 +637,13 @@ export interface AppState {
   cloudWorkspaceId?: string; // ID Workspace Firestore terisolasi per pabrik/user
   cloudOwnerUid?: string; // UID Administrator utama pemilik workspace di Firestore
   isAuthenticated: boolean; // false initially so users land on the Sign In page
-  isAdmin: boolean;
-  currentUserRole: UserRole; // 'ADMINISTRATOR' | 'OPERATOR' | 'MANAGEMENT'
+  currentUserRole: UserRole; // 'ADMINISTRATOR' | 'OFFLINE_PIN_ADMIN' | 'OPERATOR' | 'MANAGEMENT'
   currentSession: CurrentUserSession;
   registeredOperators: RegisteredOperator[];
   registeredManagement: RegisteredManagement[];
   adminPin: string;
   adminGoogleEmails?: string[]; // Daftar email Google yang didaftarkan sebagai Administrator
+  workspaceAccessConfig?: WorkspaceAccessConfig; // Konfigurasi akses workspace tersinkronisasi dari Cloud
   currentAdminUser?: AdminGoogleUser | null;
   currentTab: 'admin-portal' | 'dashboard' | 'weekly-planning' | 'tank-monitoring' | 'shift-summary' | 'permintaan' | 'penerimaan' | 'pemakaian' | 'master' | 'bom-calculator' | 'reports' | 'contact' | 'sheets-sync';
   master: {
