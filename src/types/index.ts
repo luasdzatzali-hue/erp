@@ -514,6 +514,42 @@ export interface TankTransferLog {
   notes?: string;
 }
 
+export type RejectStationType = 'LINE' | 'CENTRAL_KITCHEN';
+
+export type RejectCategory =
+  | 'KEMASAN_RUSAK'
+  | 'ADONAN_TERBUANG'
+  | 'SETTING_AWAL'
+  | 'KONTAMINASI_QC';
+
+export interface MaterialRejectLog {
+  id: string;
+  timestamp: string;
+  date: string;
+  shift: ShiftNumber;
+  stationType: RejectStationType;
+  lineId?: string;
+  lineName?: string;
+  machineId?: string;
+  machineName?: string;
+  skuId?: string;
+  skuName?: string;
+  skuCode?: string;
+  wipId?: string;
+  wipName?: string;
+  materialId: string;
+  materialCode?: string;
+  materialName: string;
+  unit: 'kg' | 'gr';
+  rejectQtyInput: number;
+  rejectQtyKg: number;
+  sourceLocation: StorageLocation;
+  equivalentCartonsLoss: number;
+  rejectCategory: RejectCategory;
+  operatorName: string;
+  notes?: string;
+}
+
 export interface TankState {
   level: number; // kg aktual
   maxCapacity: number; // 1000 kg
@@ -669,6 +705,7 @@ export interface AppState {
     changeovers?: MachineChangeoverRecord[];
     productionStops?: ProductionStopLog[];
     stockAdjustments?: MaterialStockAdjustment[];
+    rejectLogs?: MaterialRejectLog[];
   };
   weeklyPlannings?: WeeklyProductionPlan[];
   activeWeeklyPlanId?: string | null;

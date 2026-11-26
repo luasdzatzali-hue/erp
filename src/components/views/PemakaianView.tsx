@@ -28,7 +28,8 @@ import {
   X,
   PauseCircle,
   Play,
-  ShieldCheck
+  ShieldCheck,
+  Monitor
 } from 'lucide-react';
 import {
   AppState,
@@ -71,6 +72,7 @@ interface PemakaianViewProps {
   onCompleteWipBatch: (batchId: string) => void;
   onCancelWipBatch: (batchId: string) => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
+  onOpenStationMonitor?: (station: { type: 'line' | 'ck'; id: string }) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -83,6 +85,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
   onCompleteWipBatch,
   onCancelWipBatch,
   onSwitchTab,
+  onOpenStationMonitor,
   showToast
 }) => {
   const [skuId, setSkuId] = useState('');
@@ -846,6 +849,61 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
             <p className="text-[10px] text-ink-muted mt-1">{currentShiftStats.count} transaksi pemotongan stok BOM</p>
           </div>
         </div>
+
+        {/* Dedicated Central Kitchen Machine Kiosk Monitor Strip */}
+        {onOpenStationMonitor && state.master.machines.length > 0 && (
+          <div className="border-t border-border-subtle px-4 py-3 bg-canvas/70 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-ink-secondary uppercase tracking-wider flex items-center gap-1.5">
+                <Monitor className="w-3.5 h-3.5 text-brand" />
+                <span>Monitor Khusus Mesin Central Kitchen (Kiosk Mode)</span>
+              </span>
+              <span className="text-[11px] font-mono text-ink-secondary tabular-nums">
+                {state.master.machines.length} unit mesin
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {state.master.machines.map(mach => {
+                const runningBatch = allActiveBatches.find(b => b.targetMachineId === mach.id);
+                return (
+                  <div
+                    key={mach.id}
+                    className={`bg-surface border rounded-xl p-2.5 flex items-center justify-between gap-2 ${
+                      runningBatch
+                        ? runningBatch.status === 'DIJEDA'
+                          ? 'border-sky-500/45'
+                          : 'border-amber-500/45'
+                        : 'border-border-subtle'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold text-brand bg-elevated px-1.5 py-0.5 rounded">
+                          {mach.code}
+                        </span>
+                        <span className="text-xs font-bold text-ink-primary truncate">{mach.name}</span>
+                      </div>
+                      <p className="text-[10px] text-ink-secondary truncate mt-0.5 font-mono">
+                        {runningBatch
+                          ? `${runningBatch.batchCode} · ${runningBatch.wipName}`
+                          : `Standby · ${mach.capacityKgPerHour} kg/j`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenStationMonitor({ type: 'ck', id: mach.id })}
+                      className="px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent border border-border-strong text-[11px] font-semibold text-brand flex items-center gap-1 shrink-0 transition"
+                      title={`Buka Monitor Khusus ${mach.name}`}
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      <span>Kiosk</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active & Paused WIP Batches Pipeline Monitor */}
@@ -915,6 +973,20 @@ export const PemakaianView: React.FC<PemakaianViewProps> = ({
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {onOpenStationMonitor && batch.targetMachineId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            batch.targetMachineId &&
+                            onOpenStationMonitor({ type: 'ck', id: batch.targetMachineId })
+                          }
+                          className="px-2 py-1 bg-elevated hover:bg-accent border border-border-strong text-brand font-semibold rounded-lg text-[10px] transition flex items-center gap-1 whitespace-nowrap"
+                          title="Buka Monitor Khusus Mesin CK (Kiosk Mode)"
+                        >
+                          <Monitor className="w-3 h-3" />
+                          <span>Kiosk</span>
+                        </button>
+                      )}
                       {isPaused ? (
                         onResumeWipBatch && (
                           <button

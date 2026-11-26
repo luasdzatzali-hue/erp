@@ -224,7 +224,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'type', 'timestamp', 'actorEmail', 'payload', 'shift', 'skuCode']) &&
         data.keys().hasOnly(['id', 'type', 'timestamp', 'actorEmail', 'payload', 'shift', 'skuCode']) &&
         isValidId(data.id) &&
-        data.type in ['REQUEST', 'RECEIPT', 'USAGE', 'CARTON_PROD', 'TANK_LOG', 'ADJUSTMENT'] &&
+        data.type in ['REQUEST', 'RECEIPT', 'USAGE', 'CARTON_PROD', 'TANK_LOG', 'ADJUSTMENT', 'REJECT_LOG'] &&
         data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64 &&
         data.actorEmail is string && data.actorEmail.size() >= 1 && data.actorEmail.size() <= 160 &&
         data.payload is map &&

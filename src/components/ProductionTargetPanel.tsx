@@ -25,7 +25,8 @@ import {
   MessageCircle,
   Radio,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Monitor
 } from 'lucide-react';
 import {
   AppState,
@@ -119,6 +120,7 @@ interface ProductionTargetPanelProps {
       notes?: string;
     }
   ) => void;
+  onOpenStationMonitor?: (station: { type: 'line' | 'ck'; id: string }) => void;
   showToast?: (msg: string, isError?: boolean) => void;
 }
 
@@ -153,6 +155,7 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   onUpdateProductionLine,
   onDeleteProductionLine,
   onSetProductionLinesCount,
+  onOpenStationMonitor,
   showToast
 }) => {
   const effectiveRole = resolveEffectiveRole(state);
@@ -1433,6 +1436,17 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                           </>
                         )}
                       </button>
+
+                      {onOpenStationMonitor && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenStationMonitor({ type: 'line', id: line.id })}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-elevated hover:bg-accent text-brand border border-border-strong transition flex items-center space-x-1.5"
+                        >
+                          <Monitor className="w-3.5 h-3.5" />
+                          <span>Buka Monitor Khusus</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1507,6 +1521,18 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                         </button>
                       ))}
                     </div>
+
+                    {onOpenStationMonitor && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenStationMonitor({ type: 'line', id: line.id })}
+                        className="px-2.5 py-1.5 bg-elevated hover:bg-accent text-brand border border-border-strong rounded-xl text-xs font-semibold flex items-center space-x-1 transition"
+                        title="Buka Monitor Khusus Line ini (Kiosk Mode)"
+                      >
+                        <Monitor className="w-3.5 h-3.5" />
+                        <span>Kiosk</span>
+                      </button>
+                    )}
 
                     {!isManagement && (
                       <button

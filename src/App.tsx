@@ -31,7 +31,8 @@ import {
   MaterialStockAdjustment,
   ProductionLine,
   ShiftNumber,
-  WeeklyProductionPlan
+  WeeklyProductionPlan,
+  MaterialRejectLog
 } from './types';
 import {
   loadStoredState,
@@ -75,6 +76,7 @@ import {
   toTransactionDocFromAdjustment,
   toTransactionDocFromCartonProd,
   toTransactionDocFromReceipt,
+  toTransactionDocFromRejectLog,
   toTransactionDocFromRequest,
   toTransactionDocFromTankLog,
   toTransactionDocFromUsage,
@@ -111,6 +113,8 @@ import { AuthPortalView } from './components/views/AuthPortalView';
 import { AdminPortalView } from './components/views/AdminPortalView';
 import { GoogleSheetsSyncView } from './components/views/GoogleSheetsSyncView';
 import { WeeklyPlanningView } from './components/views/WeeklyPlanningView';
+import { LineStationMonitorView } from './components/views/LineStationMonitorView';
+import { CkStationMonitorView } from './components/views/CkStationMonitorView';
 import { OperationalWorkflowStepper } from './components/OperationalWorkflowStepper';
 import { ShiftReportPdfModal } from './components/ShiftReportPdfModal';
 import { WipCompletionAlarmModal } from './components/WipCompletionAlarmModal';
@@ -149,6 +153,62 @@ export default function App() {
   const [alarmWipBatch, setAlarmWipBatch] = useState<WipProductionBatch | null>(null);
   const [preselectedRequestId, setPreselectedRequestId] = useState<string | undefined>(undefined);
   const [deepLinkSlip, setDeepLinkSlip] = useState<RequestSlipDeepLinkData | null>(null);
+
+  const parseStationFromLocation = useCallback((): { type: 'line' | 'ck'; id: string } | null => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const qType = searchParams.get('station');
+      const qId = searchParams.get('id');
+      if ((qType === 'line' || qType === 'ck') && qId && qId.trim()) {
+        return { type: qType, id: qId.trim() };
+      }
+      const rawHash = window.location.hash || '';
+      if (rawHash.includes('station=')) {
+        const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''));
+        const hType = hashParams.get('station');
+        const hId = hashParams.get('id');
+        if ((hType === 'line' || hType === 'ck') && hId && hId.trim()) {
+          return { type: hType, id: hId.trim() };
+        }
+      }
+    } catch {
+      // ignore malformed URL
+    }
+    return null;
+  }, []);
+
+  const [activeStation, setActiveStation] = useState<{ type: 'line' | 'ck'; id: string } | null>(() =>
+    parseStationFromLocation()
+  );
+
+  const handleOpenStationMonitor = useCallback((station: { type: 'line' | 'ck'; id: string }) => {
+    setActiveStation(station);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('station', station.type);
+      url.searchParams.set('id', station.id);
+      url.hash = '';
+      window.history.pushState({ station }, '', url.toString());
+    } catch {
+      window.location.hash = `station=${station.type}&id=${encodeURIComponent(station.id)}`;
+    }
+  }, []);
+
+  const handleExitStationMonitor = useCallback(() => {
+    const prevType = activeStation?.type;
+    setActiveStation(null);
+    const targetTab: AppState['currentTab'] = prevType === 'ck' ? 'pemakaian' : 'dashboard';
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('station');
+      url.searchParams.delete('id');
+      url.hash = `tab=${targetTab}`;
+      window.history.pushState({ tab: targetTab }, '', url.toString());
+    } catch {
+      window.location.hash = `tab=${targetTab}`;
+    }
+    setState(prev => ({ ...prev, currentTab: targetTab }));
+  }, [activeStation?.type]);
 
   const handleOpenStockAdjustment = (materialId?: string) => {
     setStockAdjustmentPreselectedMatId(materialId);
@@ -1418,10 +1478,21 @@ export default function App() {
         }
       }
     };
-    handleHashChange();
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [state.isAuthenticated]);
+    const handlePopOrHash = () => {
+      const st = parseStationFromLocation();
+      setActiveStation(st);
+      if (!st) {
+        handleHashChange();
+      }
+    };
+    handlePopOrHash();
+    window.addEventListener('hashchange', handlePopOrHash);
+    window.addEventListener('popstate', handlePopOrHash);
+    return () => {
+      window.removeEventListener('hashchange', handlePopOrHash);
+      window.removeEventListener('popstate', handlePopOrHash);
+    };
+  }, [state.isAuthenticated, parseStationFromLocation]);
 
   // Switch tabs with role-based access control
   const handleSwitchTab = (tab: AppState['currentTab']) => {
@@ -1798,7 +1869,8 @@ export default function App() {
         'USAGE',
         'CARTON_PROD',
         'TANK_LOG',
-        'ADJUSTMENT'
+        'ADJUSTMENT',
+        'REJECT_LOG'
       ]).catch(err => console.error('Reset all transactions cloud error:', err));
     }
     setState(prev => ({
@@ -5676,6 +5748,25 @@ export default function App() {
     showToast('Perintah kerja batch WIP telah dibatalkan', true);
   };
 
+  // Record Material Reject from Station Monitors (Line / Central Kitchen)
+  const handleRecordMaterialReject = useCallback(
+    (log: MaterialRejectLog) => {
+      const actorEmail = getActiveActorEmail();
+      dispatchAppendTx(toTransactionDocFromRejectLog(log, actorEmail));
+      setState(prev => ({
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          rejectLogs: [log, ...(prev.transactions.rejectLogs || [])]
+        }
+      }));
+      showToast(
+        `Reject ${log.materialName} (${log.rejectQtyKg.toFixed(2)} kg / -${log.equivalentCartonsLoss.toFixed(2)} ktn eq) dicatat & stok ${log.sourceLocation} otomatis terpotong.`
+      );
+    },
+    [dispatchAppendTx, getActiveActorEmail, showToast]
+  );
+
   // Jump from Request row to Receive form
   const handleJumpToReceive = (req: MaterialRequest) => {
     setPreselectedRequestId(req.id);
@@ -5742,6 +5833,49 @@ export default function App() {
             showToast={showToast}
           />
         </div>
+        {toasterNode}
+      </>
+    );
+  }
+
+  // 1B. DEDICATED STATION MONITOR MODE (KIOSK MODE: ?station=line&id=... or ?station=ck&id=...)
+  if (activeStation) {
+    return (
+      <>
+        {activeStation.type === 'line' ? (
+          <LineStationMonitorView
+            state={state}
+            lineId={activeStation.id}
+            theme={isDaylightTheme ? 'daylight' : 'midnight'}
+            onToggleTheme={handleToggleTheme}
+            onExitMonitor={handleExitStationMonitor}
+            onRecordMaterialReject={handleRecordMaterialReject}
+            onProduceCartons={handleProduceCartons}
+          />
+        ) : (
+          <CkStationMonitorView
+            state={state}
+            machineId={activeStation.id}
+            theme={isDaylightTheme ? 'daylight' : 'midnight'}
+            onToggleTheme={handleToggleTheme}
+            onExitMonitor={handleExitStationMonitor}
+            onRecordMaterialReject={handleRecordMaterialReject}
+            onCompleteWipBatch={handleCompleteWipBatch}
+            onResumeWipBatch={handleResumeWipBatch}
+            onPauseWipBatch={handlePauseWipBatch}
+          />
+        )}
+        <WipCompletionAlarmModal
+          completedBatch={alarmWipBatch}
+          onDismiss={() => setAlarmWipBatch(null)}
+          onNavigateToTanks={() => {
+            setAlarmWipBatch(null);
+            handleExitStationMonitor();
+            handleSwitchTab('tank-monitoring');
+          }}
+          tanks={state.master.tanks}
+          machines={state.master.machines}
+        />
         {toasterNode}
       </>
     );
@@ -5970,6 +6104,7 @@ export default function App() {
               onSetProductionLinesCount={handleSetProductionLinesCount}
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               onChangeSku={handleSkuChangeover}
+              onOpenStationMonitor={handleOpenStationMonitor}
               showToast={showToast}
             />
           )}
@@ -6025,6 +6160,7 @@ export default function App() {
               onCompleteWipBatch={handleCompleteWipBatch}
               onCancelWipBatch={handleCancelWipBatch}
               onSwitchTab={handleSwitchTab}
+              onOpenStationMonitor={handleOpenStationMonitor}
               showToast={showToast}
             />
           )}

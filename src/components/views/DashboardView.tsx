@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarRange,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Monitor
 } from 'lucide-react';
 import {
   AppState,
@@ -106,6 +107,7 @@ interface DashboardViewProps {
     }
   ) => void;
   liveLineStatus?: DashboardLineStatusSnapshot | null;
+  onOpenStationMonitor?: (station: { type: 'line' | 'ck'; id: string }) => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -133,6 +135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSetProductionLinesCount,
   onOpenPdfModal,
   onChangeSku,
+  onOpenStationMonitor,
   showToast
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -992,6 +995,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   )}
                 </div>
+
+                {onOpenStationMonitor && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenStationMonitor({ type: 'line', id: line.id });
+                    }}
+                    className="mt-2.5 w-full px-2.5 py-1.5 rounded-lg bg-elevated hover:bg-accent border border-border-subtle text-[11px] font-semibold text-ink-primary flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Monitor className="w-3.5 h-3.5 text-brand" />
+                    <span>Buka Monitor Khusus (Kiosk Mode)</span>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -1028,6 +1045,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onDeleteProductionLine={onDeleteProductionLine}
           onSetProductionLinesCount={onSetProductionLinesCount}
           onChangeSku={onChangeSku}
+          onOpenStationMonitor={onOpenStationMonitor}
           showToast={showToast}
         />
       </div>

@@ -17,6 +17,7 @@ import {
   AppState,
   CartonProductionLog,
   MaterialReceipt,
+  MaterialRejectLog,
   MaterialRequest,
   MaterialStockAdjustment,
   MaterialUsage,
@@ -39,7 +40,8 @@ export type FirestoreTransactionType =
   | 'USAGE'
   | 'CARTON_PROD'
   | 'TANK_LOG'
-  | 'ADJUSTMENT';
+  | 'ADJUSTMENT'
+  | 'REJECT_LOG';
 
 export interface WorkspaceTransactionDoc<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   id: string;
@@ -57,7 +59,8 @@ const VALID_TX_TYPES = new Set<FirestoreTransactionType>([
   'USAGE',
   'CARTON_PROD',
   'TANK_LOG',
-  'ADJUSTMENT'
+  'ADJUSTMENT',
+  'REJECT_LOG'
 ]);
 
 const MIGRATION_BATCH_SIZE = 400;
@@ -371,6 +374,21 @@ export function toTransactionDocFromAdjustment(
   });
 }
 
+export function toTransactionDocFromRejectLog(
+  rejectLog: MaterialRejectLog,
+  actorEmail?: string | null
+): WorkspaceTransactionDoc {
+  return normalizeTransactionDoc({
+    id: rejectLog.id,
+    type: 'REJECT_LOG',
+    timestamp: normalizeTimestampIso(rejectLog.timestamp, rejectLog.date),
+    actorEmail: resolveActorEmail(actorEmail),
+    payload: rejectLog as unknown as Record<string, unknown>,
+    shift: normalizeShiftValue(rejectLog.shift),
+    skuCode: normalizeSkuCode(rejectLog.skuCode || rejectLog.skuId, rejectLog.materialCode || rejectLog.materialId)
+  });
+}
+
 export interface HydratedSubcollectionTransactions {
   requests: MaterialRequest[];
   receipts: MaterialReceipt[];
@@ -378,6 +396,7 @@ export interface HydratedSubcollectionTransactions {
   cartonProductions: CartonProductionLog[];
   tankLogs: TankTransferLog[];
   stockAdjustments: MaterialStockAdjustment[];
+  rejectLogs: MaterialRejectLog[];
 }
 
 export function hydrateTransactionsFromDocs(
@@ -389,6 +408,7 @@ export function hydrateTransactionsFromDocs(
   const cartonProductions: CartonProductionLog[] = [];
   const tankLogs: TankTransferLog[] = [];
   const stockAdjustments: MaterialStockAdjustment[] = [];
+  const rejectLogs: MaterialRejectLog[] = [];
 
   const receivedRequestIds = new Set<string>();
 
@@ -426,6 +446,11 @@ export function hydrateTransactionsFromDocs(
         stockAdjustments.push(adj);
         break;
       }
+      case 'REJECT_LOG': {
+        const rej = { ...(p as unknown as MaterialRejectLog), id: (p.id as string) || tx.id };
+        rejectLogs.push(rej);
+        break;
+      }
     }
   }
 
@@ -444,7 +469,8 @@ export function hydrateTransactionsFromDocs(
     usages,
     cartonProductions,
     tankLogs,
-    stockAdjustments
+    stockAdjustments,
+    rejectLogs
   };
 }
 
@@ -603,7 +629,8 @@ export function mergeMigratedTransactionsIntoState(
       usages: hydrated.usages,
       cartonProductions: hydrated.cartonProductions,
       tankLogs: hydrated.tankLogs,
-      stockAdjustments: hydrated.stockAdjustments
+      stockAdjustments: hydrated.stockAdjustments,
+      rejectLogs: hydrated.rejectLogs
     };
   }
 
@@ -617,7 +644,8 @@ export function mergeMigratedTransactionsIntoState(
     ...hydrated.usages.map(u => toTransactionDocFromUsage(u)),
     ...hydrated.cartonProductions.map(c => toTransactionDocFromCartonProd(c)),
     ...hydrated.tankLogs.map(t => toTransactionDocFromTankLog(t)),
-    ...hydrated.stockAdjustments.map(a => toTransactionDocFromAdjustment(a))
+    ...hydrated.stockAdjustments.map(a => toTransactionDocFromAdjustment(a)),
+    ...hydrated.rejectLogs.map(rej => toTransactionDocFromRejectLog(rej))
   ]) {
     if (!seenIds.has(d.id)) {
       seenIds.add(d.id);
@@ -635,6 +663,7 @@ export function mergeMigratedTransactionsIntoState(
     usages: merged.usages,
     cartonProductions: merged.cartonProductions,
     tankLogs: merged.tankLogs,
-    stockAdjustments: merged.stockAdjustments
+    stockAdjustments: merged.stockAdjustments,
+    rejectLogs: merged.rejectLogs
   };
 }

@@ -382,7 +382,8 @@ export const DEFAULT_STATE: AppState = {
     tankLogs: [],
     changeovers: [],
     productionStops: [],
-    stockAdjustments: []
+    stockAdjustments: [],
+    rejectLogs: []
   },
   activeSkuRun: null,
   activeSkuRuns: [],
@@ -908,7 +909,8 @@ export function getSampleState(): AppState {
           cartonsProducedDuringRun: 60
         }
       ],
-      stockAdjustments: []
+      stockAdjustments: [],
+      rejectLogs: []
     },
     weeklyPlannings: [],
     activeWeeklyPlanId: null,
@@ -962,7 +964,8 @@ export function getCleanBlankState(): AppState {
       tankLogs: [],
       changeovers: [],
       productionStops: [],
-      stockAdjustments: []
+      stockAdjustments: [],
+      rejectLogs: []
     },
     weeklyPlannings: [],
     activeWeeklyPlanId: null,
@@ -1184,7 +1187,8 @@ export function loadStoredState(): AppState {
             tankLogs: trimmedTankLogs,
             changeovers: sanitizeUniqueIds(parsed.transactions?.changeovers || [], 'co'),
             productionStops: sanitizeUniqueIds(parsed.transactions?.productionStops || [], 'stop'),
-            stockAdjustments: sanitizeUniqueIds(parsed.transactions?.stockAdjustments || [], 'adj')
+            stockAdjustments: sanitizeUniqueIds(parsed.transactions?.stockAdjustments || [], 'adj'),
+            rejectLogs: sanitizeUniqueIds(parsed.transactions?.rejectLogs || [], 'rej')
           },
           weeklyPlannings: Array.isArray(parsed.weeklyPlannings) ? parsed.weeklyPlannings : [],
           activeWeeklyPlanId: parsed.activeWeeklyPlanId ?? null,
@@ -1334,7 +1338,8 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
         tankLogs: tankLogs.slice(0, 40),
         changeovers: (state.transactions.changeovers || []).slice(0, 100),
         productionStops: (state.transactions.productionStops || []).slice(0, 150),
-        stockAdjustments: (state.transactions.stockAdjustments || []).slice(0, 100)
+        stockAdjustments: (state.transactions.stockAdjustments || []).slice(0, 100),
+        rejectLogs: (state.transactions.rejectLogs || []).slice(0, 150)
       }
     };
   }
@@ -1356,7 +1361,8 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
       wipBatches: activeOrRecentBatches,
       changeovers: [],
       productionStops: (state.transactions.productionStops || []).slice(0, 50),
-      stockAdjustments: []
+      stockAdjustments: [],
+      rejectLogs: (state.transactions.rejectLogs || []).slice(0, 50)
     }
   };
 }
@@ -1478,6 +1484,42 @@ export function calculateStockBalances(state: AppState): Record<string, Material
         }
       } else {
         // Fallback deduction
+        if (target.stockCk >= rem) {
+          target.stockCk -= rem;
+        } else {
+          rem -= target.stockCk;
+          target.stockCk = 0;
+          target.stockWineroto = Math.max(0, target.stockWineroto - rem);
+        }
+      }
+      target.totalActual = target.stockCk + target.stockWineroto + target.stockTank;
+    }
+  });
+
+  // Subtract material rejects (automatically reflected in Stock Opname & low stock alerts)
+  (state.transactions.rejectLogs || []).forEach(rej => {
+    const target = stockMap[rej.materialId];
+    if (target && rej.rejectQtyKg > 0) {
+      let rem = rej.rejectQtyKg;
+      if (rej.sourceLocation === 'STORAGE_TANK') {
+        target.stockTank = Math.max(0, target.stockTank - rem);
+      } else if (rej.sourceLocation === 'CK') {
+        if (target.stockCk >= rem) {
+          target.stockCk -= rem;
+        } else {
+          rem -= target.stockCk;
+          target.stockCk = 0;
+          target.stockWineroto = Math.max(0, target.stockWineroto - rem);
+        }
+      } else if (rej.sourceLocation === 'WINEROTO') {
+        if (target.stockWineroto >= rem) {
+          target.stockWineroto -= rem;
+        } else {
+          rem -= target.stockWineroto;
+          target.stockWineroto = 0;
+          target.stockCk = Math.max(0, target.stockCk - rem);
+        }
+      } else {
         if (target.stockCk >= rem) {
           target.stockCk -= rem;
         } else {

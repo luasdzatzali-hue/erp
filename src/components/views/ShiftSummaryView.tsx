@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Layers,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  PackageX
 } from 'lucide-react';
 import {
   AppState,
@@ -30,6 +31,10 @@ import {
 } from '../../utils/shifts';
 import { calculateUsageBreakdown } from '../../utils/reportBreakdown';
 import { isWhatsAppEligibleSblCategory } from '../../utils/whatsappReport';
+import {
+  computeShiftVarianceAndSblSummary,
+  getRejectCategoryLabel
+} from '../../utils/rejectAnalytics';
 import { WhatsAppSblModal } from '../WhatsAppSblModal';
 
 interface ShiftSummaryViewProps {
@@ -330,6 +335,11 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
 
   const totalWipDepletedKg = tankConsumptionRows.reduce((s, t) => s + t.totalDeductedKg, 0);
 
+  const varianceAndSbl = useMemo(
+    () => computeShiftVarianceAndSblSummary(state, selectedDate, selectedShift),
+    [state, selectedDate, selectedShift]
+  );
+
   return (
     <div className="max-w-7xl mx-auto space-y-5 pb-10">
       {/* 1. HEADER & SHIFT SELECTOR BAR */}
@@ -462,24 +472,27 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 2: Six Big Losses Stops */}
+        {/* KPI 2: Six Big Losses Stops + Quality/Speed Loss */}
         <div className="bg-surface border border-border-subtle rounded-2xl p-4 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary">
-            <span>Henti Masalah (Six Big Losses)</span>
-            <ShieldAlert className={`w-4 h-4 ${shiftStopLogs.length > 0 ? 'text-ink-rose' : 'text-ink-muted'}`} />
+            <span>Six Big Losses (3 Pilar)</span>
+            <ShieldAlert className={`w-4 h-4 ${varianceAndSbl.sblThreePillar.totalLossMinutes > 0 ? 'text-ink-rose' : 'text-ink-muted'}`} />
           </div>
           <div className="flex items-baseline space-x-2">
-            <span className={`text-2xl font-bold font-mono tabular-nums ${totalDowntimeMinutes > 0 ? 'text-ink-rose' : 'text-ink-primary'}`}>
-              {totalDowntimeMinutes}
+            <span className={`text-2xl font-bold font-mono tabular-nums ${varianceAndSbl.sblThreePillar.totalLossMinutes > 0 ? 'text-ink-rose' : 'text-ink-primary'}`}>
+              {varianceAndSbl.sblThreePillar.totalLossMinutes}
             </span>
-            <span className="text-xs text-ink-secondary font-mono">menit downtime</span>
+            <span className="text-xs text-ink-secondary font-mono">menit total loss</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-ink-secondary pt-1">
-            <span>Jumlah kejadian stop:</span>
-            <strong className="font-mono text-ink-primary tabular-nums">{shiftStopLogs.length} kejadian</strong>
+          <div className="flex items-center justify-between text-[11px] text-ink-secondary pt-1 font-mono tabular-nums">
+            <span>Downtime: {totalDowntimeMinutes}m</span>
+            <span>Speed: {varianceAndSbl.sblThreePillar.performanceLossMinutes}m</span>
+            <span>Reject: {varianceAndSbl.sblThreePillar.qualityLossMinutes}m</span>
           </div>
           <p className="text-[11px] text-ink-secondary truncate">
-            {sblByCategory[0]
+            {varianceAndSbl.totalRejectKg > 0
+              ? `Reject Material: ${varianceAndSbl.totalRejectKg.toFixed(2)} kg (-${varianceAndSbl.totalRejectEquivalentCartons.toFixed(1)} ktn)`
+              : sblByCategory[0]
               ? `Dominan: ${sblByCategory[0].label} (${sblByCategory[0].minutes} mnt)`
               : 'Tidak ada gangguan SBL tercatat'}
           </p>
@@ -673,8 +686,46 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
               </button>
             )}
             <span className="text-xs font-mono font-bold text-ink-rose tabular-nums">
-              Total Downtime: {totalDowntimeMinutes} Menit
+              Total SBL: {varianceAndSbl.sblThreePillar.totalLossMinutes} Menit
             </span>
+          </div>
+        </div>
+
+        {/* 3-Pillar SBL Summary Strip */}
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-border-subtle bg-canvas/60">
+          <div className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-1">
+            <span className="text-[11px] font-bold text-ink-secondary uppercase">
+              1. Downtime Loss (Availability)
+            </span>
+            <div className="text-lg font-bold font-mono tabular-nums text-ink-rose">
+              {varianceAndSbl.sblThreePillar.availabilityLossMinutes} mnt
+            </div>
+            <p className="text-[11px] text-ink-secondary">
+              {shiftStopLogs.filter(s => s.lossType === 'DOWNTIME').length} kejadian stop mesin/line
+            </p>
+          </div>
+          <div className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-1">
+            <span className="text-[11px] font-bold text-ink-secondary uppercase">
+              2. Speed Variance Loss (Performance)
+            </span>
+            <div className="text-lg font-bold font-mono tabular-nums text-ink-amber">
+              {varianceAndSbl.sblThreePillar.performanceLossMinutes} mnt
+            </div>
+            <p className="text-[11px] text-ink-secondary font-mono tabular-nums">
+              Defisit laju: {varianceAndSbl.sblThreePillar.performanceLossCartons.toLocaleString()} karton
+            </p>
+          </div>
+          <div className="bg-canvas border border-border-subtle rounded-xl p-3 space-y-1">
+            <span className="text-[11px] font-bold text-ink-secondary uppercase">
+              3. Material / Product Reject Loss (Quality)
+            </span>
+            <div className="text-lg font-bold font-mono tabular-nums text-ink-purple">
+              {varianceAndSbl.sblThreePillar.qualityLossMinutes} mnt
+            </div>
+            <p className="text-[11px] text-ink-secondary font-mono tabular-nums">
+              {varianceAndSbl.sblThreePillar.qualityLossKg.toFixed(2)} kg reject (-
+              {varianceAndSbl.sblThreePillar.qualityLossCartons.toFixed(1)} ktn eq)
+            </p>
           </div>
         </div>
 
@@ -946,6 +997,111 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* SECTION D: MATERIAL VARIANCE (BOM + REJECT) & REJECT LOGS */}
+      <div className="bg-surface border border-border-subtle rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-4 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center space-x-2.5">
+            <PackageX className="w-4 h-4 text-ink-rose" />
+            <div>
+              <h3 className="text-sm font-bold text-ink-primary">
+                4. Analisa Material Variance (Standar BOM + Reject Material) &amp; Quality Loss
+              </h3>
+              <p className="text-[11px] text-ink-secondary">
+                Pemakaian Aktual = Standar BOM Output + Total Reject Material ({varianceAndSbl.shiftRejectLogs.length} entri reject tercatat).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+            <span className="text-ink-secondary">
+              Standar: <strong className="text-ink-primary">{varianceAndSbl.totalStandardBomKg.toFixed(2)} kg</strong>
+            </span>
+            <span className="text-ink-rose font-bold">
+              Reject: +{varianceAndSbl.totalRejectKg.toFixed(2)} kg ({varianceAndSbl.overallMaterialVariancePct}%)
+            </span>
+            <span className="text-brand font-bold">
+              Aktual: {varianceAndSbl.totalActualMaterialKg.toFixed(2)} kg
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-canvas text-[11px] font-bold text-ink-secondary uppercase border-b border-border-subtle whitespace-nowrap">
+                <th className="py-2.5 px-3">Material</th>
+                <th className="py-2.5 px-3 text-right">Standar BOM Output (Kg)</th>
+                <th className="py-2.5 px-3 text-right">Total Reject (Kg)</th>
+                <th className="py-2.5 px-3 text-right">Pemakaian Aktual (Kg)</th>
+                <th className="py-2.5 px-3 text-right">Variance (%)</th>
+                <th className="py-2.5 px-3 text-right">Ekuivalen Loss (Ktn)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {varianceAndSbl.materialVarianceRows.length > 0 ? (
+                varianceAndSbl.materialVarianceRows.map(row => (
+                  <tr key={row.materialId} className="hover:bg-elevated transition">
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-ink-primary">{row.materialName}</div>
+                      <div className="text-[10px] font-mono text-ink-secondary">{row.materialCode}</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-ink-secondary tabular-nums">
+                      {row.standardBomKg.toFixed(2)}
+                    </td>
+                    <td className={`py-2.5 px-3 text-right font-mono font-bold tabular-nums ${row.rejectKg > 0 ? 'text-ink-rose' : 'text-ink-secondary'}`}>
+                      {row.rejectKg.toFixed(2)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-primary tabular-nums">
+                      {row.actualKg.toFixed(2)}
+                    </td>
+                    <td className={`py-2.5 px-3 text-right font-mono font-bold tabular-nums ${row.variancePct > 0 ? 'text-ink-amber' : 'text-ink-emerald'}`}>
+                      +{row.variancePct}%
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-ink-purple tabular-nums">
+                      {row.equivalentCartonsLoss.toFixed(2)} ktn
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-5 text-center text-ink-secondary text-xs">
+                    Belum ada data Material Variance atau Reject Material pada shift ini.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {varianceAndSbl.shiftRejectLogs.length > 0 && (
+          <div className="border-t border-border-subtle bg-canvas/50 p-4 space-y-2">
+            <div className="text-xs font-bold text-ink-primary">
+              Rincian Kejadian Reject Material ({varianceAndSbl.shiftRejectLogs.length})
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              {varianceAndSbl.shiftRejectLogs.map(rej => (
+                <div
+                  key={rej.id}
+                  className="bg-surface border border-border-subtle rounded-xl p-2.5 flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold text-ink-primary truncate">
+                      {rej.materialName} · <span className="text-ink-rose">{getRejectCategoryLabel(rej.rejectCategory)}</span>
+                    </div>
+                    <div className="text-[11px] font-mono text-ink-secondary truncate">
+                      {rej.stationType === 'LINE' ? rej.lineName : rej.machineName} · {rej.operatorName} · {rej.sourceLocation}
+                    </div>
+                  </div>
+                  <div className="text-right font-mono tabular-nums shrink-0">
+                    <div className="font-bold text-ink-rose">{rej.rejectQtyKg.toFixed(2)} kg</div>
+                    <div className="text-[10px] text-ink-amber">-{rej.equivalentCartonsLoss.toFixed(2)} ktn</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Unused icon suppression / Batch WIP Quick Summary if any active batches */}
