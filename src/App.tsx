@@ -117,6 +117,8 @@ import { WipCompletionAlarmModal } from './components/WipCompletionAlarmModal';
 import { UserRoleSwitcherModal } from './components/UserRoleSwitcherModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
+import { CommandMenu } from './components/CommandMenu';
+import { calculateMissedProduction } from './utils/productionReconcile';
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
 import { ContactSection, ContactFormData } from '@/components/ui/contact';
@@ -135,6 +137,7 @@ export default function App() {
     enforceHttpsTransport();
   }, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -3105,16 +3108,17 @@ export default function App() {
   };
 
   // Automatic Carton Production Depletion Engine (Holding Tank & Storage Tank Real-Time Depletion)
-  const handleProduceCartons = (
-    skuId: string,
-    cartonCount: number,
-    operatorName?: string,
-    notes?: string,
-    overrideSelectedHoldingTanks?: Record<string, string>,
-    runId?: string,
-    lineId?: string,
-    lineName?: string
-  ): { success: boolean; message: string } => {
+  const handleProduceCartons = useCallback(
+    (
+      skuId: string,
+      cartonCount: number,
+      operatorName?: string,
+      notes?: string,
+      overrideSelectedHoldingTanks?: Record<string, string>,
+      runId?: string,
+      lineId?: string,
+      lineName?: string
+    ): { success: boolean; message: string } => {
     const currentState = stateRef.current;
     const targetSku = currentState.master.skus.find(s => s.id === skuId);
     if (!targetSku) return { success: false, message: 'SKU tidak ditemukan!' };
@@ -3515,7 +3519,7 @@ export default function App() {
       success: true,
       message: `Berhasil mencatat ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''}. Isi tangki Holding & Storage otomatis berkurang!`
     };
-  };
+  }, [getActiveActorEmail, dispatchAppendTx, flushAutoCartonBuffer, showToast]);
 
   // Rule Baru: Inter-Tank Transfer (Holding Tank ➔ Storage Tank, Storage Tank ➔ Holding Tank)
   const handleTransferBetweenTanks = (
@@ -4229,82 +4233,85 @@ export default function App() {
   };
 
   // Stop a line automatically due to Material Shortage (empty / insufficient WIP in Holding Tank)
-  const handleTriggerMaterialShortageStop = (
-    targetRunOrId: ActiveSkuProductionRun | string,
-    reasonMessage: string
-  ) => {
-    flushAutoCartonBuffer();
-    const currentState = stateRef.current;
-    const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
-    const targetRun =
-      typeof targetRunOrId === 'string'
-        ? prevRuns.find(r => r.id === targetRunOrId || (r.lineId === targetRunOrId && r.isRunning))
-        : prevRuns.find(r => (targetRunOrId.id ? r.id === targetRunOrId.id : r.lineId === targetRunOrId.lineId && r.isRunning)) ||
-          targetRunOrId;
+  const handleTriggerMaterialShortageStop = useCallback(
+    (
+      targetRunOrId: ActiveSkuProductionRun | string,
+      reasonMessage: string
+    ) => {
+      flushAutoCartonBuffer();
+      const currentState = stateRef.current;
+      const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
+      const targetRun =
+        typeof targetRunOrId === 'string'
+          ? prevRuns.find(r => r.id === targetRunOrId || (r.lineId === targetRunOrId && r.isRunning))
+          : prevRuns.find(r => (targetRunOrId.id ? r.id === targetRunOrId.id : r.lineId === targetRunOrId.lineId && r.isRunning)) ||
+            targetRunOrId;
 
-    if (!targetRun) return;
+      if (!targetRun) return;
 
-    const stoppedAt = new Date().toISOString();
-    const stopLogId = `stop_shortage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const newStopLog: ProductionStopLog = {
-      id: stopLogId,
-      lineId: targetRun.lineId,
-      lineName: targetRun.lineName,
-      skuId: targetRun.skuId,
-      skuName: targetRun.skuName,
-      skuCode: targetRun.skuCode,
-      shift: targetRun.shift || getCurrentShift().shift,
-      startedAt: targetRun.startedAt,
-      stoppedAt,
-      durationMinutes: 1,
-      category: 'MATERIAL_SHORTAGE',
-      categoryLabel: 'Material Shortage (WIP Holding Tank Habis)',
-      lossType: 'DOWNTIME',
-      reasonTitle: reasonMessage || 'Material / WIP di Holding Tank habis atau di bawah kebutuhan 1 karton',
-      subReason: 'Stok WIP di Holding Tank habis saat produksi berjalan',
-      actionTaken: 'Menunggu pengisian / transfer batch WIP kembali ke Holding Tank',
-      operatorName: targetRun.operatorName,
-      cartonsProducedDuringRun: targetRun.cartonsProducedTotal || 0
-    };
+      const stoppedAt = new Date().toISOString();
+      const stopLogId = `stop_shortage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const newStopLog: ProductionStopLog = {
+        id: stopLogId,
+        lineId: targetRun.lineId,
+        lineName: targetRun.lineName,
+        skuId: targetRun.skuId,
+        skuName: targetRun.skuName,
+        skuCode: targetRun.skuCode,
+        shift: targetRun.shift || getCurrentShift().shift,
+        startedAt: targetRun.startedAt,
+        stoppedAt,
+        durationMinutes: 1,
+        category: 'MATERIAL_SHORTAGE',
+        categoryLabel: 'Material Shortage (WIP Holding Tank Habis)',
+        lossType: 'DOWNTIME',
+        reasonTitle: reasonMessage || 'Material / WIP di Holding Tank habis atau di bawah kebutuhan 1 karton',
+        subReason: 'Stok WIP di Holding Tank habis saat produksi berjalan',
+        actionTaken: 'Menunggu pengisian / transfer batch WIP kembali ke Holding Tank',
+        operatorName: targetRun.operatorName,
+        cartonsProducedDuringRun: targetRun.cartonsProducedTotal || 0
+      };
 
-    setState(prev => {
-      const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
-      const updatedRuns = currentRuns.map(r => {
-        const isMatch = targetRun.id
-          ? r.id === targetRun.id
-          : r.lineId === targetRun.lineId && r.skuId === targetRun.skuId && r.isRunning;
-        if (!isMatch) return r;
+      setState(prev => {
+        const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
+        const updatedRuns = currentRuns.map(r => {
+          const isMatch = targetRun.id
+            ? r.id === targetRun.id
+            : r.lineId === targetRun.lineId && r.skuId === targetRun.skuId && r.isRunning;
+          if (!isMatch) return r;
+          return {
+            ...r,
+            isRunning: false,
+            completionStatus: 'STOPPED_SHORTAGE' as const,
+            shortageReason: reasonMessage,
+            shortageStopLogId: stopLogId,
+            sblStopLogId: undefined,
+            sblEstimatedMinutes: undefined,
+            sblStoppedAt: undefined,
+            sblReason: undefined,
+            sblCategoryLabel: undefined,
+            completedAt: stoppedAt
+          };
+        });
+        const stillRunning = updatedRuns.find(r => r.isRunning);
         return {
-          ...r,
-          isRunning: false,
-          completionStatus: 'STOPPED_SHORTAGE' as const,
-          shortageReason: reasonMessage,
-          shortageStopLogId: stopLogId,
-          sblStopLogId: undefined,
-          sblEstimatedMinutes: undefined,
-          sblStoppedAt: undefined,
-          sblReason: undefined,
-          sblCategoryLabel: undefined,
-          completedAt: stoppedAt
+          ...prev,
+          activeSkuRuns: updatedRuns,
+          activeSkuRun: stillRunning || null,
+          transactions: {
+            ...prev.transactions,
+            productionStops: [newStopLog, ...(prev.transactions.productionStops || [])]
+          }
         };
       });
-      const stillRunning = updatedRuns.find(r => r.isRunning);
-      return {
-        ...prev,
-        activeSkuRuns: updatedRuns,
-        activeSkuRun: stillRunning || null,
-        transactions: {
-          ...prev.transactions,
-          productionStops: [newStopLog, ...(prev.transactions.productionStops || [])]
-        }
-      };
-    });
 
-    showToast(
-      `Material Shortage [${targetRun.lineName || 'Line'} · ${targetRun.skuName}]: ${reasonMessage}`,
-      true
-    );
-  };
+      showToast(
+        `Material Shortage [${targetRun.lineName || 'Line'} · ${targetRun.skuName}]: ${reasonMessage}`,
+        true
+      );
+    },
+    [flushAutoCartonBuffer, showToast]
+  );
 
   // Resume a stopped line run (e.g. after Material Shortage WIP has been replenished in Holding Tank)
   const handleResumeLineRun = (runIdOrLineId: string) => {
@@ -4721,6 +4728,164 @@ export default function App() {
     );
   };
 
+  // Auto Catch-Up Production Reconciliation:
+  // Compensates for paused/throttled setInterval timers when the browser tab/window is minimized or closed.
+  const lastCatchUpMsRef = useRef<Record<string, number>>({});
+  const catchUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reconcileMissedProduction = useCallback(() => {
+    const activeState = stateRef.current;
+    if (!activeState.isAuthenticated || isApplyingRemoteRef.current) return;
+
+    const runsNow =
+      activeState.activeSkuRuns || (activeState.activeSkuRun ? [activeState.activeSkuRun] : []);
+    const runningRuns = runsNow.filter(r => r.isRunning);
+    if (runningRuns.length === 0) return;
+
+    const nowMs = Date.now();
+    let processedAny = false;
+    let hasMorePending = false;
+
+    for (const run of runningRuns) {
+      const sku = activeState.master.skus.find(s => s.id === run.skuId);
+      if (!sku) continue;
+
+      const runKey = run.id || `${run.lineId || 'line'}::${run.skuId}`;
+      const calc = calculateMissedProduction({
+        anchorIso: run.lastDeductionTime || run.startedAt,
+        nowMs,
+        targetPerHour: sku.targetHour || run.targetPerHour || 600,
+        speedMultiplier: run.speedMultiplier || 1,
+        plannedCartons: run.plannedCartons,
+        cartonsProducedTotal: run.cartonsProducedTotal,
+        minElapsedMsOverride: lastCatchUpMsRef.current[runKey] || 0
+      });
+
+      if (calc.missedCartons < 1 && !calc.isPlanAlreadyReached) continue;
+
+      if (processedAny) {
+        hasMorePending = true;
+        break;
+      }
+
+      processedAny = true;
+      lastCatchUpMsRef.current[runKey] = nowMs;
+
+      if (calc.isPlanAlreadyReached) {
+        handleProduceCartons(
+          run.skuId,
+          1,
+          run.operatorName || 'Auto Catch-Up Engine (BOM)',
+          `Auto [${run.lineName || 'Line'}] Catch-up Selesai Target`,
+          run.selectedHoldingTanks,
+          run.id,
+          run.lineId,
+          run.lineName
+        );
+        continue;
+      }
+
+      const qtyNeeded = calc.targetToProduce;
+      if (qtyNeeded < 1) continue;
+
+      const availability = checkRunHoldingTankAvailability(
+        run.skuId,
+        activeState,
+        run.selectedHoldingTanks
+      );
+      const maxDeliverable = availability.minPossibleCartons;
+
+      if (maxDeliverable >= qtyNeeded) {
+        const res = handleProduceCartons(
+          run.skuId,
+          qtyNeeded,
+          run.operatorName || 'Auto Catch-Up Engine (BOM)',
+          `Auto [${run.lineName || 'Line'}] Catch-up ${qtyNeeded} ktn (${sku.name})`,
+          run.selectedHoldingTanks,
+          run.id,
+          run.lineId,
+          run.lineName
+        );
+        if (!res.success) {
+          handleTriggerMaterialShortageStop(run, res.message);
+        } else if (qtyNeeded >= 2) {
+          showToast(
+            `Catch-Up Otomatis [${run.lineName || 'Line'}]: +${qtyNeeded.toLocaleString('id-ID')} karton ${sku.name} disinkronkan.`
+          );
+        }
+      } else {
+        if (maxDeliverable >= 1) {
+          handleProduceCartons(
+            run.skuId,
+            maxDeliverable,
+            run.operatorName || 'Auto Catch-Up Engine (BOM)',
+            `Auto [${run.lineName || 'Line'}] Catch-up Parsial ${maxDeliverable} ktn sebelum WIP habis (${sku.name})`,
+            run.selectedHoldingTanks,
+            run.id,
+            run.lineId,
+            run.lineName
+          );
+        }
+        const shortageReason =
+          availability.missingDetails.join('; ') ||
+          `Stok WIP di tangki tidak mencukupi saat catch-up produksi (${qtyNeeded} karton tertinggal).`;
+        handleTriggerMaterialShortageStop(run, shortageReason);
+      }
+    }
+
+    if (hasMorePending) {
+      if (catchUpTimerRef.current) clearTimeout(catchUpTimerRef.current);
+      catchUpTimerRef.current = setTimeout(() => {
+        reconcileMissedProduction();
+      }, 45);
+    }
+  }, [handleProduceCartons, handleTriggerMaterialShortageStop, showToast]);
+
+  // Run Catch-Up Reconciliation once cloud workspace sync completes
+  useEffect(() => {
+    if (setupStatus === 'ready' && !isSyncingCloud && state.isAuthenticated) {
+      reconcileMissedProduction();
+    }
+  }, [setupStatus, isSyncingCloud, state.isAuthenticated, reconcileMissedProduction]);
+
+  // Run Catch-Up Reconciliation when tab returns to foreground or window regains focus
+  useEffect(() => {
+    if (setupStatus !== 'ready' || !state.isAuthenticated) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        reconcileMissedProduction();
+      }
+    };
+    const handleWindowFocus = () => {
+      reconcileMissedProduction();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      if (catchUpTimerRef.current) {
+        clearTimeout(catchUpTimerRef.current);
+        catchUpTimerRef.current = null;
+      }
+    };
+  }, [setupStatus, state.isAuthenticated, reconcileMissedProduction]);
+
+  // Global Command Palette shortcut (Ctrl+K / Cmd+K)
+  useEffect(() => {
+    if (!state.isAuthenticated || setupStatus !== 'ready') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandMenuOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.isAuthenticated, setupStatus]);
+
   // Automatic clock watcher for shift boundaries (07:01 Shift 1, 15:01 Shift 2, 23:01 Shift 3)
   const lastClockShiftKeyRef = useRef<string>(getShiftPeriodInfo().shiftKey);
   useEffect(() => {
@@ -4818,7 +4983,7 @@ export default function App() {
     return () => {
       intervalIds.forEach(id => clearInterval(id));
     };
-  }, [runningRunsSignature, state.master.skus]);
+  }, [runningRunsSignature, state.master.skus, handleProduceCartons, handleTriggerMaterialShortageStop]);
 
 
   // Create Single Request
@@ -5582,17 +5747,18 @@ export default function App() {
     );
   }
 
-  // 2. TAMPILAN SETELAH LOGIN (NAVIGASI MODEL POPUP DRAWER & KONTEN LEBAR PENUH)
+  // 2. TAMPILAN SETELAH LOGIN (LEFT NAVIGATION RAIL + SLIM TOP BAR + COMPACT STEPPER)
   return (
     <>
       <div
         key={`app-shell-${authViewKey}`}
-        className="h-screen w-screen overflow-hidden flex flex-col bg-background text-foreground font-sans select-none"
+        className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-background text-foreground font-sans select-none"
       >
-      {/* Sidebar: Model Popup Drawer (Slide-Over) untuk Komputer, Tablet & Mobile */}
+      {/* Sidebar: Desktop Collapsible Rail (56px/220px) + Mobile Bottom Bar & Slide-Over Drawer */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        onOpenMobileDrawer={() => setIsSidebarOpen(true)}
         state={state}
         onSwitchTab={handleSwitchTab}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
@@ -5605,9 +5771,9 @@ export default function App() {
         onSignOut={handleSignOut}
       />
 
-      {/* Main Right Area: Header, Live Ticker, and Content View */}
+      {/* Main Right Area: Slim Header, Live Ticker, Compact Stepper, and Content View */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
-        {/* Top Header */}
+        {/* Slim Top Bar (max 48px) */}
         <Header
           state={state}
           theme={state.theme === 'daylight' || state.theme === 'light' ? 'daylight' : 'midnight'}
@@ -5621,6 +5787,9 @@ export default function App() {
           onOpenUserManagement={() => setIsUserManagementOpen(true)}
           onSwitchTab={handleSwitchTab}
           onSignOut={handleSignOut}
+          onOpenCommandMenu={() => setIsCommandMenuOpen(true)}
+          isSyncingCloud={isSyncingCloud}
+          isCloudConnected={Boolean(firebaseUser && cloudAuthRole)}
           currentViewTitle={viewTitles[state.currentTab] || 'ProdTrack MES'}
         />
 
@@ -5751,7 +5920,7 @@ export default function App() {
         {/* Main Content View Area */}
         <main
           ref={mainScrollRef}
-          className="flex-1 overflow-y-auto p-3 sm:p-4 pb-6 sm:pb-8 bg-background relative"
+          className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 md:pb-6 bg-background relative"
         >
           {state.currentTab === 'admin-portal' && (
             <AdminPortalView
@@ -6056,6 +6225,20 @@ export default function App() {
         preselectedMaterialId={stockAdjustmentPreselectedMatId}
         onAdjustStock={handleAdjustMaterialStock}
         showToast={showToast}
+      />
+
+      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
+      <CommandMenu
+        open={isCommandMenuOpen}
+        onOpenChange={setIsCommandMenuOpen}
+        state={state}
+        theme={isDaylightTheme ? 'daylight' : 'midnight'}
+        onSwitchTab={handleSwitchTab}
+        onToggleTheme={handleToggleTheme}
+        onOpenTankModal={() => setIsTankModalOpen(true)}
+        onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
+        onOpenStockAdjustment={handleOpenStockAdjustment}
+        onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
       />
     </div>
     {toasterNode}

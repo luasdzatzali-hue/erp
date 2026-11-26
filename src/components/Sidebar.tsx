@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   X,
   LayoutDashboard,
   FileText,
   Truck,
-  Cpu,
   Database,
   RefreshCw,
-  Lock,
   LogOut,
   PackageOpen,
   Calculator,
@@ -18,26 +17,25 @@ import {
   Users,
   Shield,
   Printer,
-  Boxes,
   Home,
   UserCheck,
   Eye,
-  KeyRound,
-  ArrowRight,
   ClipboardList,
-  ExternalLink,
   MessageSquare,
   FileSpreadsheet,
-  CalendarRange
+  CalendarRange,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getCurrentShift } from '../utils/shifts';
-import { getActiveWeeklyPlan } from '../utils/weeklyPlanComparison';
 import { resolveEffectiveRole } from '../utils/roleAccess';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenMobileDrawer?: () => void;
   state: AppState;
   onSwitchTab: (tab: AppState['currentTab']) => void;
   onOpenAdminModal: () => void;
@@ -50,12 +48,24 @@ interface SidebarProps {
   onSignOut?: () => void;
 }
 
+const RAIL_EXPANDED_KEY = 'prodtrack_sidebar_expanded_v1';
+
+interface RailNavItem {
+  id: string;
+  label: string;
+  tab?: AppState['currentTab'];
+  onClick?: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string | number;
+  visible: boolean;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
+  onOpenMobileDrawer,
   state,
   onSwitchTab,
-  onOpenAdminModal,
   onOpenResetModal,
   onLoadSampleData,
   onExportData,
@@ -64,20 +74,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenUserManagement,
   onSignOut
 }) => {
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(RAIL_EXPANDED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   const effectiveRole = resolveEffectiveRole(state);
   const role = effectiveRole.role;
   const isAdmin = effectiveRole.isAdmin;
   const isOperator = effectiveRole.isOperator;
   const isManagement = effectiveRole.isManagement;
   const currentShift = getCurrentShift();
-  const activeWeeklyPlan = getActiveWeeklyPlan(state);
+
   const pendingReqCount = state.transactions.requests.filter(r => r.status !== 'Received').length;
   const activeBatchCount = (state.transactions.wipBatches || []).filter(
     b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
   ).length;
 
-  // Close sidebar on Escape key
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -87,557 +104,551 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const toggleExpanded = () => {
+    setIsExpanded(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(RAIL_EXPANDED_KEY, String(next));
+      } catch {
+        // ignore storage failures
+      }
+      return next;
+    });
+  };
+
   const handleNavClick = (tab: AppState['currentTab']) => {
     onSwitchTab(tab);
     onClose();
   };
 
-  const handleOpenInNewTab = (tab: AppState['currentTab'], e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = `${window.location.origin}${window.location.pathname}#tab=${tab}`;
-    window.open(url, '_blank');
-    onClose();
+  const navGroups: { title: string; items: RailNavItem[] }[] = [
+    {
+      title: 'Utama',
+      items: [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          tab: 'dashboard',
+          icon: LayoutDashboard,
+          visible: true
+        },
+        {
+          id: 'weekly-planning',
+          label: 'Weekly Planning',
+          tab: 'weekly-planning',
+          icon: CalendarRange,
+          visible: true
+        },
+        {
+          id: 'bom-calculator',
+          label: 'BOM & Calculator',
+          tab: 'bom-calculator',
+          icon: Calculator,
+          visible: !isManagement
+        }
+      ]
+    },
+    {
+      title: 'Manufacturing Ops',
+      items: [
+        {
+          id: 'permintaan',
+          label: 'Permintaan Material',
+          tab: 'permintaan',
+          icon: FileText,
+          badge: pendingReqCount > 0 ? pendingReqCount : undefined,
+          visible: !isManagement
+        },
+        {
+          id: 'penerimaan',
+          label: 'Penerimaan Fisik',
+          tab: 'penerimaan',
+          icon: Truck,
+          visible: !isManagement
+        },
+        {
+          id: 'pemakaian',
+          label: 'Work Order WIP',
+          tab: 'pemakaian',
+          icon: Layers,
+          badge: activeBatchCount > 0 ? activeBatchCount : undefined,
+          visible: !isManagement
+        },
+        {
+          id: 'tank-monitoring',
+          label: 'Tangki WIP SCADA',
+          tab: 'tank-monitoring',
+          icon: Cylinder,
+          visible: true
+        }
+      ]
+    },
+    {
+      title: 'Stock Opname & Reports',
+      items: [
+        {
+          id: 'shift-summary',
+          label: 'Ringkasan Shift',
+          tab: 'shift-summary',
+          icon: ClipboardList,
+          visible: true
+        },
+        {
+          id: 'pdf-report',
+          label: 'Report PDF Shift',
+          onClick: () => {
+            onOpenPdfModal?.();
+            onClose();
+          },
+          icon: Printer,
+          visible: true
+        },
+        {
+          id: 'sheets-sync',
+          label: 'Google Sheets Sync',
+          tab: 'sheets-sync',
+          icon: FileSpreadsheet,
+          visible: true
+        }
+      ]
+    },
+    {
+      title: 'Master Data',
+      items: [
+        {
+          id: 'admin-portal',
+          label: 'Portal Admin',
+          tab: 'admin-portal',
+          icon: Home,
+          visible: isAdmin
+        },
+        {
+          id: 'master',
+          label: 'Master BOM & Mesin',
+          tab: 'master',
+          icon: Database,
+          visible: isAdmin
+        },
+        {
+          id: 'users',
+          label: 'Kelola Pengguna',
+          onClick: () => {
+            onOpenUserManagement?.();
+            onClose();
+          },
+          icon: Users,
+          visible: isAdmin && Boolean(onOpenUserManagement)
+        },
+        {
+          id: 'contact',
+          label: 'Kontak & Dukungan',
+          tab: 'contact',
+          icon: MessageSquare,
+          visible: true
+        }
+      ]
+    }
+  ];
+
+  const renderDesktopRailButton = (item: RailNavItem) => {
+    const Icon = item.icon;
+    const isActive = Boolean(item.tab && state.currentTab === item.tab);
+
+    const btn = (
+      <button
+        type="button"
+        onClick={() => {
+          if (item.tab) handleNavClick(item.tab);
+          else item.onClick?.();
+        }}
+        aria-label={item.label}
+        className={`relative w-full h-9 rounded-lg flex items-center transition active:scale-95 ${
+          isExpanded ? 'px-2.5 gap-2.5 justify-start' : 'justify-center px-0'
+        } ${
+          isActive
+            ? 'bg-accent-primary text-accent-primary-foreground font-semibold shadow-xs'
+            : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
+        }`}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {isExpanded && (
+          <span className="text-xs truncate flex-1 text-left">{item.label}</span>
+        )}
+        {item.badge !== undefined && (
+          <span
+            className={`${
+              isExpanded
+                ? 'px-1.5 py-0.5 text-[10px]'
+                : 'absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 text-[9px]'
+            } rounded-full font-mono font-bold tabular-nums flex items-center justify-center ${
+              isActive
+                ? 'bg-surface text-ink-primary'
+                : 'bg-amber-500 text-slate-950'
+            }`}
+          >
+            {item.badge}
+          </span>
+        )}
+      </button>
+    );
+
+    if (isExpanded) {
+      return <React.Fragment key={item.id}>{btn}</React.Fragment>;
+    }
+
+    return (
+      <Tooltip.Root key={item.id} delayDuration={120}>
+        <Tooltip.Trigger asChild>{btn}</Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="right"
+            sideOffset={8}
+            className="z-50 px-2.5 py-1.5 rounded-lg bg-elevated text-ink-primary border border-border-strong text-xs font-medium shadow-lg select-none"
+          >
+            {item.label}
+            {item.badge !== undefined ? ` (${item.badge})` : ''}
+            <Tooltip.Arrow className="fill-[var(--bg-elevated)]" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    );
   };
 
-  const navContent = (
-    <div className="flex flex-col h-full justify-between bg-[var(--surface-header)] border-r border-border text-foreground select-none">
-      {/* Top Header & Branding */}
-      <div className="p-4 border-b border-border bg-background flex items-center justify-between shrink-0">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0">
-            <PackageOpen className="w-5 h-5 text-brand" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-1.5">
-              <span className="font-extrabold text-sm text-ink-primary tracking-tight">ProdTrack MES</span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-tint-cyan text-brand border border-tint-cyan-border font-bold">
-                MRP & WMS
-              </span>
-            </div>
-            <p className="text-[10px] text-ink-secondary">
-              Pabrik Biskuit & Coating
-            </p>
-          </div>
-        </div>
-
-        {/* Close button for popup sidebar on all device sizes */}
-        <button
-          onClick={onClose}
-          aria-label="Tutup Menu Navigasi"
-          title="Tutup Menu (Esc)"
-          className="p-1.5 text-ink-secondary hover:text-ink-primary rounded-lg bg-elevated hover:bg-accent transition flex items-center space-x-1 border border-border-strong"
+  return (
+    <Tooltip.Provider>
+      {/* 1. DESKTOP COLLAPSIBLE LEFT NAVIGATION RAIL (56px collapsed / 220px expanded) */}
+      <aside
+        aria-label="Navigasi Utama Desktop"
+        className={`hidden md:flex flex-col shrink-0 h-screen bg-surface-header border-r border-border-subtle text-ink-primary transition-all duration-200 select-none no-print ${
+          isExpanded ? 'w-56' : 'w-14'
+        }`}
+      >
+        {/* Rail Brand Top (48px aligned with slim Header) */}
+        <div
+          className={`h-12 border-b border-border-subtle flex items-center shrink-0 ${
+            isExpanded ? 'px-3 justify-between' : 'justify-center px-1'
+          }`}
         >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* User Session Profile Card */}
-      <div className="px-3.5 py-3 bg-surface border-b border-border-subtle shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-2.5 truncate">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-              isAdmin
-                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40'
-                : isOperator
-                ? 'bg-cyan-500/20 text-brand border border-cyan-500/40'
-                : 'bg-indigo-500/20 text-ink-indigo border border-indigo-500/40'
-            }`}>
-              {isAdmin ? <Shield className="w-4 h-4" /> : isOperator ? <UserCheck className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </div>
-            <div className="truncate">
-              <p className="text-xs font-bold text-ink-primary truncate">
-                {state.currentSession?.name || (isAdmin ? 'Administrator' : isOperator ? 'Operator Lini' : 'Executive Management')}
-              </p>
-              <span className={`text-[9px] font-mono font-bold uppercase tracking-wider block ${
-                isAdmin ? 'text-ink-amber' : isOperator ? 'text-brand' : 'text-ink-indigo'
-              }`}>
-                {effectiveRole.isOfflinePinAdmin ? 'Mode PIN Lokal' : role} {isManagement ? '(Pantau Saja)' : ''}
-              </span>
-            </div>
-          </div>
-
           <button
             type="button"
-            onClick={() => {
-              if (onSignOut) onSignOut();
-              else if (onOpenRoleSwitcher) onOpenRoleSwitcher();
-              onClose();
-            }}
-            title="Logout Total (Keluar ke Halaman Login & Sign Up)"
-            className="p-1.5 rounded-lg bg-elevated hover:bg-rose-500/20 hover:text-ink-rose text-ink-secondary transition text-xs shrink-0 border border-border-strong"
+            onClick={() => handleNavClick(isAdmin ? 'admin-portal' : 'dashboard')}
+            title="ProdTrack MES"
+            className="flex items-center gap-2 min-w-0"
           >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Scrollable Navigation Items */}
-      <div className="flex-1 overflow-y-auto no-scrollbar py-3 px-2 space-y-4 text-xs">
-        {/* SECTION 1: HALAMAN AWAL MODUL MRP & WMS (ADMINISTRATOR ONLY) */}
-        {isAdmin && (
-          <div className="space-y-1">
-            <p className="px-2.5 text-[10px] font-extrabold uppercase tracking-wider text-ink-amber flex items-center space-x-1.5">
-              <span>Halaman Utama Admin</span>
-            </p>
-            <div className={`w-full flex items-center justify-between rounded-xl font-bold transition ${
-              state.currentTab === 'admin-portal'
-                ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-ink-amber border border-amber-500/40 shadow-sm'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('admin-portal')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2.5 text-left"
-              >
-                <Home className="w-4 h-4 text-ink-amber shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">Portal Alur Operasional</span>
-                  <span className="text-[10px] text-ink-amber font-normal">Ringkasan 7 Tahap MRP &amp; WMS</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('admin-portal', e)}
-                title="Buka Portal Admin di tab baru"
-                className="p-2 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
+            <div className="w-8 h-8 rounded-lg bg-tint-cyan border border-tint-cyan-border flex items-center justify-center shrink-0">
+              <PackageOpen className="w-4 h-4 text-accent-primary" />
             </div>
-          </div>
-        )}
-
-        {/* SECTION 2: ALUR KERJA OPERASIONAL BERURUTAN (TAHAP 1 - 7) */}
-        <div className="space-y-1">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
-            Alur Kerja Operasional (1 → 7)
-          </p>
-
-          {/* 1. Konfigurasi Master BOM (ADMIN ONLY) */}
-          {isAdmin && (
-            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-              state.currentTab === 'master'
-                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 font-bold'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('master')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-              >
-                <Database className="w-4 h-4 text-ink-amber shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">1. Konfigurasi Master BOM</span>
-                  <span className="text-[10px] text-ink-secondary font-mono">
-                    {state.master.skus.length} SKU · {state.master.materials.length} Mat · Mesin
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('master', e)}
-                title="Buka Konfigurasi Master BOM di tab baru"
-                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* 2. Penentuan Planning Mingguan */}
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'weekly-planning'
-              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('weekly-planning')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-            >
-              <CalendarRange className="w-4 h-4 text-ink-emerald shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">2. Planning Mingguan</span>
-                <span className="text-[10px] text-ink-secondary font-mono">
-                  {activeWeeklyPlan ? activeWeeklyPlan.weekLabel : 'Atur Target SKU/Shift'}
+            {isExpanded && (
+              <div className="truncate text-left">
+                <span className="block text-xs font-extrabold tracking-tight text-ink-primary leading-tight">
+                  ProdTrack
+                </span>
+                <span className="block text-[10px] font-mono text-ink-secondary">
+                  MES Control
                 </span>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('weekly-planning', e)}
-              title="Buka Planning Mingguan di tab baru"
-              className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* 3. Permintaan Material (ADMIN & OPERATOR) */}
-          {!isManagement && (
-            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-              state.currentTab === 'permintaan'
-                ? 'bg-amber-500/20 text-ink-amber border border-amber-500/40 font-bold'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('permintaan')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-              >
-                <FileText className="w-4 h-4 text-ink-amber shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">3. Permintaan Material</span>
-                  <span className="text-[10px] text-ink-secondary font-mono">
-                    {pendingReqCount > 0 ? `${pendingReqCount} Order Menunggu` : 'Slip Order & Allowance'}
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('permintaan', e)}
-                title="Buka Permintaan Material di tab baru"
-                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-amber rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* 4. Pencatatan Kedatangan & Penerimaan Fisik Material (ADMIN & OPERATOR) */}
-          {!isManagement && (
-            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-              state.currentTab === 'penerimaan'
-                ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('penerimaan')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-              >
-                <Truck className="w-4 h-4 text-ink-emerald shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">4. Penerimaan Fisik</span>
-                  <span className="text-[10px] text-ink-secondary font-mono">
-                    Kedatangan, Zak &amp; Lot GDRM
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('penerimaan', e)}
-                title="Buka Penerimaan Fisik Material di tab baru"
-                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* 5. Pembuatan Work Order WIP (ADMIN & OPERATOR) */}
-          {!isManagement && (
-            <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-              state.currentTab === 'pemakaian'
-                ? 'bg-purple-500/20 text-ink-purple border border-purple-500/40 font-bold'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('pemakaian')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-              >
-                <Layers className="w-4 h-4 text-ink-purple shrink-0" />
-                <div className="flex-1 truncate">
-                  <span className="block leading-tight">5. Work Order WIP</span>
-                  <span className="text-[10px] text-ink-secondary font-mono">
-                    {activeBatchCount > 0 ? `${activeBatchCount} Batch Jalan` : 'Batch Mesin & FIFO'}
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('pemakaian', e)}
-                title="Buka Work Order WIP di tab baru"
-                className="p-1.5 mr-1 text-ink-secondary hover:text-ink-purple rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* 6. Transfer WIP ke Storage & Tangki */}
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'tank-monitoring'
-              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('tank-monitoring')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-            >
-              <Cylinder className="w-4 h-4 text-ink-emerald shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">6. Transfer WIP ke Storage</span>
-                <span className="text-[10px] text-ink-secondary font-mono">
-                  {state.master.tanks.length} Tangki Storage &amp; Holding
-                </span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('tank-monitoring', e)}
-              title="Buka Transfer WIP & Tangki di tab baru"
-              className="p-1.5 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* 7. Manufacturing (Control Room Produksi SKU) */}
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'dashboard'
-              ? 'bg-cyan-500/20 text-brand border border-cyan-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('dashboard')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-            >
-              <Cpu className="w-4 h-4 text-brand shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">7. Manufacturing</span>
-                <span className="text-[10px] text-ink-secondary font-mono">Control Room Lini &amp; OEE</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('dashboard', e)}
-              title="Buka Manufacturing di tab baru"
-              className="p-1.5 mr-1 text-ink-secondary hover:text-brand rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* SECTION 3: LAPORAN, KALKULATOR & INTEGRASI */}
-        <div className="space-y-1 pt-1 border-t border-border-subtle">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
-            Laporan, Kalkulator &amp; Sync
-          </p>
-
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'shift-summary'
-              ? 'bg-sky-500/20 text-ink-sky border border-sky-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('shift-summary')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
-            >
-              <ClipboardList className="w-3.5 h-3.5 text-ink-sky shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">Ringkasan Shift</span>
-                <span className="text-[10px] text-ink-secondary font-mono">Output, SBL &amp; Konsumsi</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('shift-summary', e)}
-              title="Buka Ringkasan Shift di tab baru"
-              className="p-1 mr-1 text-ink-secondary hover:text-ink-sky rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              if (onOpenPdfModal) onOpenPdfModal();
-              onClose();
-            }}
-            className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl font-medium transition text-left text-ink-secondary hover:text-ink-primary hover:bg-elevated"
-          >
-            <Printer className="w-3.5 h-3.5 text-ink-rose shrink-0" />
-            <div className="flex-1 truncate">
-              <span className="block leading-tight">Report PDF Shift</span>
-              <span className="text-[10px] text-ink-secondary font-mono">Landscape A4</span>
-            </div>
-          </button>
-
-          <div className={`w-full flex items-center justify-between rounded-xl font-medium transition ${
-            state.currentTab === 'sheets-sync'
-              ? 'bg-emerald-500/20 text-ink-emerald border border-emerald-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('sheets-sync')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">Integrasi Google Sheets</span>
-                <span className="text-[10px] text-ink-secondary font-mono">Sync Hasil Produksi</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('sheets-sync', e)}
-              title="Buka Integrasi Google Sheets di tab baru"
-              className="p-1 mr-1 text-ink-secondary hover:text-ink-emerald rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {!isManagement && (
-            <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
-              state.currentTab === 'bom-calculator'
-                ? 'bg-indigo-500/20 text-ink-indigo font-bold'
-                : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-            }`}>
-              <button
-                onClick={() => handleNavClick('bom-calculator')}
-                className="flex-1 flex items-center space-x-2.5 px-3 py-1.5 text-left"
-              >
-                <Calculator className="w-3.5 h-3.5 text-ink-indigo shrink-0" />
-                <span>Kalkulator Kebutuhan BOM</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => handleOpenInNewTab('bom-calculator', e)}
-                title="Buka Kalkulator BOM di tab baru"
-                className="p-1 mr-1 text-ink-secondary hover:text-ink-indigo rounded-lg hover:bg-elevated transition shrink-0"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* SECTION 4: ADMINISTRATOR UTILITIES */}
-        {isAdmin && (
-          <div className="space-y-1 pt-1 border-t border-border-subtle">
-            <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
-              Utilitas & Otoritas
-            </p>
-
-            {onOpenUserManagement && (
-              <button
-                onClick={() => {
-                  onOpenUserManagement();
-                  onClose();
-                }}
-                className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-brand hover:bg-cyan-500/10 transition text-left"
-              >
-                <Users className="w-3.5 h-3.5 text-brand shrink-0" />
-                <span>Kelola Pengguna ({state.registeredOperators.length + state.registeredManagement.length})</span>
-              </button>
             )}
+          </button>
+        </div>
 
-            <button
-              onClick={() => {
-                onLoadSampleData();
-                onClose();
-              }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary hover:text-ink-primary hover:bg-elevated transition text-left"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-ink-amber shrink-0" />
-              <span>Muat Preset Data Contoh</span>
-            </button>
-
-            <button
-              onClick={() => {
-                onExportData();
-                onClose();
-              }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-secondary hover:text-ink-primary hover:bg-elevated transition text-left"
-            >
-              <Download className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
-              <span>Export Database (JSON)</span>
-            </button>
-
-            <button
-              onClick={() => {
-                onOpenResetModal();
-                onClose();
-              }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-xl text-xs font-medium text-ink-rose hover:bg-rose-500/10 transition text-left"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-ink-rose shrink-0" />
-              <span>Reset Sistem</span>
-            </button>
-          </div>
-        )}
-        {/* SECTION 5: DUKUNGAN & KONTAK TEKNIS */}
-        <div className="space-y-1 pt-1 border-t border-border-subtle">
-          <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
-            Bantuan &amp; Layanan
-          </p>
-          <div className={`w-full flex items-center justify-between rounded-xl text-xs font-medium transition ${
-            state.currentTab === 'contact'
-              ? 'bg-cyan-500/20 text-brand border border-cyan-500/40 font-bold'
-              : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-          }`}>
-            <button
-              onClick={() => handleNavClick('contact')}
-              className="flex-1 flex items-center space-x-2.5 px-3 py-2 text-left"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-brand shrink-0" />
-              <div className="flex-1 truncate">
-                <span className="block leading-tight">Kontak &amp; Dukungan</span>
-                <span className="text-[10px] text-ink-secondary font-mono">Helpdesk Teknis MES</span>
+        {/* Navigation Groups */}
+        <div className="flex-1 overflow-y-auto no-scrollbar py-2.5 px-2 space-y-3">
+          {navGroups.map(group => {
+            const visibleItems = group.items.filter(i => i.visible);
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={group.title} className="space-y-1">
+                {isExpanded ? (
+                  <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted truncate">
+                    {group.title}
+                  </p>
+                ) : (
+                  <div className="h-px bg-border-subtle mx-1 my-1 first:hidden" />
+                )}
+                <div className="space-y-1">
+                  {visibleItems.map(item => renderDesktopRailButton(item))}
+                </div>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => handleOpenInNewTab('contact', e)}
-              title="Buka Kontak & Dukungan di tab baru"
-              className="p-1 mr-1 text-ink-secondary hover:text-brand rounded-lg hover:bg-elevated transition shrink-0"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
+            );
+          })}
 
-      {/* Footer / Exit Action */}
-      <div className="p-3 border-t border-border-subtle bg-canvas space-y-2 shrink-0">
-        <div className="flex items-center justify-between text-[10px] text-ink-muted font-mono px-1">
-          <span>Shift {currentShift.shift} Terkini</span>
-          <span>ProdTrack v4.2</span>
+          {/* Admin Quick Utilities in expanded rail */}
+          {isAdmin && isExpanded && (
+            <div className="space-y-1 pt-2 border-t border-border-subtle">
+              <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                Utilitas Data
+              </p>
+              <button
+                type="button"
+                onClick={onLoadSampleData}
+                className="w-full h-8 px-2.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-elevated flex items-center gap-2.5 transition"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+                <span className="truncate">Data Contoh</span>
+              </button>
+              <button
+                type="button"
+                onClick={onExportData}
+                className="w-full h-8 px-2.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-elevated flex items-center gap-2.5 transition"
+              >
+                <Download className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
+                <span className="truncate">Export JSON</span>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenResetModal}
+                className="w-full h-8 px-2.5 rounded-lg text-xs text-ink-rose hover:bg-tint-rose flex items-center gap-2.5 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Reset Sistem</span>
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Bottom Collapse / Expand Toggle */}
+        <div className="p-2 border-t border-border-subtle shrink-0 space-y-1">
+          <Tooltip.Root delayDuration={120}>
+            <Tooltip.Trigger asChild>
+              <button
+                type="button"
+                onClick={toggleExpanded}
+                aria-label={isExpanded ? 'Ciutkan Sidebar' : 'Perluas Sidebar'}
+                className={`w-full h-9 rounded-lg bg-surface hover:bg-elevated border border-border-subtle text-ink-secondary hover:text-ink-primary flex items-center transition active:scale-95 ${
+                  isExpanded ? 'px-2.5 justify-between' : 'justify-center'
+                }`}
+              >
+                {isExpanded ? (
+                  <>
+                    <span className="text-xs font-medium">Ciutkan Menu</span>
+                    <PanelLeftClose className="w-4 h-4 shrink-0" />
+                  </>
+                ) : (
+                  <PanelLeftOpen className="w-4 h-4 shrink-0" />
+                )}
+              </button>
+            </Tooltip.Trigger>
+            {!isExpanded && (
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  side="right"
+                  sideOffset={8}
+                  className="z-50 px-2.5 py-1.5 rounded-lg bg-elevated text-ink-primary border border-border-strong text-xs font-medium shadow-lg select-none"
+                >
+                  Perluas Sidebar (220px)
+                  <Tooltip.Arrow className="fill-[var(--bg-elevated)]" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            )}
+          </Tooltip.Root>
+        </div>
+      </aside>
+
+      {/* 2. MOBILE / TABLET PORTRAIT COMPACT BOTTOM NAV BAR */}
+      <nav
+        aria-label="Navigasi Cepat Mobile"
+        className="md:hidden fixed bottom-0 left-0 right-0 h-14 z-30 bg-surface-header border-t border-border-subtle flex items-center justify-around px-1 no-print"
+      >
+        {[
+          { tab: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
+          { tab: 'weekly-planning' as const, label: 'Planning', icon: CalendarRange },
+          { tab: 'tank-monitoring' as const, label: 'Tangki', icon: Cylinder },
+          { tab: 'shift-summary' as const, label: 'Shift', icon: ClipboardList }
+        ].map(item => {
+          const Icon = item.icon;
+          const isActive = state.currentTab === item.tab;
+          return (
+            <button
+              key={item.tab}
+              type="button"
+              onClick={() => handleNavClick(item.tab)}
+              className={`flex flex-col items-center justify-center h-11 px-2.5 rounded-lg transition ${
+                isActive ? 'text-accent-primary font-bold' : 'text-ink-secondary hover:text-ink-primary'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] mt-0.5">{item.label}</span>
+            </button>
+          );
+        })}
 
         <button
-          onClick={() => {
-            if (onSignOut) onSignOut();
-            else if (onOpenRoleSwitcher) onOpenRoleSwitcher();
-            onClose();
-          }}
-          className="w-full py-2 px-3 bg-elevated hover:bg-tint-rose hover:border-rose-500/50 hover:text-ink-rose text-ink-secondary font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition border border-border-strong active:scale-95"
+          type="button"
+          onClick={() => onOpenMobileDrawer?.()}
+          aria-label="Buka Semua Menu"
+          className="flex flex-col items-center justify-center h-11 px-2.5 rounded-lg text-ink-secondary hover:text-ink-primary transition"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Logout Total / Ganti Akun</span>
+          <Menu className="w-4 h-4 shrink-0" />
+          <span className="text-[10px] mt-0.5">Menu</span>
         </button>
-      </div>
-    </div>
-  );
+      </nav>
 
-  return (
-    <>
-      {/* 1. Backdrop overlay for all devices (computer, tablet, mobile) */}
+      {/* 3. MOBILE / TABLET SLIDE-OVER DRAWER */}
       <div
         onClick={onClose}
         aria-hidden="true"
-        className={`fixed inset-0 bg-black/75 backdrop-blur-sm z-40 transition-opacity duration-300 ${
+        className={`md:hidden fixed inset-0 bg-black/70 backdrop-blur-xs z-40 transition-opacity duration-200 ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       />
 
-      {/* 2. Slide-over popup navigation drawer for all devices */}
       <aside
-        aria-label="Menu Navigasi Modul"
-        className={`fixed top-0 bottom-0 left-0 w-80 sm:w-84 max-w-[88vw] z-50 transform transition-transform duration-300 ease-out shadow-2xl ${
+        aria-label="Menu Navigasi Mobile"
+        className={`md:hidden fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] z-50 bg-surface-header border-r border-border-subtle transform transition-transform duration-200 ease-out shadow-2xl flex flex-col justify-between ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {navContent}
+        <div className="h-12 px-3.5 border-b border-border-subtle flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-tint-cyan border border-tint-cyan-border flex items-center justify-center">
+              <PackageOpen className="w-4 h-4 text-accent-primary" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-ink-primary block leading-tight">
+                ProdTrack MES
+              </span>
+              <span className="text-[10px] font-mono text-ink-secondary">
+                Shift {currentShift.shift} · {currentShift.timeRange}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup Menu Navigasi"
+            className="p-1.5 rounded-lg bg-elevated text-ink-secondary hover:text-ink-primary border border-border-subtle"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Role summary inside mobile drawer */}
+        <div className="px-3.5 py-2.5 border-b border-border-subtle bg-surface flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                isAdmin
+                  ? 'bg-tint-amber text-ink-amber'
+                  : isOperator
+                  ? 'bg-tint-cyan text-ink-cyan'
+                  : 'bg-tint-indigo text-ink-indigo'
+              }`}
+            >
+              {isAdmin ? (
+                <Shield className="w-3.5 h-3.5" />
+              ) : isOperator ? (
+                <UserCheck className="w-3.5 h-3.5" />
+              ) : (
+                <Eye className="w-3.5 h-3.5" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-ink-primary truncate">
+                {state.currentSession?.name || role}
+              </p>
+              <p className="text-[10px] font-mono text-ink-secondary truncate">
+                {effectiveRole.isOfflinePinAdmin ? 'Mode PIN Lokal' : role}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onSignOut) onSignOut();
+              else onOpenRoleSwitcher?.();
+              onClose();
+            }}
+            className="p-1.5 rounded-lg bg-elevated text-ink-secondary hover:text-ink-rose border border-border-subtle"
+            title="Logout"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-3">
+          {navGroups.map(group => {
+            const visibleItems = group.items.filter(i => i.visible);
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={group.title} className="space-y-1">
+                <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                  {group.title}
+                </p>
+                {visibleItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = Boolean(item.tab && state.currentTab === item.tab);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        if (item.tab) handleNavClick(item.tab);
+                        else item.onClick?.();
+                      }}
+                      className={`w-full h-9 px-2.5 rounded-lg flex items-center justify-between text-xs transition ${
+                        isActive
+                          ? 'bg-accent-primary text-accent-primary-foreground font-semibold'
+                          : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      {item.badge !== undefined && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500 text-slate-950">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+
+          {isAdmin && (
+            <div className="space-y-1 pt-2 border-t border-border-subtle">
+              <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                Utilitas Data
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onLoadSampleData();
+                  onClose();
+                }}
+                className="w-full h-9 px-2.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-elevated flex items-center gap-2.5"
+              >
+                <Sparkles className="w-4 h-4 text-ink-amber" />
+                <span>Muat Preset Data Contoh</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onExportData();
+                  onClose();
+                }}
+                className="w-full h-9 px-2.5 rounded-lg text-xs text-ink-secondary hover:text-ink-primary hover:bg-elevated flex items-center gap-2.5"
+              >
+                <Download className="w-4 h-4 text-ink-emerald" />
+                <span>Export Database (JSON)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenResetModal();
+                  onClose();
+                }}
+                className="w-full h-9 px-2.5 rounded-lg text-xs text-ink-rose hover:bg-tint-rose flex items-center gap-2.5"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reset Sistem</span>
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
-    </>
+    </Tooltip.Provider>
   );
 };

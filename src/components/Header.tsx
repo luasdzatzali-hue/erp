@@ -1,27 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import {
   Menu,
-  Droplet,
   Shield,
-  FileSpreadsheet,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
   UserCheck,
   Eye,
   LogOut,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  Search,
+  Cloud,
+  CloudOff,
+  Loader2
 } from 'lucide-react';
 import { AppState } from '../types';
-import { getCurrentShift } from '../utils/shifts';
 import { resolveEffectiveRole } from '../utils/roleAccess';
-import {
-  GoogleSheetsSyncSettings,
-  loadSheetsSyncSettings,
-  SHEETS_SYNC_EVENT
-} from '../utils/sheetsSyncStore';
 
 interface HeaderProps {
   state: AppState;
@@ -36,6 +29,9 @@ interface HeaderProps {
   onOpenUserManagement?: () => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
   onSignOut?: () => void;
+  onOpenCommandMenu?: () => void;
+  isSyncingCloud?: boolean;
+  isCloudConnected?: boolean;
   currentViewTitle: string;
 }
 
@@ -46,238 +42,153 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSidebar,
   onOpenTankModal,
   onOpenRoleSwitcher,
-  onSwitchTab,
   onSignOut,
+  onOpenCommandMenu,
+  isSyncingCloud = false,
+  isCloudConnected = false,
   currentViewTitle
 }) => {
-  const isTempNormal = state.tank.temp >= state.tank.minTempTarget && state.tank.temp <= state.tank.maxTempTarget;
-  const currentShift = getCurrentShift();
   const effectiveRole = resolveEffectiveRole(state);
-
   const isManagement = effectiveRole.isManagement;
   const isAdmin = effectiveRole.isAdmin;
   const isOperator = effectiveRole.isOperator;
+  const isDaylight = theme === 'daylight' || theme === 'light';
 
-  const [syncSettings, setSyncSettings] = useState<GoogleSheetsSyncSettings>(() =>
-    loadSheetsSyncSettings()
-  );
+  const isTempNormal =
+    state.tank.temp >= state.tank.minTempTarget && state.tank.temp <= state.tank.maxTempTarget;
 
-  useEffect(() => {
-    const handleSyncUpdate = (ev: Event) => {
-      const custom = ev as CustomEvent<GoogleSheetsSyncSettings>;
-      if (custom.detail) {
-        setSyncSettings(custom.detail);
-      } else {
-        setSyncSettings(loadSheetsSyncSettings());
-      }
-    };
-    const handleStorage = (ev: StorageEvent) => {
-      if (!ev.key || ev.key === 'prodtrack_gsheets_sync_v1') {
-        setSyncSettings(loadSheetsSyncSettings());
-      }
-    };
-    window.addEventListener(SHEETS_SYNC_EVENT, handleSyncUpdate);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener(SHEETS_SYNC_EVENT, handleSyncUpdate);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
+  const shortModuleName = currentViewTitle.includes('·')
+    ? currentViewTitle.split('·')[1].trim()
+    : currentViewTitle;
 
-  const unsyncedCount = useMemo(() => {
-    const syncedSet = new Set(syncSettings.syncedProductionIds || []);
-    return (state.transactions.cartonProductions || []).filter(cp => !syncedSet.has(cp.id)).length;
-  }, [state.transactions.cartonProductions, syncSettings.syncedProductionIds]);
+  const workspaceLabel = state.factoryName?.trim() || 'ProdTrack MES';
 
-  const formattedLastSyncTime = useMemo(() => {
-    if (!syncSettings.lastSyncedAt) return null;
-    const d = new Date(syncSettings.lastSyncedAt);
-    if (isNaN(d.getTime())) return null;
-    const now = new Date();
-    const isToday =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
-    const hhmm = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const full = d.toLocaleString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    return {
-      short: isToday ? hhmm : full,
-      full: d.toLocaleString('id-ID')
-    };
-  }, [syncSettings.lastSyncedAt]);
-
-  const syncStatus = syncSettings.syncStatus || (syncSettings.lastSyncedAt ? 'Success' : 'Idle');
-
-  const syncTooltip = [
-    `Status Google Sheets: ${syncStatus}`,
-    formattedLastSyncTime
-      ? `Terakhir berhasil dikirim: ${formattedLastSyncTime.full}`
-      : 'Belum pernah dikirim ke Google Sheets',
-    unsyncedCount > 0
-      ? `Antrean belum dikirim: ${unsyncedCount} log produksi`
-      : 'Semua log produksi tersinkron',
-    syncStatus === 'Error' && syncSettings.lastSyncError
-      ? `Kendala: ${syncSettings.lastSyncError}`
-      : null,
-    'Klik untuk membuka panel Sinkronisasi Google Sheets'
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const roleBadgeLabel = effectiveRole.isOfflinePinAdmin
+    ? 'PIN Lokal'
+    : isAdmin
+    ? 'Admin'
+    : isOperator
+    ? 'Operator'
+    : 'Mgmt';
 
   return (
-    <header className="bg-surface-header border-b border-border-subtle z-20 shrink-0 sticky top-0 text-ink-primary">
-      <div className="px-3 sm:px-5 py-2.5 flex items-center justify-between gap-4">
-        {/* Left Zone: Navigation Drawer Trigger & Breadcrumb */}
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={onOpenSidebar}
-            aria-label="Buka Menu Navigasi Samping"
-            title="Buka Menu Navigasi (Popup Drawer)"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface hover:bg-elevated text-ink-primary hover:border-accent-primary/60 transition border border-border-subtle active:scale-95 whitespace-nowrap shrink-0"
-          >
-            <Menu className="w-4 h-4 text-accent-primary" />
-            <span className="text-xs font-semibold hidden sm:inline">Menu</span>
-          </button>
-
-          <div className="flex items-center gap-2 text-xs min-w-0">
-            <span className="text-ink-secondary font-mono hidden sm:inline whitespace-nowrap">Konsol Kendali</span>
-            <ChevronRight className="w-3.5 h-3.5 text-ink-secondary hidden sm:inline shrink-0" />
-            <h1 className="font-bold text-ink-primary text-xs sm:text-sm tracking-tight truncate">
-              {currentViewTitle}
-            </h1>
-            {isManagement && (
-              <span className="hidden md:inline text-[11px] font-mono text-ink-indigo whitespace-nowrap shrink-0">
-                · Mode Pantau
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Right Zone: Google Sheets Sync Status, Tank Sensor, Shift, Theme & User Session */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Real-Time Google Sheets Sync Status Indicator */}
+    <header className="h-12 bg-surface-header border-b border-border-subtle z-20 shrink-0 sticky top-0 text-ink-primary no-print">
+      <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-3">
+        {/* Left Zone: Mobile Drawer Trigger, Workspace Status & Active Breadcrumb */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => onSwitchTab?.('sheets-sync')}
-            title={syncTooltip}
-            aria-label={`Status Sinkronisasi Google Sheets: ${syncStatus}`}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-surface hover:bg-elevated border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
-              syncStatus === 'Syncing'
-                ? 'border-tint-cyan-border text-ink-cyan hover:border-accent-primary'
-                : syncStatus === 'Success'
-                ? 'border-tint-emerald-border text-ink-primary hover:border-ink-emerald'
-                : syncStatus === 'Error'
-                ? 'border-tint-rose-border text-ink-rose hover:border-ink-rose'
-                : 'border-border-subtle text-ink-primary hover:border-accent-primary/60'
-            }`}
+            onClick={onOpenSidebar}
+            aria-label="Buka Menu Navigasi"
+            className="md:hidden h-8 w-8 flex items-center justify-center rounded-lg bg-surface hover:bg-elevated border border-border-subtle text-ink-primary transition active:scale-95 shrink-0"
           >
-            {syncStatus === 'Syncing' ? (
-              <Loader2 className="w-3.5 h-3.5 text-ink-cyan animate-spin shrink-0" />
-            ) : syncStatus === 'Success' ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
-            ) : syncStatus === 'Error' ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-ink-rose shrink-0" />
-            ) : (
-              <FileSpreadsheet className="w-3.5 h-3.5 text-ink-secondary shrink-0" />
-            )}
+            <Menu className="w-4 h-4 text-accent-primary" />
+          </button>
 
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
-              className={`font-semibold ${
-                syncStatus === 'Syncing'
-                  ? 'text-ink-cyan'
-                  : syncStatus === 'Success'
-                  ? 'text-ink-emerald'
-                  : syncStatus === 'Error'
-                  ? 'text-ink-rose'
-                  : 'text-ink-primary'
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isCloudConnected ? 'bg-emerald-500' : 'bg-amber-500'
               }`}
-            >
-              {syncStatus}
+              title={isCloudConnected ? 'Workspace Cloud Aktif' : 'Workspace Lokal'}
+            />
+            <span className="text-xs font-bold text-ink-primary truncate max-w-[115px] sm:max-w-[160px]">
+              {workspaceLabel}
             </span>
-
-            {syncStatus === 'Syncing' ? (
-              <span className="text-[11px] text-ink-cyan hidden md:inline">· Sheets</span>
-            ) : syncStatus === 'Error' ? (
-              <span className="text-[11px] text-ink-rose hidden md:inline">
-                {formattedLastSyncTime ? `· ${formattedLastSyncTime.short}` : '· Gagal'}
-              </span>
-            ) : formattedLastSyncTime ? (
-              <span className="text-[11px] text-ink-secondary hidden sm:inline">
-                · {formattedLastSyncTime.short}
-              </span>
-            ) : (
-              <span className="text-[11px] text-ink-secondary hidden lg:inline">
-                · {unsyncedCount > 0 ? `${unsyncedCount} antrean` : 'Belum sync'}
-              </span>
-            )}
-
-            {syncStatus !== 'Syncing' && unsyncedCount > 0 && (formattedLastSyncTime || syncStatus === 'Error') && (
-              <span className="text-[11px] text-ink-amber font-semibold hidden xl:inline">
-                · {unsyncedCount} baru
-              </span>
-            )}
-          </button>
-
-          {/* Storage Tank Liquid Sensor Readout */}
-          <button
-            onClick={onOpenTankModal}
-            title="Klik untuk membuka detail Storage Tank Liquid"
-            className={`flex items-center gap-2 px-2.5 py-1.5 border rounded-lg text-xs font-mono tabular-nums transition active:scale-95 whitespace-nowrap shrink-0 ${
-              isTempNormal
-                ? 'bg-surface hover:bg-elevated border-border-subtle text-ink-primary hover:border-accent-primary/60'
-                : 'bg-tint-amber border-tint-amber-border text-ink-amber'
-            }`}
-          >
-            <Droplet className={`w-3.5 h-3.5 ${isTempNormal ? 'text-accent-primary' : 'text-ink-amber'}`} />
-            <span className="font-semibold">{state.tank.temp.toFixed(1)}°C</span>
-            <span className="text-[11px] text-ink-secondary hidden sm:inline">· {state.tank.level.toFixed(0)} kg</span>
-          </button>
-
-          {/* Shift Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border-subtle text-xs font-mono text-ink-primary tabular-nums whitespace-nowrap shrink-0">
-            <span className="text-ink-emerald font-semibold">S{currentShift.shift}</span>
-            <span className="text-ink-secondary">·</span>
-            <span className="text-[11px] text-ink-secondary">{currentShift.timeRange}</span>
           </div>
 
-          {/* Theme Toggle Button (Midnight vs Daylight) */}
+          <ChevronRight className="w-3.5 h-3.5 text-ink-muted shrink-0 hidden sm:inline" />
+
+          <h1 className="hidden sm:block font-semibold text-ink-secondary text-xs truncate max-w-[200px] lg:max-w-[320px]">
+            {shortModuleName}
+          </h1>
+        </div>
+
+        {/* Right Zone: Command Palette, Theme Toggle, Firestore/IoT Indicator, Role Badge */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Command Palette Trigger (Ctrl+K) */}
+          {onOpenCommandMenu && (
+            <button
+              type="button"
+              onClick={onOpenCommandMenu}
+              title="Pencarian Cepat & Aksi (Ctrl+K)"
+              aria-label="Buka Command Palette"
+              className="h-8 px-2 sm:px-2.5 rounded-lg bg-surface hover:bg-elevated border border-border-subtle hover:border-accent-primary/60 text-xs text-ink-secondary hover:text-ink-primary flex items-center gap-2 transition active:scale-95 shrink-0"
+            >
+              <Search className="w-3.5 h-3.5 text-accent-primary shrink-0" />
+              <span className="hidden md:inline text-[11px]">Cari SKU, Tangki...</span>
+              <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-elevated border border-border-subtle font-mono text-[10px] text-ink-primary">
+                Ctrl+K
+              </kbd>
+            </button>
+          )}
+
+          {/* Theme Toggle (Midnight / Daylight) */}
           {onToggleTheme && (
             <button
-              onClick={onToggleTheme}
               type="button"
+              onClick={onToggleTheme}
               title={
-                theme === 'daylight' || theme === 'light'
-                  ? 'Beralih ke Tema Midnight (Gelap Control Room)'
-                  : 'Beralih ke Tema Daylight (Cerah Terang Pabrik)'
+                isDaylight
+                  ? 'Beralih ke Tema Midnight (Control Room)'
+                  : 'Beralih ke Tema Daylight (Lantai Pabrik)'
               }
-              aria-label="Toggle Theme"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface hover:bg-elevated border border-border-subtle hover:border-accent-primary/50 text-xs font-medium text-ink-primary transition active:scale-95 whitespace-nowrap shrink-0"
+              aria-label="Toggle Tema Midnight atau Daylight"
+              className="h-8 px-2 sm:px-2.5 rounded-lg bg-surface hover:bg-elevated border border-border-subtle hover:border-accent-primary/50 text-xs font-medium text-ink-primary flex items-center gap-1.5 transition active:scale-95 shrink-0"
             >
-              {theme === 'daylight' || theme === 'light' ? (
+              {isDaylight ? (
                 <>
-                  <Moon className="w-3.5 h-3.5 text-ink-indigo" />
-                  <span className="hidden md:inline text-[11px] font-semibold">Midnight</span>
+                  <Moon className="w-3.5 h-3.5 text-ink-indigo shrink-0" />
+                  <span className="hidden lg:inline text-[11px] font-semibold">Midnight</span>
                 </>
               ) : (
                 <>
-                  <Sun className="w-3.5 h-3.5 text-ink-amber" />
-                  <span className="hidden md:inline text-[11px] font-semibold">Daylight</span>
+                  <Sun className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+                  <span className="hidden lg:inline text-[11px] font-semibold">Daylight</span>
                 </>
               )}
             </button>
           )}
 
-          {/* User Profile & Sign Out */}
-          <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-border-subtle shrink-0">
+          {/* Firestore & IoT Connection Status Indicator */}
+          <button
+            type="button"
+            onClick={onOpenTankModal}
+            title={`Firestore: ${
+              isSyncingCloud ? 'Menyinkronkan' : isCloudConnected ? 'Terhubung' : 'Lokal'
+            } · IoT Storage Tank: ${state.tank.temp.toFixed(1)}°C (${state.tank.level.toFixed(0)} kg)`}
+            aria-label="Status Koneksi Firestore dan Sensor IoT"
+            className={`h-8 px-2 sm:px-2.5 rounded-lg border text-[11px] font-mono tabular-nums flex items-center gap-1.5 transition active:scale-95 shrink-0 ${
+              !isTempNormal
+                ? 'bg-tint-amber border-tint-amber-border text-ink-amber'
+                : isSyncingCloud
+                ? 'bg-tint-cyan border-tint-cyan-border text-ink-cyan'
+                : 'bg-surface hover:bg-elevated border-border-subtle text-ink-primary'
+            }`}
+          >
+            {isSyncingCloud ? (
+              <Loader2 className="w-3.5 h-3.5 text-ink-cyan animate-spin shrink-0" />
+            ) : isCloudConnected ? (
+              <Cloud className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
+            ) : (
+              <CloudOff className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+            )}
+            <span className="hidden sm:inline font-semibold">
+              {isSyncingCloud ? 'Sync' : isCloudConnected ? 'Cloud' : 'Lokal'}
+            </span>
+            <span className="text-ink-muted hidden md:inline">·</span>
+            <span className="hidden md:inline font-semibold">
+              {state.tank.temp.toFixed(1)}°C
+            </span>
+          </button>
+
+          {/* User Role Badge & Quick Logout */}
+          <div className="h-8 flex items-center gap-0.5 bg-surface px-1 rounded-lg border border-border-subtle shrink-0">
             <button
+              type="button"
               onClick={onOpenRoleSwitcher}
-              title="Ganti Jenis Pengguna"
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition whitespace-nowrap ${
+              title={`Role aktif: ${effectiveRole.role}${isManagement ? ' (Pantau Saja)' : ''} — Klik untuk ganti role`}
+              className={`h-6 flex items-center gap-1.5 px-1.5 rounded text-[11px] font-semibold transition whitespace-nowrap ${
                 isAdmin
                   ? 'text-ink-amber hover:bg-tint-amber'
                   : isOperator
@@ -285,27 +196,25 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-ink-indigo hover:bg-tint-indigo'
               }`}
             >
-              <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                isAdmin
-                  ? 'bg-amber-500 text-slate-950'
-                  : isOperator
-                  ? 'bg-cyan-500 text-slate-950'
-                  : 'bg-indigo-600 text-white'
-              }`}>
-                {isAdmin ? <Shield className="w-3 h-3" /> : isOperator ? <UserCheck className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-              </div>
-              <span className="font-semibold truncate max-w-[100px] sm:max-w-[130px] hidden sm:inline">
-                {state.currentSession?.name || (isAdmin ? 'Administrator' : isOperator ? 'Operator' : 'Management')}
-              </span>
+              {isAdmin ? (
+                <Shield className="w-3.5 h-3.5 shrink-0" />
+              ) : isOperator ? (
+                <UserCheck className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <Eye className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{roleBadgeLabel}</span>
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 if (onSignOut) onSignOut();
                 else onOpenRoleSwitcher();
               }}
-              title="Logout Total (Keluar ke Halaman Login & Sign Up)"
-              className="p-1.5 rounded-md text-ink-secondary hover:text-ink-rose hover:bg-tint-rose transition"
+              title="Logout Total"
+              aria-label="Logout Total"
+              className="h-6 w-6 flex items-center justify-center rounded text-ink-secondary hover:text-ink-rose hover:bg-tint-rose transition shrink-0"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
