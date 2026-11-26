@@ -29,8 +29,12 @@ import {
   auth,
   db,
   handleFirestoreError,
+  isCloudWritePaused,
+  isQuotaExceededError,
   OperationType,
-  stripUndefinedDeep
+  runFirestoreWriteWithGuard,
+  stripUndefinedDeep,
+  tripCloudWriteQuotaPause
 } from '../utils/firebaseSync';
 import { normalizeEmail } from '../utils/security';
 
@@ -155,12 +159,21 @@ export async function appendTransaction(
 ): Promise<WorkspaceTransactionDoc> {
   const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main');
   const normalized = normalizeTransactionDoc(tx);
+  if (isCloudWritePaused()) {
+    return normalized;
+  }
   const path = `workspaces/${safeWorkspaceId}/transactions/${normalized.id}`;
 
   try {
-    await setDoc(doc(db, 'workspaces', safeWorkspaceId, 'transactions', normalized.id), normalized);
+    await runFirestoreWriteWithGuard(() =>
+      setDoc(doc(db, 'workspaces', safeWorkspaceId, 'transactions', normalized.id), normalized)
+    );
     return normalized;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return normalized;
+    }
     handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
@@ -172,13 +185,20 @@ export async function updateTransactionDoc(
   workspaceId: string,
   tx: WorkspaceTransactionDoc
 ): Promise<void> {
+  if (isCloudWritePaused()) return;
   const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main');
   const normalized = normalizeTransactionDoc(tx);
   const path = `workspaces/${safeWorkspaceId}/transactions/${normalized.id}`;
 
   try {
-    await setDoc(doc(db, 'workspaces', safeWorkspaceId, 'transactions', normalized.id), normalized);
+    await runFirestoreWriteWithGuard(() =>
+      setDoc(doc(db, 'workspaces', safeWorkspaceId, 'transactions', normalized.id), normalized)
+    );
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -190,7 +210,7 @@ export async function deleteTransactionsByTypes(
   workspaceId: string,
   types: FirestoreTransactionType[]
 ): Promise<number> {
-  if (!auth.currentUser || types.length === 0) return 0;
+  if (!auth.currentUser || types.length === 0 || isCloudWritePaused()) return 0;
   const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main');
   const path = `workspaces/${safeWorkspaceId}/transactions`;
   const typeSet = new Set(types);
@@ -210,13 +230,18 @@ export async function deleteTransactionsByTypes(
     if (matchingDocs.length === 0) return 0;
 
     for (let i = 0; i < matchingDocs.length; i += MIGRATION_BATCH_SIZE) {
+      if (isCloudWritePaused()) break;
       const chunk = matchingDocs.slice(i, i + MIGRATION_BATCH_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(d => batch.delete(d.ref));
-      await batch.commit();
+      await runFirestoreWriteWithGuard(() => batch.commit());
     }
     return matchingDocs.length;
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return 0;
+    }
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
@@ -263,8 +288,15 @@ export function subscribeRecentTransactions(
       callback(docs);
     },
     err => {
+      if (isQuotaExceededError(err)) {
+        tripCloudWriteQuotaPause();
+      }
       if (onError) onError(err);
-      handleFirestoreError(err, OperationType.LIST, path);
+      try {
+        handleFirestoreError(err, OperationType.LIST, path);
+      } catch {
+        // Prevent uncaught exceptions in snapshot error handler
+      }
     }
   );
 }
@@ -496,7 +528,9 @@ export async function migrateLegacyOperationsTransactionsIfNeeded(params: {
   skus?: SKU[];
 }): Promise<LegacyMigrationResult> {
   const user = auth.currentUser;
-  if (!user) return { migrated: false, migratedCount: 0, alreadyClean: false };
+  if (!user || isCloudWritePaused()) {
+    return { migrated: false, migratedCount: 0, alreadyClean: false };
+  }
 
   const safeWorkspaceId = sanitizeTransactionId(params.workspaceId || 'main');
   if (inFlightMigrations.has(safeWorkspaceId)) {
@@ -578,17 +612,20 @@ export async function migrateLegacyOperationsTransactionsIfNeeded(params: {
 
     // Commit migrated transaction docs in chunks <= 400 (respecting Firestore 500-write batch limit)
     for (let i = 0; i < docsToMigrate.length; i += MIGRATION_BATCH_SIZE) {
+      if (isCloudWritePaused()) {
+        return { migrated: false, migratedCount: 0, alreadyClean: false };
+      }
       const chunk = docsToMigrate.slice(i, i + MIGRATION_BATCH_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(txDoc => {
         const txRef = doc(db, 'workspaces', safeWorkspaceId, 'transactions', txDoc.id);
         batch.set(txRef, txDoc);
       });
-      await batch.commit();
+      await runFirestoreWriteWithGuard(() => batch.commit());
     }
 
     // Clean legacy transaction arrays from data/operations and mark migration timestamp atomically
-    if (hasLegacyKeys || !opsData.transactionsMigratedAt) {
+    if ((hasLegacyKeys || !opsData.transactionsMigratedAt) && !isCloudWritePaused()) {
       const cleanupBatch = writeBatch(db);
       cleanupBatch.update(opsRef, {
         requests: deleteField(),
@@ -601,7 +638,7 @@ export async function migrateLegacyOperationsTransactionsIfNeeded(params: {
         updatedAt: serverTimestamp(),
         updatedByUid: user.uid
       });
-      await cleanupBatch.commit();
+      await runFirestoreWriteWithGuard(() => cleanupBatch.commit());
     }
 
     return {
@@ -610,6 +647,10 @@ export async function migrateLegacyOperationsTransactionsIfNeeded(params: {
       alreadyClean: false
     };
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return { migrated: false, migratedCount: 0, alreadyClean: false };
+    }
     handleFirestoreError(error, OperationType.WRITE, opsPath);
   } finally {
     inFlightMigrations.delete(safeWorkspaceId);

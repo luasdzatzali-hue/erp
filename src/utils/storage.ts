@@ -1136,7 +1136,7 @@ export function loadStoredState(): AppState {
           : [];
         const compactedActiveRuns = compactActiveRuns(rawActiveRuns, 80);
 
-        return {
+        const loadedState: AppState = {
           ...DEFAULT_STATE,
           ...cleanParsed,
           theme: (cleanParsed.theme === 'daylight' || cleanParsed.theme === 'light') ? 'daylight' : 'midnight',
@@ -1202,6 +1202,18 @@ export function loadStoredState(): AppState {
             ...parsed.tank
           }
         };
+
+        const { state: prunedState, prunedCount } = pruneOldLocalTransactions(
+          loadedState,
+          LOCAL_LOG_RETENTION_DAYS
+        );
+        if (prunedCount > 0) {
+          console.info(
+            `[ProdTrack Storage] Auto-pruned ${prunedCount} local transaction log(s) older than ${LOCAL_LOG_RETENTION_DAYS} days.`
+          );
+          saveStateToStorage(prunedState);
+        }
+        return prunedState;
       }
     }
   } catch (err) {
@@ -1241,6 +1253,114 @@ function compactActiveRuns<T extends { isRunning?: boolean }>(
     }
   }
   return [...running, ...archived];
+}
+
+export const LOCAL_LOG_RETENTION_DAYS = 30;
+
+export function parseLocalLogTimestampMs(raw?: string | null): number | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const ms = Date.parse(`${trimmed}T00:00:00.000Z`);
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  const directMs = Date.parse(trimmed);
+  if (Number.isFinite(directMs)) {
+    return directMs;
+  }
+
+  const datePrefixMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (datePrefixMatch) {
+    const ms = Date.parse(`${datePrefixMatch[1]}T00:00:00.000Z`);
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  return null;
+}
+
+/**
+ * Menghapus log transaksi lokal yang berusia lebih dari 30 hari saat aplikasi dimuat
+ * sambil tetap mempertahankan transaksi aktif/berjalan (running runs, batch aktif/dijeda, request pending).
+ */
+export function pruneOldLocalTransactions(
+  state: AppState,
+  maxAgeDays = LOCAL_LOG_RETENTION_DAYS,
+  nowMs = Date.now()
+): { state: AppState; prunedCount: number } {
+  const cutoffMs = nowMs - Math.max(1, maxAgeDays) * 24 * 60 * 60 * 1000;
+  const isFresh = (rawDate?: string | null): boolean => {
+    const parsedMs = parseLocalLogTimestampMs(rawDate);
+    if (parsedMs === null) return true;
+    return parsedMs >= cutoffMs;
+  };
+
+  let prunedCount = 0;
+  const filterList = <T,>(
+    items: T[] | undefined,
+    getDate: (item: T) => string | undefined,
+    alwaysKeep?: (item: T) => boolean
+  ): T[] => {
+    if (!Array.isArray(items) || items.length === 0) return items || [];
+    return items.filter(item => {
+      if (!item) return false;
+      if (alwaysKeep?.(item)) return true;
+      const keep = isFresh(getDate(item));
+      if (!keep) prunedCount += 1;
+      return keep;
+    });
+  };
+
+  const tx = state.transactions || DEFAULT_STATE.transactions;
+  const nextTransactions: AppState['transactions'] = {
+    ...tx,
+    requests: filterList(
+      tx.requests,
+      r => r.date,
+      r => r.status === 'Pending'
+    ),
+    receipts: filterList(tx.receipts, r => r.date),
+    usages: filterList(tx.usages, u => u.date),
+    wipBatches: filterList(
+      tx.wipBatches,
+      b => b.completedAt || b.startedAt,
+      b => b.status === 'SEDANG_PRODUKSI' || b.status === 'DIJEDA'
+    ),
+    cartonProductions: filterList(tx.cartonProductions, c => c.timestamp),
+    tankLogs: filterList(tx.tankLogs, tl => tl.timestamp),
+    changeovers: filterList(
+      tx.changeovers,
+      co => co.timestamp || co.completedAt || co.startedAt,
+      co => co.status === 'IN_PROGRESS'
+    ),
+    productionStops: filterList(tx.productionStops, st => st.stoppedAt || st.startedAt),
+    stockAdjustments: filterList(tx.stockAdjustments, adj => adj.timestamp || adj.date),
+    rejectLogs: filterList(tx.rejectLogs, rej => rej.timestamp || rej.date)
+  };
+
+  const nextActiveRuns = filterList(
+    state.activeSkuRuns,
+    r => r.completedAt || r.startedAt,
+    r => Boolean(r.isRunning)
+  );
+
+  const nextSecurityLogs = filterList(state.securityLogs, log => log.timestamp);
+
+  if (prunedCount === 0) {
+    return { state, prunedCount: 0 };
+  }
+
+  return {
+    state: {
+      ...state,
+      activeSkuRuns: nextActiveRuns,
+      transactions: nextTransactions,
+      ...(Array.isArray(state.securityLogs) ? { securityLogs: nextSecurityLogs } : {})
+    },
+    prunedCount
+  };
 }
 
 /**

@@ -19,6 +19,8 @@ import {
   writeBatch,
   onSnapshot,
   serverTimestamp,
+  disableNetwork,
+  enableNetwork,
   Unsubscribe,
   DocumentReference,
   DocumentData,
@@ -96,11 +98,320 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export interface CloudQuotaStatus {
+  isQuotaExceeded: boolean;
+  pausedUntilMs: number | null;
+  message: string | null;
+  upgradeUrl: string;
+}
+
+const CLOUD_QUOTA_FALLBACK_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const CLOUD_QUOTA_STORAGE_KEY = 'prodtrack_cloud_quota_pause_v1';
+const FIRESTORE_UPGRADE_URL = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/firestore/databases/${FIRESTORE_DATABASE_ID}/data?openUpgradeDialog=true`;
+const FIRESTORE_PRICING_URL = 'https://firebase.google.com/pricing#cloud-firestore';
+
+const DEFAULT_QUOTA_EXCEEDED_MSG =
+  'Kuota tulis harian gratis Firebase Firestore habis. Data operasional tetap tersimpan aman di perangkat lokal dan kuota akan reset otomatis besok (atau upgrade paket di Firebase Console).';
+
+/**
+ * Firestore daily free-tier quotas reset at midnight Pacific Time (America/Los_Angeles).
+ * Returns a timestamp slightly after the next Pacific midnight so automatic retries
+ * never fire every few minutes against an exhausted daily quota.
+ */
+export function getNextFirestoreDailyQuotaResetMs(nowMs = Date.now()): number {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date(nowMs));
+    const getNum = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find(p => p.type === type)?.value || '0');
+
+    const ptHour = getNum('hour') % 24;
+    const ptMin = getNum('minute');
+    const ptSec = getNum('second');
+    const elapsedTodayMs = ((ptHour * 60 + ptMin) * 60 + ptSec) * 1000;
+    const dayMs = 24 * 60 * 60 * 1000;
+    // Add 5-minute buffer after Pacific midnight
+    const remainingMs = Math.max(60 * 60 * 1000, dayMs - elapsedTodayMs + 5 * 60 * 1000);
+    return nowMs + remainingMs;
+  } catch {
+    return nowMs + CLOUD_QUOTA_FALLBACK_COOLDOWN_MS;
+  }
+}
+
+function loadPersistedCloudQuotaState(): CloudQuotaStatus {
+  const emptyState: CloudQuotaStatus = {
+    isQuotaExceeded: false,
+    pausedUntilMs: null,
+    message: null,
+    upgradeUrl: FIRESTORE_UPGRADE_URL
+  };
+  if (typeof window === 'undefined' || !window.localStorage) return emptyState;
+  try {
+    const raw = window.localStorage.getItem(CLOUD_QUOTA_STORAGE_KEY);
+    if (!raw) return emptyState;
+    const parsed = JSON.parse(raw) as { pausedUntilMs?: number; message?: string };
+    if (
+      typeof parsed?.pausedUntilMs === 'number' &&
+      parsed.pausedUntilMs > Date.now()
+    ) {
+      return {
+        isQuotaExceeded: true,
+        pausedUntilMs: parsed.pausedUntilMs,
+        message: parsed.message || DEFAULT_QUOTA_EXCEEDED_MSG,
+        upgradeUrl: FIRESTORE_UPGRADE_URL
+      };
+    }
+    window.localStorage.removeItem(CLOUD_QUOTA_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+  return emptyState;
+}
+
+function persistCloudQuotaState(state: CloudQuotaStatus): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    if (state.isQuotaExceeded && state.pausedUntilMs) {
+      window.localStorage.setItem(
+        CLOUD_QUOTA_STORAGE_KEY,
+        JSON.stringify({
+          pausedUntilMs: state.pausedUntilMs,
+          message: state.message
+        })
+      );
+    } else {
+      window.localStorage.removeItem(CLOUD_QUOTA_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+let cloudQuotaState: CloudQuotaStatus = loadPersistedCloudQuotaState();
+
+const cloudQuotaListeners = new Set<(status: CloudQuotaStatus) => void>();
+
+function notifyCloudQuotaListeners() {
+  const snapshot = { ...cloudQuotaState };
+  cloudQuotaListeners.forEach(listener => {
+    try {
+      listener(snapshot);
+    } catch {
+      // ignore listener errors
+    }
+  });
+}
+
+export function isQuotaExceededError(error: unknown): boolean {
+  if (!error) return false;
+  const errObj = error as { code?: unknown; message?: unknown; isQuotaExceeded?: unknown };
+  if (errObj.isQuotaExceeded === true) return true;
+  const code = String(errObj.code || '').toLowerCase();
+  const msg = String(errObj.message || (error instanceof Error ? error.message : String(error))).toLowerCase();
+  return (
+    code === 'resource-exhausted' ||
+    msg.includes('resource-exhausted') ||
+    msg.includes('quota limit exceeded') ||
+    msg.includes('quota exceeded') ||
+    msg.includes('free daily write units') ||
+    msg.includes('free daily read units')
+  );
+}
+
+export function isCloudWritePaused(): boolean {
+  if (!cloudQuotaState.isQuotaExceeded) return false;
+  if (cloudQuotaState.pausedUntilMs && Date.now() >= cloudQuotaState.pausedUntilMs) {
+    cloudQuotaState = {
+      isQuotaExceeded: false,
+      pausedUntilMs: null,
+      message: null,
+      upgradeUrl: FIRESTORE_UPGRADE_URL
+    };
+    persistCloudQuotaState(cloudQuotaState);
+    if (typeof window !== 'undefined') {
+      void enableNetwork(db).catch(() => {});
+    }
+    notifyCloudQuotaListeners();
+    return false;
+  }
+  return true;
+}
+
+export function getCloudQuotaStatus(): CloudQuotaStatus {
+  isCloudWritePaused();
+  return { ...cloudQuotaState };
+}
+
+export function tripCloudWriteQuotaPause(customMessage?: string): void {
+  const alreadyPaused = isCloudWritePaused();
+  const nextPausedUntil = getNextFirestoreDailyQuotaResetMs();
+  cloudQuotaState = {
+    isQuotaExceeded: true,
+    pausedUntilMs: nextPausedUntil,
+    message: customMessage || DEFAULT_QUOTA_EXCEEDED_MSG,
+    upgradeUrl: FIRESTORE_UPGRADE_URL
+  };
+  persistCloudQuotaState(cloudQuotaState);
+  // Immediately terminate Firestore's internal WriteStream backoff retry loop
+  if (typeof window !== 'undefined') {
+    void disableNetwork(db).catch(() => {});
+  }
+  if (!alreadyPaused) {
+    console.info(
+      `[ProdTrack Cloud] Sinkronisasi tulis cloud dijeda hingga kuota harian Firestore reset besok (${new Date(
+        nextPausedUntil
+      ).toLocaleString('id-ID')}). Info: ${FIRESTORE_PRICING_URL}`
+    );
+    notifyCloudQuotaListeners();
+  }
+}
+
+export function resetCloudWriteQuotaPause(): void {
+  const wasPaused = Boolean(cloudQuotaState.isQuotaExceeded || cloudQuotaState.pausedUntilMs);
+  cloudQuotaState = {
+    isQuotaExceeded: false,
+    pausedUntilMs: null,
+    message: null,
+    upgradeUrl: FIRESTORE_UPGRADE_URL
+  };
+  persistCloudQuotaState(cloudQuotaState);
+  if (typeof window !== 'undefined') {
+    void enableNetwork(db).catch(() => {});
+  }
+  if (wasPaused) {
+    notifyCloudQuotaListeners();
+  }
+}
+
+export function subscribeCloudQuotaStatus(
+  listener: (status: CloudQuotaStatus) => void
+): () => void {
+  cloudQuotaListeners.add(listener);
+  listener(getCloudQuotaStatus());
+  return () => {
+    cloudQuotaListeners.delete(listener);
+  };
+}
+
+let quotaInterceptorInstalled = false;
+function installFirestoreQuotaErrorInterceptor(): void {
+  if (quotaInterceptorInstalled || typeof window === 'undefined' || typeof console === 'undefined') {
+    return;
+  }
+  quotaInterceptorInstalled = true;
+
+  const inspectArgs = (args: unknown[]): { isQuota: boolean; isBackoffNoise: boolean } => {
+    try {
+      const joined = args
+        .map(a => (typeof a === 'string' ? a : a instanceof Error ? a.message : ''))
+        .join(' ')
+        .toLowerCase();
+      const isFirestoreLog = joined.includes('@firebase/firestore');
+      if (!isFirestoreLog) {
+        return { isQuota: false, isBackoffNoise: false };
+      }
+      const isQuota =
+        joined.includes('resource-exhausted') ||
+        joined.includes('quota limit exceeded') ||
+        joined.includes('free daily write units');
+      const isBackoffNoise = joined.includes('using maximum backoff delay');
+      return { isQuota, isBackoffNoise };
+    } catch {
+      return { isQuota: false, isBackoffNoise: false };
+    }
+  };
+
+  const origError = console.error.bind(console);
+  const origWarn = console.warn.bind(console);
+
+  console.error = (...args: unknown[]) => {
+    const { isQuota, isBackoffNoise } = inspectArgs(args);
+    if (isQuota) {
+      tripCloudWriteQuotaPause();
+      return;
+    }
+    if (isBackoffNoise && isCloudWritePaused()) {
+      return;
+    }
+    origError(...args);
+  };
+
+  console.warn = (...args: unknown[]) => {
+    const { isQuota, isBackoffNoise } = inspectArgs(args);
+    if (isQuota) {
+      tripCloudWriteQuotaPause();
+      return;
+    }
+    if (isBackoffNoise && isCloudWritePaused()) {
+      return;
+    }
+    origWarn(...args);
+  };
+}
+
+installFirestoreQuotaErrorInterceptor();
+
+export async function runFirestoreWriteWithGuard<T>(
+  operation: () => Promise<T>,
+  timeoutMs = 12000
+): Promise<T> {
+  if (isCloudWritePaused()) {
+    const pausedErr = new Error(
+      cloudQuotaState.message || 'Quota limit exceeded (resource-exhausted).'
+    ) as Error & { isQuotaExceeded?: boolean; code?: string };
+    pausedErr.isQuotaExceeded = true;
+    pausedErr.code = 'resource-exhausted';
+    throw pausedErr;
+  }
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          if (isCloudWritePaused()) {
+            const quotaErr = new Error(
+              cloudQuotaState.message || 'Quota limit exceeded (resource-exhausted).'
+            ) as Error & { isQuotaExceeded?: boolean; code?: string };
+            quotaErr.isQuotaExceeded = true;
+            quotaErr.code = 'resource-exhausted';
+            reject(quotaErr);
+          } else {
+            reject(new Error('Firestore write timed out'));
+          }
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
 ): never {
+  if (isQuotaExceededError(error)) {
+    tripCloudWriteQuotaPause();
+    const quotaErr = new Error(
+      cloudQuotaState.message || 'Quota limit exceeded (resource-exhausted).'
+    ) as Error & { isQuotaExceeded?: boolean; code?: string };
+    quotaErr.isQuotaExceeded = true;
+    quotaErr.code = 'resource-exhausted';
+    throw quotaErr;
+  }
+
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -123,6 +434,7 @@ export function handleFirestoreError(
 }
 
 async function testConnection() {
+  if (isCloudWritePaused()) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -155,6 +467,9 @@ async function getDocServerWithFallback(
     return await getDocFromServer(ref);
   } catch (err: any) {
     if (isOfflineOrTransientError(err)) {
+      if (isCloudWritePaused()) {
+        return await getDoc(ref);
+      }
       await new Promise(resolve => setTimeout(resolve, 350));
       try {
         return await getDocFromServer(ref);
@@ -533,12 +848,15 @@ export async function checkFirstTimeSetup(): Promise<BootstrapStatus> {
   }
 }
 
+const syncedDirectoryDigestByKey = new Map<string, string>();
+
 async function syncWorkspaceDirectoryEntries(
   workspaceId: string,
   ownerUid: string,
   updatedByUid: string,
   state: AppState
 ): Promise<void> {
+  if (isCloudWritePaused()) return;
   const factoryName = sanitizeTextInput(state.factoryName || 'Pabrik ProdTrack', 120) || 'Pabrik ProdTrack';
   const roleByEmail = new Map<string, UserRole>();
 
@@ -567,8 +885,14 @@ async function syncWorkspaceDirectoryEntries(
 
   await Promise.all(
     Array.from(roleByEmail.entries()).map(async ([emailLower, role]) => {
+      if (isCloudWritePaused()) return;
       try {
         const inviteId = await computeEmailLookupId(emailLower);
+        const cacheKey = `${workspaceId}::${inviteId}`;
+        const digest = `${role}::${factoryName}::${ownerUid}`;
+        if (syncedDirectoryDigestByKey.get(cacheKey) === digest) {
+          return;
+        }
         await setDoc(doc(db, 'workspaceDirectory', inviteId), {
           inviteId,
           emailLower,
@@ -579,7 +903,11 @@ async function syncWorkspaceDirectoryEntries(
           updatedAt: serverTimestamp(),
           updatedByUid
         });
-      } catch {
+        syncedDirectoryDigestByKey.set(cacheKey, digest);
+      } catch (err) {
+        if (isQuotaExceededError(err)) {
+          tripCloudWriteQuotaPause();
+        }
         // Non-fatal if another tenant already claimed this email or offline
       }
     })
@@ -902,22 +1230,27 @@ export async function loadCloudWorkspaceDetailed(user: User): Promise<LoadCloudW
     }
 
     // Ensure secondary admin gets their /admins/{uid} profile created with workspaceId
-    try {
-      const checkAdmin = await getDoc(doc(db, 'admins', uid));
-      if (!checkAdmin.exists()) {
-        await setDoc(doc(db, 'admins', uid), {
-          uid,
-          email,
-          displayName: sanitizeTextInput(user.displayName || email.split('@')[0], 120),
-          factoryName: sanitizeTextInput(meta.factoryName || 'Pabrik ProdTrack', 120),
-          workspaceId,
-          role: email === BOOTSTRAP_EMAIL || meta.ownerUid === uid ? 'SUPER_ADMIN' : 'ADMIN',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+    if (!isCloudWritePaused()) {
+      try {
+        const checkAdmin = await getDoc(doc(db, 'admins', uid));
+        if (!checkAdmin.exists()) {
+          await setDoc(doc(db, 'admins', uid), {
+            uid,
+            email,
+            displayName: sanitizeTextInput(user.displayName || email.split('@')[0], 120),
+            factoryName: sanitizeTextInput(meta.factoryName || 'Pabrik ProdTrack', 120),
+            workspaceId,
+            role: email === BOOTSTRAP_EMAIL || meta.ownerUid === uid ? 'SUPER_ADMIN' : 'ADMIN',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      } catch (err) {
+        if (isQuotaExceededError(err)) {
+          tripCloudWriteQuotaPause();
+        }
+        // Non-fatal
       }
-    } catch {
-      // Non-fatal
     }
   }
 
@@ -1282,8 +1615,15 @@ export function subscribeToDashboardLineStatus(
 
   const handleSnapshotError = (err: Error, path: string) => {
     if (isDisposed || !auth.currentUser) return;
+    if (isQuotaExceededError(err)) {
+      tripCloudWriteQuotaPause();
+    }
     if (onError) onError(err);
-    handleFirestoreError(err, OperationType.GET, path);
+    try {
+      handleFirestoreError(err, OperationType.GET, path);
+    } catch {
+      // Prevent uncaught exceptions inside Firestore onSnapshot error callbacks
+    }
   };
 
   unsubs.push(
@@ -1461,8 +1801,15 @@ export function subscribeToWorkspaceCloud(
 
   const handleSnapshotError = (err: Error, path: string) => {
     if (isDisposed || !auth.currentUser) return;
+    if (isQuotaExceededError(err)) {
+      tripCloudWriteQuotaPause();
+    }
     if (onError) onError(err);
-    handleFirestoreError(err, OperationType.GET, path);
+    try {
+      handleFirestoreError(err, OperationType.GET, path);
+    } catch {
+      // Prevent uncaught exceptions inside Firestore onSnapshot error callbacks
+    }
   };
 
   unsubs.push(
@@ -1628,6 +1975,7 @@ export async function saveWorkspaceSectionsToCloud(
 ): Promise<void> {
   const user = auth.currentUser;
   if (!user || !state.cloudOwnerUid) return;
+  if (isCloudWritePaused()) return;
 
   const uid = user.uid;
   const ownerUid = state.cloudOwnerUid;
@@ -1715,7 +2063,7 @@ export async function saveWorkspaceSectionsToCloud(
 
   if (pathsWritten.length > 0) {
     try {
-      await batch.commit();
+      await runFirestoreWriteWithGuard(() => batch.commit());
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, pathsWritten[0]);
     }
@@ -1723,20 +2071,22 @@ export async function saveWorkspaceSectionsToCloud(
 
   // When an Operator saves operations BEFORE an Admin runs one-time migration, update only active fields
   // so legacy arrays in data/operations remain intact for the Admin migration.
-  if (shouldDeferOpsToUpdateDoc) {
+  if (shouldDeferOpsToUpdateDoc && !isCloudWritePaused()) {
     const opsPath = `workspaces/${workspaceId}/data/operations`;
     try {
-      await updateDoc(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
-        ...buildBoundedOperationsPayload(state),
-        updatedAt: now,
-        updatedByUid: uid
-      });
+      await runFirestoreWriteWithGuard(() =>
+        updateDoc(doc(db, 'workspaces', workspaceId, 'data', 'operations'), {
+          ...buildBoundedOperationsPayload(state),
+          updatedAt: now,
+          updatedByUid: uid
+        })
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, opsPath);
     }
   }
 
-  if (sections.meta && canWriteAdminSections) {
+  if (sections.meta && canWriteAdminSections && !isCloudWritePaused()) {
     void syncWorkspaceDirectoryEntries(workspaceId, ownerUid, uid, state);
   }
 }

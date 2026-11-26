@@ -37,6 +37,8 @@ import {
 import {
   loadStoredState,
   saveStateToStorage,
+  pruneOldLocalTransactions,
+  LOCAL_LOG_RETENTION_DAYS,
   getSampleState,
   getCleanBlankState,
   DEFAULT_STATE,
@@ -46,24 +48,31 @@ import {
   auth,
   AuthErrorDetail,
   checkFirstTimeSetup,
+  CloudQuotaStatus,
   computeDashboardLineDigest,
   computeLineAvailabilitySignature,
   consumeGoogleRedirectResult,
   DashboardLineStatusSnapshot,
   extractActiveChangeoversFromMachines,
   formatGoogleAuthError,
+  getCloudQuotaStatus,
+  isCloudWritePaused,
+  isQuotaExceededError,
   loadCloudWorkspaceDetailed,
   mergeMachinesWithActiveChangeovers,
   mergeMasterAndOpsTanks,
   publishDashboardLineStatusBroadcast,
   registerAdministratorWorkspace,
+  resetCloudWriteQuotaPause,
   saveWorkspaceSectionsToCloud,
   signInWithGooglePopup,
   signOutGoogleAuth,
   startGoogleRedirectSignIn,
   subscribeAuthState,
+  subscribeCloudQuotaStatus,
   subscribeToDashboardLineStatus,
   subscribeToWorkspaceCloud,
+  tripCloudWriteQuotaPause,
   WorkspaceRemotePatch
 } from './utils/firebaseSync';
 import {
@@ -127,10 +136,14 @@ import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
 import { ContactSection, ContactFormData } from '@/components/ui/contact';
 import { Toaster, toast as sonnerToast } from 'sonner';
-import { FileText, Activity, Clock, Zap, Layers, PauseCircle, Play } from 'lucide-react';
+import { FileText, Activity, Clock, Zap, Layers, PauseCircle, Play, AlertTriangle, RefreshCw, X } from 'lucide-react';
 
 export default function App() {
-  const [state, setState] = useState<AppState>(() => loadStoredState());
+  const [state, setState] = useState<AppState>(() => {
+    const loaded = loadStoredState();
+    const { state: pruned } = pruneOldLocalTransactions(loaded, LOCAL_LOG_RETENTION_DAYS);
+    return pruned;
+  });
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -248,8 +261,20 @@ export default function App() {
   );
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [authErrorBanner, setAuthErrorBanner] = useState<AuthErrorDetail | null>(null);
+  const [cloudQuotaStatus, setCloudQuotaStatus] = useState<CloudQuotaStatus>(() => getCloudQuotaStatus());
+  const [quotaBannerDismissed, setQuotaBannerDismissed] = useState(false);
   const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
     useState<DashboardLineStatusSnapshot | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeCloudQuotaStatus(status => {
+      setCloudQuotaStatus(status);
+      if (status.isQuotaExceeded) {
+        setQuotaBannerDismissed(false);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const [authViewKey, setAuthViewKey] = useState(0);
   const isApplyingRemoteRef = useRef(false);
@@ -292,6 +317,11 @@ export default function App() {
     lineDigest: string;
   } | null>(null);
 
+  const explicitOpsVersionRef = useRef<number>(0);
+  const markExplicitOperationsWrite = useCallback(() => {
+    explicitOpsVersionRef.current += 1;
+  }, []);
+
   const serializeMeta = (s: AppState) =>
     JSON.stringify({
       factoryName: s.factoryName || '',
@@ -302,12 +332,50 @@ export default function App() {
     });
 
   const serializeSecrets = (s: AppState) => JSON.stringify({ adminPin: s.adminPin || '' });
-  const serializeMaster = (s: AppState) => JSON.stringify(s.master);
+  // Exclude high-frequency operational tank levels/statuses & activeChangeover snapshots that live in data/operations
+  const serializeMaster = (s: AppState) =>
+    JSON.stringify({
+      materials: s.master.materials || [],
+      wips: s.master.wips || [],
+      skus: s.master.skus || [],
+      skuWips: s.master.skuWips || [],
+      wipMats: s.master.wipMats || [],
+      recipes: s.master.recipes || [],
+      productionLines: s.master.productionLines || [],
+      machines: (s.master.machines || []).map(
+        ({ activeChangeover: _co, status, ...rest }) => ({
+          ...rest,
+          status: status === 'CHANGEOVER' ? 'OPERATIONAL' : status
+        })
+      ),
+      tanks: (s.master.tanks || []).map(
+        ({
+          currentLevelKg: _lvl,
+          status: _st,
+          assignedWipId: _wip,
+          temp: _t,
+          agitatorStatus: _ag,
+          ...rest
+        }) => rest
+      )
+    });
   const serializeOperations = (s: AppState) =>
     JSON.stringify({
-      activeSkuRuns: s.activeSkuRuns || [],
+      explicitOpsVersion: explicitOpsVersionRef.current,
+      // For active running lines, omit continuous Auto [ counter ticks so Cloud Firestore is only written
+      // on Start, Pause, Stop, Complete Line, Shift Handover, or physical transactions.
+      activeSkuRuns: (s.activeSkuRuns || []).map(r =>
+        r.isRunning
+          ? {
+              ...r,
+              cartonsProducedTotal: 0,
+              lastDeductionTime: ''
+            }
+          : r
+      ),
       tank: s.tank.isSimulationActive ? { ...s.tank, temp: 0 } : s.tank,
-      tanks: s.master.tanks || [],
+      // Auto [ depletion tank level changes stay local until an explicit action bumps explicitOpsVersion
+      tanks: (s.master.tanks || []).map(({ currentLevelKg: _lvl, ...rest }) => rest),
       lastShiftHandover: s.lastShiftHandover ?? null,
       weeklyPlannings: s.weeklyPlannings || [],
       activeWeeklyPlanId: s.activeWeeklyPlanId ?? null,
@@ -320,6 +388,7 @@ export default function App() {
   // Structural/critical operations excluding high-frequency Auto [ simulation counter ticks
   const serializeCriticalOperations = (s: AppState) =>
     JSON.stringify({
+      explicitOpsVersion: explicitOpsVersionRef.current,
       wipBatches: s.transactions.wipBatches,
       changeovers: s.transactions.changeovers,
       productionStops: s.transactions.productionStops,
@@ -414,13 +483,18 @@ export default function App() {
         setupStatus !== 'ready' ||
         !(auth.currentUser || firebaseUser) ||
         !canWriteTx ||
-        !currentState.cloudOwnerUid
+        !currentState.cloudOwnerUid ||
+        isCloudWritePaused()
       ) {
         return;
       }
       const workspaceId = currentState.cloudWorkspaceId || 'main';
       pendingTxDocsRef.current.set(txDoc.id, txDoc);
       void appendTransaction(workspaceId, txDoc).catch(err => {
+        if (isQuotaExceededError(err)) {
+          tripCloudWriteQuotaPause();
+          return;
+        }
         console.error('Failed to append transaction to Firestore sub-collection:', err);
       });
     },
@@ -443,7 +517,7 @@ export default function App() {
 
   const flushAutoCartonBuffer = useCallback(
     (targetLineOrRunKey?: string) => {
-      if (autoCartonBufferRef.current.size === 0) return;
+      if (autoCartonBufferRef.current.size === 0 || isCloudWritePaused()) return;
       const actorEmail = getActiveActorEmail();
       const keysToFlush = Array.from(autoCartonBufferRef.current.keys()).filter(k =>
         targetLineOrRunKey ? k.includes(targetLineOrRunKey) : true
@@ -785,7 +859,9 @@ export default function App() {
         }, 180);
       },
       err => {
-        console.error('Realtime sync warning:', err);
+        if (!isQuotaExceededError(err)) {
+          console.error('Realtime sync warning:', err);
+        }
       },
       {
         workspaceId: state.cloudWorkspaceId,
@@ -829,7 +905,9 @@ export default function App() {
         }, 100);
       },
       err => {
-        console.error('Realtime transaction sub-collection warning:', err);
+        if (!isQuotaExceededError(err)) {
+          console.error('Realtime transaction sub-collection warning:', err);
+        }
       }
     );
     txUnsubRef.current = unsubTx;
@@ -923,7 +1001,9 @@ export default function App() {
         }, 180);
       },
       err => {
-        console.error('Dashboard line status realtime warning:', err);
+        if (!isQuotaExceededError(err)) {
+          console.error('Dashboard line status realtime warning:', err);
+        }
       },
       { workspaceId: state.cloudWorkspaceId, debounceMs: 60, maxWaitMs: 350 }
     );
@@ -1067,6 +1147,10 @@ export default function App() {
       timers.maxWaitTimer = null;
     }
 
+    if (isCloudWritePaused()) {
+      return;
+    }
+
     const pending = pendingCloudSectionsRef.current;
     const sectionsToSave = { ...pending };
     pendingCloudSectionsRef.current = {
@@ -1102,6 +1186,17 @@ export default function App() {
           cloudAuthRole !== 'ADMINISTRATOR' && hasLegacyOperationsRef.current
       });
     } catch (err) {
+      if (isQuotaExceededError(err)) {
+        tripCloudWriteQuotaPause();
+        // Re-queue sections for retry if quota resets or user retries manually
+        pendingCloudSectionsRef.current = {
+          meta: pendingCloudSectionsRef.current.meta || Boolean(sectionsToSave.meta),
+          secrets: pendingCloudSectionsRef.current.secrets || Boolean(sectionsToSave.secrets),
+          master: pendingCloudSectionsRef.current.master || Boolean(sectionsToSave.master),
+          operations: pendingCloudSectionsRef.current.operations || Boolean(sectionsToSave.operations)
+        };
+        return;
+      }
       console.error('Cloud sync save error:', err);
     }
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
@@ -1333,15 +1428,20 @@ export default function App() {
     if (masterChanged) pendingCloudSectionsRef.current.master = true;
     if (opsChanged) pendingCloudSectionsRef.current.operations = true;
 
+    if (isCloudWritePaused()) {
+      return () => clearTimeout(localSaveTimer);
+    }
+
     const isCriticalChange =
       metaChanged ||
       secretsChanged ||
+      masterChanged ||
       curLineAvailSig !== prevSnaps.lineAvailSig ||
       curCriticalOpsSig !== prevSnaps.criticalOpsSig;
 
-    // Critical/discrete edits flush rapidly (~450ms); high-frequency simulation ticks batch every 2.5s–3.5s
-    const writeDebounceMs = isCriticalChange ? 450 : 2500;
-    const writeMaxWaitMs = isCriticalChange ? 900 : 3500;
+    // Discrete edits flush quickly (~0.8s–2s); steady auto-production counter ticks batch every 20s–60s to preserve Firestore daily write quota
+    const writeDebounceMs = isCriticalChange ? 800 : 20_000;
+    const writeMaxWaitMs = isCriticalChange ? 2000 : 60_000;
 
     if (cloudWriteTimersRef.current.debounceTimer) {
       clearTimeout(cloudWriteTimersRef.current.debounceTimer);
@@ -1369,7 +1469,7 @@ export default function App() {
         }
         return;
       }
-      flushAutoCartonBuffer();
+      // Keep Auto [ running simulation strictly in localStorage; only flush already-queued explicit cloud writes
       saveStateToStorage(stateRef.current);
       void flushPendingCloudWrites();
     };
@@ -1386,7 +1486,7 @@ export default function App() {
       window.removeEventListener('pagehide', flushState);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [flushAutoCartonBuffer, flushPendingCloudWrites]);
+  }, [flushPendingCloudWrites]);
 
   // Sync theme with HTML document element (Midnight vs Daylight)
   useEffect(() => {
@@ -1858,6 +1958,7 @@ export default function App() {
   const handleResetAll = () => {
     autoCartonBufferRef.current.clear();
     pendingTxDocsRef.current.clear();
+    markExplicitOperationsWrite();
     if (
       getEffectiveRoleForState().canWriteCloudMaster &&
       cloudAuthRole === 'ADMINISTRATOR' &&
@@ -1916,6 +2017,7 @@ export default function App() {
 
   // 3. Reset Data Stock Material Diterima (CK, WINEROTO & Storage Tank Liquid)
   const handleResetStockReceipts = () => {
+    markExplicitOperationsWrite();
     if (
       getEffectiveRoleForState().canWriteCloudMaster &&
       cloudAuthRole === 'ADMINISTRATOR' &&
@@ -1941,6 +2043,7 @@ export default function App() {
 
   // 4. Reset Data Pemesanan RM (Permintaan Material)
   const handleResetRequests = () => {
+    markExplicitOperationsWrite();
     if (
       getEffectiveRoleForState().canWriteCloudMaster &&
       cloudAuthRole === 'ADMINISTRATOR' &&
@@ -1962,6 +2065,7 @@ export default function App() {
 
   // 5. Reset Data Pemakaian Material & WIP
   const handleResetUsages = () => {
+    markExplicitOperationsWrite();
     if (
       getEffectiveRoleForState().canWriteCloudMaster &&
       cloudAuthRole === 'ADMINISTRATOR' &&
@@ -1984,6 +2088,7 @@ export default function App() {
 
   // Load sample dataset
   const handleLoadSampleData = () => {
+    markExplicitOperationsWrite();
     const sample = getSampleState();
     setState(prev => ({
       ...sample,
@@ -2057,6 +2162,7 @@ export default function App() {
     const actorEmail = getActiveActorEmail();
     dispatchAppendTx(toTransactionDocFromUsage(newUsage, actorEmail, state.master.skus, nowIso));
     dispatchAppendTx(toTransactionDocFromReceipt(newReceipt, actorEmail, nowIso));
+    markExplicitOperationsWrite();
 
     setState(prev => {
       let updatedTankLevel = prev.tank.level;
@@ -3129,6 +3235,7 @@ export default function App() {
       return;
     }
 
+    markExplicitOperationsWrite();
     setState(prev => ({
       ...prev,
       master: {
@@ -3148,6 +3255,9 @@ export default function App() {
 
     const targetTank = currentState.master.tanks.find(t => t.id === tankId);
     if (!targetTank) return;
+
+    flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
 
     const prevLvl = targetTank.currentLevelKg;
     const newLvl = Math.min(targetTank.capacityKg, prevLvl + amountKg);
@@ -3217,6 +3327,8 @@ export default function App() {
     if (activeRunForLine?.plannedCartons && activeRunForLine.plannedCartons > 0) {
       const remaining = activeRunForLine.plannedCartons - (activeRunForLine.cartonsProducedTotal || 0);
       if (remaining <= 0) {
+        flushAutoCartonBuffer();
+        markExplicitOperationsWrite();
         setState(prev => {
           const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
           const updatedRuns = prevRuns.map(r => {
@@ -3511,11 +3623,13 @@ export default function App() {
       };
     });
 
-    // Persist to /workspaces/{workspaceId}/transactions/{txId}
+    // Persist to /workspaces/{workspaceId}/transactions/{txId} ONLY for explicit user actions
+    // or when a running line completes its planned target (Complete Line).
     const actorEmail = getActiveActorEmail();
     if (!isAutoTick) {
       dispatchAppendTx(toTransactionDocFromCartonProd(newCartonLog, actorEmail));
       newTankLogs.forEach(tl => dispatchAppendTx(toTransactionDocFromTankLog(tl, actorEmail)));
+      markExplicitOperationsWrite();
     } else {
       const bufferKey = `${resolvedLineId || 'line'}::${targetSku.id}::${currentShiftObj.shift}`;
       const existingBuf = autoCartonBufferRef.current.get(bufferKey);
@@ -3572,14 +3686,9 @@ export default function App() {
         existingBuf.accumulatedCartons += effectiveCartons;
       }
 
-      const bufNow = autoCartonBufferRef.current.get(bufferKey);
-      if (
-        bufNow &&
-        (bufNow.accumulatedCartons >= 20 ||
-          Date.now() - bufNow.lastFlushedAt >= 15000 ||
-          Boolean(autoCompletedLineMsg))
-      ) {
+      if (autoCompletedLineMsg) {
         flushAutoCartonBuffer(bufferKey);
+        markExplicitOperationsWrite();
       }
     }
 
@@ -3591,7 +3700,7 @@ export default function App() {
       success: true,
       message: `Berhasil mencatat ${effectiveCartons} karton ${targetSku.name}${resolvedLineName ? ` (${resolvedLineName})` : ''}. Isi tangki Holding & Storage otomatis berkurang!`
     };
-  }, [getActiveActorEmail, dispatchAppendTx, flushAutoCartonBuffer, showToast]);
+  }, [getActiveActorEmail, dispatchAppendTx, flushAutoCartonBuffer, markExplicitOperationsWrite, showToast]);
 
   // Rule Baru: Inter-Tank Transfer (Holding Tank ➔ Storage Tank, Storage Tank ➔ Holding Tank)
   const handleTransferBetweenTanks = (
@@ -3673,6 +3782,8 @@ export default function App() {
     };
 
     const actorEmail = getActiveActorEmail();
+    flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
     dispatchAppendTx(toTransactionDocFromTankLog(transferLog1, actorEmail));
     dispatchAppendTx(toTransactionDocFromTankLog(transferLog2, actorEmail));
 
@@ -3918,6 +4029,7 @@ export default function App() {
       selectedHoldingTanks: selectedHoldingTanks && Object.keys(selectedHoldingTanks).length > 0 ? selectedHoldingTanks : undefined
     };
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const curRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       // Keep runs on other lines AND archived SHIFT_HANDOVER records for shift summaries
@@ -4043,6 +4155,7 @@ export default function App() {
     }
 
     const replacingLineIds = new Set(newRuns.map(r => r.lineId));
+    markExplicitOperationsWrite();
     setState(prev => {
       const curRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const unchangedRuns = curRuns.filter(
@@ -4129,6 +4242,8 @@ export default function App() {
     const startedAt = completedAt;
     const currentPeriod = getShiftPeriodInfo();
 
+    flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
@@ -4208,6 +4323,7 @@ export default function App() {
     const tankObj = currentState.master.tanks.find(t => t.id === tankId);
     const wipObj = currentState.master.wips.find(w => w.id === wipId);
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
@@ -4246,6 +4362,7 @@ export default function App() {
 
   // Change Speed Multiplier for live automated depletion (targets specific runId/lineId or skuId)
   const handleSetRunSpeedMultiplier = (speedMultiplier: number, runIdOrSkuId?: string) => {
+    markExplicitOperationsWrite();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
@@ -4274,6 +4391,7 @@ export default function App() {
   // Complete a Line Run Normally (Target finished / batch selesai - no SBL breakdown recorded)
   const handleCompleteLineRun = (runIdOrLineId: string, notes?: string) => {
     flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
     const completedAt = new Date().toISOString();
     let completedInfo = '';
 
@@ -4311,6 +4429,7 @@ export default function App() {
       reasonMessage: string
     ) => {
       flushAutoCartonBuffer();
+      markExplicitOperationsWrite();
       const currentState = stateRef.current;
       const prevRuns = currentState.activeSkuRuns || (currentState.activeSkuRun ? [currentState.activeSkuRun] : []);
       const targetRun =
@@ -4382,7 +4501,7 @@ export default function App() {
         true
       );
     },
-    [flushAutoCartonBuffer, showToast]
+    [flushAutoCartonBuffer, markExplicitOperationsWrite, showToast]
   );
 
   // Resume a stopped line run (e.g. after Material Shortage WIP has been replenished in Holding Tank)
@@ -4443,6 +4562,7 @@ export default function App() {
       : 1;
     const sblSavedMin = Math.max(0, sblEstMin - sblElapsedMin);
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const currentRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       let resumedRunObj: ActiveSkuProductionRun | null = null;
@@ -4593,6 +4713,7 @@ export default function App() {
   // Stop Specific Line / SKU Production due to Problem (Six Big Losses TPM)
   const handleStopSkuProduction = (stopData: Omit<ProductionStopLog, 'id'>) => {
     flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
     const newStopLog: ProductionStopLog = {
       ...stopData,
       estimatedRepairMinutes: stopData.estimatedRepairMinutes ?? stopData.durationMinutes,
@@ -4651,6 +4772,7 @@ export default function App() {
   // Stop All Running Lines Production
   const handleStopAllSkuProduction = () => {
     flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
     const completedAt = new Date().toISOString();
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
@@ -4705,6 +4827,7 @@ export default function App() {
       return;
     }
 
+    markExplicitOperationsWrite();
     const handoverIso = new Date().toISOString();
     const handoverRunIds = new Set(runsToHandover.map((r, i) => r.id || `${r.lineId}_${r.skuId}_${i}`));
     const firstFromShift = runsToHandover[0].shift;
@@ -4807,7 +4930,14 @@ export default function App() {
 
   const reconcileMissedProduction = useCallback(() => {
     const activeState = stateRef.current;
-    if (!activeState.isAuthenticated || isApplyingRemoteRef.current) return;
+    if (!activeState.isAuthenticated) return;
+    if (isApplyingRemoteRef.current) {
+      if (catchUpTimerRef.current) clearTimeout(catchUpTimerRef.current);
+      catchUpTimerRef.current = setTimeout(() => {
+        reconcileMissedProduction();
+      }, 180);
+      return;
+    }
 
     const runsNow =
       activeState.activeSkuRuns || (activeState.activeSkuRun ? [activeState.activeSkuRun] : []);
@@ -5175,6 +5305,9 @@ export default function App() {
 
     const actorEmail = getActiveActorEmail();
     dispatchAppendTx(toTransactionDocFromReceipt(newReceipt, actorEmail, nowIso));
+    if (receiptData.location === 'STORAGE_TANK') {
+      markExplicitOperationsWrite();
+    }
 
     // Only Administrator can mutate an existing REQUEST transaction doc in Firestore (Operators are create-only)
     if (receiptData.requestId && cloudAuthRole === 'ADMINISTRATOR' && currentState.cloudWorkspaceId) {
@@ -5239,6 +5372,7 @@ export default function App() {
     dispatchAppendTx(
       toTransactionDocFromUsage(newUsage, getActiveActorEmail(), currentState.master.skus, nowIso)
     );
+    markExplicitOperationsWrite();
 
     setState(prev => {
       let updatedTankLevel = prev.tank.level;
@@ -5339,6 +5473,7 @@ export default function App() {
       const uIso = new Date(now.getTime() + idx).toISOString();
       dispatchAppendTx(toTransactionDocFromUsage(u, actorEmail, skusList, uIso));
     });
+    markExplicitOperationsWrite();
 
     setState(prev => {
       const updatedMachines = prev.master.machines.map(m => {
@@ -5392,6 +5527,7 @@ export default function App() {
     let pausedBatchCode = '';
     let frozenLabel = '';
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
         if (b.id !== batchId || b.status !== 'SEDANG_PRODUKSI') return b;
@@ -5457,6 +5593,7 @@ export default function App() {
     let resumedBatchCode = '';
     let resumedRemLabel = '';
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
         if (b.id !== batchId || b.status !== 'DIJEDA') return b;
@@ -5582,6 +5719,8 @@ export default function App() {
       };
       dispatchAppendTx(toTransactionDocFromTankLog(createdInflowLog, getActiveActorEmail()));
     }
+    flushAutoCartonBuffer();
+    markExplicitOperationsWrite();
 
     setState(prev => {
       const updatedBatches = (prev.transactions.wipBatches || []).map(b => {
@@ -5694,6 +5833,7 @@ export default function App() {
       stateRef.current.currentUserRole ||
       'Operator';
 
+    markExplicitOperationsWrite();
     setState(prev => {
       const cancellingBatch = (prev.transactions.wipBatches || []).find(b => b.id === batchId);
       let updatedMachines = prev.master.machines;
@@ -5924,8 +6064,54 @@ export default function App() {
           onOpenCommandMenu={() => setIsCommandMenuOpen(true)}
           isSyncingCloud={isSyncingCloud}
           isCloudConnected={Boolean(firebaseUser && cloudAuthRole)}
+          isCloudQuotaExceeded={cloudQuotaStatus.isQuotaExceeded}
           currentViewTitle={viewTitles[state.currentTab] || 'ProdTrack MES'}
         />
+
+        {cloudQuotaStatus.isQuotaExceeded && !quotaBannerDismissed && (
+          <div className="bg-tint-amber border-b border-tint-amber-border px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-amber shrink-0 no-print">
+            <div className="flex items-start sm:items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+              <div className="min-w-0 leading-snug">
+                <span className="font-bold">Kuota Tulis Harian Cloud Penuh: </span>
+                <span className="text-ink-primary">
+                  Batas gratis tulis harian Firestore tercapai dan akan reset otomatis besok. Operasional & data tetap tersimpan aman di perangkat lokal.
+                </span>{' '}
+                <a
+                  href={cloudQuotaStatus.upgradeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold text-ink-amber hover:opacity-80"
+                >
+                  Upgrade / Detail Firebase
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  resetCloudWriteQuotaPause();
+                  flushAutoCartonBuffer();
+                  void flushPendingCloudWrites();
+                  showToast('Mencoba sinkronisasi cloud ulang...');
+                }}
+                className="px-2.5 py-1 rounded-md bg-surface hover:bg-elevated border border-tint-amber-border text-ink-primary text-[11px] font-semibold flex items-center gap-1 transition"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Coba Sinkron Ulang</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuotaBannerDismissed(true)}
+                aria-label="Tutup pemberitahuan kuota"
+                className="p-1 rounded-md hover:bg-surface/60 text-ink-secondary hover:text-ink-primary transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Live Factory Dispatch Console Strip */}
         <div className="bg-canvas border-b border-border-subtle px-3 sm:px-5 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar gap-3 shrink-0 text-xs">

@@ -32,6 +32,7 @@ interface HeaderProps {
   onOpenCommandMenu?: () => void;
   isSyncingCloud?: boolean;
   isCloudConnected?: boolean;
+  isCloudQuotaExceeded?: boolean;
   currentViewTitle: string;
 }
 
@@ -46,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCommandMenu,
   isSyncingCloud = false,
   isCloudConnected = false,
+  isCloudQuotaExceeded = false,
   currentViewTitle
 }) => {
   const effectiveRole = resolveEffectiveRole(state);
@@ -155,18 +157,26 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onOpenTankModal}
             title={`Firestore: ${
-              isSyncingCloud ? 'Menyinkronkan' : isCloudConnected ? 'Terhubung' : 'Lokal'
+              isCloudQuotaExceeded
+                ? 'Kuota Harian Penuh (Mode Lokal Aman)'
+                : isSyncingCloud
+                ? 'Menyinkronkan'
+                : isCloudConnected
+                ? 'Terhubung'
+                : 'Lokal'
             } · IoT Storage Tank: ${state.tank.temp.toFixed(1)}°C (${state.tank.level.toFixed(0)} kg)`}
             aria-label="Status Koneksi Firestore dan Sensor IoT"
             className={`h-8 px-2 sm:px-2.5 rounded-lg border text-[11px] font-mono tabular-nums flex items-center gap-1.5 transition active:scale-95 shrink-0 ${
-              !isTempNormal
+              isCloudQuotaExceeded || !isTempNormal
                 ? 'bg-tint-amber border-tint-amber-border text-ink-amber'
                 : isSyncingCloud
                 ? 'bg-tint-cyan border-tint-cyan-border text-ink-cyan'
                 : 'bg-surface hover:bg-elevated border-border-subtle text-ink-primary'
             }`}
           >
-            {isSyncingCloud ? (
+            {isCloudQuotaExceeded ? (
+              <CloudOff className="w-3.5 h-3.5 text-ink-amber shrink-0" />
+            ) : isSyncingCloud ? (
               <Loader2 className="w-3.5 h-3.5 text-ink-cyan animate-spin shrink-0" />
             ) : isCloudConnected ? (
               <Cloud className="w-3.5 h-3.5 text-ink-emerald shrink-0" />
@@ -174,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
               <CloudOff className="w-3.5 h-3.5 text-ink-amber shrink-0" />
             )}
             <span className="hidden sm:inline font-semibold">
-              {isSyncingCloud ? 'Sync' : isCloudConnected ? 'Cloud' : 'Lokal'}
+              {isCloudQuotaExceeded ? 'Kuota Penuh' : isSyncingCloud ? 'Sync' : isCloudConnected ? 'Cloud' : 'Lokal'}
             </span>
             <span className="text-ink-muted hidden md:inline">·</span>
             <span className="hidden md:inline font-semibold">
