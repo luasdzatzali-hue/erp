@@ -44,6 +44,8 @@ interface TankMonitoringViewProps {
   ) => { success: boolean; message: string };
   showToast: (msg: string, isError?: boolean) => void;
   onSwitchTab?: (tab: AppState['currentTab']) => void;
+  focusedTankId?: string | null;
+  onClearFocusedTank?: () => void;
 }
 
 export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
@@ -52,13 +54,24 @@ export const TankMonitoringView: React.FC<TankMonitoringViewProps> = ({
   onTopUpTank,
   onTransferTanks,
   showToast,
-  onSwitchTab
+  onSwitchTab,
+  focusedTankId,
+  onClearFocusedTank
 }) => {
   // Filter state & View Mode (SCADA P&ID vs Grid Detail)
   const [viewMode, setViewMode] = useState<'SCADA' | 'GRID'>('SCADA');
   const [selectedDrawerTankId, setSelectedDrawerTankId] = useState<string | null>(null);
   const [tankTypeFilter, setTankTypeFilter] = useState<'ALL' | WipTankType | 'LOW_STOCK'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  React.useEffect(() => {
+    if (!focusedTankId) return;
+    const exists = state.master.tanks.some(t => t.id === focusedTankId);
+    if (exists) {
+      setSelectedDrawerTankId(focusedTankId);
+    }
+    onClearFocusedTank?.();
+  }, [focusedTankId, state.master.tanks, onClearFocusedTank]);
 
   const selectedDrawerTank = useMemo(
     () => (selectedDrawerTankId ? state.master.tanks.find(t => t.id === selectedDrawerTankId) || null : null),

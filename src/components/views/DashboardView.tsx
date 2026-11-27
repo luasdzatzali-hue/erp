@@ -108,6 +108,8 @@ interface DashboardViewProps {
   ) => void;
   liveLineStatus?: DashboardLineStatusSnapshot | null;
   onOpenStationMonitor?: (station: { type: 'line' | 'ck'; id: string }) => void;
+  focusedLineId?: string | null;
+  onClearFocusedLine?: () => void;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -136,6 +138,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenPdfModal,
   onChangeSku,
   onOpenStationMonitor,
+  focusedLineId,
+  onClearFocusedLine,
   showToast
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,6 +157,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [filterWipId, setFilterWipId] = useState<string>('all');
   const [isSkuCatalogExpanded, setIsSkuCatalogExpanded] = useState<boolean>(false);
   const [syncedLogIds, setSyncedLogIds] = useState<string[]>(() => loadSheetsSyncSettings().syncedProductionIds);
+
+  React.useEffect(() => {
+    if (focusedLineId) {
+      setFilterLineId(focusedLineId);
+    }
+  }, [focusedLineId]);
 
   React.useEffect(() => {
     const syncListener = () => {
@@ -1046,6 +1056,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onSetProductionLinesCount={onSetProductionLinesCount}
           onChangeSku={onChangeSku}
           onOpenStationMonitor={onOpenStationMonitor}
+          focusedLineId={focusedLineId}
+          onClearFocusedLine={onClearFocusedLine}
           showToast={showToast}
         />
       </div>

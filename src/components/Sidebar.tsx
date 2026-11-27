@@ -323,9 +323,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isExpanded ? 'w-56' : 'w-14'
         }`}
       >
-        {/* Rail Brand Top (48px aligned with slim Header) */}
+        {/* Rail Brand Top (44px aligned with slim Header) */}
         <div
-          className={`h-12 border-b border-border-subtle flex items-center shrink-0 ${
+          className={`h-11 border-b border-border-subtle flex items-center shrink-0 ${
             isExpanded ? 'px-3 justify-between' : 'justify-center px-1'
           }`}
         >
@@ -498,7 +498,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="h-12 px-3.5 border-b border-border-subtle flex items-center justify-between shrink-0">
+        <div className="h-11 px-3.5 border-b border-border-subtle flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-tint-cyan border border-tint-cyan-border flex items-center justify-center">
               <PackageOpen className="w-4 h-4 text-accent-primary" />

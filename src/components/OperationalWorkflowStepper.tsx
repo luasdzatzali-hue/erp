@@ -1,14 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  CalendarRange,
   CheckCircle2,
-  Cpu,
-  Cylinder,
-  Database,
-  FileText,
-  Layers,
-  Lock,
-  Truck
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Lock
 } from 'lucide-react';
 import { AppState } from '../types';
 import { getActiveWeeklyPlan } from '../utils/weeklyPlanComparison';
@@ -27,8 +23,9 @@ interface WorkflowStepDef {
   isReady: boolean;
   isAllowed: boolean;
   restrictedReason?: string;
-  icon: React.ComponentType<{ className?: string }>;
 }
+
+const STEPPER_COLLAPSED_KEY = 'prodtrack_stepper_collapsed_v1';
 
 export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProps> = ({
   state,
@@ -37,6 +34,26 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
   const effectiveRole = resolveEffectiveRole(state);
   const isAdmin = effectiveRole.isAdmin;
   const isManagement = effectiveRole.isManagement;
+
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(STEPPER_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(STEPPER_COLLAPSED_KEY, String(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  };
 
   const steps: WorkflowStepDef[] = useMemo(() => {
     const skuCount = state.master.skus.length;
@@ -68,8 +85,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
         hint: bomConfigured ? `${skuCount} SKU · ${matCount} Mat` : 'Belum lengkap',
         isReady: bomConfigured,
         isAllowed: isAdmin,
-        restrictedReason: 'Khusus Administrator',
-        icon: Database
+        restrictedReason: 'Khusus Administrator'
       },
       {
         stepNumber: '02',
@@ -77,8 +93,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
         shortTitle: 'Planning',
         hint: activePlan ? `${activePlan.weekLabel} (${activePlan.items.length} item)` : 'Belum diatur',
         isReady: Boolean(activePlan && activePlan.items.length > 0),
-        isAllowed: true,
-        icon: CalendarRange
+        isAllowed: true
       },
       {
         stepNumber: '03',
@@ -92,8 +107,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
             : 'Belum ada order',
         isReady: totalRequests > 0,
         isAllowed: !isManagement,
-        restrictedReason: 'Mode Pantau Saja',
-        icon: FileText
+        restrictedReason: 'Mode Pantau Saja'
       },
       {
         stepNumber: '04',
@@ -102,8 +116,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
         hint: receiptsCount > 0 ? `${receiptsCount} Kedatangan` : 'Menunggu masuk',
         isReady: receiptsCount > 0,
         isAllowed: !isManagement,
-        restrictedReason: 'Mode Pantau Saja',
-        icon: Truck
+        restrictedReason: 'Mode Pantau Saja'
       },
       {
         stepNumber: '05',
@@ -117,8 +130,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
             : 'Siap batching',
         isReady: activeWipBatches > 0 || completedWipBatches > 0,
         isAllowed: !isManagement,
-        restrictedReason: 'Mode Pantau Saja',
-        icon: Layers
+        restrictedReason: 'Mode Pantau Saja'
       },
       {
         stepNumber: '06',
@@ -126,8 +138,7 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
         shortTitle: 'Tangki WIP',
         hint: `${Math.round(totalTankKg).toLocaleString('id-ID')} kg · ${state.master.tanks.length} Tangki`,
         isReady: totalTankKg > 0,
-        isAllowed: true,
-        icon: Cylinder
+        isAllowed: true
       },
       {
         stepNumber: '07',
@@ -135,63 +146,112 @@ export const OperationalWorkflowStepper: React.FC<OperationalWorkflowStepperProp
         shortTitle: 'Manufacturing',
         hint: activeRuns > 0 ? `${activeRuns} Lini Jalan` : 'Siap produksi',
         isReady: activeRuns > 0 || (state.transactions.cartonProductions || []).length > 0,
-        isAllowed: true,
-        icon: Cpu
+        isAllowed: true
       }
     ];
   }, [state, isAdmin, isManagement]);
 
   const completedCount = steps.filter(s => s.isReady).length;
+  const activeStep = steps.find(s => s.tab === state.currentTab);
+
+  if (isCollapsed) {
+    return (
+      <div
+        aria-label="Alur Kerja 7 Tahap Disembunyikan"
+        className="h-6 shrink-0 bg-surface-header/80 border-b border-border-subtle px-3 sm:px-4 flex items-center justify-between text-[11px] no-print"
+      >
+        <div className="flex items-center gap-2 text-ink-secondary min-w-0 truncate">
+          <span className="font-mono font-bold text-accent-primary tabular-nums">
+            {completedCount}/7 Tahap
+          </span>
+          {activeStep && (
+            <>
+              <span className="text-ink-muted">·</span>
+              <span className="truncate font-medium text-ink-primary">
+                {activeStep.stepNumber} {activeStep.shortTitle}
+              </span>
+            </>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title="Tampilkan Bar Alur 7 Tahap"
+          aria-label="Tampilkan Bar Alur 7 Tahap"
+          className="h-5 px-2 rounded text-[10px] font-semibold text-ink-secondary hover:text-ink-primary hover:bg-elevated flex items-center gap-1 transition shrink-0"
+        >
+          <span>Alur 7 Tahap</span>
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <nav
       aria-label="Alur Kerja Operasional 7 Tahap"
-      className="h-10 shrink-0 bg-surface-header border-b border-border-subtle z-10 no-print flex items-center"
+      className="h-8 shrink-0 bg-surface-header border-b border-border-subtle z-10 no-print flex items-center justify-between px-2.5 sm:px-3.5 gap-2"
     >
-      <div className="w-full h-full px-3 sm:px-4 flex items-center gap-2 overflow-x-auto no-scrollbar">
-        <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-mono tabular-nums font-semibold text-ink-secondary whitespace-nowrap shrink-0 pr-1 border-r border-border-subtle">
+      <div className="flex-1 min-w-0 h-full flex items-center gap-1 overflow-x-auto no-scrollbar">
+        <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-mono tabular-nums font-bold text-ink-secondary whitespace-nowrap shrink-0 pr-2 mr-1 border-r border-border-subtle">
           <span className="text-accent-primary">{completedCount}/7</span>
           <span>Tahap</span>
         </span>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {steps.map(step => {
+        <div className="flex items-center gap-0.5 shrink-0">
+          {steps.map((step, index) => {
             const isActive = state.currentTab === step.tab;
 
             return (
-              <button
-                key={step.tab}
-                type="button"
-                onClick={() => onSwitchTab(step.tab)}
-                title={
-                  step.isAllowed
-                    ? `${step.stepNumber}. ${step.shortTitle} — ${step.hint}`
-                    : `${step.shortTitle} (${step.restrictedReason || 'Terbatas'})`
-                }
-                className={`h-7 px-2.5 rounded-md border text-[11px] font-medium flex items-center gap-1.5 transition whitespace-nowrap shrink-0 active:scale-95 ${
-                  isActive
-                    ? 'bg-accent-primary border-accent-primary text-accent-primary-foreground font-bold shadow-xs'
-                    : !step.isAllowed
-                    ? 'bg-canvas/70 border-border-subtle/70 text-ink-muted opacity-65 hover:opacity-90'
-                    : step.isReady
-                    ? 'bg-tint-emerald border-tint-emerald-border text-ink-emerald hover:border-accent-primary'
-                    : 'bg-surface border-border-subtle text-ink-secondary hover:text-ink-primary hover:bg-elevated'
-                }`}
-              >
-                <span className="font-mono font-bold tabular-nums text-[10px]">
-                  {step.stepNumber}
-                </span>
-                <span>{step.shortTitle}</span>
-                {!step.isAllowed ? (
-                  <Lock className="w-3 h-3 shrink-0" />
-                ) : step.isReady && !isActive ? (
-                  <CheckCircle2 className="w-3 h-3 shrink-0" />
-                ) : null}
-              </button>
+              <React.Fragment key={step.tab}>
+                {index > 0 && (
+                  <ChevronRight className="w-3 h-3 text-ink-muted/70 shrink-0" aria-hidden="true" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => onSwitchTab(step.tab)}
+                  title={
+                    step.isAllowed
+                      ? `${step.stepNumber}. ${step.shortTitle} — ${step.hint}`
+                      : `${step.shortTitle} (${step.restrictedReason || 'Terbatas'})`
+                  }
+                  className={`h-6 px-2 rounded text-[11px] font-medium flex items-center gap-1 transition whitespace-nowrap shrink-0 active:scale-95 ${
+                    isActive
+                      ? 'bg-accent-primary text-accent-primary-foreground font-bold shadow-xs'
+                      : !step.isAllowed
+                      ? 'text-ink-muted opacity-65 hover:opacity-90 hover:bg-elevated/50'
+                      : step.isReady
+                      ? 'text-ink-emerald hover:bg-tint-emerald/70'
+                      : 'text-ink-secondary hover:text-ink-primary hover:bg-elevated'
+                  }`}
+                >
+                  <span className="font-mono font-bold tabular-nums text-[10px]">
+                    {step.stepNumber}
+                  </span>
+                  <span>{step.shortTitle}</span>
+                  {!step.isAllowed ? (
+                    <Lock className="w-2.5 h-2.5 shrink-0" />
+                  ) : step.isReady && !isActive ? (
+                    <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
+                  ) : null}
+                </button>
+              </React.Fragment>
             );
           })}
         </div>
       </div>
+
+      {/* Hide Stepper Toggle */}
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        title="Sembunyikan Bar Alur 7 Tahap untuk ruang kanvas penuh"
+        aria-label="Sembunyikan Bar Alur 7 Tahap"
+        className="h-6 px-1.5 rounded text-[10px] font-medium text-ink-secondary hover:text-ink-primary hover:bg-elevated border border-transparent hover:border-border-subtle flex items-center gap-1 transition shrink-0"
+      >
+        <span className="hidden md:inline">Sembunyikan</span>
+        <ChevronUp className="w-3.5 h-3.5" />
+      </button>
     </nav>
   );
 };

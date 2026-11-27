@@ -121,6 +121,8 @@ interface ProductionTargetPanelProps {
     }
   ) => void;
   onOpenStationMonitor?: (station: { type: 'line' | 'ck'; id: string }) => void;
+  focusedLineId?: string | null;
+  onClearFocusedLine?: () => void;
   showToast?: (msg: string, isError?: boolean) => void;
 }
 
@@ -156,6 +158,8 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
   onDeleteProductionLine,
   onSetProductionLinesCount,
   onOpenStationMonitor,
+  focusedLineId,
+  onClearFocusedLine,
   showToast
 }) => {
   const effectiveRole = resolveEffectiveRole(state);
@@ -294,6 +298,30 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
 
   // Metrics Filter: 'ALL', or lineId / skuId
   const [metricScope, setMetricScope] = useState<string>('ALL');
+  const [highlightedLineId, setHighlightedLineId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusedLineId) return;
+    const exists = productionLines.some(l => l.id === focusedLineId);
+    if (exists) {
+      setMetricScope(focusedLineId);
+      setHighlightedLineId(focusedLineId);
+      const scrollTimer = window.setTimeout(() => {
+        document
+          .getElementById(`line-control-card-${focusedLineId}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 120);
+      const clearHighlightTimer = window.setTimeout(() => {
+        setHighlightedLineId(prev => (prev === focusedLineId ? null : prev));
+      }, 3000);
+      onClearFocusedLine?.();
+      return () => {
+        window.clearTimeout(scrollTimer);
+        window.clearTimeout(clearHighlightTimer);
+      };
+    }
+    onClearFocusedLine?.();
+  }, [focusedLineId, productionLines, onClearFocusedLine]);
 
   // Auto-prune selectedLineIds if a line started running or was deleted
   useEffect(() => {
@@ -1117,13 +1145,14 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
               return (
                 <div
                   key={line.id}
-                  className={`rounded-2xl p-4 flex flex-col justify-between gap-3 border ${
+                  id={`line-control-card-${line.id}`}
+                  className={`rounded-2xl p-4 flex flex-col justify-between gap-3 border transition-shadow ${
                     isShortageStop
                       ? 'bg-canvas border-amber-500/50 shadow-lg'
                       : isSblStop
                       ? 'bg-canvas border-rose-500/45 shadow-lg'
                       : 'bg-canvas border-border-subtle'
-                  }`}
+                  } ${highlightedLineId === line.id ? 'ring-2 ring-accent-primary shadow-xl' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -1467,7 +1496,10 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
             return (
               <div
                 key={line.id}
-                className="bg-canvas border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg"
+                id={`line-control-card-${line.id}`}
+                className={`bg-canvas border border-emerald-500/40 rounded-2xl p-4 space-y-3.5 shadow-lg transition-shadow ${
+                  highlightedLineId === line.id ? 'ring-2 ring-accent-primary shadow-xl' : ''
+                }`}
               >
                 {/* Card Header: Line Name, Running SKU, Speed & Stop/Selesai */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 border-b border-border-subtle pb-3">

@@ -132,7 +132,7 @@ import { WipCompletionAlarmModal } from './components/WipCompletionAlarmModal';
 import { UserRoleSwitcherModal } from './components/UserRoleSwitcherModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { MaterialStockAdjustmentModal } from './components/MaterialStockAdjustmentModal';
-import { CommandMenu } from './components/CommandMenu';
+import { GlobalCommandPalette } from './components/GlobalCommandPalette';
 import { calculateMissedProduction } from './utils/productionReconcile';
 import { playWipCompletionChime } from './utils/soundAlarm';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from './utils/requestSlipPdf';
@@ -168,6 +168,8 @@ export default function App() {
   const [alarmWipBatch, setAlarmWipBatch] = useState<WipProductionBatch | null>(null);
   const [preselectedRequestId, setPreselectedRequestId] = useState<string | undefined>(undefined);
   const [deepLinkSlip, setDeepLinkSlip] = useState<RequestSlipDeepLinkData | null>(null);
+  const [focusedTankId, setFocusedTankId] = useState<string | null>(null);
+  const [focusedLineId, setFocusedLineId] = useState<string | null>(null);
 
   const parseStationFromLocation = useCallback((): { type: 'line' | 'ck'; id: string } | null => {
     try {
@@ -6312,6 +6314,8 @@ export default function App() {
               onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
               onChangeSku={handleSkuChangeover}
               onOpenStationMonitor={handleOpenStationMonitor}
+              focusedLineId={focusedLineId}
+              onClearFocusedLine={() => setFocusedLineId(null)}
               showToast={showToast}
             />
           )}
@@ -6324,6 +6328,8 @@ export default function App() {
               onTransferTanks={handleTransferBetweenTanks}
               showToast={showToast}
               onSwitchTab={handleSwitchTab}
+              focusedTankId={focusedTankId}
+              onClearFocusedTank={() => setFocusedTankId(null)}
             />
           )}
 
@@ -6571,7 +6577,7 @@ export default function App() {
       />
 
       {/* Global Command Palette (Ctrl+K / Cmd+K) */}
-      <CommandMenu
+      <GlobalCommandPalette
         open={isCommandMenuOpen}
         onOpenChange={setIsCommandMenuOpen}
         state={state}
@@ -6582,6 +6588,15 @@ export default function App() {
         onOpenPdfModal={() => setIsPdfReportModalOpen(true)}
         onOpenStockAdjustment={handleOpenStockAdjustment}
         onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+        onOpenUserManagement={() => setIsUserManagementOpen(true)}
+        onSelectTank={(tankId) => {
+          setFocusedTankId(tankId);
+          handleSwitchTab('tank-monitoring');
+        }}
+        onSelectLine={(lineId) => {
+          setFocusedLineId(lineId);
+          handleSwitchTab('dashboard');
+        }}
       />
     </div>
     {toasterNode}
