@@ -176,6 +176,115 @@ export const DIRTY_DOZEN_PAYLOADS = [
       skuCode: ''
     },
     expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 18,
+    name: 'OEE Snapshot Out-of-Range Score (>100%)',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/shift_oee_snapshots/2026-11-27-S1_line-1',
+    data: {
+      id: '2026-11-27-S1_line-1',
+      workspaceId: 'main',
+      shiftId: '2026-11-27-S1',
+      lineId: 'line-1',
+      skuCode: 'SKU-01',
+      availability: 120,
+      performance: 90,
+      quality: 95,
+      oeeScore: 102.6,
+      sixBigLossesBreakdown: {
+        equipmentFailure: { minutes: 0, lossKg: 0 },
+        setupAdjustment: { minutes: 0, lossKg: 0 },
+        idlingMinorStops: { minutes: 0, lossKg: 0 },
+        reducedSpeed: { minutes: 0, lossKg: 0 },
+        processDefects: { minutes: 0, lossKg: 0 },
+        reducedYield: { minutes: 0, lossKg: 0 }
+      },
+      materialVariancePct: 0,
+      updatedAt: 'SERVER_TIME',
+      updatedByUid: 'op_uid'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 19,
+    name: 'Management Attempting Write to Shift OEE Snapshot',
+    auth: { uid: 'mgt_uid', email: 'mgr@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/shift_oee_snapshots/2026-11-27-S1_line-1',
+    data: {
+      id: '2026-11-27-S1_line-1',
+      workspaceId: 'main',
+      shiftId: '2026-11-27-S1',
+      lineId: 'line-1',
+      skuCode: 'SKU-01',
+      availability: 90,
+      performance: 90,
+      quality: 90,
+      oeeScore: 72.9,
+      sixBigLossesBreakdown: {
+        equipmentFailure: { minutes: 10, lossKg: 5 },
+        setupAdjustment: { minutes: 0, lossKg: 0 },
+        idlingMinorStops: { minutes: 0, lossKg: 0 },
+        reducedSpeed: { minutes: 0, lossKg: 0 },
+        processDefects: { minutes: 0, lossKg: 0 },
+        reducedYield: { minutes: 0, lossKg: 0 }
+      },
+      materialVariancePct: 1.2,
+      updatedAt: 'SERVER_TIME',
+      updatedByUid: 'mgt_uid'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 20,
+    name: 'IIoT Telemetry Invalid Status Enum & Negative Pulse Count',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/iiot_telemetry/tel_bad_1',
+    data: {
+      id: 'tel_bad_1',
+      workspaceId: 'main',
+      lineId: 'line-1',
+      status: 'OVERCLOCKED',
+      pulseCount: -5,
+      cycleTimeSec: 1.5,
+      recordedAt: '2026-11-27T08:00:00.000Z',
+      receivedAt: 'SERVER_TIME',
+      sourceUid: 'op_uid'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 21,
+    name: 'Immutable IIoT Telemetry Update Attempt',
+    auth: { uid: 'admin_uid', email: 'luasdzatzali@gmail.com', email_verified: true },
+    operation: 'update',
+    path: '/workspaces/main/iiot_telemetry/tel_1',
+    data: {
+      pulseCount: 99999
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 22,
+    name: 'IIoT Telemetry Source UID Spoofing',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/iiot_telemetry/tel_spoof_1',
+    data: {
+      id: 'tel_spoof_1',
+      workspaceId: 'main',
+      lineId: 'line-1',
+      status: 'RUNNING',
+      pulseCount: 100,
+      cycleTimeSec: 2.0,
+      recordedAt: '2026-11-27T08:00:00.000Z',
+      receivedAt: 'SERVER_TIME',
+      sourceUid: 'admin_uid'
+    },
+    expected: 'PERMISSION_DENIED'
   }
 ];
 

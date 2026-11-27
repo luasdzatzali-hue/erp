@@ -510,6 +510,219 @@
         }
       },
       "required": ["inviteId", "emailLower", "workspaceId", "role", "factoryName", "ownerUid", "updatedAt", "updatedByUid"]
+    },
+    "ShiftOeeSnapshot": {
+      "title": "ShiftOeeSnapshot",
+      "description": "Ringkasan metrik OEE, Six Big Losses (menit & kg loss), dan Material Variance per shift dan per line",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID snapshot unik (identik dengan snapshotId, misal 2026-11-27-S1_line-1)"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "shiftId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "ID periode shift operasional (misal 2026-11-27-S1)"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "description": "Tanggal operasional YYYY-MM-DD"
+        },
+        "shift": {
+          "type": "integer",
+          "description": "Nomor shift (1-3)"
+        },
+        "lineId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID line produksi"
+        },
+        "lineName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Nama line produksi"
+        },
+        "skuCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Kode SKU produk yang dijalankan pada line & shift tersebut"
+        },
+        "availability": {
+          "type": "number",
+          "description": "Persentase Availability OEE (0-100)"
+        },
+        "performance": {
+          "type": "number",
+          "description": "Persentase Performance OEE (0-100)"
+        },
+        "quality": {
+          "type": "number",
+          "description": "Persentase Quality OEE (0-100)"
+        },
+        "oeeScore": {
+          "type": "number",
+          "description": "Skor komposit OEE = A * P * Q (0-100)"
+        },
+        "sixBigLossesBreakdown": {
+          "type": "object",
+          "description": "Objek rincian menit & kg loss untuk 6 kategori Six Big Losses (equipmentFailure, setupAdjustment, idlingMinorStops, reducedSpeed, processDefects, reducedYield)"
+        },
+        "materialVariancePct": {
+          "type": "number",
+          "description": "Persentase selisih pemakaian material aktual terhadap standar BOM"
+        },
+        "plannedProductionTimeMinutes": {
+          "type": "number",
+          "description": "Total waktu produksi terencana (menit)"
+        },
+        "operatingTimeMinutes": {
+          "type": "number",
+          "description": "Total waktu operasi efektif setelah dikurangi breakdown dan changeover (menit)"
+        },
+        "totalOutputCartons": {
+          "type": "integer",
+          "description": "Total output karton selama shift"
+        },
+        "goodOutputCartons": {
+          "type": "number",
+          "description": "Total output karton baik setelah dikurangi ekuivalen cacat & yield loss"
+        },
+        "standardBomMaterialKg": {
+          "type": "number",
+          "description": "Kebutuhan bahan baku standar BOM berdasarkan output (kg)"
+        },
+        "actualMaterialUsedKg": {
+          "type": "number",
+          "description": "Pemakaian bahan baku aktual termasuk reject & variance (kg)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan snapshot OEE"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pengguna pencatat snapshot"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "shiftId",
+        "lineId",
+        "skuCode",
+        "availability",
+        "performance",
+        "quality",
+        "oeeScore",
+        "sixBigLossesBreakdown",
+        "materialVariancePct",
+        "updatedAt",
+        "updatedByUid"
+      ]
+    },
+    "IiotTelemetryEvent": {
+      "title": "IiotTelemetryEvent",
+      "description": "Event telemetri real-time dari sensor/PLC mesin (output pulse counter, cycle time, & status mesin)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID unik event telemetri (identik dengan telemetryId)"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "lineId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID line produksi sumber telemetri"
+        },
+        "machineId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ID mesin proses/packing sumber telemetri"
+        },
+        "skuCode": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Kode SKU aktif di sensor/PLC"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["RUNNING", "STOP", "IDLE", "FAULT"],
+          "description": "Status operasional real-time mesin dari gateway IIoT"
+        },
+        "pulseCount": {
+          "type": "integer",
+          "description": "Jumlah pulsa/karton output yang terdeteksi sensor"
+        },
+        "cycleTimeSec": {
+          "type": "number",
+          "description": "Cycle time aktual per unit (detik)"
+        },
+        "idleMinutes": {
+          "type": "number",
+          "description": "Durasi kondisi IDLE/STOP pada interval event (menit)"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ISO-8601 pencatatan di gateway/sensor"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp penerimaan dokumen di Firestore"
+        },
+        "sourceUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID layanan/operator pengirim event telemetri"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "lineId",
+        "status",
+        "pulseCount",
+        "cycleTimeSec",
+        "recordedAt",
+        "receivedAt",
+        "sourceUid"
+      ]
     }
   },
   "firestore": {
@@ -548,6 +761,14 @@
     "/workspaces/{workspaceId}/transactions/{txId}": {
       "schema": { "$ref": "#/entities/WorkspaceTransaction" },
       "description": "Dokumen transaksi individual (REQUEST, RECEIPT, USAGE, CARTON_PROD, TANK_LOG, ADJUSTMENT)"
+    },
+    "/workspaces/{workspaceId}/shift_oee_snapshots/{snapshotId}": {
+      "schema": { "$ref": "#/entities/ShiftOeeSnapshot" },
+      "description": "Ringkasan snapshot OEE & Six Big Losses per shift dan per line produksi"
+    },
+    "/workspaces/{workspaceId}/iiot_telemetry/{telemetryId}": {
+      "schema": { "$ref": "#/entities/IiotTelemetryEvent" },
+      "description": "Stream telemetri mesin IIoT immutable (output pulse & status RUNNING/STOP/IDLE/FAULT)"
     }
   }
 }

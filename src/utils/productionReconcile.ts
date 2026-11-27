@@ -16,6 +16,36 @@ export interface MissedProductionCalculationResult {
   isPlanAlreadyReached: boolean;
 }
 
+export interface MaterialBomVarianceInput {
+  actualCartons: number;
+  standardBomKgPerCarton: number;
+  actualMaterialUsedKg?: number;
+  loggedRejectKg?: number;
+  startupRejectKg?: number;
+}
+
+export interface MaterialBomVarianceResult {
+  standardBomMaterialKg: number;
+  totalActualMaterialKg: number;
+  loggedRejectKg: number;
+  processDefectsLossKg: number;
+  processDefectsEquivalentCartons: number;
+  unloggedOverVarianceKg: number;
+  reducedYieldLossKg: number;
+  reducedYieldEquivalentCartons: number;
+  totalScrapAndVarianceKg: number;
+  totalLossEquivalentCartons: number;
+  materialVariancePct: number;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
 /**
  * Menghitung jumlah karton yang tertinggal saat timer interval browser berhenti
  * (misalnya tab/window diminimize, ditutup, atau perangkat sleep).
@@ -71,5 +101,68 @@ export function calculateMissedProduction(
     intervalSeconds,
     elapsedSeconds,
     isPlanAlreadyReached
+  };
+}
+
+/**
+ * Rekonsiliasi selisih pemakaian bahan baku aktual terhadap standar BOM output karton.
+ * Memisahkan Process Defects (reject operasional) dan Reduced Yield (startup reject + over-variance BOM)
+ * agar otomatis memengaruhi skor Quality OEE.
+ */
+export function reconcileMaterialBomVariance(
+  input: MaterialBomVarianceInput
+): MaterialBomVarianceResult {
+  const actualCartons = Math.max(0, Number(input.actualCartons) || 0);
+  const kgPerCarton = Math.max(0, Number(input.standardBomKgPerCarton) || 0);
+  const standardBomMaterialKg = round3(actualCartons * kgPerCarton);
+
+  const loggedRejectKg = round3(Math.max(0, Number(input.loggedRejectKg) || 0));
+  const startupRejectKg = round3(
+    Math.min(loggedRejectKg, Math.max(0, Number(input.startupRejectKg) || 0))
+  );
+  const processDefectsLossKg = round3(Math.max(0, loggedRejectKg - startupRejectKg));
+
+  let totalActualMaterialKg: number;
+  let unloggedOverVarianceKg = 0;
+
+  if (typeof input.actualMaterialUsedKg === 'number' && Number.isFinite(input.actualMaterialUsedKg)) {
+    totalActualMaterialKg = round3(Math.max(0, input.actualMaterialUsedKg));
+    const totalOverBomKg = Math.max(0, totalActualMaterialKg - standardBomMaterialKg);
+    unloggedOverVarianceKg = round3(Math.max(0, totalOverBomKg - loggedRejectKg));
+  } else {
+    totalActualMaterialKg = round3(standardBomMaterialKg + loggedRejectKg);
+  }
+
+  const reducedYieldLossKg = round3(startupRejectKg + unloggedOverVarianceKg);
+  const totalScrapAndVarianceKg = round3(processDefectsLossKg + reducedYieldLossKg);
+
+  const processDefectsEquivalentCartons =
+    kgPerCarton > 0 ? round2(processDefectsLossKg / kgPerCarton) : 0;
+  const reducedYieldEquivalentCartons =
+    kgPerCarton > 0 ? round2(reducedYieldLossKg / kgPerCarton) : 0;
+  const totalLossEquivalentCartons = round2(
+    processDefectsEquivalentCartons + reducedYieldEquivalentCartons
+  );
+
+  const varianceDeltaKg = totalActualMaterialKg - standardBomMaterialKg;
+  const materialVariancePct =
+    standardBomMaterialKg > 0
+      ? round2((varianceDeltaKg / standardBomMaterialKg) * 100)
+      : totalScrapAndVarianceKg > 0
+      ? 100
+      : 0;
+
+  return {
+    standardBomMaterialKg,
+    totalActualMaterialKg,
+    loggedRejectKg,
+    processDefectsLossKg,
+    processDefectsEquivalentCartons,
+    unloggedOverVarianceKg,
+    reducedYieldLossKg,
+    reducedYieldEquivalentCartons,
+    totalScrapAndVarianceKg,
+    totalLossEquivalentCartons,
+    materialVariancePct
   };
 }

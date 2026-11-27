@@ -57,6 +57,10 @@ import {
 import { isWhatsAppEligibleSblCategory } from '../utils/whatsappReport';
 import { DashboardLineStatusSnapshot } from '../utils/firebaseSync';
 import { resolveEffectiveRole } from '../utils/roleAccess';
+import {
+  calculateLineShiftOee,
+  calculateShiftAllLinesOee
+} from '../utils/oeeEngine';
 
 interface ProductionTargetPanelProps {
   state: AppState;
@@ -657,6 +661,39 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
     totalActiveShiftPlanned > 0
       ? Math.min(100, Math.round((totalActiveRealized / totalActiveShiftPlanned) * 100))
       : Math.min(100, Math.round((finalCartonsToday / (aggregateDailyTargetCartons || 1)) * 100));
+
+  const unifiedShiftOee = useMemo(() => {
+    const nowMs = now.getTime();
+    if (metricLineObj) {
+      const lineRes = calculateLineShiftOee({
+        state,
+        lineId: metricLineObj.id,
+        dateStr: todayDateString,
+        shift: currentLiveShift.shift,
+        nowMs
+      });
+      return {
+        availability: lineRes.availability,
+        performance: lineRes.performance,
+        quality: lineRes.quality,
+        oeeScore: lineRes.oeeScore,
+        materialVariancePct: lineRes.materialVariancePct
+      };
+    }
+    const allRes = calculateShiftAllLinesOee(
+      state,
+      todayDateString,
+      currentLiveShift.shift,
+      nowMs
+    );
+    return {
+      availability: allRes.availability,
+      performance: allRes.performance,
+      quality: allRes.quality,
+      oeeScore: allRes.oeeScore,
+      materialVariancePct: allRes.materialVariancePct
+    };
+  }, [state, metricLineObj, todayDateString, currentLiveShift.shift, now]);
 
   return (
     <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 space-y-5 shadow-xl no-print">
@@ -2026,6 +2063,18 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 <span className="text-ink-secondary">Total Downtime SBL:</span>
                 <span className={`font-mono font-bold tabular-nums ${totalDowntimeMinutes > 0 ? 'text-ink-rose' : 'text-ink-emerald'}`}>
                   {totalDowntimeMinutes} Menit
+                </span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-border-subtle">
+                <span className="text-ink-secondary">OEE Shift {currentLiveShift.shift}:</span>
+                <span className="font-mono font-bold text-brand tabular-nums">
+                  {unifiedShiftOee.oeeScore.toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-[10px] font-mono text-ink-secondary tabular-nums">
+                <span>A: {unifiedShiftOee.availability.toFixed(0)}% · P: {unifiedShiftOee.performance.toFixed(0)}% · Q: {unifiedShiftOee.quality.toFixed(0)}%</span>
+                <span className={unifiedShiftOee.materialVariancePct > 0 ? 'text-ink-amber' : 'text-ink-emerald'}>
+                  Var: {unifiedShiftOee.materialVariancePct > 0 ? `+${unifiedShiftOee.materialVariancePct.toFixed(1)}%` : `${unifiedShiftOee.materialVariancePct.toFixed(1)}%`}
                 </span>
               </div>
             </div>

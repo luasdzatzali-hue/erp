@@ -9,6 +9,8 @@
 6. **Management Read-Only Isolation**: Verified Management users with `hasViewAccess == true` (in `managementEmails`) have strict `get`-only access to `config/meta`, `data/master`, and `data/operations` — zero write permissions anywhere.
 7. **PII & Multi-Tenant Workspace Isolation**: `/admins/{adminId}` (email PII) is readable only by the profile owner or an Admin of that exact workspace. `isWorkspaceAdmin(workspaceId)` strictly verifies ownership/allowlist on `workspaceId` so Admin User 2 cannot read or tamper with User 1's workspace, BOM, operators, or management. `/workspaceDirectory/{inviteId}` forbids `list` and denies `get` when `existing()` doesn't match the verified caller's email (zero user enumeration).
 8. **Payload & ID Hardening**: All path IDs match `^[a-zA-Z0-9_\-]+$` with length `<= 128`, every string enforces `.size()` limits, every list enforces bounded `.size()` limits, and `keys().hasAll` + `keys().hasOnly` blocks shadow/ghost fields.
+9. **OEE Snapshot Schema & Range Enforcement**: `/workspaces/{id}/shift_oee_snapshots/{snapshotId}` enforces strict numeric bounds (`0..100`) on `availability`, `performance`, `quality`, and `oeeScore`, requires exact 6-bucket `sixBigLossesBreakdown` (`minutes >= 0`, `lossKg >= 0`), server `updatedAt == request.time`, and Admin/Operator RBAC.
+10. **Immutable IIoT Telemetry Stream**: `/workspaces/{id}/iiot_telemetry/{telemetryId}` enforces status enum (`RUNNING | STOP | IDLE | FAULT`), non-negative `pulseCount`/`cycleTimeSec`, `sourceUid == request.auth.uid`, `receivedAt == request.time`, and denies all client `update` operations (`allow update: if false`).
 
 ## 2. The "Dirty Dozen" Attack Payloads
 1. **Unauthenticated Bootstrap Hijack**: Unauthenticated request attempting to create `/system/bootstrap`.
@@ -18,8 +20,10 @@
 5. **Shadow / Ghost Field Injection**: Admin create/update payload with extra undeclared key `isVerified: true` or `backdoor: 1`.
 6. **PIN Exfiltration by Operator/Management**: Authorized Operator attempting `get` on `/workspaces/main/config/secrets`.
 7. **Master BOM Tampering by Operator**: Authorized Operator attempting `update` on `/workspaces/main/data/master`.
-8. **Management Write Attempt**: Authorized Management user attempting `update` on `/workspaces/main/data/operations`.
+8. **Management Write Attempt**: Authorized Management user attempting `update` on `/workspaces/main/data/operations` or `shift_oee_snapshots`.
 9. **Immutable Owner Spoofing**: Operator updating `/workspaces/main/data/operations` while changing `ownerUid` to their own UID.
-10. **Client Timestamp Forgery**: Admin writing `updatedAt` as a client string or past Date instead of `request.time`.
+10. **Client Timestamp Forgery**: Admin writing `updatedAt` or `receivedAt` as a client string or past Date instead of `request.time`.
 11. **Path ID Poisoning**: Request targeting `/admins/../../evil` or 2KB document ID string.
 12. **Blanket List Scraping & Cross-Tenant Tampering**: Authenticated User 2 running `list` on `/workspaceDirectory` or attempting `get`/`update` on `/workspaces/{user1Uid}/data/master`.
+13. **OEE Score Out-of-Bounds / Incomplete SBL Breakdown**: Operator writing `oeeScore: 150` or omitting `reducedYield` in `shift_oee_snapshots`.
+14. **Immutable IIoT Telemetry Tampering / UID Spoofing**: Operator attempting `update` on `/workspaces/main/iiot_telemetry/{id}` or `create` with invalid status / forged `sourceUid`.

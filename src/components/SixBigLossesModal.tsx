@@ -4,26 +4,25 @@ import {
   AlertTriangle,
   Clock,
   Wrench,
-  Gauge,
-  Sliders,
   CheckCircle2,
-  FileText,
   User,
   ShieldAlert,
-  Flame,
-  RotateCcw,
-  Sparkles,
   MessageCircle,
   Phone
 } from 'lucide-react';
 import {
   SixBigLossCategory,
-  LossCategoryType,
   ProductionStopLog,
   ShiftNumber
 } from '../types';
 import { getCurrentShift } from '../utils/shifts';
 import { isWhatsAppEligibleSblCategory, loadWhatsAppRecipients } from '../utils/whatsappReport';
+import {
+  SIX_BIG_LOSS_CATEGORIES,
+  SixBigLossCategoryMeta,
+  getSixBigLossCategoryMeta,
+  buildProductionStopLogPayload
+} from '../utils/oeeEngine';
 
 interface SixBigLossesModalProps {
   isOpen: boolean;
@@ -42,165 +41,6 @@ interface SixBigLossesModalProps {
   showToast: (msg: string, isError?: boolean) => void;
 }
 
-interface LossCategoryMeta {
-  key: SixBigLossCategory;
-  number: number;
-  title: string;
-  subtitle: string;
-  lossType: LossCategoryType;
-  lossTypeBadge: string;
-  badgeClass: string;
-  bgActive: string;
-  borderActive: string;
-  defaultSubReasons: string[];
-}
-
-const LOSS_CATEGORIES: LossCategoryMeta[] = [
-  {
-    key: 'EQUIPMENT_FAILURE',
-    number: 1,
-    title: 'Kerusakan Mesin / Breakdowns',
-    subtitle: 'Equipment Failure & Unplanned Downtime',
-    lossType: 'DOWNTIME',
-    lossTypeBadge: 'Downtime Loss',
-    badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
-    bgActive: 'bg-rose-50',
-    borderActive: 'border-rose-400',
-    defaultSubReasons: [
-      'Kerusakan Motor Penggerak Mixer / Pompa WIP (Overheating/Trip)',
-      'Patah Poros / Baut Agitator Tangki Macet',
-      'Kebocoran Jalur Pipa Transfer WIP / Valve Rusak',
-      'Gangguan Elektrikal, Sensor PLC, atau Power Inverter Error',
-      'Kerusakan Pneumatik / Sabuk Konveyor Patah'
-    ]
-  },
-  {
-    key: 'SETUP_ADJUSTMENT',
-    number: 2,
-    title: 'Penyetelan & Changeover',
-    subtitle: 'Setup & Adjustments / Line Clearance',
-    lossType: 'DOWNTIME',
-    lossTypeBadge: 'Downtime Loss',
-    badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-    bgActive: 'bg-amber-50',
-    borderActive: 'border-amber-400',
-    defaultSubReasons: [
-      'Changeover Produk / Penggantian Formula Resep WIP Baru',
-      'Pembersihan Menyeluruh & Siklus Sanitasi CIP (Cleaning-in-Place)',
-      'Penggantian Cetakan, Nozzle Filling, atau Tooling Mesin',
-      'Penyetelan Parameter Suhu Tangki, Tekanan, dan Speed Mixer',
-      'Line Clearance & Menunggu Konfirmasi Swab Allergen QC'
-    ]
-  },
-  {
-    key: 'IDLING_MINOR_STOPS',
-    number: 3,
-    title: 'Pemberhentian Singkat & Idling',
-    subtitle: 'Idling & Minor Stoppages (< 5-10 menit)',
-    lossType: 'SPEED',
-    lossTypeBadge: 'Speed Loss',
-    badgeClass: 'bg-sky-100 text-sky-950 border-sky-300 font-bold',
-    bgActive: 'bg-sky-50',
-    borderActive: 'border-sky-400',
-    defaultSubReasons: [
-      'Aliran Fluida WIP dari Holding Tank Macet / Tersendat Sesaat',
-      'Sensor Photoelectric Terhalang Debu / Karton Nyangkut',
-      'Menunggu Pasokan Box Karton, Lakban, atau Palet Baru',
-      'Pembersihan Tumpahan Ceceran Material Singkat oleh Operator',
-      'Penyesuaian Posisi Sensor Otomatis / Limit Switch'
-    ]
-  },
-  {
-    key: 'REDUCED_SPEED',
-    number: 4,
-    title: 'Kecepatan Operasi Berkurang',
-    subtitle: 'Reduced Speed / Operating Below Nameplate Capacity',
-    lossType: 'SPEED',
-    lossTypeBadge: 'Speed Loss',
-    badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold',
-    bgActive: 'bg-indigo-50',
-    borderActive: 'border-indigo-400',
-    defaultSubReasons: [
-      'Viskositas WIP Terlalu Kental (Dibutuhkan RPM Pompa Lebih Rendah)',
-      'Keausan Komponen Mekanikal / Getaran Tinggi pada Mesin',
-      'Operator Sengaja Menurunkan Kecepatan untuk Menghindari Jamming',
-      'Fluktuasi Suhu Pemanas Tangki Tidak Stabil (Perlu Menunggu)',
-      'Toleransi Berat Karton Berfluktuasi pada Kecepatan Tinggi'
-    ]
-  },
-  {
-    key: 'PROCESS_DEFECTS',
-    number: 5,
-    title: 'Cacat Proses & Perbaikan',
-    subtitle: 'Process Defects & Quality Rework',
-    lossType: 'QUALITY',
-    lossTypeBadge: 'Quality Loss',
-    badgeClass: 'bg-orange-100 text-orange-950 border-orange-300 font-bold',
-    bgActive: 'bg-orange-50',
-    borderActive: 'border-orange-400',
-    defaultSubReasons: [
-      'Karton Bocor / Sealing Rekat Tidak Rapat Sempurna',
-      'Bobot Netto Karton di Luar Batas Toleransi Standar QC',
-      'Kontaminasi Fisik / Cacat Visual Label Kemasan',
-      'Homogenitas & Kekentalan Formula WIP Drop di Bawah Standar',
-      'Cacat Cetakan / Bentuk Produk Jadi Tidak Presisi'
-    ]
-  },
-  {
-    key: 'STARTUP_REJECTS',
-    number: 6,
-    title: 'Penurunan Yield & Startup Scrap',
-    subtitle: 'Reduced Yield & Early Production Losses',
-    lossType: 'QUALITY',
-    lossTypeBadge: 'Quality Loss',
-    badgeClass: 'bg-red-100 text-red-900 border-red-300 font-bold',
-    bgActive: 'bg-red-50',
-    borderActive: 'border-red-400',
-    defaultSubReasons: [
-      'Pembuangan Adonan / WIP Awal saat Pemanasan Mesin (Warm-up Scrap)',
-      'Flushing / Pembilasan Sisa Air Saluran Pipa Line Produksi',
-      'Penstabilan Parameter Berat pada 10 Menit Pertama Awal Shift',
-      'Bahan Baku Awal Tidak Standar Suhu Operasional',
-      'Adonan Pertama Ditolak QC Sebelum Mencapai Steady State'
-    ]
-  },
-  {
-    key: 'MATERIAL_SHORTAGE',
-    number: 7,
-    title: 'Material Shortage (WIP Holding Tank Habis)',
-    subtitle: 'Kekurangan Material / Stok WIP di Holding Tank Kosong',
-    lossType: 'DOWNTIME',
-    lossTypeBadge: 'Material Shortage',
-    badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 font-bold',
-    bgActive: 'bg-rose-50',
-    borderActive: 'border-rose-400',
-    defaultSubReasons: [
-      'WIP di Holding Tank habis / di bawah kebutuhan 1 karton SKU',
-      'Menunggu transfer batch WIP baru dari Storage Tank / Mixer ke Holding Tank',
-      'Keterlambatan pengiriman material bahan baku GDRM ke lini produksi',
-      'Kekurangan material kemasan karton / inner wrap pada mesin packing'
-    ]
-  },
-  {
-    key: 'OTHER_PLANNED',
-    number: 8,
-    title: 'Downtime Terencana / Operasional',
-    subtitle: 'Planned Maintenance, Break & Sanitation',
-    lossType: 'PLANNED',
-    lossTypeBadge: 'Planned Stop',
-    badgeClass: 'bg-slate-100 text-slate-800 border-slate-300 font-bold',
-    bgActive: 'bg-slate-100',
-    borderActive: 'border-slate-400',
-    defaultSubReasons: [
-      'Waktu Istirahat Shift & Pergantian Regu Kerja',
-      'Pembersihan Harian Rutin / Sanitasi Shift',
-      'Briefing Operator & Tool Box Meeting K3 Pabrik',
-      'Preventive Maintenance Terjadwal dari Tim Maintenance',
-      'Instruksi Manajemen / Perubahan Rencana Produksi'
-    ]
-  }
-];
-
 export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
   isOpen,
   onClose,
@@ -217,7 +57,7 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
   const currentShift = getCurrentShift();
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<SixBigLossCategory>('EQUIPMENT_FAILURE');
   const [selectedSubReason, setSelectedSubReason] = useState<string>(
-    LOSS_CATEGORIES[0].defaultSubReasons[0] || ''
+    SIX_BIG_LOSS_CATEGORIES[0].defaultSubReasons[0] || ''
   );
   const [customReason, setCustomReason] = useState<string>('');
   const [durationMinutes, setDurationMinutes] = useState<string>('20');
@@ -232,10 +72,10 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentCategoryMeta = LOSS_CATEGORIES.find(c => c.key === selectedCategoryKey) || LOSS_CATEGORIES[0];
+  const currentCategoryMeta = getSixBigLossCategoryMeta(selectedCategoryKey);
   const isWaEligible = isWhatsAppEligibleSblCategory(currentCategoryMeta.key);
 
-  const handleSelectCategory = (cat: LossCategoryMeta) => {
+  const handleSelectCategory = (cat: SixBigLossCategoryMeta) => {
     setSelectedCategoryKey(cat.key);
     setSelectedSubReason(cat.defaultSubReasons[0] || '');
     setCustomReason('');
@@ -249,41 +89,29 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
       return;
     }
 
-    const finalReason = customReason.trim()
-      ? customReason.trim()
-      : selectedSubReason || currentCategoryMeta.title;
+    const stopPayload = buildProductionStopLogPayload({
+      lineId,
+      lineName,
+      skuId,
+      skuName,
+      skuCode,
+      shift: shiftNum,
+      startedAt,
+      durationMinutes: dur,
+      category: currentCategoryMeta.key,
+      selectedSubReason,
+      customReason,
+      actionTaken,
+      operatorName,
+      technicianName,
+      notes,
+      cartonsProducedDuringRun
+    });
 
-    const stopTime = new Date().toISOString();
-    const startTime = startedAt || new Date(Date.now() - dur * 60000).toISOString();
-
-    onConfirmStop(
-      {
-        lineId,
-        lineName,
-        skuId,
-        skuName,
-        skuCode,
-        shift: shiftNum,
-        startedAt: startTime,
-        stoppedAt: stopTime,
-        durationMinutes: dur,
-        estimatedRepairMinutes: dur,
-        category: currentCategoryMeta.key,
-        categoryLabel: currentCategoryMeta.title,
-        lossType: currentCategoryMeta.lossType,
-        reasonTitle: finalReason,
-        subReason: selectedSubReason || undefined,
-        actionTaken: actionTaken.trim() || undefined,
-        operatorName: operatorName.trim() || undefined,
-        technicianName: technicianName.trim() || undefined,
-        notes: notes.trim() || undefined,
-        cartonsProducedDuringRun
-      },
-      {
-        sendWhatsApp: isWaEligible && sendWhatsAppReport,
-        whatsappPhone: whatsappPhone.trim() || undefined
-      }
-    );
+    onConfirmStop(stopPayload, {
+      sendWhatsApp: isWaEligible && sendWhatsAppReport,
+      whatsappPhone: whatsappPhone.trim() || undefined
+    });
 
     showToast(`Produksi distop: [${currentCategoryMeta.title}] tercatat ke database Six Big Losses TPM`);
     onClose();
@@ -368,12 +196,12 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
                 <span>Pilih Kategori Alasan Stop (Six Big Losses TPM):</span>
               </label>
               <span className="text-[10px] text-slate-500 font-mono font-semibold">
-                Pilih 1 dari {LOSS_CATEGORIES.length} Kategori
+                Pilih 1 dari {SIX_BIG_LOSS_CATEGORIES.length} Kategori
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {LOSS_CATEGORIES.map(cat => {
+              {SIX_BIG_LOSS_CATEGORIES.map(cat => {
                 const isSelected = selectedCategoryKey === cat.key;
                 return (
                   <div

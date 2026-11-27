@@ -232,6 +232,144 @@ service cloud.firestore {
         data.skuCode is string && data.skuCode.size() <= 128;
     }
 
+    function isValidSblBucket(bucket) {
+      return bucket is map &&
+        bucket.keys().hasAll(['minutes', 'lossKg']) &&
+        bucket.keys().hasOnly(['minutes', 'lossKg']) &&
+        bucket.minutes is number && bucket.minutes >= 0 && bucket.minutes <= 1440 &&
+        bucket.lossKg is number && bucket.lossKg >= 0 && bucket.lossKg <= 1000000;
+    }
+
+    function isValidSixBigLossesBreakdown(bd) {
+      return bd is map &&
+        bd.keys().hasAll([
+          'equipmentFailure',
+          'setupAdjustment',
+          'idlingMinorStops',
+          'reducedSpeed',
+          'processDefects',
+          'reducedYield'
+        ]) &&
+        bd.keys().hasOnly([
+          'equipmentFailure',
+          'setupAdjustment',
+          'idlingMinorStops',
+          'reducedSpeed',
+          'processDefects',
+          'reducedYield'
+        ]) &&
+        isValidSblBucket(bd.equipmentFailure) &&
+        isValidSblBucket(bd.setupAdjustment) &&
+        isValidSblBucket(bd.idlingMinorStops) &&
+        isValidSblBucket(bd.reducedSpeed) &&
+        isValidSblBucket(bd.processDefects) &&
+        isValidSblBucket(bd.reducedYield);
+    }
+
+    function isValidShiftOeeSnapshot(data) {
+      return data.keys().hasAll([
+          'id',
+          'workspaceId',
+          'shiftId',
+          'lineId',
+          'skuCode',
+          'availability',
+          'performance',
+          'quality',
+          'oeeScore',
+          'sixBigLossesBreakdown',
+          'materialVariancePct',
+          'updatedAt',
+          'updatedByUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'shiftId',
+          'date',
+          'shift',
+          'lineId',
+          'lineName',
+          'skuCode',
+          'availability',
+          'performance',
+          'quality',
+          'oeeScore',
+          'sixBigLossesBreakdown',
+          'materialVariancePct',
+          'plannedProductionTimeMinutes',
+          'operatingTimeMinutes',
+          'totalOutputCartons',
+          'goodOutputCartons',
+          'standardBomMaterialKg',
+          'actualMaterialUsedKg',
+          'updatedAt',
+          'updatedByUid'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        data.shiftId is string && data.shiftId.size() >= 1 && data.shiftId.size() <= 32 &&
+        (!('date' in data) || (data.date is string && data.date.size() == 10)) &&
+        (!('shift' in data) || (data.shift is int && data.shift >= 1 && data.shift <= 3)) &&
+        isValidId(data.lineId) && data.lineId.size() <= 64 &&
+        (!('lineName' in data) || (data.lineName is string && data.lineName.size() <= 120)) &&
+        data.skuCode is string && data.skuCode.size() >= 1 && data.skuCode.size() <= 64 &&
+        data.availability is number && data.availability >= 0 && data.availability <= 100 &&
+        data.performance is number && data.performance >= 0 && data.performance <= 100 &&
+        data.quality is number && data.quality >= 0 && data.quality <= 100 &&
+        data.oeeScore is number && data.oeeScore >= 0 && data.oeeScore <= 100 &&
+        isValidSixBigLossesBreakdown(data.sixBigLossesBreakdown) &&
+        data.materialVariancePct is number && data.materialVariancePct >= -100 && data.materialVariancePct <= 10000 &&
+        (!('plannedProductionTimeMinutes' in data) || (data.plannedProductionTimeMinutes is number && data.plannedProductionTimeMinutes >= 0 && data.plannedProductionTimeMinutes <= 1440)) &&
+        (!('operatingTimeMinutes' in data) || (data.operatingTimeMinutes is number && data.operatingTimeMinutes >= 0 && data.operatingTimeMinutes <= 1440)) &&
+        (!('totalOutputCartons' in data) || (data.totalOutputCartons is int && data.totalOutputCartons >= 0 && data.totalOutputCartons <= 10000000)) &&
+        (!('goodOutputCartons' in data) || (data.goodOutputCartons is number && data.goodOutputCartons >= 0 && data.goodOutputCartons <= 10000000)) &&
+        (!('standardBomMaterialKg' in data) || (data.standardBomMaterialKg is number && data.standardBomMaterialKg >= 0 && data.standardBomMaterialKg <= 10000000)) &&
+        (!('actualMaterialUsedKg' in data) || (data.actualMaterialUsedKg is number && data.actualMaterialUsedKg >= 0 && data.actualMaterialUsedKg <= 10000000)) &&
+        data.updatedAt is timestamp &&
+        isValidId(data.updatedByUid);
+    }
+
+    function isValidIiotTelemetryEvent(data) {
+      return data.keys().hasAll([
+          'id',
+          'workspaceId',
+          'lineId',
+          'status',
+          'pulseCount',
+          'cycleTimeSec',
+          'recordedAt',
+          'receivedAt',
+          'sourceUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'lineId',
+          'machineId',
+          'skuCode',
+          'status',
+          'pulseCount',
+          'cycleTimeSec',
+          'idleMinutes',
+          'recordedAt',
+          'receivedAt',
+          'sourceUid'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        isValidId(data.lineId) && data.lineId.size() <= 64 &&
+        (!('machineId' in data) || (data.machineId is string && data.machineId.size() <= 64)) &&
+        (!('skuCode' in data) || (data.skuCode is string && data.skuCode.size() <= 64)) &&
+        data.status in ['RUNNING', 'STOP', 'IDLE', 'FAULT'] &&
+        data.pulseCount is int && data.pulseCount >= 0 && data.pulseCount <= 1000000 &&
+        data.cycleTimeSec is number && data.cycleTimeSec >= 0 && data.cycleTimeSec <= 86400 &&
+        (!('idleMinutes' in data) || (data.idleMinutes is number && data.idleMinutes >= 0 && data.idleMinutes <= 1440)) &&
+        data.recordedAt is string && data.recordedAt.size() >= 1 && data.recordedAt.size() <= 64 &&
+        data.receivedAt is timestamp &&
+        isValidId(data.sourceUid);
+    }
+
     // 4. Connection Health Check (No PII, Read-Only Get)
     match /test/connection {
       allow get: if true;
@@ -592,6 +730,84 @@ service cloud.firestore {
           isWorkspaceAdmin(workspaceId);
         allow delete: if isValidId(workspaceId) &&
           isValidId(txId) &&
+          isWorkspaceAdmin(workspaceId);
+      }
+
+      // 10. Shift OEE Snapshots Sub-Collection (Industry 4.0 Shift & Line OEE Aggregates)
+      match /shift_oee_snapshots/{snapshotId} {
+        allow get: if isValidId(workspaceId) &&
+          isValidId(snapshotId) &&
+          isWorkspaceAuthorized(workspaceId);
+        allow list: if isValidId(workspaceId) &&
+          isWorkspaceAuthorized(workspaceId) &&
+          resource.data.workspaceId == workspaceId &&
+          request.query.limit <= 200;
+        allow create: if isValidId(workspaceId) &&
+          isValidId(snapshotId) &&
+          isVerified() &&
+          isValidShiftOeeSnapshot(incoming()) &&
+          incoming().id == snapshotId &&
+          incoming().workspaceId == workspaceId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
+        allow update: if isValidId(workspaceId) &&
+          isValidId(snapshotId) &&
+          isVerified() &&
+          isValidShiftOeeSnapshot(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().shiftId == existing().shiftId &&
+          incoming().lineId == existing().lineId &&
+          incoming().updatedByUid == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'lineName',
+            'date',
+            'shift',
+            'skuCode',
+            'availability',
+            'performance',
+            'quality',
+            'oeeScore',
+            'sixBigLossesBreakdown',
+            'materialVariancePct',
+            'plannedProductionTimeMinutes',
+            'operatingTimeMinutes',
+            'totalOutputCartons',
+            'goodOutputCartons',
+            'standardBomMaterialKg',
+            'actualMaterialUsedKg',
+            'updatedAt',
+            'updatedByUid'
+          ]) &&
+          (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
+        allow delete: if isValidId(workspaceId) &&
+          isValidId(snapshotId) &&
+          isWorkspaceAdmin(workspaceId);
+      }
+
+      // 11. IIoT Telemetry Stream Sub-Collection (Immutable Machine Output Pulse & Status)
+      match /iiot_telemetry/{telemetryId} {
+        allow get: if isValidId(workspaceId) &&
+          isValidId(telemetryId) &&
+          isWorkspaceAuthorized(workspaceId);
+        allow list: if isValidId(workspaceId) &&
+          isWorkspaceAuthorized(workspaceId) &&
+          resource.data.workspaceId == workspaceId &&
+          request.query.limit <= 500;
+        allow create: if isValidId(workspaceId) &&
+          isValidId(telemetryId) &&
+          isVerified() &&
+          isValidIiotTelemetryEvent(incoming()) &&
+          incoming().id == telemetryId &&
+          incoming().workspaceId == workspaceId &&
+          incoming().sourceUid == request.auth.uid &&
+          incoming().receivedAt == request.time &&
+          (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId));
+        allow update: if false;
+        allow delete: if isValidId(workspaceId) &&
+          isValidId(telemetryId) &&
           isWorkspaceAdmin(workspaceId);
       }
     }
