@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
-import { Loader2 } from 'lucide-react';
 import type { ContactFormData } from '@/components/ui/contact';
 import { useErp } from './context/ErpContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -8,59 +7,25 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { OperationalWorkflowStepper } from './components/OperationalWorkflowStepper';
 import { FactoryDispatchStrip } from './components/FactoryDispatchStrip';
+import { GlobalCommandPalette } from './components/GlobalCommandPalette';
 import { GlobalModalManager } from './components/GlobalModalManager';
+import { ScadaLoadingSpinner } from './components/scada/ScadaLoadingSpinner';
 import { AuthPortalView } from './components/views/AuthPortalView';
 
-// Code-split main operational & reporting views for fast initial boot
-const DashboardView = lazy(() =>
-  import('./components/views/DashboardView').then(m => ({ default: m.DashboardView }))
-);
-const PemakaianView = lazy(() =>
-  import('./components/views/PemakaianView').then(m => ({ default: m.PemakaianView }))
-);
-const MasterBOMView = lazy(() =>
-  import('./components/views/MasterBOMView').then(m => ({ default: m.MasterBOMView }))
-);
-const PermintaanView = lazy(() =>
-  import('./components/views/PermintaanView').then(m => ({ default: m.PermintaanView }))
-);
-const PenerimaanView = lazy(() =>
-  import('./components/views/PenerimaanView').then(m => ({ default: m.PenerimaanView }))
-);
-const TankMonitoringView = lazy(() =>
-  import('./components/views/TankMonitoringView').then(m => ({ default: m.TankMonitoringView }))
-);
-const WeeklyPlanningView = lazy(() =>
-  import('./components/views/WeeklyPlanningView').then(m => ({ default: m.WeeklyPlanningView }))
-);
-const BOMCalculatorView = lazy(() =>
-  import('./components/views/BOMCalculatorView').then(m => ({ default: m.BOMCalculatorView }))
-);
-const ShiftSummaryView = lazy(() =>
-  import('./components/views/ShiftSummaryView').then(m => ({ default: m.ShiftSummaryView }))
-);
-const GoogleSheetsSyncView = lazy(() =>
-  import('./components/views/GoogleSheetsSyncView').then(m => ({ default: m.GoogleSheetsSyncView }))
-);
-const AdminPortalView = lazy(() =>
-  import('./components/views/AdminPortalView').then(m => ({ default: m.AdminPortalView }))
-);
-const LineStationMonitorView = lazy(() =>
-  import('./components/views/LineStationMonitorView').then(m => ({ default: m.LineStationMonitorView }))
-);
-const CkStationMonitorView = lazy(() =>
-  import('./components/views/CkStationMonitorView').then(m => ({ default: m.CkStationMonitorView }))
-);
-const ContactSection = lazy(() =>
-  import('@/components/ui/contact').then(m => ({ default: m.ContactSection }))
-);
-
-const ViewLoadingFallback: React.FC = () => (
-  <div className="flex flex-col items-center justify-center min-h-[280px] gap-2.5 text-ink-secondary text-xs">
-    <Loader2 className="w-5 h-5 animate-spin text-ink-cyan" />
-    <span>Memuat modul operasional...</span>
-  </div>
-);
+const DashboardView = lazy(() => import('./components/views/DashboardView').then(m => ({ default: m.DashboardView })));
+const PemakaianView = lazy(() => import('./components/views/PemakaianView').then(m => ({ default: m.PemakaianView })));
+const MasterBOMView = lazy(() => import('./components/views/MasterBOMView').then(m => ({ default: m.MasterBOMView })));
+const PermintaanView = lazy(() => import('./components/views/PermintaanView').then(m => ({ default: m.PermintaanView })));
+const PenerimaanView = lazy(() => import('./components/views/PenerimaanView').then(m => ({ default: m.PenerimaanView })));
+const TankMonitoringView = lazy(() => import('./components/views/TankMonitoringView').then(m => ({ default: m.TankMonitoringView })));
+const WeeklyPlanningView = lazy(() => import('./components/views/WeeklyPlanningView').then(m => ({ default: m.WeeklyPlanningView })));
+const BOMCalculatorView = lazy(() => import('./components/views/BOMCalculatorView').then(m => ({ default: m.BOMCalculatorView })));
+const ShiftSummaryView = lazy(() => import('./components/views/ShiftSummaryView').then(m => ({ default: m.ShiftSummaryView })));
+const GoogleSheetsSyncView = lazy(() => import('./components/views/GoogleSheetsSyncView').then(m => ({ default: m.GoogleSheetsSyncView })));
+const AdminPortalView = lazy(() => import('./components/views/AdminPortalView').then(m => ({ default: m.AdminPortalView })));
+const LineStationMonitorView = lazy(() => import('./components/views/LineStationMonitorView').then(m => ({ default: m.LineStationMonitorView })));
+const CkStationMonitorView = lazy(() => import('./components/views/CkStationMonitorView').then(m => ({ default: m.CkStationMonitorView })));
+const ContactSection = lazy(() => import('@/components/ui/contact').then(m => ({ default: m.ContactSection })));
 
 export default function App() {
   const erp = useErp();
@@ -74,13 +39,11 @@ export default function App() {
       theme={isDaylightTheme ? 'light' : 'dark'}
       closeButton
       duration={3200}
-      toastOptions={{
-        className: 'font-sans text-xs border border-border shadow-xl'
-      }}
+      toastOptions={{ className: 'font-sans text-xs border border-border shadow-xl' }}
     />
   );
 
-  // 1. TAMPILAN AWAL: WIZARD REGISTRASI ADMIN PERTAMA ATAU PORTAL SIGN IN
+  // 1. AUTHENTICATION & FIRST-ADMIN SETUP PORTAL
   if (!state.isAuthenticated || setupStatus !== 'ready') {
     return (
       <>
@@ -113,12 +76,12 @@ export default function App() {
     );
   }
 
-  // 1B. DEDICATED STATION MONITOR MODE (KIOSK MODE: ?station=line&id=... or ?station=ck&id=...)
+  // 2. DEDICATED STATION MONITOR MODE (KIOSK)
   if (erp.activeStation) {
     return (
       <>
         <ErrorBoundary>
-          <Suspense fallback={<ViewLoadingFallback />}>
+          <Suspense fallback={<ScadaLoadingSpinner />}>
             {erp.activeStation.type === 'line' ? (
               <LineStationMonitorView
                 state={state}
@@ -150,7 +113,7 @@ export default function App() {
     );
   }
 
-  // 2. TAMPILAN SETELAH LOGIN (LEFT NAVIGATION RAIL + SLIM TOP BAR + COMPACT STEPPER)
+  // 3. MAIN WORKSPACE SHELL (SIDEBAR, HEADER, STEPPER, COMMAND PALETTE, ACTIVE VIEW & MODAL MANAGER)
   return (
     <>
       <div
@@ -205,7 +168,7 @@ export default function App() {
             className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 md:pb-6 bg-background relative"
           >
             <ErrorBoundary>
-              <Suspense fallback={<ViewLoadingFallback />}>
+              <Suspense fallback={<ScadaLoadingSpinner />}>
                 {state.currentTab === 'admin-portal' && (
                   <AdminPortalView
                     state={state}
@@ -306,20 +269,7 @@ export default function App() {
                   />
                 )}
 
-                {state.currentTab === 'pemakaian' && (
-                  <PemakaianView
-                    state={state}
-                    onRecordUsage={erp.handleRecordUsage}
-                    onStartWipBatch={erp.handleStartWipBatch}
-                    onPauseWipBatch={erp.handlePauseWipBatch}
-                    onResumeWipBatch={erp.handleResumeWipBatch}
-                    onCompleteWipBatch={erp.handleCompleteWipBatch}
-                    onCancelWipBatch={erp.handleCancelWipBatch}
-                    onSwitchTab={erp.handleSwitchTab}
-                    onOpenStationMonitor={erp.handleOpenStationMonitor}
-                    showToast={showToast}
-                  />
-                )}
+                {state.currentTab === 'pemakaian' && <PemakaianView />}
 
                 {state.currentTab === 'master' && (
                   <MasterBOMView
@@ -392,11 +342,7 @@ export default function App() {
                 )}
 
                 {state.currentTab === 'sheets-sync' && (
-                  <GoogleSheetsSyncView
-                    state={state}
-                    onSwitchTab={erp.handleSwitchTab}
-                    showToast={showToast}
-                  />
+                  <GoogleSheetsSyncView state={state} onSwitchTab={erp.handleSwitchTab} showToast={showToast} />
                 )}
 
                 {state.currentTab === 'contact' && (
@@ -422,6 +368,29 @@ export default function App() {
             </ErrorBoundary>
           </main>
         </div>
+
+        <GlobalCommandPalette
+          open={erp.isCommandMenuOpen}
+          onOpenChange={erp.setIsCommandMenuOpen}
+          state={state}
+          theme={themeMode}
+          onSwitchTab={erp.handleSwitchTab}
+          onToggleTheme={erp.handleToggleTheme}
+          onOpenTankModal={() => erp.setIsTankModalOpen(true)}
+          onOpenPdfModal={() => erp.setIsPdfReportModalOpen(true)}
+          onOpenStockAdjustment={erp.handleOpenStockAdjustment}
+          onOpenRoleSwitcher={() => erp.setIsRoleSwitcherOpen(true)}
+          onOpenUserManagement={() => erp.setIsUserManagementOpen(true)}
+          onOpenCloudBackup={() => erp.setIsCloudBackupModalOpen(true)}
+          onSelectTank={tankId => {
+            erp.setFocusedTankId(tankId);
+            erp.handleSwitchTab('tank-monitoring');
+          }}
+          onSelectLine={lineId => {
+            erp.setFocusedLineId(lineId);
+            erp.handleSwitchTab('dashboard');
+          }}
+        />
 
         <GlobalModalManager />
       </div>

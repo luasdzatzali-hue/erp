@@ -23,7 +23,8 @@ import {
   Factory,
   Home,
   X,
-  ArrowRight
+  ArrowRight,
+  Cloud
 } from 'lucide-react';
 import { AppState, ProductionLine } from '../types';
 import { resolveEffectiveRole } from '../utils/roleAccess';
@@ -40,6 +41,7 @@ interface GlobalCommandPaletteProps {
   onOpenStockAdjustment: (materialId?: string) => void;
   onOpenRoleSwitcher: () => void;
   onOpenUserManagement?: () => void;
+  onOpenCloudBackup?: () => void;
   onSelectTank: (tankId: string) => void;
   onSelectLine: (lineId: string) => void;
 }
@@ -63,6 +65,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
   onOpenStockAdjustment,
   onOpenRoleSwitcher,
   onOpenUserManagement,
+  onOpenCloudBackup,
   onSelectTank,
   onSelectLine
 }) => {
@@ -375,6 +378,20 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
                     <div className="flex items-center gap-2.5 min-w-0">
                       <SlidersHorizontal className="w-4 h-4 text-ink-amber shrink-0" />
                       <span className="truncate font-medium">Penyesuaian Saldo Awal Material</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-ink-amber shrink-0">Admin</span>
+                  </Command.Item>
+                )}
+
+                {isAdmin && onOpenCloudBackup && (
+                  <Command.Item
+                    value="alat bantu cloud backup restore drive cadangan json data"
+                    onSelect={() => runAndClose(onOpenCloudBackup)}
+                    className={itemClass}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Cloud className="w-4 h-4 text-ink-cyan shrink-0" />
+                      <span className="truncate font-medium">Cadangan &amp; Restore Cloud / Drive</span>
                     </div>
                     <span className="text-[10px] font-mono text-ink-amber shrink-0">Admin</span>
                   </Command.Item>

@@ -8,11 +8,18 @@ import { WipCompletionAlarmModal } from './WipCompletionAlarmModal';
 import { UserRoleSwitcherModal } from './UserRoleSwitcherModal';
 import { UserManagementModal } from './UserManagementModal';
 import { MaterialStockAdjustmentModal } from './MaterialStockAdjustmentModal';
-import { GlobalCommandPalette } from './GlobalCommandPalette';
 import { BomActionPopupModal } from './BomActionPopupModal';
 import { SixBigLossesModal } from './SixBigLossesModal';
 import { MachineChangeoverModal } from './MachineChangeoverModal';
+import { MachineChangeoverHistoryModal } from './MachineChangeoverHistoryModal';
 import { MaterialQrScannerModal } from './MaterialQrScannerModal';
+import { MaterialQrLabelModal } from './MaterialQrLabelModal';
+import { HoldingTankSelectionModal } from './HoldingTankSelectionModal';
+import { InterTankTransferModal } from './InterTankTransferModal';
+import { WipBatchPauseModal } from './WipBatchPauseModal';
+import { RequestSlipPdfModal } from './RequestSlipPdfModal';
+import { WhatsAppSblModal } from './WhatsAppSblModal';
+import { CloudBackupModal } from './CloudBackupModal';
 
 export const GlobalModalManager: React.FC = () => {
   const erp = useErp();
@@ -22,26 +29,51 @@ export const GlobalModalManager: React.FC = () => {
     return null;
   }
 
-  // Kiosk station mode only renders the global WIP completion alarm overlay
+  // Kiosk station mode renders only global WIP completion alarm & optional pause modal
   if (activeStation) {
     return (
-      <WipCompletionAlarmModal
-        completedBatch={erp.alarmWipBatch}
-        onDismiss={() => erp.setAlarmWipBatch(null)}
-        onNavigateToTanks={() => {
-          erp.setAlarmWipBatch(null);
-          erp.handleExitStationMonitor();
-          erp.handleSwitchTab('tank-monitoring');
-        }}
-        tanks={state.master.tanks}
-        machines={state.master.machines}
-      />
+      <>
+        <WipCompletionAlarmModal
+          completedBatch={erp.alarmWipBatch}
+          onDismiss={() => erp.setAlarmWipBatch(null)}
+          onNavigateToTanks={() => {
+            erp.setAlarmWipBatch(null);
+            erp.handleExitStationMonitor();
+            erp.handleSwitchTab('tank-monitoring');
+          }}
+          tanks={state.master.tanks}
+          machines={state.master.machines}
+        />
+
+        {erp.wipBatchPauseModal.isOpen && (
+          <WipBatchPauseModal
+            isOpen={erp.wipBatchPauseModal.isOpen}
+            batch={erp.wipBatchPauseModal.batch}
+            machineLabel={erp.wipBatchPauseModal.machineLabel}
+            currentTime={Date.now()}
+            actorName={
+              erp.wipBatchPauseModal.actorName ||
+              state.currentAdminUser?.displayName ||
+              state.currentSession?.name ||
+              'Operator'
+            }
+            onClose={erp.closeWipBatchPauseModal}
+            onConfirmPause={(batchId, reason, category) => {
+              if (erp.wipBatchPauseModal.onConfirmPause) {
+                erp.wipBatchPauseModal.onConfirmPause(batchId, reason, category);
+              } else {
+                erp.handlePauseWipBatch(batchId, reason, category);
+              }
+              erp.closeWipBatchPauseModal();
+            }}
+          />
+        )}
+      </>
     );
   }
 
   return (
     <>
-      {/* Storage Tank Liquid Modal */}
       <StorageTankModal
         isOpen={erp.isTankModalOpen}
         onClose={() => erp.setIsTankModalOpen(false)}
@@ -49,7 +81,6 @@ export const GlobalModalManager: React.FC = () => {
         onUpdateTank={erp.handleUpdateTank}
       />
 
-      {/* Admin Authentication Modal */}
       <AdminModal
         isOpen={erp.isAdminModalOpen}
         onClose={() => erp.setIsAdminModalOpen(false)}
@@ -65,7 +96,6 @@ export const GlobalModalManager: React.FC = () => {
         showToast={showToast}
       />
 
-      {/* Reset Confirmation Modal */}
       <ResetModal
         isOpen={erp.isResetModalOpen}
         onClose={() => erp.setIsResetModalOpen(false)}
@@ -78,7 +108,6 @@ export const GlobalModalManager: React.FC = () => {
         onLoadPreset={erp.handleLoadSampleData}
       />
 
-      {/* Laporan Produksi Per Shift Format PDF Modal */}
       <ShiftReportPdfModal
         isOpen={erp.isPdfReportModalOpen}
         onClose={() => erp.setIsPdfReportModalOpen(false)}
@@ -86,7 +115,6 @@ export const GlobalModalManager: React.FC = () => {
         showToast={showToast}
       />
 
-      {/* Alarm Peringatan Batch WIP Selesai Modal (Audio & Visual) */}
       <WipCompletionAlarmModal
         completedBatch={erp.alarmWipBatch}
         onDismiss={() => erp.setAlarmWipBatch(null)}
@@ -95,7 +123,6 @@ export const GlobalModalManager: React.FC = () => {
         machines={state.master.machines}
       />
 
-      {/* 3-Tier User Role Switcher Modal (Administrator, Operator, Management) */}
       <UserRoleSwitcherModal
         isOpen={erp.isRoleSwitcherOpen}
         onClose={() => erp.setIsRoleSwitcherOpen(false)}
@@ -104,7 +131,6 @@ export const GlobalModalManager: React.FC = () => {
         showToast={showToast}
       />
 
-      {/* Administrator-Only User & Access Rights Management Modal */}
       <UserManagementModal
         isOpen={erp.isUserManagementOpen}
         onClose={() => erp.setIsUserManagementOpen(false)}
@@ -119,7 +145,6 @@ export const GlobalModalManager: React.FC = () => {
         showToast={showToast}
       />
 
-      {/* Administrator Material Initial Stock Adjustment Modal */}
       <MaterialStockAdjustmentModal
         isOpen={erp.isStockAdjustmentModalOpen}
         onClose={() => erp.setIsStockAdjustmentModalOpen(false)}
@@ -129,7 +154,6 @@ export const GlobalModalManager: React.FC = () => {
         showToast={showToast}
       />
 
-      {/* Global BomActionPopupModal instance (accessible via ErpContext from anywhere) */}
       {erp.bomPopupModal.open && (
         <BomActionPopupModal
           open={erp.bomPopupModal.open}
@@ -165,7 +189,6 @@ export const GlobalModalManager: React.FC = () => {
         />
       )}
 
-      {/* Global SixBigLossesModal instance */}
       {erp.sixBigLossesModal.isOpen && (
         <SixBigLossesModal
           isOpen={erp.sixBigLossesModal.isOpen}
@@ -189,7 +212,6 @@ export const GlobalModalManager: React.FC = () => {
         />
       )}
 
-      {/* Global MachineChangeoverModal instance */}
       {erp.machineChangeoverModal.isOpen && (
         <MachineChangeoverModal
           isOpen={erp.machineChangeoverModal.isOpen}
@@ -204,7 +226,16 @@ export const GlobalModalManager: React.FC = () => {
         />
       )}
 
-      {/* Global MaterialQrScannerModal instance */}
+      {erp.machineChangeoverHistoryModal.isOpen && (
+        <MachineChangeoverHistoryModal
+          isOpen={erp.machineChangeoverHistoryModal.isOpen}
+          onClose={erp.closeMachineChangeoverHistoryModal}
+          machines={state.master.machines}
+          selectedMachineId={erp.machineChangeoverHistoryModal.selectedMachineId}
+          allChangeovers={state.transactions.changeovers || []}
+        />
+      )}
+
       {erp.qrScannerModal.isOpen && (
         <MaterialQrScannerModal
           isOpen={erp.qrScannerModal.isOpen}
@@ -219,28 +250,106 @@ export const GlobalModalManager: React.FC = () => {
         />
       )}
 
-      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
-      <GlobalCommandPalette
-        open={erp.isCommandMenuOpen}
-        onOpenChange={erp.setIsCommandMenuOpen}
-        state={state}
-        theme={erp.isDaylightTheme ? 'daylight' : 'midnight'}
-        onSwitchTab={erp.handleSwitchTab}
-        onToggleTheme={erp.handleToggleTheme}
-        onOpenTankModal={() => erp.setIsTankModalOpen(true)}
-        onOpenPdfModal={() => erp.setIsPdfReportModalOpen(true)}
-        onOpenStockAdjustment={erp.handleOpenStockAdjustment}
-        onOpenRoleSwitcher={() => erp.setIsRoleSwitcherOpen(true)}
-        onOpenUserManagement={() => erp.setIsUserManagementOpen(true)}
-        onSelectTank={tankId => {
-          erp.setFocusedTankId(tankId);
-          erp.handleSwitchTab('tank-monitoring');
-        }}
-        onSelectLine={lineId => {
-          erp.setFocusedLineId(lineId);
-          erp.handleSwitchTab('dashboard');
-        }}
-      />
+      {erp.qrLabelModal.isOpen && (
+        <MaterialQrLabelModal
+          isOpen={erp.qrLabelModal.isOpen}
+          onClose={erp.closeQrLabelModal}
+          materials={state.master.materials}
+          initialMaterialId={erp.qrLabelModal.initialMaterialId}
+        />
+      )}
+
+      {erp.holdingTankModal.isOpen && (
+        <HoldingTankSelectionModal
+          isOpen={erp.holdingTankModal.isOpen}
+          onClose={erp.closeHoldingTankModal}
+          state={state}
+          pendingSkuIds={erp.holdingTankModal.pendingSkuIds}
+          pendingAssignments={erp.holdingTankModal.pendingAssignments}
+          initialSelectionsBySku={erp.holdingTankModal.initialSelectionsBySku}
+          onConfirmStart={selectionsBySku => {
+            erp.holdingTankModal.onConfirmStart?.(selectionsBySku);
+            erp.closeHoldingTankModal();
+          }}
+          onConfirmAssignments={selectionsByKey => {
+            erp.holdingTankModal.onConfirmAssignments?.(selectionsByKey);
+            erp.closeHoldingTankModal();
+          }}
+        />
+      )}
+
+      {erp.interTankTransferModal.isOpen && (
+        <InterTankTransferModal
+          isOpen={erp.interTankTransferModal.isOpen}
+          onClose={erp.closeInterTankTransferModal}
+          tanks={state.master.tanks}
+          wips={state.master.wips}
+          initialSourceTankId={erp.interTankTransferModal.initialSourceTankId}
+          onExecuteTransfer={erp.handleTransferBetweenTanks}
+          showToast={showToast}
+        />
+      )}
+
+      {erp.wipBatchPauseModal.isOpen && (
+        <WipBatchPauseModal
+          isOpen={erp.wipBatchPauseModal.isOpen}
+          batch={erp.wipBatchPauseModal.batch}
+          machineLabel={erp.wipBatchPauseModal.machineLabel}
+          currentTime={Date.now()}
+          actorName={
+            erp.wipBatchPauseModal.actorName ||
+            state.currentAdminUser?.displayName ||
+            state.currentSession?.name ||
+            'Operator'
+          }
+          onClose={erp.closeWipBatchPauseModal}
+          onConfirmPause={(batchId, reason, category) => {
+            if (erp.wipBatchPauseModal.onConfirmPause) {
+              erp.wipBatchPauseModal.onConfirmPause(batchId, reason, category);
+            } else {
+              erp.handlePauseWipBatch(batchId, reason, category);
+            }
+            erp.closeWipBatchPauseModal();
+          }}
+        />
+      )}
+
+      {erp.requestSlipPdfModal.isOpen && (
+        <RequestSlipPdfModal
+          isOpen={erp.requestSlipPdfModal.isOpen}
+          onClose={erp.closeRequestSlipPdfModal}
+          state={state}
+          cartItems={erp.requestSlipPdfModal.cartItems}
+          initialGroupKey={erp.requestSlipPdfModal.initialGroupKey}
+          initialSupplier={erp.requestSlipPdfModal.initialSupplier}
+          requestNumbers={erp.requestSlipPdfModal.requestNumbers}
+          onPreviewQrDetail={erp.requestSlipPdfModal.onPreviewQrDetail}
+          showToast={showToast}
+        />
+      )}
+
+      {erp.whatsAppSblModal.isOpen && (
+        <WhatsAppSblModal
+          isOpen={erp.whatsAppSblModal.isOpen}
+          onClose={erp.closeWhatsAppSblModal}
+          stopLog={erp.whatsAppSblModal.stopLog}
+          recapLogs={erp.whatsAppSblModal.recapLogs}
+          recapDate={erp.whatsAppSblModal.recapDate}
+          recapShift={erp.whatsAppSblModal.recapShift}
+          initialPhone={erp.whatsAppSblModal.initialPhone}
+          showToast={showToast}
+        />
+      )}
+
+      {erp.isCloudBackupModalOpen && (
+        <CloudBackupModal
+          isOpen={erp.isCloudBackupModalOpen}
+          onClose={() => erp.setIsCloudBackupModalOpen(false)}
+          state={state}
+          onRestoreState={erp.handleRestoreCloudBackupState}
+          showToast={showToast}
+        />
+      )}
     </>
   );
 };

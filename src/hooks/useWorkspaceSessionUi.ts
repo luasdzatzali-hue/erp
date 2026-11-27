@@ -8,7 +8,10 @@ import {
   ProductionStopLog,
   RegisteredManagement,
   RegisteredOperator,
-  UserRole
+  RequestCartItem,
+  ShiftNumber,
+  UserRole,
+  WipProductionBatch
 } from '../types';
 import { auth } from '../utils/firebaseSync';
 import {
@@ -22,6 +25,7 @@ import { resolveEffectiveRole } from '../utils/roleAccess';
 import { parseRequestSlipQrHash, RequestSlipDeepLinkData } from '../utils/requestSlipPdf';
 import type { BomPopupAction, BomPopupContext } from '../components/BomActionPopupModal';
 import type { MaterialQrScannerModalProps } from '../components/MaterialQrScannerModal';
+import type { PendingLineSkuAssignment } from '../components/HoldingTankSelectionModal';
 import type { ParsedMaterialQrResult } from '../utils/materialQr';
 
 export type BomImportTarget = 'MATERIAL' | 'SKU' | 'SKU_WIP' | 'RECIPE' | 'MACHINE' | 'TANK';
@@ -61,6 +65,56 @@ export interface GlobalQrScannerState {
   lastFeedback?: MaterialQrScannerModalProps['lastFeedback'];
   onScanMatched?: (result: ParsedMaterialQrResult) => void;
   onOpenLabelGenerator?: () => void;
+}
+
+export interface GlobalMachineChangeoverHistoryState {
+  isOpen: boolean;
+  selectedMachineId?: string | null;
+}
+
+export interface GlobalQrLabelState {
+  isOpen: boolean;
+  initialMaterialId?: string;
+}
+
+export interface GlobalHoldingTankState {
+  isOpen: boolean;
+  pendingSkuIds?: string[];
+  pendingAssignments?: PendingLineSkuAssignment[];
+  initialSelectionsBySku?: Record<string, Record<string, string>>;
+  onConfirmStart?: (selectionsBySku: Record<string, Record<string, string>>) => void;
+  onConfirmAssignments?: (selectionsByKey: Record<string, Record<string, string>>) => void;
+}
+
+export interface GlobalInterTankTransferState {
+  isOpen: boolean;
+  initialSourceTankId?: string;
+}
+
+export interface GlobalWipBatchPauseState {
+  isOpen: boolean;
+  batch: WipProductionBatch | null;
+  machineLabel?: string;
+  actorName?: string;
+  onConfirmPause?: (batchId: string, reason: string, category: string) => void;
+}
+
+export interface GlobalRequestSlipPdfState {
+  isOpen: boolean;
+  cartItems: RequestCartItem[];
+  initialGroupKey?: string;
+  initialSupplier?: string;
+  requestNumbers?: string[];
+  onPreviewQrDetail?: (data: RequestSlipDeepLinkData) => void;
+}
+
+export interface GlobalWhatsAppSblState {
+  isOpen: boolean;
+  stopLog?: Omit<ProductionStopLog, 'id'> | ProductionStopLog | null;
+  recapLogs?: ProductionStopLog[];
+  recapDate?: string;
+  recapShift?: ShiftNumber;
+  initialPhone?: string;
 }
 
 export type WorkspaceSetupStatus = 'checking' | 'needs_setup' | 'ready' | 'error';
@@ -145,6 +199,23 @@ export function useWorkspaceSessionUi({
   const [qrScannerModal, setQrScannerModal] = useState<GlobalQrScannerState>({
     isOpen: false
   });
+  const [machineChangeoverHistoryModal, setMachineChangeoverHistoryModal] =
+    useState<GlobalMachineChangeoverHistoryState>({ isOpen: false, selectedMachineId: null });
+  const [qrLabelModal, setQrLabelModal] = useState<GlobalQrLabelState>({ isOpen: false });
+  const [holdingTankModal, setHoldingTankModal] = useState<GlobalHoldingTankState>({ isOpen: false });
+  const [interTankTransferModal, setInterTankTransferModal] = useState<GlobalInterTankTransferState>({
+    isOpen: false
+  });
+  const [wipBatchPauseModal, setWipBatchPauseModal] = useState<GlobalWipBatchPauseState>({
+    isOpen: false,
+    batch: null
+  });
+  const [requestSlipPdfModal, setRequestSlipPdfModal] = useState<GlobalRequestSlipPdfState>({
+    isOpen: false,
+    cartItems: []
+  });
+  const [whatsAppSblModal, setWhatsAppSblModal] = useState<GlobalWhatsAppSblState>({ isOpen: false });
+  const [isCloudBackupModalOpen, setIsCloudBackupModalOpen] = useState(false);
 
   const [preselectedRequestId, setPreselectedRequestId] = useState<string | undefined>(undefined);
   const [deepLinkSlip, setDeepLinkSlip] = useState<RequestSlipDeepLinkData | null>(null);
@@ -193,6 +264,14 @@ export function useWorkspaceSessionUi({
     setSixBigLossesModal({ isOpen: false, skuId: '', skuName: '' });
     setMachineChangeoverModal({ isOpen: false, machine: null });
     setQrScannerModal({ isOpen: false });
+    setMachineChangeoverHistoryModal({ isOpen: false, selectedMachineId: null });
+    setQrLabelModal({ isOpen: false });
+    setHoldingTankModal({ isOpen: false });
+    setInterTankTransferModal({ isOpen: false });
+    setWipBatchPauseModal({ isOpen: false, batch: null });
+    setRequestSlipPdfModal({ isOpen: false, cartItems: [] });
+    setWhatsAppSblModal({ isOpen: false });
+    setIsCloudBackupModalOpen(false);
     setPreselectedRequestId(undefined);
     setDeepLinkSlip(null);
   }, []);
@@ -249,6 +328,74 @@ export function useWorkspaceSessionUi({
   const closeQrScannerModal = useCallback(() => {
     setQrScannerModal(prev => ({ ...prev, isOpen: false }));
   }, []);
+
+  const openMachineChangeoverHistoryModal = useCallback((selectedMachineId?: string | null) => {
+    setMachineChangeoverHistoryModal({ isOpen: true, selectedMachineId: selectedMachineId ?? null });
+  }, []);
+
+  const closeMachineChangeoverHistoryModal = useCallback(() => {
+    setMachineChangeoverHistoryModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const openQrLabelModal = useCallback((initialMaterialId?: string) => {
+    setQrLabelModal({ isOpen: true, initialMaterialId });
+  }, []);
+
+  const closeQrLabelModal = useCallback(() => {
+    setQrLabelModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const openHoldingTankModal = useCallback((payload: Omit<GlobalHoldingTankState, 'isOpen'>) => {
+    setHoldingTankModal({ ...payload, isOpen: true });
+  }, []);
+
+  const closeHoldingTankModal = useCallback(() => {
+    setHoldingTankModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const openInterTankTransferModal = useCallback((initialSourceTankId?: string) => {
+    setInterTankTransferModal({ isOpen: true, initialSourceTankId });
+  }, []);
+
+  const closeInterTankTransferModal = useCallback(() => {
+    setInterTankTransferModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const openWipBatchPauseModal = useCallback((payload: Omit<GlobalWipBatchPauseState, 'isOpen'>) => {
+    setWipBatchPauseModal({ ...payload, isOpen: true });
+  }, []);
+
+  const closeWipBatchPauseModal = useCallback(() => {
+    setWipBatchPauseModal(prev => ({ ...prev, isOpen: false, batch: null }));
+  }, []);
+
+  const openRequestSlipPdfModal = useCallback((payload: Omit<GlobalRequestSlipPdfState, 'isOpen'>) => {
+    setRequestSlipPdfModal({ ...payload, isOpen: true });
+  }, []);
+
+  const closeRequestSlipPdfModal = useCallback(() => {
+    setRequestSlipPdfModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const openWhatsAppSblModal = useCallback((payload: Omit<GlobalWhatsAppSblState, 'isOpen'>) => {
+    setWhatsAppSblModal({ ...payload, isOpen: true });
+  }, []);
+
+  const closeWhatsAppSblModal = useCallback(() => {
+    setWhatsAppSblModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleRestoreCloudBackupState = useCallback(
+    (restored: AppState) => {
+      setState(prev => ({
+        ...prev,
+        master: restored.master || prev.master,
+        transactions: restored.transactions || prev.transactions,
+        tank: restored.tank || prev.tank
+      }));
+    },
+    [setState]
+  );
 
   const handleOpenStationMonitor = useCallback((station: { type: 'line' | 'ck'; id: string }) => {
     setActiveStation(station);
@@ -845,6 +992,30 @@ export function useWorkspaceSessionUi({
     qrScannerModal,
     openQrScannerModal,
     closeQrScannerModal,
+    machineChangeoverHistoryModal,
+    openMachineChangeoverHistoryModal,
+    closeMachineChangeoverHistoryModal,
+    qrLabelModal,
+    openQrLabelModal,
+    closeQrLabelModal,
+    holdingTankModal,
+    openHoldingTankModal,
+    closeHoldingTankModal,
+    interTankTransferModal,
+    openInterTankTransferModal,
+    closeInterTankTransferModal,
+    wipBatchPauseModal,
+    openWipBatchPauseModal,
+    closeWipBatchPauseModal,
+    requestSlipPdfModal,
+    openRequestSlipPdfModal,
+    closeRequestSlipPdfModal,
+    whatsAppSblModal,
+    openWhatsAppSblModal,
+    closeWhatsAppSblModal,
+    isCloudBackupModalOpen,
+    setIsCloudBackupModalOpen,
+    handleRestoreCloudBackupState,
     preselectedRequestId,
     setPreselectedRequestId,
     deepLinkSlip,
