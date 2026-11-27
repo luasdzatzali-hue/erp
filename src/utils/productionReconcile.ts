@@ -22,12 +22,14 @@ export interface MaterialBomVarianceInput {
   actualMaterialUsedKg?: number;
   loggedRejectKg?: number;
   startupRejectKg?: number;
+  tankScrapKg?: number;
 }
 
 export interface MaterialBomVarianceResult {
   standardBomMaterialKg: number;
   totalActualMaterialKg: number;
   loggedRejectKg: number;
+  tankScrapKg: number;
   processDefectsLossKg: number;
   processDefectsEquivalentCartons: number;
   unloggedOverVarianceKg: number;
@@ -106,7 +108,7 @@ export function calculateMissedProduction(
 
 /**
  * Rekonsiliasi selisih pemakaian bahan baku aktual terhadap standar BOM output karton.
- * Memisahkan Process Defects (reject operasional) dan Reduced Yield (startup reject + over-variance BOM)
+ * Memisahkan Process Defects (reject operasional) dan Reduced Yield (startup reject + over-variance BOM + scrap tangki WIP)
  * agar otomatis memengaruhi skor Quality OEE.
  */
 export function reconcileMaterialBomVariance(
@@ -120,20 +122,26 @@ export function reconcileMaterialBomVariance(
   const startupRejectKg = round3(
     Math.min(loggedRejectKg, Math.max(0, Number(input.startupRejectKg) || 0))
   );
+  const tankScrapKg = round3(Math.max(0, Number(input.tankScrapKg) || 0));
   const processDefectsLossKg = round3(Math.max(0, loggedRejectKg - startupRejectKg));
 
   let totalActualMaterialKg: number;
   let unloggedOverVarianceKg = 0;
 
   if (typeof input.actualMaterialUsedKg === 'number' && Number.isFinite(input.actualMaterialUsedKg)) {
-    totalActualMaterialKg = round3(Math.max(0, input.actualMaterialUsedKg));
-    const totalOverBomKg = Math.max(0, totalActualMaterialKg - standardBomMaterialKg);
+    const rawUsedKg = round3(Math.max(0, input.actualMaterialUsedKg));
+    const totalOverBomKg = Math.max(0, rawUsedKg - standardBomMaterialKg);
     unloggedOverVarianceKg = round3(Math.max(0, totalOverBomKg - loggedRejectKg));
+    totalActualMaterialKg = round3(
+      Math.max(rawUsedKg, standardBomMaterialKg + loggedRejectKg + tankScrapKg)
+    );
   } else {
-    totalActualMaterialKg = round3(standardBomMaterialKg + loggedRejectKg);
+    totalActualMaterialKg = round3(standardBomMaterialKg + loggedRejectKg + tankScrapKg);
   }
 
-  const reducedYieldLossKg = round3(startupRejectKg + unloggedOverVarianceKg);
+  const reducedYieldLossKg = round3(
+    startupRejectKg + Math.max(unloggedOverVarianceKg, tankScrapKg)
+  );
   const totalScrapAndVarianceKg = round3(processDefectsLossKg + reducedYieldLossKg);
 
   const processDefectsEquivalentCartons =
@@ -156,6 +164,7 @@ export function reconcileMaterialBomVariance(
     standardBomMaterialKg,
     totalActualMaterialKg,
     loggedRejectKg,
+    tankScrapKg,
     processDefectsLossKg,
     processDefectsEquivalentCartons,
     unloggedOverVarianceKg,

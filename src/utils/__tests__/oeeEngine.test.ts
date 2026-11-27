@@ -3,12 +3,15 @@ import { AppState } from '../../types';
 import {
   SIX_BIG_LOSS_CATEGORIES,
   buildProductionStopLogPayload,
+  buildSixBigLossesPareto,
   calculateAvailability,
   calculatePerformance,
   calculateQuality,
   calculateCompositeOee,
   calculateLineShiftOee,
+  calculateSkuShiftOee,
   calculateShiftAllLinesOee,
+  calculateMultiShiftOee,
   IiotTelemetryEventDoc
 } from '../oeeEngine';
 import { reconcileMaterialBomVariance } from '../productionReconcile';
@@ -554,5 +557,257 @@ describe('Unified OEE Engine (src/utils/oeeEngine.ts)', () => {
     expect(payload.durationMinutes).toBe(25);
     expect(payload.reasonTitle).toContain('Kerusakan Motor');
     expect(payload.cartonsProducedDuringRun).toBe(1200);
+  });
+
+  it('computes steady-state wafer run above 85% target OEE with positive target variance and no anomaly', () => {
+    const state = makeBaseState();
+    const dateStr = '2026-11-27';
+
+    state.activeSkuRuns = [
+      {
+        id: 'run-steady',
+        lineId: 'line-1',
+        lineName: 'Line 1',
+        skuId: 'sku-wafer-1',
+        skuCode: 'SKU-WF-01',
+        skuName: 'Wafer Choco 250g',
+        shift: 1,
+        plannedCartons: 4800,
+        startedAt: '2026-11-27T07:05:00.000Z',
+        isRunning: true,
+        cartonsProducedTotal: 4560, // 4560 / 4800 = 95% speed, 0 downtime, 0 scrap -> 95% OEE
+        targetPerHour: 600
+      }
+    ];
+
+    const res = calculateLineShiftOee({
+      state,
+      lineId: 'line-1',
+      dateStr,
+      shift: 1,
+      targetOeePct: 85
+    });
+
+    expect(res.availability).toBe(100);
+    expect(res.performance).toBe(95);
+    expect(res.performanceDetail.isCycleTimeAnomaly).toBe(false);
+    expect(res.quality).toBe(100);
+    expect(res.oeeScore).toBe(95);
+    expect(res.targetOeePct).toBe(85);
+    expect(res.oeeTargetVariancePct).toBe(10);
+  });
+
+  it('caps Performance at 100% and flags cycle-time anomaly when output exceeds ideal operating time', () => {
+    const perf = calculatePerformance({
+      operatingTimeMinutes: 300,
+      totalOutputCartons: 3600, // 3600 * 0.1 = 360 ideal mins > 300 operating mins => 120%
+      targetPerHour: 600
+    });
+
+    expect(perf.rawPerformancePct).toBe(120);
+    expect(perf.performancePct).toBe(100);
+    expect(perf.isCycleTimeAnomaly).toBe(true);
+    expect(perf.anomalyReason).toContain('120.0%');
+    expect(perf.reducedSpeedMinutes).toBe(0);
+    expect(perf.speedDeficitCartons).toBe(0);
+  });
+
+  it('includes tank WIP scrap calibration losses in Reduced Yield and scopes OEE per SKU accurately', () => {
+    const state = makeBaseState();
+    const dateStr = '2026-11-27';
+
+    state.master.skus.push({
+      id: 'sku-snack-2',
+      code: 'SKU-SN-02',
+      name: 'Snack Stick Keju 100g',
+      isKite: false,
+      targetHour: 400,
+      cartonWeightKg: 2
+    });
+    state.master.skuWips.push({
+      id: 'sw-2',
+      skuId: 'sku-snack-2',
+      wipId: 'wip-cream',
+      kgWipPerCartonSku: 0.4
+    });
+
+    state.transactions.cartonProductions = [
+      {
+        id: 'cp-1',
+        timestamp: '2026-11-27T10:00:00.000Z',
+        lineId: 'line-1',
+        lineName: 'Line 1',
+        skuId: 'sku-wafer-1',
+        skuCode: 'SKU-WF-01',
+        skuName: 'Wafer Choco 250g',
+        shift: 1,
+        cartonsProduced: 2000,
+        tankDeductions: []
+      },
+      {
+        id: 'cp-2',
+        timestamp: '2026-11-27T12:00:00.000Z',
+        lineId: 'line-1',
+        lineName: 'Line 1',
+        skuId: 'sku-snack-2',
+        skuCode: 'SKU-SN-02',
+        skuName: 'Snack Stick Keju 100g',
+        shift: 1,
+        cartonsProduced: 1000,
+        tankDeductions: []
+      }
+    ];
+
+    // Tank WIP drain/scrap 25 kg on ht-1 assigned to line-1
+    state.transactions.tankLogs = [
+      {
+        id: 'tl-scrap-1',
+        timestamp: '2026-11-27T11:15:00.000Z',
+        tankId: 'ht-1',
+        tankCode: 'HT-01',
+        tankName: 'Holding Tank Cream 1',
+        type: 'CALIBRATION',
+        amountKg: -25,
+        previousLevelKg: 250,
+        newLevelKg: 225,
+        wipId: 'wip-cream',
+        wipName: 'Adonan Cream Coklat'
+      }
+    ];
+
+    const waferOee = calculateSkuShiftOee({
+      state,
+      skuId: 'sku-wafer-1',
+      dateStr,
+      shift: 1,
+      plannedShiftMinutes: 240
+    });
+
+    expect(waferOee).not.toBeNull();
+    // 25 kg tank scrap / 0.5 kg per carton = 50 cartons loss out of 2000 => 1950/2000 = 97.5%
+    expect(waferOee!.totalOutputCartons).toBe(2000);
+    expect(waferOee!.qualityDetail.reducedYieldLossKg).toBe(25);
+    expect(waferOee!.qualityDetail.reducedYieldEquivalentCartons).toBe(50);
+    expect(waferOee!.quality).toBe(97.5);
+  });
+
+  it('produces descending-sorted Six Big Losses Pareto with duration, kg/cartons loss, and contribution %', () => {
+    const pareto = buildSixBigLossesPareto(
+      {
+        equipmentFailure: { minutes: 45, lossKg: 225 },
+        setupAdjustment: { minutes: 30, lossKg: 150 },
+        idlingMinorStops: { minutes: 15, lossKg: 75 },
+        reducedSpeed: { minutes: 90, lossKg: 450 },
+        processDefects: { minutes: 10, lossKg: 50 },
+        reducedYield: { minutes: 10, lossKg: 50 }
+      },
+      {
+        targetPerHour: 600,
+        standardBomKgPerCarton: 0.5
+      }
+    );
+
+    expect(pareto).toHaveLength(6);
+    // Total minutes = 45 + 30 + 15 + 90 + 10 + 10 = 200
+    expect(pareto[0].key).toBe('reducedSpeed');
+    expect(pareto[0].rank).toBe(1);
+    expect(pareto[0].durationMinutes).toBe(90);
+    expect(pareto[0].equivalentLossCartons).toBe(900);
+    expect(pareto[0].contributionPct).toBe(45);
+
+    expect(pareto[1].key).toBe('equipmentFailure');
+    expect(pareto[1].rank).toBe(2);
+    expect(pareto[1].contributionPct).toBe(22.5);
+
+    expect(pareto[2].key).toBe('setupAdjustment');
+    expect(pareto[2].rank).toBe(3);
+    expect(pareto[2].contributionPct).toBe(15);
+
+    const totalContribution = pareto.reduce((sum, item) => sum + item.contributionPct, 0);
+    expect(totalContribution).toBeCloseTo(100, 1);
+    expect(pareto[pareto.length - 1].cumulativePct).toBeCloseTo(100, 1);
+  });
+
+  it('aggregates active shifts only for ALL scope and scopes properly by production line', () => {
+    const state = makeBaseState();
+    state.master.productionLines = [
+      ...(state.master.productionLines || []),
+      {
+        id: 'line-2',
+        code: 'L2',
+        name: 'Line 2',
+        isActive: true
+      }
+    ];
+
+    const dateStr = '2026-11-27';
+    // Shift 1 activity on Line 1 (2400 ktn -> 240 min ideal operating) & Line 2 (4800 ktn)
+    // Shift 2 activity on Line 1 (3600 ktn)
+    // Shift 3 has zero activity and must not dilute Performance
+    state.transactions.cartonProductions = [
+      {
+        id: 'cp-s1-l1',
+        timestamp: `${dateStr}T09:00:00.000Z`,
+        lineId: 'line-1',
+        lineName: 'Line 1',
+        skuId: 'sku-wafer-1',
+        skuCode: 'SKU-WF-01',
+        skuName: 'Wafer Choco 250g',
+        shift: 1,
+        cartonsProduced: 2400,
+        tankDeductions: []
+      },
+      {
+        id: 'cp-s1-l2',
+        timestamp: `${dateStr}T09:30:00.000Z`,
+        lineId: 'line-2',
+        lineName: 'Line 2',
+        skuId: 'sku-wafer-1',
+        skuCode: 'SKU-WF-01',
+        skuName: 'Wafer Choco 250g',
+        shift: 1,
+        cartonsProduced: 4800,
+        tankDeductions: []
+      },
+      {
+        id: 'cp-s2-l1',
+        timestamp: `${dateStr}T16:00:00.000Z`,
+        lineId: 'line-1',
+        lineName: 'Line 1',
+        skuId: 'sku-wafer-1',
+        skuCode: 'SKU-WF-01',
+        skuName: 'Wafer Choco 250g',
+        shift: 2,
+        cartonsProduced: 3600,
+        tankDeductions: []
+      }
+    ];
+
+    const allScope = calculateMultiShiftOee({
+      state,
+      dateStr,
+      shiftScope: 'ALL',
+      activeShiftFallback: 1,
+      lineId: 'ALL'
+    });
+
+    expect(allScope.activeShiftCount).toBe(2); // Shift 1 & Shift 2 only
+    expect(allScope.totalOutputCartons).toBe(10800);
+    expect(allScope.sixBigLossesPareto).toHaveLength(6);
+
+    const line1AllShifts = calculateMultiShiftOee({
+      state,
+      dateStr,
+      shiftScope: 'ALL',
+      activeShiftFallback: 1,
+      lineId: 'line-1'
+    });
+
+    expect(line1AllShifts.lineId).toBe('line-1');
+    expect(line1AllShifts.lineName).toBe('Line 1');
+    expect(line1AllShifts.activeShiftCount).toBe(2);
+    expect(line1AllShifts.totalOutputCartons).toBe(6000);
+    // 6000 cartons at 600/hr = 600 min ideal operating / (2 * 480 min) = 62.5%
+    expect(line1AllShifts.performance).toBe(62.5);
   });
 });

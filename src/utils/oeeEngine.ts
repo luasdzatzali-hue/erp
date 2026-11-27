@@ -241,6 +241,8 @@ export function buildProductionStopLogPayload(
   };
 }
 
+export const DEFAULT_TARGET_OEE_PCT = 85;
+
 export interface SixBigLossBucket {
   minutes: number;
   lossKg: number;
@@ -253,6 +255,22 @@ export interface SixBigLossesBreakdown {
   reducedSpeed: SixBigLossBucket;
   processDefects: SixBigLossBucket;
   reducedYield: SixBigLossBucket;
+}
+
+export type SixBigLossParetoKey = keyof SixBigLossesBreakdown;
+
+export interface SixBigLossParetoItem {
+  rank: number;
+  tpmNumber: number;
+  key: SixBigLossParetoKey;
+  category: SixBigLossCategory;
+  label: string;
+  pillar: 'AVAILABILITY' | 'PERFORMANCE' | 'QUALITY';
+  durationMinutes: number;
+  equivalentLossKg: number;
+  equivalentLossCartons: number;
+  contributionPct: number;
+  cumulativePct: number;
 }
 
 export type IiotTelemetryStatus = 'RUNNING' | 'STOP' | 'IDLE' | 'FAULT';
@@ -334,6 +352,8 @@ export interface PerformanceResult {
   speedDeficitCartons: number;
   rawPerformancePct: number;
   performancePct: number;
+  isCycleTimeAnomaly: boolean;
+  anomalyReason?: string;
 }
 
 export interface QualityInput {
@@ -343,6 +363,7 @@ export interface QualityInput {
   rejectLogs?: MaterialRejectLog[];
   stopLogs?: ProductionStopLog[];
   actualMaterialUsedKg?: number;
+  tankScrapKg?: number;
 }
 
 export interface QualityResult {
@@ -374,11 +395,14 @@ export interface LineShiftOeeResult {
   performance: number;
   quality: number;
   oeeScore: number;
+  targetOeePct: number;
+  oeeTargetVariancePct: number;
   materialVariancePct: number;
   availabilityDetail: AvailabilityResult;
   performanceDetail: PerformanceResult;
   qualityDetail: QualityResult;
   sixBigLossesBreakdown: SixBigLossesBreakdown;
+  sixBigLossesPareto: SixBigLossParetoItem[];
   snapshot: ShiftOeeSnapshotDoc;
 }
 
@@ -532,7 +556,11 @@ export function calculatePerformance(input: PerformanceInput): PerformanceResult
     operatingTimeMinutes > 0 && idealCycleTimeMinutes > 0
       ? round2((idealOperatingMinutes / operatingTimeMinutes) * 100)
       : 0;
+  const isCycleTimeAnomaly = rawPerformancePct > 100;
   const performancePct = clampPct(rawPerformancePct);
+  const anomalyReason = isCycleTimeAnomaly
+    ? `Performance mentah ${rawPerformancePct.toFixed(1)}% (>100%). Periksa Ideal Cycle Time / Target per Jam SKU atau pencatatan waktu operasi.`
+    : undefined;
 
   const stopLogs = input.stopLogs || [];
   const loggedIdlingMinutes = stopLogs
@@ -557,7 +585,9 @@ export function calculatePerformance(input: PerformanceInput): PerformanceResult
     reducedSpeedMinutes,
     speedDeficitCartons,
     rawPerformancePct,
-    performancePct
+    performancePct,
+    isCycleTimeAnomaly,
+    anomalyReason
   };
 }
 
@@ -591,7 +621,8 @@ export function calculateQuality(input: QualityInput): QualityResult {
     standardBomKgPerCarton: kgPerCarton,
     actualMaterialUsedKg: input.actualMaterialUsedKg,
     loggedRejectKg,
-    startupRejectKg
+    startupRejectKg,
+    tankScrapKg: input.tankScrapKg
   });
 
   const loggedProcessDefectStopMinutes = stopLogs
@@ -652,6 +683,140 @@ export function calculateCompositeOee(
   const p = clampPct(performancePct) / 100;
   const q = clampPct(qualityPct) / 100;
   return clampPct(a * p * q * 100);
+}
+
+const PARETO_META: {
+  key: SixBigLossParetoKey;
+  tpmNumber: number;
+  category: SixBigLossCategory;
+  label: string;
+  pillar: 'AVAILABILITY' | 'PERFORMANCE' | 'QUALITY';
+}[] = [
+  {
+    key: 'equipmentFailure',
+    tpmNumber: 1,
+    category: 'EQUIPMENT_FAILURE',
+    label: 'Equipment Failure (Breakdown)',
+    pillar: 'AVAILABILITY'
+  },
+  {
+    key: 'setupAdjustment',
+    tpmNumber: 2,
+    category: 'SETUP_ADJUSTMENT',
+    label: 'Setup & Changeover',
+    pillar: 'AVAILABILITY'
+  },
+  {
+    key: 'idlingMinorStops',
+    tpmNumber: 3,
+    category: 'IDLING_MINOR_STOPS',
+    label: 'Idling & Minor Stops',
+    pillar: 'PERFORMANCE'
+  },
+  {
+    key: 'reducedSpeed',
+    tpmNumber: 4,
+    category: 'REDUCED_SPEED',
+    label: 'Reduced Speed',
+    pillar: 'PERFORMANCE'
+  },
+  {
+    key: 'processDefects',
+    tpmNumber: 5,
+    category: 'PROCESS_DEFECTS',
+    label: 'Process Defects (Reject)',
+    pillar: 'QUALITY'
+  },
+  {
+    key: 'reducedYield',
+    tpmNumber: 6,
+    category: 'STARTUP_REJECTS',
+    label: 'Reduced Yield (Startup & Variance)',
+    pillar: 'QUALITY'
+  }
+];
+
+function finalizeParetoList(
+  rawItems: Omit<SixBigLossParetoItem, 'rank' | 'contributionPct' | 'cumulativePct'>[]
+): SixBigLossParetoItem[] {
+  const sorted = [...rawItems].sort(
+    (a, b) =>
+      b.durationMinutes - a.durationMinutes ||
+      b.equivalentLossKg - a.equivalentLossKg ||
+      b.equivalentLossCartons - a.equivalentLossCartons ||
+      a.tpmNumber - b.tpmNumber
+  );
+
+  const totalMinutes = sorted.reduce((s, i) => s + i.durationMinutes, 0);
+  const totalKg = sorted.reduce((s, i) => s + i.equivalentLossKg, 0);
+  const totalCartons = sorted.reduce((s, i) => s + i.equivalentLossCartons, 0);
+
+  let runningPct = 0;
+  return sorted.map((item, idx) => {
+    const contributionPct =
+      totalMinutes > 0
+        ? round2((item.durationMinutes / totalMinutes) * 100)
+        : totalKg > 0
+        ? round2((item.equivalentLossKg / totalKg) * 100)
+        : totalCartons > 0
+        ? round2((item.equivalentLossCartons / totalCartons) * 100)
+        : 0;
+    runningPct = Math.min(100, round2(runningPct + contributionPct));
+    return {
+      ...item,
+      rank: idx + 1,
+      contributionPct,
+      cumulativePct: runningPct
+    };
+  });
+}
+
+/**
+ * Menyusun Six Big Losses Breakdown menjadi Pareto terurut menurun
+ * lengkap dengan durasi (menit), ekuivalen kehilangan output (kg & karton), dan % kontribusi.
+ */
+export function buildSixBigLossesPareto(
+  breakdown: SixBigLossesBreakdown,
+  options?: { targetPerHour?: number; standardBomKgPerCarton?: number }
+): SixBigLossParetoItem[] {
+  const targetPerHour = Math.max(0, Number(options?.targetPerHour) || 0);
+  const kgPerCarton = Math.max(0, Number(options?.standardBomKgPerCarton) || 0);
+
+  const items = PARETO_META.map(meta => {
+    const bucket = breakdown[meta.key];
+    const durationMinutes = round2(Math.max(0, Number(bucket?.minutes) || 0));
+    const equivalentLossKg = round3(Math.max(0, Number(bucket?.lossKg) || 0));
+
+    let equivalentLossCartons = 0;
+    if (meta.pillar === 'QUALITY') {
+      equivalentLossCartons =
+        kgPerCarton > 0
+          ? round2(equivalentLossKg / kgPerCarton)
+          : targetPerHour > 0
+          ? round2((durationMinutes / 60) * targetPerHour)
+          : 0;
+    } else {
+      equivalentLossCartons =
+        targetPerHour > 0
+          ? round2((durationMinutes / 60) * targetPerHour)
+          : kgPerCarton > 0
+          ? round2(equivalentLossKg / kgPerCarton)
+          : 0;
+    }
+
+    return {
+      tpmNumber: meta.tpmNumber,
+      key: meta.key,
+      category: meta.category,
+      label: meta.label,
+      pillar: meta.pillar,
+      durationMinutes,
+      equivalentLossKg,
+      equivalentLossCartons
+    };
+  });
+
+  return finalizeParetoList(items);
 }
 
 function getAllRuns(state: AppState): ActiveSkuProductionRun[] {
@@ -722,23 +887,30 @@ export function calculateLineShiftOee(params: {
   lineId: string;
   dateStr: string;
   shift: ShiftNumber;
+  skuId?: string;
   nowMs?: number;
   plannedShiftMinutes?: number;
+  targetOeePct?: number;
   iiotEvents?: IiotTelemetryEventDoc[];
 }): LineShiftOeeResult {
   const { state, lineId, dateStr, shift } = params;
   const nowMs = params.nowMs ?? Date.now();
+  const targetOeePct = clampPct(params.targetOeePct ?? DEFAULT_TARGET_OEE_PCT);
   const line = (state.master.productionLines || []).find(l => l.id === lineId);
   const lineName = line?.name || lineId;
   const shiftId = `${dateStr}-S${shift}`;
 
   const runs = getAllRuns(state);
+  const matchesSkuFilter = (candidateSkuId?: string) =>
+    !params.skuId || candidateSkuId === params.skuId;
+
   const activeRun =
     runs.find(
       r =>
         r.isRunning &&
         r.startedAt.slice(0, 10) === dateStr &&
         r.shift === shift &&
+        matchesSkuFilter(r.skuId) &&
         matchesLine(lineId, line?.name, r.lineId, r.lineName)
     ) || null;
 
@@ -747,6 +919,7 @@ export function calculateLineShiftOee(params: {
       r =>
         r.startedAt.slice(0, 10) === dateStr &&
         r.shift === shift &&
+        matchesSkuFilter(r.skuId) &&
         matchesLine(lineId, line?.name, r.lineId, r.lineName)
     )
     .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
@@ -754,28 +927,45 @@ export function calculateLineShiftOee(params: {
   const latestRun =
     activeRun ||
     lineShiftRuns[0] ||
-    runs.find(r => matchesLine(lineId, line?.name, r.lineId, r.lineName)) ||
+    runs.find(
+      r => matchesSkuFilter(r.skuId) && matchesLine(lineId, line?.name, r.lineId, r.lineName)
+    ) ||
     null;
 
   const lineCartonLogs = (state.transactions.cartonProductions || []).filter(cp => {
     if (cp.timestamp.slice(0, 10) !== dateStr) return false;
     const cpShift = cp.shift || getShiftFromTime(cp.timestamp).shift;
     if (cpShift !== shift) return false;
+    if (!matchesSkuFilter(cp.skuId)) return false;
     if (cp.lineId || cp.lineName) {
       return matchesLine(lineId, line?.name, cp.lineId, cp.lineName);
     }
     return Boolean(latestRun && cp.skuId === latestRun.skuId);
   });
 
-  const resolvedSkuId = latestRun?.skuId || lineCartonLogs[0]?.skuId || '';
+  const resolvedSkuId = params.skuId || latestRun?.skuId || lineCartonLogs[0]?.skuId || '';
   const sku = state.master.skus.find(s => s.id === resolvedSkuId);
-  const skuCode = latestRun?.skuCode || sku?.code || lineCartonLogs[0]?.skuCode || '-';
-  const skuName = latestRun?.skuName || sku?.name || lineCartonLogs[0]?.skuName || '-';
-  const targetPerHour = latestRun?.targetPerHour || sku?.targetHour || 500;
+  const skuCode =
+    (latestRun?.skuId === resolvedSkuId ? latestRun?.skuCode : undefined) ||
+    sku?.code ||
+    lineCartonLogs[0]?.skuCode ||
+    '-';
+  const skuName =
+    (latestRun?.skuId === resolvedSkuId ? latestRun?.skuName : undefined) ||
+    sku?.name ||
+    lineCartonLogs[0]?.skuName ||
+    '-';
+  const targetPerHour =
+    (latestRun?.skuId === resolvedSkuId ? latestRun?.targetPerHour : undefined) ||
+    sku?.targetHour ||
+    500;
 
   const loggedCartons = lineCartonLogs.reduce((s, cp) => s + (cp.cartonsProduced || 0), 0);
   const runCartons =
-    latestRun && latestRun.startedAt.slice(0, 10) === dateStr && latestRun.shift === shift
+    latestRun &&
+    latestRun.skuId === resolvedSkuId &&
+    latestRun.startedAt.slice(0, 10) === dateStr &&
+    latestRun.shift === shift
       ? latestRun.cartonsProducedTotal || 0
       : 0;
   const totalOutputCartons = Math.max(loggedCartons, runCartons);
@@ -784,6 +974,7 @@ export function calculateLineShiftOee(params: {
     if (stop.stoppedAt.slice(0, 10) !== dateStr) return false;
     const sShift = stop.shift || getShiftFromTime(stop.stoppedAt).shift;
     if (sShift !== shift) return false;
+    if (params.skuId && stop.skuId !== params.skuId) return false;
     if (stop.lineId || stop.lineName) {
       return matchesLine(lineId, line?.name, stop.lineId, stop.lineName);
     }
@@ -887,7 +1078,7 @@ export function calculateLineShiftOee(params: {
     return Boolean(rej.machineId && relatedMachineIds.has(rej.machineId) && (!rej.skuId || rej.skuId === resolvedSkuId));
   });
 
-  // Check explicit material usages recorded for this SKU/shift to capture unlogged BOM variance
+  // Check explicit material usages & tank WIP scrap recorded for this SKU/shift
   const shiftSkuUsages = (state.transactions.usages || []).filter(u => {
     if (u.date !== dateStr) return false;
     if ((u.shift || shift) !== shift) return false;
@@ -895,13 +1086,32 @@ export function calculateLineShiftOee(params: {
   });
   const actualUsageKg = shiftSkuUsages.reduce((s, u) => s + (u.usageQty || 0), 0);
 
+  const linkedTankIds = new Set(
+    (state.master.tanks || [])
+      .filter(
+        t =>
+          (t.assignedLineIds || []).includes(lineId) ||
+          (t.assignedWipId ? linkedWipIds.has(t.assignedWipId) : false)
+      )
+      .map(t => t.id)
+  );
+  const tankScrapKg = (state.transactions.tankLogs || [])
+    .filter(tl => {
+      if (tl.type !== 'CALIBRATION' || (tl.amountKg || 0) >= 0) return false;
+      if (tl.timestamp.slice(0, 10) !== dateStr) return false;
+      if (getShiftFromTime(tl.timestamp).shift !== shift) return false;
+      return linkedTankIds.has(tl.tankId) || (tl.wipId ? linkedWipIds.has(tl.wipId) : false);
+    })
+    .reduce((sum, tl) => sum + Math.abs(tl.amountKg || 0), 0);
+
   const qualityDetail = calculateQuality({
     totalOutputCartons: effectiveOutputCartons,
     standardBomKgPerCarton,
     targetPerHour,
     rejectLogs: lineRejectLogs,
     stopLogs: lineStopLogs,
-    actualMaterialUsedKg: shiftSkuUsages.length > 0 ? actualUsageKg : undefined
+    actualMaterialUsedKg: shiftSkuUsages.length > 0 ? actualUsageKg : undefined,
+    tankScrapKg
   });
 
   const oeeScore = calculateCompositeOee(
@@ -909,6 +1119,7 @@ export function calculateLineShiftOee(params: {
     performanceDetail.performancePct,
     qualityDetail.qualityPct
   );
+  const oeeTargetVariancePct = round2(oeeScore - targetOeePct);
 
   const shortageStopMinutes = lineStopLogs
     .filter(s => s.category === 'MATERIAL_SHORTAGE')
@@ -961,6 +1172,11 @@ export function calculateLineShiftOee(params: {
     }
   };
 
+  const sixBigLossesPareto = buildSixBigLossesPareto(sixBigLossesBreakdown, {
+    targetPerHour,
+    standardBomKgPerCarton
+  });
+
   const snapshotId = `${shiftId}_${lineId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
 
   const snapshot: ShiftOeeSnapshotDoc = {
@@ -1003,11 +1219,14 @@ export function calculateLineShiftOee(params: {
     performance: performanceDetail.performancePct,
     quality: qualityDetail.qualityPct,
     oeeScore,
+    targetOeePct,
+    oeeTargetVariancePct,
     materialVariancePct: qualityDetail.materialVariance.materialVariancePct,
     availabilityDetail,
     performanceDetail,
     qualityDetail,
     sixBigLossesBreakdown,
+    sixBigLossesPareto,
     snapshot
   };
 }
@@ -1021,10 +1240,14 @@ export interface ShiftAllLinesOeeSummary {
   performance: number;
   quality: number;
   oeeScore: number;
+  targetOeePct: number;
+  oeeTargetVariancePct: number;
   materialVariancePct: number;
   totalOutputCartons: number;
   goodOutputCartons: number;
+  hasCycleTimeAnomaly: boolean;
   sixBigLossesBreakdown: SixBigLossesBreakdown;
+  sixBigLossesPareto: SixBigLossParetoItem[];
 }
 
 export function calculateShiftAllLinesOee(
@@ -1033,8 +1256,10 @@ export function calculateShiftAllLinesOee(
   shift: ShiftNumber,
   nowMs = Date.now(),
   plannedShiftMinutes?: number,
-  iiotEvents?: IiotTelemetryEventDoc[]
+  iiotEvents?: IiotTelemetryEventDoc[],
+  targetOeePct = DEFAULT_TARGET_OEE_PCT
 ): ShiftAllLinesOeeSummary {
+  const effectiveTargetOee = clampPct(targetOeePct);
   const lines = (state.master.productionLines || []).filter(l => l.isActive !== false);
   const lineResults = lines.map(l =>
     calculateLineShiftOee({
@@ -1044,6 +1269,7 @@ export function calculateShiftAllLinesOee(
       shift,
       nowMs,
       plannedShiftMinutes,
+      targetOeePct: effectiveTargetOee,
       iiotEvents
     })
   );
@@ -1072,6 +1298,8 @@ export function calculateShiftAllLinesOee(
       ? 0
       : 100;
   const oeeScore = calculateCompositeOee(availability, performance, quality);
+  const oeeTargetVariancePct = round2(oeeScore - effectiveTargetOee);
+  const hasCycleTimeAnomaly = lineResults.some(r => r.performanceDetail.isCycleTimeAnomaly);
 
   const sumStdBom = lineResults.reduce(
     (s, r) => s + r.qualityDetail.materialVariance.standardBomMaterialKg,
@@ -1098,8 +1326,17 @@ export function calculateShiftAllLinesOee(
     reducedYield: emptyBucket()
   };
 
+  const cartonLossByKey: Record<SixBigLossParetoKey, number> = {
+    equipmentFailure: 0,
+    setupAdjustment: 0,
+    idlingMinorStops: 0,
+    reducedSpeed: 0,
+    processDefects: 0,
+    reducedYield: 0
+  };
+
   for (const r of lineResults) {
-    (Object.keys(sixBigLossesBreakdown) as (keyof SixBigLossesBreakdown)[]).forEach(key => {
+    (Object.keys(sixBigLossesBreakdown) as SixBigLossParetoKey[]).forEach(key => {
       sixBigLossesBreakdown[key].minutes = round2(
         sixBigLossesBreakdown[key].minutes + r.sixBigLossesBreakdown[key].minutes
       );
@@ -1107,7 +1344,23 @@ export function calculateShiftAllLinesOee(
         sixBigLossesBreakdown[key].lossKg + r.sixBigLossesBreakdown[key].lossKg
       );
     });
+    for (const pItem of r.sixBigLossesPareto) {
+      cartonLossByKey[pItem.key] = round2(cartonLossByKey[pItem.key] + pItem.equivalentLossCartons);
+    }
   }
+
+  const sixBigLossesPareto = finalizeParetoList(
+    PARETO_META.map(meta => ({
+      tpmNumber: meta.tpmNumber,
+      key: meta.key,
+      category: meta.category,
+      label: meta.label,
+      pillar: meta.pillar,
+      durationMinutes: sixBigLossesBreakdown[meta.key].minutes,
+      equivalentLossKg: sixBigLossesBreakdown[meta.key].lossKg,
+      equivalentLossCartons: cartonLossByKey[meta.key]
+    }))
+  );
 
   return {
     shiftId: `${dateStr}-S${shift}`,
@@ -1118,9 +1371,409 @@ export function calculateShiftAllLinesOee(
     performance,
     quality,
     oeeScore,
+    targetOeePct: effectiveTargetOee,
+    oeeTargetVariancePct,
     materialVariancePct,
     totalOutputCartons,
     goodOutputCartons,
-    sixBigLossesBreakdown
+    hasCycleTimeAnomaly,
+    sixBigLossesBreakdown,
+    sixBigLossesPareto
+  };
+}
+
+/**
+ * Menghitung OEE spesifik per SKU pada Shift tertentu (baik pada 1 line tertentu maupun agregasi line terkait).
+ */
+export function calculateSkuShiftOee(params: {
+  state: AppState;
+  skuId: string;
+  dateStr: string;
+  shift: ShiftNumber;
+  lineId?: string;
+  nowMs?: number;
+  plannedShiftMinutes?: number;
+  targetOeePct?: number;
+  iiotEvents?: IiotTelemetryEventDoc[];
+}): LineShiftOeeResult | null {
+  const { state, skuId, dateStr, shift } = params;
+  const targetLineId =
+    params.lineId ||
+    getAllRuns(state).find(
+      r => r.skuId === skuId && r.startedAt.slice(0, 10) === dateStr && r.shift === shift
+    )?.lineId ||
+    (state.transactions.cartonProductions || []).find(
+      cp =>
+        cp.skuId === skuId &&
+        cp.timestamp.slice(0, 10) === dateStr &&
+        (cp.shift || getShiftFromTime(cp.timestamp).shift) === shift
+    )?.lineId ||
+    (state.master.productionLines || []).find(l => l.isActive !== false)?.id;
+
+  if (!targetLineId) return null;
+
+  return calculateLineShiftOee({
+    state,
+    lineId: targetLineId,
+    skuId,
+    dateStr,
+    shift,
+    nowMs: params.nowMs,
+    plannedShiftMinutes: params.plannedShiftMinutes,
+    targetOeePct: params.targetOeePct,
+    iiotEvents: params.iiotEvents
+  });
+}
+
+export interface ScopedOeeAnalytics {
+  dateStr: string;
+  shiftScope: 'ALL' | ShiftNumber;
+  lineId: string;
+  lineName: string;
+  availability: number;
+  performance: number;
+  quality: number;
+  oeeScore: number;
+  targetOeePct: number;
+  oeeTargetVariancePct: number;
+  availabilityTargetPct: number;
+  performanceTargetPct: number;
+  qualityTargetPct: number;
+  materialVariancePct: number;
+  totalOutputCartons: number;
+  goodOutputCartons: number;
+  plannedProductionTimeMinutes: number;
+  operatingTimeMinutes: number;
+  hasCycleTimeAnomaly: boolean;
+  anomalyReason?: string;
+  sixBigLossesBreakdown: SixBigLossesBreakdown;
+  sixBigLossesPareto: SixBigLossParetoItem[];
+  lineResults: LineShiftOeeResult[];
+  activeShiftCount: number;
+}
+
+export const DEFAULT_TARGET_AVAILABILITY_PCT = 90;
+export const DEFAULT_TARGET_PERFORMANCE_PCT = 95;
+export const DEFAULT_TARGET_QUALITY_PCT = 99;
+
+function hasShiftActivity(state: AppState, dateStr: string, shift: ShiftNumber, lineId?: string): boolean {
+  const runs = getAllRuns(state);
+  const matchLine = (rLineId?: string, rLineName?: string) => {
+    if (!lineId || lineId === 'ALL') return true;
+    const lineObj = (state.master.productionLines || []).find(l => l.id === lineId);
+    return matchesLine(lineId, lineObj?.name, rLineId, rLineName);
+  };
+
+  if (
+    runs.some(
+      r =>
+        r.startedAt.slice(0, 10) === dateStr &&
+        r.shift === shift &&
+        matchLine(r.lineId, r.lineName)
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    (state.transactions.cartonProductions || []).some(
+      cp =>
+        cp.timestamp.slice(0, 10) === dateStr &&
+        (cp.shift || getShiftFromTime(cp.timestamp).shift) === shift &&
+        (!cp.lineId || matchLine(cp.lineId, cp.lineName))
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    (state.transactions.productionStops || []).some(
+      s =>
+        s.stoppedAt.slice(0, 10) === dateStr &&
+        (s.shift || getShiftFromTime(s.stoppedAt).shift) === shift &&
+        (!s.lineId || matchLine(s.lineId, s.lineName))
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    (state.transactions.rejectLogs || []).some(
+      rej =>
+        rej.date === dateStr &&
+        rej.shift === shift &&
+        (rej.stationType !== 'LINE' || matchLine(rej.lineId, rej.lineName))
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Mengagregasi analitik OEE & Six Big Losses untuk cakupan Shift tertentu atau Semua Shift (24 Jam),
+ * serta Semua Line atau 1 Line Produksi spesifik.
+ */
+export function calculateMultiShiftOee(params: {
+  state: AppState;
+  dateStr: string;
+  shiftScope: 'ALL' | ShiftNumber;
+  activeShiftFallback?: ShiftNumber;
+  lineId?: string; // 'ALL' atau ID line spesifik
+  nowMs?: number;
+  targetOeePct?: number;
+  iiotEvents?: IiotTelemetryEventDoc[];
+}): ScopedOeeAnalytics {
+  const { state, dateStr, shiftScope } = params;
+  const lineId = params.lineId || 'ALL';
+  const nowMs = params.nowMs ?? Date.now();
+  const effectiveTargetOee = clampPct(params.targetOeePct ?? DEFAULT_TARGET_OEE_PCT);
+  const lineObj =
+    lineId !== 'ALL'
+      ? (state.master.productionLines || []).find(l => l.id === lineId)
+      : undefined;
+  const lineName = lineObj?.name || (lineId === 'ALL' ? 'Semua Line Produksi' : lineId);
+
+  const shiftsToAggregate: ShiftNumber[] =
+    shiftScope === 'ALL'
+      ? (() => {
+          const active = ([1, 2, 3] as ShiftNumber[]).filter(s =>
+            hasShiftActivity(state, dateStr, s, lineId)
+          );
+          if (active.length > 0) return active;
+          return [params.activeShiftFallback ?? 1];
+        })()
+      : [shiftScope];
+
+  if (shiftsToAggregate.length === 1) {
+    const singleShift = shiftsToAggregate[0];
+    if (lineId !== 'ALL') {
+      const res = calculateLineShiftOee({
+        state,
+        lineId,
+        dateStr,
+        shift: singleShift,
+        nowMs,
+        targetOeePct: effectiveTargetOee,
+        iiotEvents: params.iiotEvents
+      });
+      return {
+        dateStr,
+        shiftScope,
+        lineId,
+        lineName: res.lineName,
+        availability: res.availability,
+        performance: res.performance,
+        quality: res.quality,
+        oeeScore: res.oeeScore,
+        targetOeePct: res.targetOeePct,
+        oeeTargetVariancePct: res.oeeTargetVariancePct,
+        availabilityTargetPct: DEFAULT_TARGET_AVAILABILITY_PCT,
+        performanceTargetPct: DEFAULT_TARGET_PERFORMANCE_PCT,
+        qualityTargetPct: DEFAULT_TARGET_QUALITY_PCT,
+        materialVariancePct: res.materialVariancePct,
+        totalOutputCartons: res.totalOutputCartons,
+        goodOutputCartons: res.goodOutputCartons,
+        plannedProductionTimeMinutes: res.availabilityDetail.plannedProductionTimeMinutes,
+        operatingTimeMinutes: res.availabilityDetail.operatingTimeMinutes,
+        hasCycleTimeAnomaly: res.performanceDetail.isCycleTimeAnomaly,
+        anomalyReason: res.performanceDetail.anomalyReason,
+        sixBigLossesBreakdown: res.sixBigLossesBreakdown,
+        sixBigLossesPareto: res.sixBigLossesPareto,
+        lineResults: [res],
+        activeShiftCount: 1
+      };
+    }
+
+    const summary = calculateShiftAllLinesOee(
+      state,
+      dateStr,
+      singleShift,
+      nowMs,
+      undefined,
+      params.iiotEvents,
+      effectiveTargetOee
+    );
+    const sumPlanned = summary.lineResults.reduce(
+      (s, r) => s + r.availabilityDetail.plannedProductionTimeMinutes,
+      0
+    );
+    const sumOperating = summary.lineResults.reduce(
+      (s, r) => s + r.availabilityDetail.operatingTimeMinutes,
+      0
+    );
+    const anomalyLine = summary.lineResults.find(r => r.performanceDetail.isCycleTimeAnomaly);
+
+    return {
+      dateStr,
+      shiftScope,
+      lineId: 'ALL',
+      lineName: 'Semua Line Produksi',
+      availability: summary.availability,
+      performance: summary.performance,
+      quality: summary.quality,
+      oeeScore: summary.oeeScore,
+      targetOeePct: summary.targetOeePct,
+      oeeTargetVariancePct: summary.oeeTargetVariancePct,
+      availabilityTargetPct: DEFAULT_TARGET_AVAILABILITY_PCT,
+      performanceTargetPct: DEFAULT_TARGET_PERFORMANCE_PCT,
+      qualityTargetPct: DEFAULT_TARGET_QUALITY_PCT,
+      materialVariancePct: summary.materialVariancePct,
+      totalOutputCartons: summary.totalOutputCartons,
+      goodOutputCartons: summary.goodOutputCartons,
+      plannedProductionTimeMinutes: round2(sumPlanned),
+      operatingTimeMinutes: round2(sumOperating),
+      hasCycleTimeAnomaly: summary.hasCycleTimeAnomaly,
+      anomalyReason: anomalyLine?.performanceDetail.anomalyReason,
+      sixBigLossesBreakdown: summary.sixBigLossesBreakdown,
+      sixBigLossesPareto: summary.sixBigLossesPareto,
+      lineResults: summary.lineResults,
+      activeShiftCount: 1
+    };
+  }
+
+  // Multi-shift aggregation (Semua Shift / 24 Jam)
+  const collectedLineResults: LineShiftOeeResult[] = [];
+  for (const sNum of shiftsToAggregate) {
+    if (lineId !== 'ALL') {
+      collectedLineResults.push(
+        calculateLineShiftOee({
+          state,
+          lineId,
+          dateStr,
+          shift: sNum,
+          nowMs,
+          targetOeePct: effectiveTargetOee,
+          iiotEvents: params.iiotEvents
+        })
+      );
+    } else {
+      const sSummary = calculateShiftAllLinesOee(
+        state,
+        dateStr,
+        sNum,
+        nowMs,
+        undefined,
+        params.iiotEvents,
+        effectiveTargetOee
+      );
+      collectedLineResults.push(...sSummary.lineResults);
+    }
+  }
+
+  const sumPlanned = collectedLineResults.reduce(
+    (s, r) => s + r.availabilityDetail.plannedProductionTimeMinutes,
+    0
+  );
+  const sumOperating = collectedLineResults.reduce(
+    (s, r) => s + r.availabilityDetail.operatingTimeMinutes,
+    0
+  );
+  const sumIdealOperating = collectedLineResults.reduce(
+    (s, r) => s + r.performanceDetail.idealOperatingMinutes,
+    0
+  );
+  const totalOutputCartons = collectedLineResults.reduce((s, r) => s + r.totalOutputCartons, 0);
+  const goodOutputCartons = round2(collectedLineResults.reduce((s, r) => s + r.goodOutputCartons, 0));
+
+  const availability = sumPlanned > 0 ? clampPct((sumOperating / sumPlanned) * 100) : 0;
+  const performance = sumOperating > 0 ? clampPct((sumIdealOperating / sumOperating) * 100) : 0;
+  const quality =
+    totalOutputCartons > 0
+      ? clampPct((goodOutputCartons / totalOutputCartons) * 100)
+      : collectedLineResults.some(r => r.quality < 100)
+      ? 0
+      : 100;
+  const oeeScore = calculateCompositeOee(availability, performance, quality);
+  const oeeTargetVariancePct = round2(oeeScore - effectiveTargetOee);
+  const anomalyLine = collectedLineResults.find(r => r.performanceDetail.isCycleTimeAnomaly);
+
+  const sumStdBom = collectedLineResults.reduce(
+    (s, r) => s + r.qualityDetail.materialVariance.standardBomMaterialKg,
+    0
+  );
+  const sumActualBom = collectedLineResults.reduce(
+    (s, r) => s + r.qualityDetail.materialVariance.totalActualMaterialKg,
+    0
+  );
+  const materialVariancePct =
+    sumStdBom > 0
+      ? round2(((sumActualBom - sumStdBom) / sumStdBom) * 100)
+      : sumActualBom > 0
+      ? 100
+      : 0;
+
+  const emptyBucket = (): SixBigLossBucket => ({ minutes: 0, lossKg: 0 });
+  const sixBigLossesBreakdown: SixBigLossesBreakdown = {
+    equipmentFailure: emptyBucket(),
+    setupAdjustment: emptyBucket(),
+    idlingMinorStops: emptyBucket(),
+    reducedSpeed: emptyBucket(),
+    processDefects: emptyBucket(),
+    reducedYield: emptyBucket()
+  };
+
+  const cartonLossByKey: Record<SixBigLossParetoKey, number> = {
+    equipmentFailure: 0,
+    setupAdjustment: 0,
+    idlingMinorStops: 0,
+    reducedSpeed: 0,
+    processDefects: 0,
+    reducedYield: 0
+  };
+
+  for (const r of collectedLineResults) {
+    (Object.keys(sixBigLossesBreakdown) as SixBigLossParetoKey[]).forEach(key => {
+      sixBigLossesBreakdown[key].minutes = round2(
+        sixBigLossesBreakdown[key].minutes + r.sixBigLossesBreakdown[key].minutes
+      );
+      sixBigLossesBreakdown[key].lossKg = round3(
+        sixBigLossesBreakdown[key].lossKg + r.sixBigLossesBreakdown[key].lossKg
+      );
+    });
+    for (const pItem of r.sixBigLossesPareto) {
+      cartonLossByKey[pItem.key] = round2(cartonLossByKey[pItem.key] + pItem.equivalentLossCartons);
+    }
+  }
+
+  const sixBigLossesPareto = finalizeParetoList(
+    PARETO_META.map(meta => ({
+      tpmNumber: meta.tpmNumber,
+      key: meta.key,
+      category: meta.category,
+      label: meta.label,
+      pillar: meta.pillar,
+      durationMinutes: sixBigLossesBreakdown[meta.key].minutes,
+      equivalentLossKg: sixBigLossesBreakdown[meta.key].lossKg,
+      equivalentLossCartons: cartonLossByKey[meta.key]
+    }))
+  );
+
+  return {
+    dateStr,
+    shiftScope,
+    lineId,
+    lineName,
+    availability,
+    performance,
+    quality,
+    oeeScore,
+    targetOeePct: effectiveTargetOee,
+    oeeTargetVariancePct,
+    availabilityTargetPct: DEFAULT_TARGET_AVAILABILITY_PCT,
+    performanceTargetPct: DEFAULT_TARGET_PERFORMANCE_PCT,
+    qualityTargetPct: DEFAULT_TARGET_QUALITY_PCT,
+    materialVariancePct,
+    totalOutputCartons,
+    goodOutputCartons,
+    plannedProductionTimeMinutes: round2(sumPlanned),
+    operatingTimeMinutes: round2(sumOperating),
+    hasCycleTimeAnomaly: Boolean(anomalyLine),
+    anomalyReason: anomalyLine?.performanceDetail.anomalyReason,
+    sixBigLossesBreakdown,
+    sixBigLossesPareto,
+    lineResults: collectedLineResults,
+    activeShiftCount: shiftsToAggregate.length
   };
 }

@@ -672,11 +672,18 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
         shift: currentLiveShift.shift,
         nowMs
       });
+      const topLoss = lineRes.sixBigLossesPareto.find(
+        p => p.durationMinutes > 0 || p.equivalentLossKg > 0
+      );
       return {
         availability: lineRes.availability,
         performance: lineRes.performance,
         quality: lineRes.quality,
         oeeScore: lineRes.oeeScore,
+        targetOeePct: lineRes.targetOeePct,
+        oeeTargetVariancePct: lineRes.oeeTargetVariancePct,
+        isCycleTimeAnomaly: lineRes.performanceDetail.isCycleTimeAnomaly,
+        topLoss,
         materialVariancePct: lineRes.materialVariancePct
       };
     }
@@ -686,11 +693,18 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
       currentLiveShift.shift,
       nowMs
     );
+    const topLoss = allRes.sixBigLossesPareto.find(
+      p => p.durationMinutes > 0 || p.equivalentLossKg > 0
+    );
     return {
       availability: allRes.availability,
       performance: allRes.performance,
       quality: allRes.quality,
       oeeScore: allRes.oeeScore,
+      targetOeePct: allRes.targetOeePct,
+      oeeTargetVariancePct: allRes.oeeTargetVariancePct,
+      isCycleTimeAnomaly: allRes.hasCycleTimeAnomaly,
+      topLoss,
       materialVariancePct: allRes.materialVariancePct
     };
   }, [state, metricLineObj, todayDateString, currentLiveShift.shift, now]);
@@ -2066,17 +2080,38 @@ export const ProductionTargetPanel: React.FC<ProductionTargetPanelProps> = ({
                 </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-border-subtle">
-                <span className="text-ink-secondary">OEE Shift {currentLiveShift.shift}:</span>
+                <span className="text-ink-secondary">
+                  OEE Shift {currentLiveShift.shift} (Target {unifiedShiftOee.targetOeePct}%):
+                </span>
                 <span className="font-mono font-bold text-brand tabular-nums">
-                  {unifiedShiftOee.oeeScore.toFixed(1)}%
+                  {unifiedShiftOee.oeeScore.toFixed(1)}%{' '}
+                  <span
+                    className={`text-[10px] ${
+                      unifiedShiftOee.oeeTargetVariancePct >= 0 ? 'text-ink-emerald' : 'text-ink-rose'
+                    }`}
+                  >
+                    ({unifiedShiftOee.oeeTargetVariancePct >= 0 ? '+' : ''}
+                    {unifiedShiftOee.oeeTargetVariancePct.toFixed(1)}%)
+                  </span>
                 </span>
               </div>
               <div className="flex justify-between text-[10px] font-mono text-ink-secondary tabular-nums">
-                <span>A: {unifiedShiftOee.availability.toFixed(0)}% · P: {unifiedShiftOee.performance.toFixed(0)}% · Q: {unifiedShiftOee.quality.toFixed(0)}%</span>
+                <span>
+                  A: {unifiedShiftOee.availability.toFixed(0)}% · P: {unifiedShiftOee.performance.toFixed(0)}%
+                  {unifiedShiftOee.isCycleTimeAnomaly ? ' (!)' : ''} · Q: {unifiedShiftOee.quality.toFixed(0)}%
+                </span>
                 <span className={unifiedShiftOee.materialVariancePct > 0 ? 'text-ink-amber' : 'text-ink-emerald'}>
                   Var: {unifiedShiftOee.materialVariancePct > 0 ? `+${unifiedShiftOee.materialVariancePct.toFixed(1)}%` : `${unifiedShiftOee.materialVariancePct.toFixed(1)}%`}
                 </span>
               </div>
+              {unifiedShiftOee.topLoss && (
+                <div className="flex justify-between text-[10px] text-ink-secondary pt-0.5">
+                  <span className="truncate pr-2">Top Loss: {unifiedShiftOee.topLoss.label}</span>
+                  <span className="font-mono font-semibold text-ink-rose shrink-0 tabular-nums">
+                    {unifiedShiftOee.topLoss.durationMinutes}m ({unifiedShiftOee.topLoss.contributionPct.toFixed(0)}%)
+                  </span>
+                </div>
+              )}
             </div>
 
             {onSwitchTab && (

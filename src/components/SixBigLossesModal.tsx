@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   X,
   AlertTriangle,
@@ -8,20 +8,28 @@ import {
   User,
   ShieldAlert,
   MessageCircle,
-  Phone
+  Phone,
+  Activity,
+  TrendingDown
 } from 'lucide-react';
 import {
+  AppState,
   SixBigLossCategory,
   ProductionStopLog,
   ShiftNumber
 } from '../types';
 import { getCurrentShift } from '../utils/shifts';
 import { isWhatsAppEligibleSblCategory, loadWhatsAppRecipients } from '../utils/whatsappReport';
+import { useOptionalErp } from '../context/ErpContext';
 import {
   SIX_BIG_LOSS_CATEGORIES,
   SixBigLossCategoryMeta,
+  SixBigLossParetoItem,
+  DEFAULT_TARGET_OEE_PCT,
   getSixBigLossCategoryMeta,
-  buildProductionStopLogPayload
+  buildProductionStopLogPayload,
+  calculateLineShiftOee,
+  calculateShiftAllLinesOee
 } from '../utils/oeeEngine';
 
 interface SixBigLossesModalProps {
@@ -54,6 +62,7 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
   onConfirmStop,
   showToast
 }) => {
+  const erp = useOptionalErp();
   const currentShift = getCurrentShift();
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<SixBigLossCategory>('EQUIPMENT_FAILURE');
   const [selectedSubReason, setSelectedSubReason] = useState<string>(
@@ -70,10 +79,112 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
   const [whatsappPhone, setWhatsappPhone] = useState<string>('');
   const savedWaRecipients = loadWhatsAppRecipients();
 
-  if (!isOpen) return null;
-
   const currentCategoryMeta = getSixBigLossCategoryMeta(selectedCategoryKey);
   const isWaEligible = isWhatsAppEligibleSblCategory(currentCategoryMeta.key);
+  const parsedDuration = Math.max(0, parseInt(durationMinutes, 10) || 0);
+
+  const liveOeePreview = useMemo(() => {
+    if (!isOpen || !erp?.state) return null;
+    const todayDateStr = new Date().toISOString().slice(0, 10);
+    const baseState = erp.state;
+
+    const baseline = lineId
+      ? calculateLineShiftOee({
+          state: baseState,
+          lineId,
+          dateStr: todayDateStr,
+          shift: shiftNum,
+          skuId: skuId || undefined
+        })
+      : shiftNum === currentShift.shift
+      ? erp.liveOeeSummary
+      : calculateShiftAllLinesOee(baseState, todayDateStr, shiftNum);
+
+    const previewStop: ProductionStopLog = {
+      id: '__sbl_preview__',
+      ...buildProductionStopLogPayload({
+        lineId,
+        lineName,
+        skuId,
+        skuName,
+        skuCode,
+        shift: shiftNum,
+        startedAt,
+        durationMinutes: parsedDuration,
+        category: currentCategoryMeta.key,
+        selectedSubReason,
+        customReason,
+        actionTaken,
+        operatorName,
+        technicianName,
+        notes,
+        cartonsProducedDuringRun
+      })
+    };
+
+    const projectedState: AppState = {
+      ...baseState,
+      transactions: {
+        ...baseState.transactions,
+        productionStops: [previewStop, ...(baseState.transactions.productionStops || [])]
+      }
+    };
+
+    const projected = lineId
+      ? calculateLineShiftOee({
+          state: projectedState,
+          lineId,
+          dateStr: todayDateStr,
+          shift: shiftNum,
+          skuId: skuId || undefined
+        })
+      : calculateShiftAllLinesOee(projectedState, todayDateStr, shiftNum);
+
+    const isCycleTimeAnomaly =
+      'performanceDetail' in baseline
+        ? baseline.performanceDetail.isCycleTimeAnomaly
+        : baseline.hasCycleTimeAnomaly;
+
+    const topPareto: SixBigLossParetoItem[] = projected.sixBigLossesPareto
+      .filter(item => item.durationMinutes > 0 || item.equivalentLossKg > 0)
+      .slice(0, 3);
+
+    return {
+      baselineOee: baseline.oeeScore,
+      projectedOee: projected.oeeScore,
+      oeeDelta: Math.round((projected.oeeScore - baseline.oeeScore) * 100) / 100,
+      targetOeePct: projected.targetOeePct ?? DEFAULT_TARGET_OEE_PCT,
+      targetVariancePct: projected.oeeTargetVariancePct,
+      availability: projected.availability,
+      performance: projected.performance,
+      quality: projected.quality,
+      isCycleTimeAnomaly,
+      topPareto
+    };
+  }, [
+    isOpen,
+    erp?.state,
+    erp?.liveOeeSummary,
+    lineId,
+    lineName,
+    skuId,
+    skuName,
+    skuCode,
+    shiftNum,
+    currentShift.shift,
+    startedAt,
+    parsedDuration,
+    currentCategoryMeta.key,
+    selectedSubReason,
+    customReason,
+    actionTaken,
+    operatorName,
+    technicianName,
+    notes,
+    cartonsProducedDuringRun
+  ]);
+
+  if (!isOpen) return null;
 
   const handleSelectCategory = (cat: SixBigLossCategoryMeta) => {
     setSelectedCategoryKey(cat.key);
@@ -187,6 +298,97 @@ export const SixBigLossesModal: React.FC<SixBigLossesModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Unified Real-Time OEE & Six Big Losses Pareto Impact */}
+          {liveOeePreview && (
+            <div className="bg-slate-900 text-slate-100 border border-slate-700 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <Activity className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                    Dampak OEE Real-Time &amp; Pareto Six Big Losses
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-[11px]">
+                  {liveOeePreview.isCycleTimeAnomaly && (
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 font-bold">
+                      Anomali Cycle Time (&gt;100%)
+                    </span>
+                  )}
+                  <span className="text-slate-300">
+                    Target {liveOeePreview.targetOeePct}% · Deviasi:{' '}
+                    <strong
+                      className={
+                        liveOeePreview.targetVariancePct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }
+                    >
+                      {liveOeePreview.targetVariancePct >= 0
+                        ? `+${liveOeePreview.targetVariancePct.toFixed(1)}%`
+                        : `${liveOeePreview.targetVariancePct.toFixed(1)}%`}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+                <div className="bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-2">
+                  <span className="text-[10px] text-slate-400 block">Proyeksi OEE</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-sm font-extrabold text-cyan-300">
+                      {liveOeePreview.projectedOee.toFixed(1)}%
+                    </span>
+                    {liveOeePreview.oeeDelta !== 0 && (
+                      <span className="text-[10px] text-rose-400 inline-flex items-center">
+                        <TrendingDown className="w-3 h-3 mr-0.5" />
+                        {liveOeePreview.oeeDelta.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-2">
+                  <span className="text-[10px] text-slate-400 block">Availability</span>
+                  <span className="text-sm font-bold text-slate-100">
+                    {liveOeePreview.availability.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-2">
+                  <span className="text-[10px] text-slate-400 block">Performance</span>
+                  <span className="text-sm font-bold text-slate-100">
+                    {liveOeePreview.performance.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-2">
+                  <span className="text-[10px] text-slate-400 block">Quality</span>
+                  <span className="text-sm font-bold text-slate-100">
+                    {liveOeePreview.quality.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              {liveOeePreview.topPareto.length > 0 && (
+                <div className="pt-2 border-t border-slate-700/80 space-y-1">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                    Top Kontributor Kerugian Shift (Pareto):
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    {liveOeePreview.topPareto.map(item => (
+                      <div
+                        key={item.key}
+                        className="bg-slate-800/70 border border-slate-700 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-[10px]"
+                      >
+                        <span className="text-slate-200 font-semibold truncate">
+                          #{item.rank} {item.label}
+                        </span>
+                        <span className="font-mono font-bold text-rose-300 shrink-0">
+                          {item.durationMinutes}m ({item.contributionPct.toFixed(0)}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Six Big Losses Category Selector Grid */}
           <div className="space-y-2">

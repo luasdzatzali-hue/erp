@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 import { AppState } from '../types';
 import {
@@ -7,6 +7,12 @@ import {
   pruneOldLocalTransactions
 } from '../utils/storage';
 import { enforceHttpsTransport } from '../utils/security';
+import { getCurrentShift } from '../utils/shifts';
+import {
+  calculateShiftAllLinesOee,
+  LineShiftOeeResult,
+  ShiftAllLinesOeeSummary
+} from '../utils/oeeEngine';
 import { useFirebaseSyncManager } from '../hooks/useFirebaseSyncManager';
 import { useMasterData } from '../hooks/useMasterData';
 import { useProductionTransactions } from '../hooks/useProductionTransactions';
@@ -115,12 +121,51 @@ function useErpController() {
     return registerLogoutUiReset(sessionUi.resetAllUiOnLogout);
   }, [registerLogoutUiReset, sessionUi.resetAllUiOnLogout]);
 
+  const currentLiveShift = getCurrentShift();
+  const currentOeeDateStr = new Date().toISOString().slice(0, 10);
+
+  const liveOeeSummary: ShiftAllLinesOeeSummary = useMemo(() => {
+    return calculateShiftAllLinesOee(state, currentOeeDateStr, currentLiveShift.shift);
+  }, [
+    state.cloudWorkspaceId,
+    state.activeSkuRun,
+    state.activeSkuRuns,
+    state.master.productionLines,
+    state.master.skus,
+    state.master.skuWips,
+    state.master.wips,
+    state.master.wipMats,
+    state.master.recipes,
+    state.master.materials,
+    state.master.machines,
+    state.master.tanks,
+    state.transactions.cartonProductions,
+    state.transactions.productionStops,
+    state.transactions.changeovers,
+    state.transactions.wipBatches,
+    state.transactions.rejectLogs,
+    state.transactions.usages,
+    state.transactions.tankLogs,
+    currentOeeDateStr,
+    currentLiveShift.shift
+  ]);
+
+  const liveOeeByLineId = useMemo<Record<string, LineShiftOeeResult>>(() => {
+    const map: Record<string, LineShiftOeeResult> = {};
+    for (const res of liveOeeSummary.lineResults) {
+      map[res.lineId] = res;
+    }
+    return map;
+  }, [liveOeeSummary]);
+
   return {
     state,
     setState,
     stateRef,
     master: state.master,
     transactions: state.transactions,
+    liveOeeSummary,
+    liveOeeByLineId,
     showToast,
     registerLogoutUiReset,
     ...firebaseSync,
@@ -145,4 +190,8 @@ export function useErp(): ErpContextValue {
     throw new Error('useErp must be used within an ErpProvider');
   }
   return ctx;
+}
+
+export function useOptionalErp(): ErpContextValue | null {
+  return useContext(ErpContext);
 }
