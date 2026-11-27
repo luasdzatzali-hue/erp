@@ -47,13 +47,14 @@ import {
 import {
   auth,
   AuthErrorDetail,
+  buildCriticalOperationsFingerprint,
+  buildOperationsFingerprint,
   checkFirstTimeSetup,
   CloudQuotaStatus,
   computeDashboardLineDigest,
   computeLineAvailabilitySignature,
   consumeGoogleRedirectResult,
   DashboardLineStatusSnapshot,
-  extractActiveChangeoversFromMachines,
   formatGoogleAuthError,
   getCloudQuotaStatus,
   isCloudWritePaused,
@@ -72,6 +73,7 @@ import {
   subscribeCloudQuotaStatus,
   subscribeToDashboardLineStatus,
   subscribeToWorkspaceCloud,
+  testConnection,
   tripCloudWriteQuotaPause,
   WorkspaceRemotePatch
 } from './utils/firebaseSync';
@@ -263,6 +265,7 @@ export default function App() {
   const [authErrorBanner, setAuthErrorBanner] = useState<AuthErrorDetail | null>(null);
   const [cloudQuotaStatus, setCloudQuotaStatus] = useState<CloudQuotaStatus>(() => getCloudQuotaStatus());
   const [quotaBannerDismissed, setQuotaBannerDismissed] = useState(false);
+  const [isTestingQuotaReset, setIsTestingQuotaReset] = useState(false);
   const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
     useState<DashboardLineStatusSnapshot | null>(null);
 
@@ -360,50 +363,10 @@ export default function App() {
       )
     });
   const serializeOperations = (s: AppState) =>
-    JSON.stringify({
-      explicitOpsVersion: explicitOpsVersionRef.current,
-      // For active running lines, omit continuous Auto [ counter ticks so Cloud Firestore is only written
-      // on Start, Pause, Stop, Complete Line, Shift Handover, or physical transactions.
-      activeSkuRuns: (s.activeSkuRuns || []).map(r =>
-        r.isRunning
-          ? {
-              ...r,
-              cartonsProducedTotal: 0,
-              lastDeductionTime: ''
-            }
-          : r
-      ),
-      tank: s.tank.isSimulationActive ? { ...s.tank, temp: 0 } : s.tank,
-      // Auto [ depletion tank level changes stay local until an explicit action bumps explicitOpsVersion
-      tanks: (s.master.tanks || []).map(({ currentLevelKg: _lvl, ...rest }) => rest),
-      lastShiftHandover: s.lastShiftHandover ?? null,
-      weeklyPlannings: s.weeklyPlannings || [],
-      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null,
-      activeChangeovers: extractActiveChangeoversFromMachines(s.master.machines || []),
-      wipBatches: s.transactions.wipBatches || [],
-      changeovers: s.transactions.changeovers || [],
-      productionStops: s.transactions.productionStops || []
-    });
+    buildOperationsFingerprint(s, explicitOpsVersionRef.current);
 
-  // Structural/critical operations excluding high-frequency Auto [ simulation counter ticks
   const serializeCriticalOperations = (s: AppState) =>
-    JSON.stringify({
-      explicitOpsVersion: explicitOpsVersionRef.current,
-      wipBatches: s.transactions.wipBatches,
-      changeovers: s.transactions.changeovers,
-      productionStops: s.transactions.productionStops,
-      activeChangeovers: extractActiveChangeoversFromMachines(s.master.machines || []),
-      tankStatic: {
-        maxCapacity: s.tank.maxCapacity,
-        minTempTarget: s.tank.minTempTarget,
-        maxTempTarget: s.tank.maxTempTarget,
-        isSimulationActive: s.tank.isSimulationActive,
-        temp: s.tank.isSimulationActive ? 0 : s.tank.temp
-      },
-      lastShiftHandover: s.lastShiftHandover ?? null,
-      weeklyPlannings: s.weeklyPlannings || [],
-      activeWeeklyPlanId: s.activeWeeklyPlanId ?? null
-    });
+    buildCriticalOperationsFingerprint(s, explicitOpsVersionRef.current);
 
   const getActiveRunsArray = (s: AppState) =>
     s.activeSkuRuns || (s.activeSkuRun ? [s.activeSkuRun] : []);
@@ -1201,6 +1164,56 @@ export default function App() {
     }
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline]);
 
+  const handleResetQuotaAndRetrySync = useCallback(async () => {
+    if (isTestingQuotaReset) return;
+    setIsTestingQuotaReset(true);
+    try {
+      resetCloudWriteQuotaPause();
+      const conn = await testConnection({ forceEnableNetwork: true });
+      if (!conn.ok) {
+        if (conn.quotaExceeded) {
+          showToast('Kuota Firestore masih penuh. Operasional tetap aman tersimpan di perangkat lokal.', true);
+        } else if (conn.offline) {
+          showToast('Koneksi ke Cloud Firestore masih offline. Periksa jaringan internet Anda.', true);
+        } else {
+          showToast(`Gagal menguji koneksi Cloud Firestore: ${conn.message || 'Coba lagi nanti.'}`, true);
+        }
+        return;
+      }
+
+      flushAutoCartonBuffer();
+      const latestState = stateRef.current;
+      const role = getEffectiveRoleForState(latestState);
+      if (
+        setupStatus === 'ready' &&
+        firebaseUser &&
+        cloudAuthRole &&
+        latestState.cloudOwnerUid &&
+        role.canWriteCloudOperations &&
+        (cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR')
+      ) {
+        pendingCloudSectionsRef.current.operations = true;
+      }
+      await flushPendingCloudWrites();
+      if (isCloudWritePaused()) {
+        showToast('Kuota tulis harian Firestore masih penuh di server. Coba kembali setelah reset jam 15.00 WIB.', true);
+      } else {
+        showToast('Status kuota direset & koneksi Cloud Firestore aktif! Sinkronisasi cloud dilanjutkan.');
+      }
+    } finally {
+      setIsTestingQuotaReset(false);
+    }
+  }, [
+    isTestingQuotaReset,
+    flushAutoCartonBuffer,
+    getEffectiveRoleForState,
+    setupStatus,
+    firebaseUser,
+    cloudAuthRole,
+    flushPendingCloudWrites,
+    showToast
+  ]);
+
   const performCompleteLogout = useCallback(async (toastMessage: string) => {
     // Prevent re-hydration or interval updates from keeping the dashboard mounted
     isLoggingOutRef.current = true;
@@ -1439,9 +1452,9 @@ export default function App() {
       curLineAvailSig !== prevSnaps.lineAvailSig ||
       curCriticalOpsSig !== prevSnaps.criticalOpsSig;
 
-    // Discrete edits flush quickly (~0.8s–2s); steady auto-production counter ticks batch every 20s–60s to preserve Firestore daily write quota
-    const writeDebounceMs = isCriticalChange ? 800 : 20_000;
-    const writeMaxWaitMs = isCriticalChange ? 2000 : 60_000;
+    // Only discrete operational transitions & physical transactions trigger saveWorkspaceSectionsToCloud
+    const writeDebounceMs = isCriticalChange ? 800 : 2000;
+    const writeMaxWaitMs = isCriticalChange ? 2000 : 4000;
 
     if (cloudWriteTimersRef.current.debounceTimer) {
       clearTimeout(cloudWriteTimersRef.current.debounceTimer);
@@ -6075,7 +6088,15 @@ export default function App() {
               <div className="min-w-0 leading-snug">
                 <span className="font-bold">Kuota Tulis Harian Cloud Penuh: </span>
                 <span className="text-ink-primary">
-                  Batas gratis tulis harian Firestore tercapai dan akan reset otomatis besok. Operasional & data tetap tersimpan aman di perangkat lokal.
+                  Batas gratis tulis harian Firestore tercapai
+                  {cloudQuotaStatus.pausedUntilMs
+                    ? ` (reset otomatis sekitar ${new Date(cloudQuotaStatus.pausedUntilMs).toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Asia/Jakarta'
+                      })} WIB)`
+                    : ' dan akan reset otomatis besok'}
+                  . Operasional & data tetap tersimpan aman di perangkat lokal.
                 </span>{' '}
                 <a
                   href={cloudQuotaStatus.upgradeUrl}
@@ -6090,16 +6111,16 @@ export default function App() {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  resetCloudWriteQuotaPause();
-                  flushAutoCartonBuffer();
-                  void flushPendingCloudWrites();
-                  showToast('Mencoba sinkronisasi cloud ulang...');
-                }}
-                className="px-2.5 py-1 rounded-md bg-surface hover:bg-elevated border border-tint-amber-border text-ink-primary text-[11px] font-semibold flex items-center gap-1 transition"
+                disabled={isTestingQuotaReset}
+                onClick={() => void handleResetQuotaAndRetrySync()}
+                className="px-2.5 py-1 rounded-md bg-surface hover:bg-elevated disabled:opacity-60 border border-tint-amber-border text-ink-primary text-[11px] font-semibold flex items-center gap-1.5 transition"
               >
-                <RefreshCw className="w-3 h-3" />
-                <span>Coba Sinkron Ulang</span>
+                <RefreshCw className={`w-3 h-3 ${isTestingQuotaReset ? 'animate-spin' : ''}`} />
+                <span>
+                  {isTestingQuotaReset
+                    ? 'Menguji Koneksi Cloud...'
+                    : 'Reset Status Kuota & Coba Sinkron Cloud'}
+                </span>
               </button>
               <button
                 type="button"

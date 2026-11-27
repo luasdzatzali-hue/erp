@@ -1,13 +1,17 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+  buildCriticalOperationsFingerprint,
+  buildOperationsFingerprint,
   getCloudQuotaStatus,
   getNextFirestoreDailyQuotaResetMs,
   isCloudWritePaused,
   isQuotaExceededError,
   resetCloudWriteQuotaPause,
   subscribeCloudQuotaStatus,
+  testConnection,
   tripCloudWriteQuotaPause
 } from '../firebaseSync';
+import { getSampleState } from '../storage';
 
 describe('Firestore write quota circuit breaker', () => {
   beforeEach(() => {
@@ -65,4 +69,84 @@ describe('Firestore write quota circuit breaker', () => {
     unsub();
     expect(observedStates).toEqual([false, true, false]);
   });
+
+  it('keeps buildOperationsFingerprint stable across Auto [ ticks and tank temperature simulation', () => {
+    const base = getSampleState();
+    const tankId = base.master.tanks[0]?.id || 'tank_1';
+    const runningState = {
+      ...base,
+      tank: {
+        ...base.tank,
+        isSimulationActive: true,
+        temp: 48.2
+      },
+      activeSkuRuns: [
+        {
+          id: 'run_line_a_1',
+          lineId: 'line_a',
+          lineName: 'Line A',
+          skuId: base.master.skus[0]?.id || 'sku_1',
+          skuName: base.master.skus[0]?.name || 'SKU Test',
+          shift: 1 as const,
+          startedAt: '2026-11-26T07:00:00.000Z',
+          isRunning: true,
+          completionStatus: 'RUNNING' as const,
+          cartonsProducedTotal: 10,
+          lastDeductionTime: '2026-11-26T07:01:00.000Z'
+        }
+      ]
+    };
+
+    const fpStart = buildOperationsFingerprint(runningState, 1);
+
+    // Simulate multiple Auto [ ticks: cartonsProducedTotal, lastDeductionTime, tank currentLevelKg, and simulated temp change
+    const afterAutoTicks = {
+      ...runningState,
+      tank: {
+        ...runningState.tank,
+        temp: 52.9
+      },
+      master: {
+        ...runningState.master,
+        tanks: runningState.master.tanks.map((t, idx) =>
+          idx === 0 || t.id === tankId
+            ? { ...t, currentLevelKg: Math.max(0, t.currentLevelKg - 125.5) }
+            : t
+        )
+      },
+      activeSkuRuns: runningState.activeSkuRuns.map(r => ({
+        ...r,
+        cartonsProducedTotal: 250,
+        lastDeductionTime: '2026-11-26T07:30:00.000Z'
+      }))
+    };
+
+    expect(buildOperationsFingerprint(afterAutoTicks, 1)).toBe(fpStart);
+    expect(buildCriticalOperationsFingerprint(afterAutoTicks, 1)).toBe(
+      buildCriticalOperationsFingerprint(runningState, 1)
+    );
+
+    // Discrete status change (e.g., Complete Line / Stop / Pause) MUST change the fingerprint
+    const completedState = {
+      ...afterAutoTicks,
+      activeSkuRuns: afterAutoTicks.activeSkuRuns.map(r => ({
+        ...r,
+        isRunning: false,
+        completionStatus: 'COMPLETED' as const,
+        completedAt: '2026-11-26T07:31:00.000Z'
+      }))
+    };
+    expect(buildOperationsFingerprint(completedState, 2)).not.toBe(fpStart);
+
+    // Explicit tank top-up / transfer (bumping explicitOpsVersion) MUST change the fingerprint
+    expect(buildOperationsFingerprint(afterAutoTicks, 2)).not.toBe(fpStart);
+  });
+
+  it('runs testConnection cleanly without throwing even while cloud write quota is paused', async () => {
+    tripCloudWriteQuotaPause('Quota pause check');
+    const result = await testConnection();
+    expect(result).toHaveProperty('ok');
+    expect(result.quotaPaused).toBe(true);
+  });
 });
+

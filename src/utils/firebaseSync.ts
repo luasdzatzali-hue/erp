@@ -433,17 +433,58 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-async function testConnection() {
-  if (isCloudWritePaused()) return;
+export interface CloudConnectionTestResult {
+  ok: boolean;
+  quotaPaused: boolean;
+  offline?: boolean;
+  quotaExceeded?: boolean;
+  message?: string;
+}
+
+export async function testConnection(options?: {
+  forceEnableNetwork?: boolean;
+}): Promise<CloudConnectionTestResult> {
+  if (options?.forceEnableNetwork && typeof window !== 'undefined') {
+    await enableNetwork(db).catch(() => {});
+  }
+  const paused = isCloudWritePaused();
   try {
+    // Lightweight 1-read server check (0 writes; safe to probe even when write quota pause is active)
     await getDocFromServer(doc(db, 'test', 'connection'));
+    return {
+      ok: true,
+      quotaPaused: paused
+    };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
+    const msg = error instanceof Error ? error.message : String(error);
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return {
+        ok: false,
+        quotaPaused: true,
+        quotaExceeded: true,
+        message: msg
+      };
     }
+    if (msg.includes('the client is offline') || msg.toLowerCase().includes('offline')) {
+      if (!paused) {
+        console.error('Please check your Firebase configuration.');
+      }
+      return {
+        ok: false,
+        quotaPaused: paused,
+        offline: true,
+        message: msg
+      };
+    }
+    return {
+      ok: false,
+      quotaPaused: paused,
+      message: msg
+    };
   }
 }
-testConnection();
+void testConnection();
 
 function isOfflineOrTransientError(error: any): boolean {
   const code = String(error?.code || '').toLowerCase();
@@ -595,6 +636,59 @@ export function buildBoundedOperationsPayload(state: AppState) {
     wipBatches: keepRecent(state.transactions.wipBatches, 200),
     changeovers: keepRecent(state.transactions.changeovers, 150),
     productionStops: keepRecent(state.transactions.productionStops, 200)
+  });
+}
+
+/**
+ * Pure fingerprint for `data/operations` cloud sync detection.
+ * Strips continuous simulation fields (`cartonsProducedTotal`, `lastDeductionTime` on running lines,
+ * `master.tanks[*].currentLevelKg`, and simulated `tank.temp`) so Auto [ / setInterval ticks
+ * never trigger Cloud Firestore writes. Discrete lifecycle & physical transaction actions bump
+ * `explicitOpsVersion` or mutate discrete fields.
+ */
+export function buildOperationsFingerprint(state: AppState, explicitOpsVersion = 0): string {
+  const runs = state.activeSkuRuns || (state.activeSkuRun ? [state.activeSkuRun] : []);
+  return JSON.stringify({
+    explicitOpsVersion,
+    activeSkuRuns: runs.map(r =>
+      r.isRunning
+        ? {
+            ...r,
+            cartonsProducedTotal: 0,
+            lastDeductionTime: ''
+          }
+        : r
+    ),
+    tank: state.tank.isSimulationActive ? { ...state.tank, temp: 0 } : state.tank,
+    tanks: (state.master.tanks || []).map(({ currentLevelKg: _lvl, ...rest }) => rest),
+    lastShiftHandover: state.lastShiftHandover ?? null,
+    weeklyPlannings: state.weeklyPlannings || [],
+    activeWeeklyPlanId: state.activeWeeklyPlanId ?? null,
+    activeChangeovers: extractActiveChangeoversFromMachines(state.master.machines || []),
+    wipBatches: state.transactions.wipBatches || [],
+    changeovers: state.transactions.changeovers || [],
+    productionStops: state.transactions.productionStops || []
+  });
+}
+
+export function buildCriticalOperationsFingerprint(state: AppState, explicitOpsVersion = 0): string {
+  return JSON.stringify({
+    explicitOpsVersion,
+    wipBatches: state.transactions.wipBatches,
+    changeovers: state.transactions.changeovers,
+    productionStops: state.transactions.productionStops,
+    activeChangeovers: extractActiveChangeoversFromMachines(state.master.machines || []),
+    tankStatic: {
+      level: state.tank.level,
+      maxCapacity: state.tank.maxCapacity,
+      minTempTarget: state.tank.minTempTarget,
+      maxTempTarget: state.tank.maxTempTarget,
+      isSimulationActive: state.tank.isSimulationActive,
+      temp: state.tank.isSimulationActive ? 0 : state.tank.temp
+    },
+    lastShiftHandover: state.lastShiftHandover ?? null,
+    weeklyPlannings: state.weeklyPlannings || [],
+    activeWeeklyPlanId: state.activeWeeklyPlanId ?? null
   });
 }
 
