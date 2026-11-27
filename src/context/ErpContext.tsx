@@ -10,6 +10,7 @@ import { enforceHttpsTransport } from '../utils/security';
 import { useFirebaseSyncManager } from '../hooks/useFirebaseSyncManager';
 import { useMasterData } from '../hooks/useMasterData';
 import { useProductionTransactions } from '../hooks/useProductionTransactions';
+import { useWorkspaceSessionUi } from '../hooks/useWorkspaceSessionUi';
 
 type LogoutUiResetCallback = () => void;
 
@@ -92,11 +93,27 @@ function useErpController() {
     showToast
   });
 
+  const sessionUi = useWorkspaceSessionUi({
+    state,
+    setState,
+    stateRef,
+    setupStatus: firebaseSync.setupStatus,
+    firebaseUser: firebaseSync.firebaseUser,
+    cloudAuthRole: firebaseSync.cloudAuthRole,
+    getEffectiveRoleForState: firebaseSync.getEffectiveRoleForState,
+    performCompleteLogout: firebaseSync.performCompleteLogout,
+    showToast
+  });
+
   useEffect(() => {
     clearAlarmRef.current = () => {
       productionTransactions.setAlarmWipBatch(null);
     };
   }, [productionTransactions.setAlarmWipBatch]);
+
+  useEffect(() => {
+    return registerLogoutUiReset(sessionUi.resetAllUiOnLogout);
+  }, [registerLogoutUiReset, sessionUi.resetAllUiOnLogout]);
 
   return {
     state,
@@ -108,7 +125,8 @@ function useErpController() {
     registerLogoutUiReset,
     ...firebaseSync,
     ...masterData,
-    ...productionTransactions
+    ...productionTransactions,
+    ...sessionUi
   };
 }
 

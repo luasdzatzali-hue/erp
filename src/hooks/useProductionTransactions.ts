@@ -2401,6 +2401,90 @@ export function useProductionTransactions({
     });
   };
 
+  // Update Usage (edit qty, sourceLocation, operator, or notes)
+  const handleUpdateUsage = (
+    usageId: string,
+    updates: Partial<Pick<MaterialUsage, 'usageQty' | 'sourceLocation' | 'operatorName' | 'notes' | 'shift'>>
+  ) => {
+    const existing = stateRef.current.transactions.usages.find(u => u.id === usageId);
+    if (!existing) {
+      showToast('Data pemakaian material tidak ditemukan', true);
+      return;
+    }
+
+    const nextQty =
+      updates.usageQty !== undefined && Number.isFinite(updates.usageQty) && updates.usageQty >= 0
+        ? updates.usageQty
+        : existing.usageQty;
+    const nextLocation = updates.sourceLocation ?? existing.sourceLocation;
+
+    markExplicitOperationsWrite();
+
+    setState(prev => {
+      const mObj = prev.master.materials.find(m => m.id === existing.materialId);
+      const isLiquid = mObj?.type === 'liquid';
+      const prevUsedFromTank = existing.sourceLocation === 'STORAGE_TANK' || isLiquid ? existing.usageQty : 0;
+      const nextUsedFromTank = nextLocation === 'STORAGE_TANK' || isLiquid ? nextQty : 0;
+      const tankDelta = prevUsedFromTank - nextUsedFromTank;
+
+      return {
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          usages: prev.transactions.usages.map(u =>
+            u.id === usageId
+              ? {
+                  ...u,
+                  ...updates,
+                  usageQty: nextQty,
+                  sourceLocation: nextLocation
+                }
+              : u
+          )
+        },
+        tank: {
+          ...prev.tank,
+          level: Math.max(0, Math.min(prev.tank.maxCapacity, prev.tank.level + tankDelta))
+        }
+      };
+    });
+
+    showToast(`Transaksi pemakaian ${existing.usageNumber} berhasil diperbarui`);
+  };
+
+  // Delete Usage
+  const handleDeleteUsage = (usageId: string) => {
+    const existing = stateRef.current.transactions.usages.find(u => u.id === usageId);
+    if (!existing) {
+      showToast('Data pemakaian material tidak ditemukan', true);
+      return;
+    }
+
+    markExplicitOperationsWrite();
+
+    setState(prev => {
+      const mObj = prev.master.materials.find(m => m.id === existing.materialId);
+      const shouldRestoreTank = existing.sourceLocation === 'STORAGE_TANK' || mObj?.type === 'liquid';
+      const restoredTankLevel = shouldRestoreTank
+        ? Math.min(prev.tank.maxCapacity, prev.tank.level + existing.usageQty)
+        : prev.tank.level;
+
+      return {
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          usages: prev.transactions.usages.filter(u => u.id !== usageId)
+        },
+        tank: {
+          ...prev.tank,
+          level: restoredTankLevel
+        }
+      };
+    });
+
+    showToast(`Transaksi pemakaian ${existing.usageNumber} telah dihapus`);
+  };
+
   // Start WIP Production Batch
   const handleStartWipBatch = (batchData: Omit<WipProductionBatch, 'id' | 'batchCode' | 'status' | 'startedAt'>) => {
     const currentState = stateRef.current;
@@ -2976,6 +3060,8 @@ export function useProductionTransactions({
     handleDeleteWeeklyPlan,
     handleReceiveMaterial,
     handleRecordUsage,
+    handleUpdateUsage,
+    handleDeleteUsage,
     handleStartWipBatch,
     handlePauseWipBatch,
     handleResumeWipBatch,
