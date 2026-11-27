@@ -29,7 +29,7 @@ import {
 } from '../../../types';
 import { useErp } from '../../../context/ErpContext';
 import { calculateStockBalances } from '../../../utils/storage';
-import { getCurrentShift } from '../../../utils/shifts';
+import { getCurrentShift, ShiftNumber } from '../../../utils/shifts';
 import { formatPauseDurationMs, SuggestedWipsFromScanState } from './utils';
 
 interface PemakaianFormSectionProps {
@@ -122,6 +122,8 @@ export const PemakaianFormSection: React.FC<PemakaianFormSectionProps> = ({
   const [isDirectUsageOpen, setIsDirectUsageOpen] = useState(false);
   const [directMatId, setDirectMatId] = useState('');
   const [directLocation, setDirectLocation] = useState<StorageLocation>('CK');
+  const [directDate, setDirectDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [directShift, setDirectShift] = useState<ShiftNumber>(() => getCurrentShift().shift);
   const [directQtyKg, setDirectQtyKg] = useState('');
   const [directNotes, setDirectNotes] = useState('');
 
@@ -260,7 +262,6 @@ export const PemakaianFormSection: React.FC<PemakaianFormSectionProps> = ({
       return;
     }
     const lineObj = productionLines.find(l => l.id === selectedLineId);
-    const activeShiftNow = getCurrentShift().shift;
     handleRecordUsage({
       skuId: skuId || '',
       wipId: wipId || '',
@@ -269,12 +270,13 @@ export const PemakaianFormSection: React.FC<PemakaianFormSectionProps> = ({
       batch: 1,
       usageQty: qty,
       sourceLocation: directLocation,
-      shift: activeShiftNow,
-      operatorName: operatorName || `Operator Shift ${activeShiftNow}`,
+      shift: directShift,
+      date: directDate || new Date().toISOString().slice(0, 10),
+      operatorName: operatorName || `Operator Shift ${directShift}`,
       notes: [lineObj ? `[${lineObj.name}]` : '', directNotes || 'Pemakaian bahan baku langsung'].filter(Boolean).join(' ')
     });
     const matObj = state.master.materials.find(m => m.id === directMatId);
-    showToast(`Pemakaian ${matObj?.name || 'material'} (${qty.toFixed(2)} kg) dicatat dari ${directLocation}`);
+    showToast(`Pemakaian ${matObj?.name || 'material'} (${qty.toFixed(2)} kg) dicatat dari ${directLocation} (Shift ${directShift})`);
     setDirectQtyKg('');
     setDirectNotes('');
   };
@@ -376,9 +378,49 @@ export const PemakaianFormSection: React.FC<PemakaianFormSectionProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2.5">
+            <div>
+              <label className="block text-[10px] font-medium text-ink-secondary mb-1">Tanggal</label>
+              <input
+                type="date"
+                value={directDate}
+                onChange={e => setDirectDate(e.target.value)}
+                required
+                className="w-full bg-elevated border border-border-strong rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-ink-secondary mb-1">Shift &amp; Line</label>
+              <div className="flex gap-1">
+                <select
+                  value={directShift}
+                  onChange={e => setDirectShift(Number(e.target.value) as ShiftNumber)}
+                  aria-label="Pilih Shift Pemakaian"
+                  className="w-1/2 bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-xs text-ink-primary"
+                >
+                  <option value={1}>Shift 1</option>
+                  <option value={2}>Shift 2</option>
+                  <option value={3}>Shift 3</option>
+                </select>
+                <select
+                  value={selectedLineId}
+                  onChange={e => setSelectedLineId(e.target.value)}
+                  aria-label="Pilih Line Produksi Pemakaian"
+                  className="w-1/2 bg-elevated border border-border-strong rounded-lg px-2 py-1.5 text-xs text-ink-primary"
+                >
+                  <option value="">All Line</option>
+                  {productionLines.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="lg:col-span-2">
-              <label className="block text-[10px] font-medium text-ink-secondary mb-1">Material *</label>
+              <label className="block text-[10px] font-medium text-ink-secondary mb-1">Material / Premix *</label>
               <select
                 value={directMatId}
                 onChange={e => {

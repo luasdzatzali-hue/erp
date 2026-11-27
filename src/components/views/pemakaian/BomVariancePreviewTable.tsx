@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  AlertTriangle,
   Boxes,
   CheckCircle2,
   ChevronDown,
@@ -71,9 +72,17 @@ export const BomVariancePreviewTable: React.FC<BomVariancePreviewTableProps> = (
     [totalRequiredBOMKg, totalActualBOMKg]
   );
 
+  const BOM_VARIANCE_TOLERANCE_PCT = 2.0;
   const totalVarianceKg = totalActualBOMKg - totalRequiredBOMKg;
   const totalVariancePct =
     totalRequiredBOMKg > 0 ? (totalVarianceKg / totalRequiredBOMKg) * 100 : 0;
+  const outOfToleranceItems = configuredMaterials.filter(item => {
+    const pct =
+      item.requiredKg > 0 ? Math.abs(((item.actualUsedKg - item.requiredKg) / item.requiredKg) * 100) : 0;
+    return pct > BOM_VARIANCE_TOLERANCE_PCT;
+  });
+  const isBatchOverTolerance =
+    Math.abs(totalVariancePct) > BOM_VARIANCE_TOLERANCE_PCT || outOfToleranceItems.length > 0;
 
   if (!selectedWipObj) return null;
 
@@ -159,12 +168,12 @@ export const BomVariancePreviewTable: React.FC<BomVariancePreviewTableProps> = (
               </span>
             </div>
             <div>
-              <span className="text-ink-secondary block text-[10px]">Variance % (Rekonsiliasi BOM)</span>
+              <span className="text-ink-secondary block text-[10px]">Variance % (Toleransi ±{BOM_VARIANCE_TOLERANCE_PCT}%)</span>
               <span
                 className={`font-mono font-bold tabular-nums flex items-center gap-1 ${
                   Math.abs(totalVariancePct) <= 0.1
                     ? 'text-ink-emerald'
-                    : totalVariancePct > 0
+                    : Math.abs(totalVariancePct) > BOM_VARIANCE_TOLERANCE_PCT
                     ? 'text-ink-rose'
                     : 'text-ink-amber'
                 }`}
@@ -180,6 +189,27 @@ export const BomVariancePreviewTable: React.FC<BomVariancePreviewTableProps> = (
               </span>
             </div>
           </div>
+
+          {isBatchOverTolerance && (
+            <div className="px-3 py-2 rounded-xl bg-tint-rose border border-rose-500/45 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="flex items-center gap-2 text-ink-rose font-semibold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  Peringatan Toleransi BOM (&gt; ±{BOM_VARIANCE_TOLERANCE_PCT}%): Selisih batch saat ini{' '}
+                  <strong className="font-mono">
+                    {totalVariancePct > 0 ? '+' : ''}
+                    {totalVariancePct.toFixed(2)}%
+                  </strong>
+                  {outOfToleranceItems.length > 0
+                    ? ` · ${outOfToleranceItems.length} material melewati batas toleransi`
+                    : ''}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-ink-secondary">
+                Periksa timbangan aktual / alokasi zak FIFO sebelum memulai batch
+              </span>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -224,12 +254,19 @@ export const BomVariancePreviewTable: React.FC<BomVariancePreviewTableProps> = (
 
                   const rowVarianceKg = item.actualUsedKg - item.requiredKg;
                   const rowVariancePct = item.requiredKg > 0 ? (rowVarianceKg / item.requiredKg) * 100 : 0;
+                  const isRowOverTolerance = Math.abs(rowVariancePct) > BOM_VARIANCE_TOLERANCE_PCT;
 
                   return (
                     <React.Fragment key={item.materialId}>
                       <tr
                         className={`hover:bg-surface transition ${
-                          isExpanded ? 'bg-surface' : qrVerification ? 'bg-tint-emerald' : ''
+                          isExpanded
+                            ? 'bg-surface'
+                            : isRowOverTolerance
+                            ? 'bg-rose-500/5'
+                            : qrVerification
+                            ? 'bg-tint-emerald'
+                            : ''
                         }`}
                       >
                         <td className="py-2.5 px-3 font-medium text-ink-primary">
@@ -377,14 +414,19 @@ export const BomVariancePreviewTable: React.FC<BomVariancePreviewTableProps> = (
                             {rowVariancePct.toFixed(2)}%)
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center space-y-1">
                           {isInsufficient ? (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-rose-500/20 text-ink-rose border border-rose-500/30">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-rose-500/20 text-ink-rose border border-rose-500/30 block">
                               Stok Kurang
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/15 text-ink-emerald border border-emerald-500/30">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/15 text-ink-emerald border border-emerald-500/30 block">
                               Cukup
+                            </span>
+                          )}
+                          {isRowOverTolerance && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-ink-amber border border-amber-500/40 font-bold block whitespace-nowrap">
+                              &gt; Toleransi (±{BOM_VARIANCE_TOLERANCE_PCT}%)
                             </span>
                           )}
                         </td>

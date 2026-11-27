@@ -262,6 +262,7 @@ export const PemakaianView: React.FC<PemakaianViewProps> = props => {
           currentTime={wf.currentTime}
           currentLiveShift={wf.currentLiveShift}
           shiftStats={wf.shiftStats}
+          onOpenRejectDrawer={() => wf.setIsRejectDrawerOpen(true)}
         />
       )}
 

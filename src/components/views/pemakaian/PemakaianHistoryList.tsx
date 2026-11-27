@@ -6,10 +6,12 @@ import {
   Copy,
   Download,
   Edit3,
+  FileDown,
   FileText,
   History,
   Layers,
   MessageCircle,
+  PackageX,
   Printer,
   Search,
   ShieldCheck,
@@ -19,6 +21,7 @@ import {
 import { MaterialUsage, StorageLocation } from '../../../types';
 import { useErp } from '../../../context/ErpContext';
 import { calculateUsageBreakdown } from '../../../utils/reportBreakdown';
+import { computeShiftVarianceAndSblSummary, getRejectCategoryLabel } from '../../../utils/rejectAnalytics';
 import { formatIndonesianDate, getCurrentShift, SHIFTS_CONFIG, ShiftNumber } from '../../../utils/shifts';
 import { loadWhatsAppRecipients, normalizeWhatsAppPhone } from '../../../utils/whatsappReport';
 import { formatPauseDurationMs } from './utils';
@@ -32,6 +35,7 @@ interface PemakaianHistoryListProps {
   currentTime: number;
   currentLiveShift: ReturnType<typeof getCurrentShift>;
   shiftStats: Record<ShiftNumber, { totalKg: number; count: number; batchesCount: number; operators: string[] }>;
+  onOpenRejectDrawer?: () => void;
 }
 
 export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
@@ -42,9 +46,10 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
   setFilterShift,
   currentTime,
   currentLiveShift,
-  shiftStats
+  shiftStats,
+  onOpenRejectDrawer
 }) => {
-  const { state, handleUpdateUsage, handleDeleteUsage, showToast } = useErp();
+  const { state, handleUpdateUsage, handleDeleteUsage, setIsPdfReportModalOpen, showToast } = useErp();
 
   const [usageViewMode, setUsageViewMode] = useState<'breakdown-sku-wip' | 'list'>('breakdown-sku-wip');
   const [usageFilterSkuId, setUsageFilterSkuId] = useState<string>('all');
@@ -75,10 +80,17 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
         (sObj && sObj.name.toLowerCase().includes(query)) ||
         (wObj && wObj.name.toLowerCase().includes(query)) ||
         (mObj && mObj.name.toLowerCase().includes(query)) ||
+        (u.notes && u.notes.toLowerCase().includes(query)) ||
         (u.operatorName && u.operatorName.toLowerCase().includes(query));
       return matchShift && matchQuery;
     });
   }, [state.transactions.usages, state.master.skus, state.master.wips, state.master.materials, searchTerm, filterShift]);
+
+  const activeRejectSummary = useMemo(() => {
+    const targetShift = filterShift === 'all' ? currentLiveShift.shift : (parseInt(filterShift) as ShiftNumber);
+    const todayStr = new Date(currentTime).toISOString().slice(0, 10);
+    return computeShiftVarianceAndSblSummary(state, todayStr, targetShift, currentTime);
+  }, [state, filterShift, currentLiveShift.shift, currentTime]);
 
   const usageBreakdownGroups = useMemo(() => {
     const shiftOpt = filterShift === 'all' ? 'ALL' : (parseInt(filterShift) as ShiftNumber);
@@ -327,10 +339,22 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                   type="text"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  placeholder="Cari SKU, WIP, material..."
+                  placeholder="Cari line, SKU, material..."
                   className="w-full bg-elevated border border-border-strong rounded-xl pl-8 pr-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted"
                 />
               </div>
+
+              {onOpenRejectDrawer && (
+                <button
+                  type="button"
+                  onClick={onOpenRejectDrawer}
+                  className="px-2.5 py-1.5 bg-tint-rose hover:bg-rose-500/20 border border-tint-rose-border text-ink-rose rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
+                  title="Catat Reject Material (MaterialRejectDrawer)"
+                >
+                  <PackageX className="w-3.5 h-3.5" />
+                  <span>Reject</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -340,6 +364,16 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
               >
                 <Download className="w-3.5 h-3.5 text-brand" />
                 <span>CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPdfReportModalOpen(true)}
+                className="px-2.5 py-1.5 bg-elevated hover:bg-accent border border-border-strong text-ink-primary rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition shrink-0"
+                title="Buka Ekspor Laporan Shift PDF"
+              >
+                <FileDown className="w-3.5 h-3.5 text-ink-rose" />
+                <span>PDF</span>
               </button>
 
               <button
@@ -363,6 +397,39 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
               </button>
             </div>
           </div>
+
+          {activeRejectSummary.shiftRejectLogs.length > 0 && (
+            <div className="px-4 py-2.5 bg-tint-rose/60 border-b border-tint-rose-border flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-ink-rose flex items-center gap-1">
+                  <PackageX className="w-3.5 h-3.5" />
+                  <span>
+                    Reject Material Shift {filterShift === 'all' ? currentLiveShift.shift : filterShift}:
+                  </span>
+                </span>
+                <span className="font-mono font-bold text-ink-primary">
+                  {activeRejectSummary.totalRejectKg.toFixed(2)} kg ({activeRejectSummary.shiftRejectLogs.length} catatan · Variance {activeRejectSummary.overallMaterialVariancePct.toFixed(2)}%)
+                </span>
+                {activeRejectSummary.shiftRejectLogs.slice(0, 2).map(r => (
+                  <span
+                    key={r.id}
+                    className="px-2 py-0.5 rounded bg-surface border border-border-subtle text-[10px] text-ink-secondary font-mono"
+                  >
+                    {r.materialName}: {r.rejectQtyKg.toFixed(2)} kg ({getRejectCategoryLabel(r.rejectCategory)})
+                  </span>
+                ))}
+              </div>
+              {onOpenRejectDrawer && (
+                <button
+                  type="button"
+                  onClick={onOpenRejectDrawer}
+                  className="text-[11px] font-semibold text-ink-rose underline hover:opacity-80 no-print"
+                >
+                  + Tambah Catatan Reject
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="px-4 py-2.5 bg-canvas border-b border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs no-print">
             <div className="flex items-center space-x-1 bg-surface p-1 rounded-xl border border-border-subtle">

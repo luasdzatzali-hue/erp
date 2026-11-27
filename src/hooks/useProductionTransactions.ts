@@ -2360,7 +2360,9 @@ export function useProductionTransactions({
   };
 
   // Record Usage
-  const handleRecordUsage = (usageData: Omit<MaterialUsage, 'id' | 'usageNumber' | 'date'>) => {
+  const handleRecordUsage = (
+    usageData: Omit<MaterialUsage, 'id' | 'usageNumber' | 'date'> & { date?: string }
+  ) => {
     const currentState = stateRef.current;
     const liveShift = getCurrentShift().shift;
     const count = currentState.transactions.usages.length + 1;
@@ -2368,10 +2370,10 @@ export function useProductionTransactions({
     const usageNumber = `USG-${nowIso.slice(0, 7).replace('-', '')}-${String(count).padStart(3, '0')}`;
     const newUsage: MaterialUsage = {
       ...usageData,
-      shift: liveShift,
+      shift: usageData.shift || liveShift,
       id: `use_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       usageNumber,
-      date: nowIso.slice(0, 10)
+      date: usageData.date || nowIso.slice(0, 10)
     };
 
     dispatchAppendTx(
