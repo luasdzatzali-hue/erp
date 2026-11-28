@@ -723,6 +723,108 @@
         "receivedAt",
         "sourceUid"
       ]
+    },
+    "AuditLogEntry": {
+      "title": "AuditLogEntry",
+      "description": "Log jejak audit immutable untuk perubahan Master BOM, penyesuaian stok, koreksi shift tertutup, dan penghapusan/edit downtime OEE",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID unik log audit"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID workspace pabrik"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp ISO-8601 saat aksi dicatat di klien"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp immutable Firestore"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID Firebase pelaku aksi"
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nama tampilan pelaku aksi"
+        },
+        "userEmail": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Email akun pelaku aksi (hanya terbaca oleh Administrator)"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["ADMINISTRATOR", "OFFLINE_PIN_ADMIN", "SUPERVISOR", "UNIT_HEAD", "OPERATOR", "MANAGEMENT"],
+          "description": "Peran aktif pelaku saat aksi dijalankan"
+        },
+        "module": {
+          "type": "string",
+          "enum": ["MASTER_BOM", "STOCK_ADJUSTMENT", "OEE_DOWNTIME", "SHIFT_CORRECTION", "PRODUCTION_USAGE", "SHIFT_HANDOVER", "SYSTEM"],
+          "description": "Modul sumber perubahan"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["CREATE", "UPDATE", "DELETE", "OVERRIDE"],
+          "description": "Jenis operasi audit"
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "ID entitas atau dokumen yang diubah"
+        },
+        "targetLabel": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Label ringkas objek target"
+        },
+        "previousValueJson": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Ringkasan JSON nilai sebelum perubahan"
+        },
+        "newValueJson": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Ringkasan JSON nilai setelah perubahan"
+        },
+        "reasonNote": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Catatan alasan wajib untuk koreksi shift tertutup atau override"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "timestamp",
+        "createdAt",
+        "userId",
+        "userName",
+        "role",
+        "module",
+        "action",
+        "targetId"
+      ]
     }
   },
   "firestore": {
@@ -769,6 +871,10 @@
     "/workspaces/{workspaceId}/iiot_telemetry/{telemetryId}": {
       "schema": { "$ref": "#/entities/IiotTelemetryEvent" },
       "description": "Stream telemetri mesin IIoT immutable (output pulse & status RUNNING/STOP/IDLE/FAULT)"
+    },
+    "/workspaces/{workspaceId}/audit_logs/{auditId}": {
+      "schema": { "$ref": "#/entities/AuditLogEntry" },
+      "description": "Log audit trail immutable untuk perubahan BOM, koreksi stok, edit/hapus downtime OEE, dan koreksi shift tertutup"
     }
   }
 }

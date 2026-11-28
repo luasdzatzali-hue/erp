@@ -12,7 +12,10 @@ import {
   CloudOff,
   Loader2,
   FileText,
-  Lock
+  Lock,
+  CheckCircle2,
+  RefreshCw,
+  WifiOff
 } from 'lucide-react';
 import { AppState } from '../types';
 import { resolveEffectiveRole } from '../utils/roleAccess';
@@ -35,6 +38,10 @@ interface HeaderProps {
   isSyncingCloud?: boolean;
   isCloudConnected?: boolean;
   isCloudQuotaExceeded?: boolean;
+  offlinePendingCount?: number;
+  isOfflineFlushing?: boolean;
+  isNetworkOnline?: boolean;
+  onSyncOfflineQueueNow?: () => void;
   currentViewTitle: string;
 }
 
@@ -60,7 +67,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCommandMenu,
   isSyncingCloud = false,
   isCloudConnected = false,
-  isCloudQuotaExceeded = false
+  isCloudQuotaExceeded = false,
+  offlinePendingCount = 0,
+  isOfflineFlushing = false,
+  isNetworkOnline = true,
+  onSyncOfflineQueueNow
 }) => {
   const effectiveRole = resolveEffectiveRole(state);
   const isManagement = effectiveRole.isManagement;
@@ -287,14 +298,70 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* Offline-First Queue & Cloud Sync Status Badge */}
+          <div className="flex items-center gap-1 shrink-0">
+            {!isNetworkOnline ? (
+              <span
+                title="Koneksi jaringan terputus. Semua transaksi dicatat aman secara lokal (FIFO Queue) dan akan otomatis dikirim saat online."
+                className="h-7 px-2 rounded-md bg-tint-amber border border-tint-amber-border text-ink-amber text-[10px] font-mono font-bold flex items-center gap-1 whitespace-nowrap shrink-0 tabular-nums"
+              >
+                <WifiOff className="w-3 h-3 shrink-0" />
+                <span>
+                  {offlinePendingCount > 0
+                    ? `OFFLINE - ${offlinePendingCount} ANTREAN TERSIMPAN`
+                    : 'OFFLINE - MODE LOKAL'}
+                </span>
+              </span>
+            ) : offlinePendingCount > 0 ? (
+              <div className="flex items-center gap-1 shrink-0">
+                <span
+                  title={`${offlinePendingCount} transaksi antrean offline menunggu sinkronisasi Cloud`}
+                  className="h-7 px-2 rounded-md bg-tint-amber border border-tint-amber-border text-ink-amber text-[10px] font-mono font-bold flex items-center gap-1 whitespace-nowrap shrink-0 tabular-nums"
+                >
+                  <CloudOff className="w-3 h-3 shrink-0" />
+                  <span>{offlinePendingCount} ANTREAN PENDING</span>
+                </span>
+                {onSyncOfflineQueueNow && (
+                  <button
+                    type="button"
+                    onClick={onSyncOfflineQueueNow}
+                    disabled={isOfflineFlushing || isSyncingCloud}
+                    title="Sinkronkan Antrean Offline ke Cloud Firestore Sekarang"
+                    className="h-7 px-2 rounded-md bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white text-[10px] font-bold flex items-center gap-1 whitespace-nowrap shrink-0 transition active:scale-95"
+                  >
+                    <RefreshCw
+                      className={`w-3 h-3 shrink-0 ${
+                        isOfflineFlushing || isSyncingCloud ? 'animate-spin' : ''
+                      }`}
+                    />
+                    <span>Sync Now</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              isCloudConnected &&
+              !isCloudQuotaExceeded && (
+                <span
+                  title="Koneksi online dan seluruh transaksi tersinkronisasi ke Cloud Firestore"
+                  className="hidden xl:flex h-7 px-2 rounded-md bg-tint-emerald border border-tint-emerald-border text-ink-emerald text-[10px] font-mono font-bold items-center gap-1 whitespace-nowrap shrink-0"
+                >
+                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                  <span>ONLINE SYNCED</span>
+                </span>
+              )
+            )}
+          </div>
+
           {/* Compact Firestore & IoT Status Indicator */}
           <button
             type="button"
             onClick={onOpenTankModal}
             title={`Firestore: ${
-              isCloudQuotaExceeded
+              !isNetworkOnline
+                ? 'Offline (Antrean Lokal Aktif)'
+                : isCloudQuotaExceeded
                 ? 'Kuota Harian Penuh (Mode Lokal Aman)'
-                : isSyncingCloud
+                : isSyncingCloud || isOfflineFlushing
                 ? 'Menyinkronkan'
                 : isCloudConnected
                 ? 'Terhubung'
@@ -302,16 +369,16 @@ export const Header: React.FC<HeaderProps> = ({
             } · Tangki Utama: ${state.tank.temp.toFixed(1)}°C (${state.tank.level.toFixed(0)} kg)`}
             aria-label="Status Firestore dan Sensor Tangki"
             className={`h-7 px-2 rounded-md border text-[11px] font-mono tabular-nums flex items-center gap-1 transition active:scale-95 shrink-0 ${
-              isCloudQuotaExceeded || !isTempNormal
+              isCloudQuotaExceeded || !isTempNormal || !isNetworkOnline
                 ? 'bg-tint-amber border-tint-amber-border text-ink-amber'
-                : isSyncingCloud
+                : isSyncingCloud || isOfflineFlushing
                 ? 'bg-tint-cyan border-tint-cyan-border text-ink-cyan'
                 : 'bg-surface hover:bg-elevated border-border-subtle text-ink-primary'
             }`}
           >
-            {isCloudQuotaExceeded ? (
+            {isCloudQuotaExceeded || !isNetworkOnline ? (
               <CloudOff className="w-3.5 h-3.5 text-ink-amber shrink-0" />
-            ) : isSyncingCloud ? (
+            ) : isSyncingCloud || isOfflineFlushing ? (
               <Loader2 className="w-3.5 h-3.5 text-ink-cyan animate-spin shrink-0" />
             ) : isCloudConnected ? (
               <Cloud className="w-3.5 h-3.5 text-ink-emerald shrink-0" />

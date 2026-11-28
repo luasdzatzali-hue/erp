@@ -370,6 +370,53 @@ service cloud.firestore {
         isValidId(data.sourceUid);
     }
 
+    function isValidAuditLog(data) {
+      return data.keys().hasAll([
+          'id',
+          'workspaceId',
+          'timestamp',
+          'createdAt',
+          'userId',
+          'userName',
+          'role',
+          'module',
+          'action',
+          'targetId'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'timestamp',
+          'createdAt',
+          'userId',
+          'userName',
+          'userEmail',
+          'role',
+          'module',
+          'action',
+          'targetId',
+          'targetLabel',
+          'previousValueJson',
+          'newValueJson',
+          'reasonNote'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.workspaceId) && data.workspaceId.size() <= 64 &&
+        data.timestamp is string && data.timestamp.size() >= 1 && data.timestamp.size() <= 64 &&
+        data.createdAt is timestamp &&
+        isValidId(data.userId) &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 160)) &&
+        data.role in ['ADMINISTRATOR', 'OFFLINE_PIN_ADMIN', 'SUPERVISOR', 'UNIT_HEAD', 'OPERATOR', 'MANAGEMENT'] &&
+        data.module in ['MASTER_BOM', 'STOCK_ADJUSTMENT', 'OEE_DOWNTIME', 'SHIFT_CORRECTION', 'PRODUCTION_USAGE', 'SHIFT_HANDOVER', 'SYSTEM'] &&
+        data.action in ['CREATE', 'UPDATE', 'DELETE', 'OVERRIDE'] &&
+        data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128 &&
+        (!('targetLabel' in data) || (data.targetLabel is string && data.targetLabel.size() <= 160)) &&
+        (!('previousValueJson' in data) || (data.previousValueJson is string && data.previousValueJson.size() <= 4000)) &&
+        (!('newValueJson' in data) || (data.newValueJson is string && data.newValueJson.size() <= 4000)) &&
+        (!('reasonNote' in data) || (data.reasonNote is string && data.reasonNote.size() <= 500));
+    }
+
     // 4. Connection Health Check (No PII, Read-Only Get)
     match /test/connection {
       allow get: if true;
@@ -740,7 +787,6 @@ service cloud.firestore {
           isWorkspaceAuthorized(workspaceId);
         allow list: if isValidId(workspaceId) &&
           isWorkspaceAuthorized(workspaceId) &&
-          resource.data.workspaceId == workspaceId &&
           request.query.limit <= 200;
         allow create: if isValidId(workspaceId) &&
           isValidId(snapshotId) &&
@@ -794,7 +840,6 @@ service cloud.firestore {
           isWorkspaceAuthorized(workspaceId);
         allow list: if isValidId(workspaceId) &&
           isWorkspaceAuthorized(workspaceId) &&
-          resource.data.workspaceId == workspaceId &&
           request.query.limit <= 500;
         allow create: if isValidId(workspaceId) &&
           isValidId(telemetryId) &&
@@ -809,6 +854,30 @@ service cloud.firestore {
         allow delete: if isValidId(workspaceId) &&
           isValidId(telemetryId) &&
           isWorkspaceAdmin(workspaceId);
+      }
+
+      // 12. Immutable Audit Trail Sub-Collection (Strict Admin PII Isolation & Mandatory Override Reason)
+      match /audit_logs/{auditId} {
+        allow get: if isValidId(workspaceId) &&
+          isValidId(auditId) &&
+          isWorkspaceAdmin(workspaceId);
+        allow list: if isValidId(workspaceId) &&
+          isWorkspaceAdmin(workspaceId) &&
+          request.query.limit <= 300;
+        allow create: if isValidId(workspaceId) &&
+          isValidId(auditId) &&
+          isVerified() &&
+          isValidAuditLog(incoming()) &&
+          incoming().id == auditId &&
+          incoming().workspaceId == workspaceId &&
+          incoming().userId == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          (isWorkspaceAdmin(workspaceId) || isWorkspaceOperator(workspaceId)) &&
+          (!(incoming().module in ['MASTER_BOM', 'STOCK_ADJUSTMENT', 'SHIFT_CORRECTION']) || isWorkspaceAdmin(workspaceId)) &&
+          (!(incoming().action in ['DELETE', 'OVERRIDE']) || isWorkspaceAdmin(workspaceId)) &&
+          (!(incoming().module == 'SHIFT_CORRECTION' || incoming().action in ['DELETE', 'OVERRIDE']) || ('reasonNote' in incoming() && incoming().reasonNote.size() >= 3));
+        allow update: if false;
+        allow delete: if false;
       }
     }
   }

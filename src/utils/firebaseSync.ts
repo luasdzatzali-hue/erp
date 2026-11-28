@@ -364,6 +364,14 @@ export async function runFirestoreWriteWithGuard<T>(
   operation: () => Promise<T>,
   timeoutMs = 12000
 ): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    const offlineErr = new Error('Client is offline (navigator.onLine === false)') as Error & {
+      code?: string;
+    };
+    offlineErr.code = 'unavailable';
+    throw offlineErr;
+  }
+
   if (isCloudWritePaused()) {
     const pausedErr = new Error(
       cloudQuotaState.message || 'Quota limit exceeded (resource-exhausted).'

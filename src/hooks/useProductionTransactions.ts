@@ -23,6 +23,7 @@ import {
 import { DEFAULT_STATE, getSampleState } from '../utils/storage';
 import {
   deleteTransactionsByTypes,
+  RecordAuditLogParams,
   toTransactionDocFromCartonProd,
   toTransactionDocFromReceipt,
   toTransactionDocFromRejectLog,
@@ -32,7 +33,8 @@ import {
   updateTransactionDoc,
   WorkspaceTransactionDoc
 } from '../services/transactionService';
-import { getCurrentShift, getNextShiftNumber, getShiftPeriodInfo } from '../utils/shifts';
+import { canMutateShiftRecord } from '../utils/roleAccess';
+import { getCurrentShift, getNextShiftNumber, getShiftFromTime, getShiftPeriodInfo } from '../utils/shifts';
 import { getAllTanksForWip, checkRunHoldingTankAvailability } from '../utils/skuTankHelper';
 import { calculateMissedProduction } from '../utils/productionReconcile';
 import { playWipCompletionChime } from '../utils/soundAlarm';
@@ -51,6 +53,10 @@ export interface UseProductionTransactionsParams {
   dispatchAppendTx: (txDoc: WorkspaceTransactionDoc) => void;
   flushAutoCartonBuffer: (targetLineOrRunKey?: string) => void;
   markExplicitOperationsWrite: () => void;
+  logAuditTrail?: (
+    params: Omit<RecordAuditLogParams, 'workspaceId' | 'userId' | 'userName' | 'userEmail' | 'role'>
+  ) => unknown;
+  syncShiftOeeSnapshot?: (options?: { dateStr?: string; shift?: ShiftNumber; lineId?: string }) => void;
   isApplyingRemoteRef: React.MutableRefObject<boolean>;
   autoCartonBufferRef: React.MutableRefObject<Map<string, AutoCartonBufferEntry>>;
   pendingTxDocsRef: React.MutableRefObject<Map<string, WorkspaceTransactionDoc>>;
@@ -69,6 +75,8 @@ export function useProductionTransactions({
   dispatchAppendTx,
   flushAutoCartonBuffer,
   markExplicitOperationsWrite,
+  logAuditTrail,
+  syncShiftOeeSnapshot,
   isApplyingRemoteRef,
   autoCartonBufferRef,
   pendingTxDocsRef,
@@ -792,6 +800,23 @@ export function useProductionTransactions({
         }
       }
 
+      const bufAfter = autoCartonBufferRef.current.get(
+        `${resolvedLineId || 'line'}::${targetSku.id}::${currentShiftObj.shift}`
+      );
+      if (
+        !isAutoTick ||
+        Boolean(autoCompletedLineMsg) ||
+        (bufAfter && bufAfter.accumulatedCartons >= 100 && bufAfter.accumulatedCartons % 100 === 0)
+      ) {
+        setTimeout(() => {
+          syncShiftOeeSnapshot?.({
+            dateStr: timestamp.slice(0, 10),
+            shift: currentShiftObj.shift,
+            lineId: resolvedLineId
+          });
+        }, 80);
+      }
+
       if (autoCompletedLineMsg) {
         setTimeout(() => showToast(autoCompletedLineMsg!), 30);
       }
@@ -808,6 +833,7 @@ export function useProductionTransactions({
       dispatchAppendTx,
       flushAutoCartonBuffer,
       markExplicitOperationsWrite,
+      syncShiftOeeSnapshot,
       showToast,
       autoCartonBufferRef,
       setState,
@@ -1474,12 +1500,16 @@ export function useProductionTransactions({
     markExplicitOperationsWrite();
     const completedAt = new Date().toISOString();
     let completedInfo = '';
+    let completedLineId: string | undefined;
+    let completedShift: ShiftNumber | undefined;
 
     setState(prev => {
       const prevRuns = prev.activeSkuRuns || (prev.activeSkuRun ? [prev.activeSkuRun] : []);
       const updatedRuns = prevRuns.map(r => {
         if (r.id === runIdOrLineId || (r.lineId === runIdOrLineId && r.isRunning)) {
           completedInfo = `${r.lineName || 'Line'} (${r.skuName} · ${(r.cartonsProducedTotal || 0).toLocaleString()} ktn)`;
+          completedLineId = r.lineId;
+          completedShift = r.shift;
           return {
             ...r,
             isRunning: false,
@@ -1496,6 +1526,14 @@ export function useProductionTransactions({
         activeSkuRun: stillRunning || null
       };
     });
+
+    setTimeout(() => {
+      syncShiftOeeSnapshot?.({
+        dateStr: completedAt.slice(0, 10),
+        shift: completedShift || getCurrentShift().shift,
+        lineId: completedLineId
+      });
+    }, 80);
 
     showToast(
       `Produksi selesai normal: ${completedInfo || 'Line'} sekarang berstatus Standby${notes ? ` (${notes})` : ''}.`
@@ -1765,6 +1803,14 @@ export function useProductionTransactions({
       };
     });
 
+    setTimeout(() => {
+      syncShiftOeeSnapshot?.({
+        dateStr: completedAt.slice(0, 10),
+        shift: stopData.shift || getCurrentShift().shift,
+        lineId: targetLineId
+      });
+    }, 80);
+
     showToast(
       isMaterialShortage
         ? `Produksi ${stopData.lineName ? `[${stopData.lineName}] ` : ''}"${stopData.skuName}" dihentikan: Material Shortage tercatat. Dapat dilanjutkan kembali setelah WIP Holding Tank terisi.`
@@ -1788,6 +1834,12 @@ export function useProductionTransactions({
         activeSkuRun: null
       };
     });
+    setTimeout(() => {
+      syncShiftOeeSnapshot?.({
+        dateStr: completedAt.slice(0, 10),
+        shift: getCurrentShift().shift
+      });
+    }, 80);
     showToast('Seluruh line produksi yang sedang berjalan telah dihentikan.');
   };
 
@@ -1920,11 +1972,40 @@ export function useProductionTransactions({
         };
       });
 
+      setTimeout(() => {
+        syncShiftOeeSnapshot?.({
+          dateStr: handoverIso.slice(0, 10),
+          shift: firstFromShift
+        });
+      }, 80);
+
+      logAuditTrail?.({
+        module: 'SHIFT_HANDOVER',
+        action: 'CREATE',
+        targetId: `handover_s${firstFromShift}_s${resolvedGlobalNextShift}_${handoverIso.slice(0, 10)}`,
+        targetLabel: `Pergantian Shift ${firstFromShift} → Shift ${resolvedGlobalNextShift}`,
+        previousValue: { shift: firstFromShift, linesCount: runsToHandover.length },
+        newValue: {
+          shift: resolvedGlobalNextShift,
+          isAutomatic: isAuto,
+          lineNames: runsToHandover.map(r => r.lineName || r.lineId)
+        },
+        reasonNote: isAuto ? 'Auto Handover Batas Waktu Shift' : 'Manual Shift Handover oleh Operator/Supervisor'
+      });
+
       showToast(
         `Pergantian Shift: ${runsToHandover.length} line produksi dari Shift ${firstFromShift} dihentikan & otomatis dilanjutkan ke Shift ${resolvedGlobalNextShift}.`
       );
     },
-    [flushAutoCartonBuffer, markExplicitOperationsWrite, showToast, setState, stateRef]
+    [
+      flushAutoCartonBuffer,
+      logAuditTrail,
+      markExplicitOperationsWrite,
+      syncShiftOeeSnapshot,
+      showToast,
+      setState,
+      stateRef
+    ]
   );
 
   // Auto Catch-Up Production Reconciliation
@@ -2403,22 +2484,39 @@ export function useProductionTransactions({
     });
   };
 
-  // Update Usage (edit qty, sourceLocation, operator, or notes)
+  // Update Usage (edit qty, sourceLocation, operator, or notes) with shift-based RBAC & audit trail
   const handleUpdateUsage = (
     usageId: string,
-    updates: Partial<Pick<MaterialUsage, 'usageQty' | 'sourceLocation' | 'operatorName' | 'notes' | 'shift'>>
+    updates: Partial<Pick<MaterialUsage, 'usageQty' | 'sourceLocation' | 'operatorName' | 'notes' | 'shift'>> & {
+      reasonNote?: string;
+    }
   ) => {
-    const existing = stateRef.current.transactions.usages.find(u => u.id === usageId);
+    const currentState = stateRef.current;
+    const existing = currentState.transactions.usages.find(u => u.id === usageId);
     if (!existing) {
       showToast('Data pemakaian material tidak ditemukan', true);
       return;
     }
 
+    const effective = getEffectiveRoleForState(currentState);
+    const perm = canMutateShiftRecord({
+      effectiveRole: effective,
+      operation: 'EDIT_TRANSACTION',
+      recordDate: existing.date,
+      recordShift: existing.shift,
+      reasonNote: updates.reasonNote
+    });
+    if (!perm.allowed) {
+      showToast(perm.denialReason || 'Akses ditolak untuk mengubah transaksi ini', true);
+      return;
+    }
+
+    const { reasonNote, ...cleanUpdates } = updates;
     const nextQty =
-      updates.usageQty !== undefined && Number.isFinite(updates.usageQty) && updates.usageQty >= 0
-        ? updates.usageQty
+      cleanUpdates.usageQty !== undefined && Number.isFinite(cleanUpdates.usageQty) && cleanUpdates.usageQty >= 0
+        ? cleanUpdates.usageQty
         : existing.usageQty;
-    const nextLocation = updates.sourceLocation ?? existing.sourceLocation;
+    const nextLocation = cleanUpdates.sourceLocation ?? existing.sourceLocation;
 
     markExplicitOperationsWrite();
 
@@ -2437,7 +2535,7 @@ export function useProductionTransactions({
             u.id === usageId
               ? {
                   ...u,
-                  ...updates,
+                  ...cleanUpdates,
                   usageQty: nextQty,
                   sourceLocation: nextLocation
                 }
@@ -2451,14 +2549,48 @@ export function useProductionTransactions({
       };
     });
 
+    logAuditTrail?.({
+      module: perm.isClosedShift ? 'SHIFT_CORRECTION' : 'PRODUCTION_USAGE',
+      action: perm.isClosedShift ? 'OVERRIDE' : 'UPDATE',
+      targetId: existing.id,
+      targetLabel: `Pemakaian ${existing.usageNumber}`,
+      previousValue: {
+        usageQty: existing.usageQty,
+        sourceLocation: existing.sourceLocation,
+        shift: existing.shift,
+        notes: existing.notes
+      },
+      newValue: {
+        usageQty: nextQty,
+        sourceLocation: nextLocation,
+        shift: cleanUpdates.shift ?? existing.shift,
+        notes: cleanUpdates.notes ?? existing.notes
+      },
+      reasonNote: reasonNote?.trim() || 'Koreksi pemakaian shift aktif'
+    });
+
     showToast(`Transaksi pemakaian ${existing.usageNumber} berhasil diperbarui`);
   };
 
-  // Delete Usage
-  const handleDeleteUsage = (usageId: string) => {
-    const existing = stateRef.current.transactions.usages.find(u => u.id === usageId);
+  // Delete Usage with shift-based RBAC & audit trail
+  const handleDeleteUsage = (usageId: string, reasonNote?: string) => {
+    const currentState = stateRef.current;
+    const existing = currentState.transactions.usages.find(u => u.id === usageId);
     if (!existing) {
       showToast('Data pemakaian material tidak ditemukan', true);
+      return;
+    }
+
+    const effective = getEffectiveRoleForState(currentState);
+    const perm = canMutateShiftRecord({
+      effectiveRole: effective,
+      operation: 'DELETE_TRANSACTION',
+      recordDate: existing.date,
+      recordShift: existing.shift,
+      reasonNote
+    });
+    if (!perm.allowed) {
+      showToast(perm.denialReason || 'Akses ditolak untuk menghapus transaksi ini', true);
       return;
     }
 
@@ -2484,7 +2616,154 @@ export function useProductionTransactions({
       };
     });
 
+    logAuditTrail?.({
+      module: perm.isClosedShift ? 'SHIFT_CORRECTION' : 'PRODUCTION_USAGE',
+      action: 'DELETE',
+      targetId: existing.id,
+      targetLabel: `Hapus Pemakaian ${existing.usageNumber}`,
+      previousValue: {
+        usageNumber: existing.usageNumber,
+        date: existing.date,
+        shift: existing.shift,
+        usageQty: existing.usageQty,
+        sourceLocation: existing.sourceLocation
+      },
+      reasonNote: reasonNote?.trim() || 'Penghapusan transaksi pemakaian shift aktif'
+    });
+
     showToast(`Transaksi pemakaian ${existing.usageNumber} telah dihapus`);
+  };
+
+  // Update OEE Downtime / Stop Log (Strictly Admin / Supervisor / Unit Head + mandatory reasonNote)
+  const handleUpdateProductionStop = (
+    stopId: string,
+    updates: Partial<Pick<ProductionStopLog, 'durationMinutes' | 'reasonTitle' | 'actionTaken' | 'notes'>>,
+    reasonNote: string
+  ) => {
+    const currentState = stateRef.current;
+    const targetStop = (currentState.transactions.productionStops || []).find(s => s.id === stopId);
+    if (!targetStop) {
+      showToast('Log downtime OEE tidak ditemukan', true);
+      return;
+    }
+
+    const stopDate = (targetStop.stoppedAt || targetStop.startedAt || '').slice(0, 10);
+    const stopShift = targetStop.shift || getShiftFromTime(targetStop.stoppedAt || targetStop.startedAt).shift;
+    const perm = canMutateShiftRecord({
+      effectiveRole: getEffectiveRoleForState(currentState),
+      operation: 'EDIT_DOWNTIME',
+      recordDate: stopDate,
+      recordShift: stopShift,
+      reasonNote
+    });
+    if (!perm.allowed) {
+      showToast(perm.denialReason || 'Akses ditolak untuk mengubah log downtime OEE', true);
+      return;
+    }
+
+    const nextDuration =
+      updates.durationMinutes !== undefined && Number.isFinite(updates.durationMinutes) && updates.durationMinutes >= 0
+        ? Math.round(updates.durationMinutes)
+        : targetStop.durationMinutes;
+
+    markExplicitOperationsWrite();
+    setState(prev => ({
+      ...prev,
+      transactions: {
+        ...prev.transactions,
+        productionStops: (prev.transactions.productionStops || []).map(s =>
+          s.id === stopId
+            ? {
+                ...s,
+                ...updates,
+                durationMinutes: nextDuration
+              }
+            : s
+        )
+      }
+    }));
+
+    logAuditTrail?.({
+      module: 'OEE_DOWNTIME',
+      action: 'UPDATE',
+      targetId: stopId,
+      targetLabel: `Downtime ${targetStop.lineName || 'Line'} · ${targetStop.categoryLabel}`,
+      previousValue: {
+        durationMinutes: targetStop.durationMinutes,
+        reasonTitle: targetStop.reasonTitle
+      },
+      newValue: {
+        durationMinutes: nextDuration,
+        reasonTitle: updates.reasonTitle ?? targetStop.reasonTitle
+      },
+      reasonNote: reasonNote.trim()
+    });
+
+    setTimeout(() => {
+      syncShiftOeeSnapshot?.({
+        dateStr: stopDate,
+        shift: stopShift,
+        lineId: targetStop.lineId
+      });
+    }, 80);
+
+    showToast('Log downtime OEE berhasil dikoreksi dan dicatat di Audit Trail');
+  };
+
+  // Delete OEE Downtime / Stop Log (Strictly Admin / Supervisor / Unit Head + mandatory reasonNote)
+  const handleDeleteProductionStop = (stopId: string, reasonNote: string) => {
+    const currentState = stateRef.current;
+    const targetStop = (currentState.transactions.productionStops || []).find(s => s.id === stopId);
+    if (!targetStop) {
+      showToast('Log downtime OEE tidak ditemukan', true);
+      return;
+    }
+
+    const stopDate = (targetStop.stoppedAt || targetStop.startedAt || '').slice(0, 10);
+    const stopShift = targetStop.shift || getShiftFromTime(targetStop.stoppedAt || targetStop.startedAt).shift;
+    const perm = canMutateShiftRecord({
+      effectiveRole: getEffectiveRoleForState(currentState),
+      operation: 'DELETE_DOWNTIME',
+      recordDate: stopDate,
+      recordShift: stopShift,
+      reasonNote
+    });
+    if (!perm.allowed) {
+      showToast(perm.denialReason || 'Akses ditolak untuk menghapus log downtime OEE', true);
+      return;
+    }
+
+    markExplicitOperationsWrite();
+    setState(prev => ({
+      ...prev,
+      transactions: {
+        ...prev.transactions,
+        productionStops: (prev.transactions.productionStops || []).filter(s => s.id !== stopId)
+      }
+    }));
+
+    logAuditTrail?.({
+      module: 'OEE_DOWNTIME',
+      action: 'DELETE',
+      targetId: stopId,
+      targetLabel: `Hapus Downtime ${targetStop.lineName || 'Line'} · ${targetStop.categoryLabel}`,
+      previousValue: {
+        durationMinutes: targetStop.durationMinutes,
+        reasonTitle: targetStop.reasonTitle,
+        stoppedAt: targetStop.stoppedAt
+      },
+      reasonNote: reasonNote.trim()
+    });
+
+    setTimeout(() => {
+      syncShiftOeeSnapshot?.({
+        dateStr: stopDate,
+        shift: stopShift,
+        lineId: targetStop.lineId
+      });
+    }, 80);
+
+    showToast('Log downtime OEE berhasil dihapus dan tercatat di Audit Trail');
   };
 
   // Start WIP Production Batch
@@ -3021,11 +3300,18 @@ export function useProductionTransactions({
           rejectLogs: [log, ...(prev.transactions.rejectLogs || [])]
         }
       }));
+      setTimeout(() => {
+        syncShiftOeeSnapshot?.({
+          dateStr: log.date || log.timestamp.slice(0, 10),
+          shift: log.shift,
+          lineId: log.lineId
+        });
+      }, 80);
       showToast(
         `Reject ${log.materialName} (${log.rejectQtyKg.toFixed(2)} kg / -${log.equivalentCartonsLoss.toFixed(2)} ktn eq) dicatat & stok ${log.sourceLocation} otomatis terpotong.`
       );
     },
-    [dispatchAppendTx, getActiveActorEmail, showToast, setState]
+    [dispatchAppendTx, getActiveActorEmail, syncShiftOeeSnapshot, showToast, setState]
   );
 
   return {
@@ -3064,6 +3350,8 @@ export function useProductionTransactions({
     handleRecordUsage,
     handleUpdateUsage,
     handleDeleteUsage,
+    handleUpdateProductionStop,
+    handleDeleteProductionStop,
     handleStartWipBatch,
     handlePauseWipBatch,
     handleResumeWipBatch,

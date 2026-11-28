@@ -2,12 +2,27 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { User } from 'firebase/auth';
 import {
   AppState,
+  AuditLogEntry,
   CartonProductionLog,
   EffectiveRoleResolution,
+  ShiftNumber,
   TankTransferLog,
   UserRole
 } from '../types';
 import { getCleanBlankState, getSampleState, STORAGE_KEY, saveStateToStorage } from '../utils/storage';
+import { getCurrentShift } from '../utils/shifts';
+import { ShiftOeeSnapshotDoc, IiotTelemetryEventDoc } from '../utils/oeeEngine';
+import {
+  enqueueOfflineSyncItem,
+  flushOfflineQueue,
+  getBrowserOnlineStatus,
+  getOfflineQueueStatus,
+  isNetworkOrOfflineError,
+  OfflineQueueItem,
+  OfflineQueueStatus,
+  setOfflineQueueOnlineOverride,
+  subscribeOfflineQueue
+} from '../utils/offlineQueue';
 import {
   auth,
   AuthErrorDetail,
@@ -43,9 +58,16 @@ import {
 } from '../utils/firebaseSync';
 import {
   appendTransaction,
+  buildAuditLogEntry,
   hydrateTransactionsFromDocs,
   mergeMigratedTransactionsIntoState,
   migrateLegacyOperationsTransactionsIfNeeded,
+  persistAuditLogEntry,
+  persistShiftOeeSnapshotDoc,
+  RecordAuditLogParams,
+  recordIiotTelemetryEvent,
+  saveShiftOeeSnapshot,
+  subscribeAuditLogs,
   subscribeRecentTransactions,
   toTransactionDocFromAdjustment,
   toTransactionDocFromCartonProd,
@@ -53,6 +75,7 @@ import {
   toTransactionDocFromRequest,
   toTransactionDocFromTankLog,
   toTransactionDocFromUsage,
+  updateTransactionDoc,
   WorkspaceTransactionDoc
 } from '../services/transactionService';
 import { createSecurityAuditEntry, normalizeEmail, sanitizeTextInput } from '../utils/security';
@@ -152,6 +175,9 @@ export function useFirebaseSyncManager({
   const [isTestingQuotaReset, setIsTestingQuotaReset] = useState(false);
   const [liveDashboardLineStatus, setLiveDashboardLineStatus] =
     useState<DashboardLineStatusSnapshot | null>(null);
+  const [offlineQueueStatus, setOfflineQueueStatus] = useState<OfflineQueueStatus>(() =>
+    getOfflineQueueStatus()
+  );
 
   useEffect(() => {
     const unsub = subscribeCloudQuotaStatus(status => {
@@ -163,12 +189,17 @@ export function useFirebaseSyncManager({
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    return subscribeOfflineQueue(setOfflineQueueStatus);
+  }, []);
+
   const [authViewKey, setAuthViewKey] = useState(0);
   const isApplyingRemoteRef = useRef(false);
   const isLoggingOutRef = useRef(false);
   const manualGoogleLoginInFlightRef = useRef(false);
   const cloudUnsubRef = useRef<(() => void) | null>(null);
   const txUnsubRef = useRef<(() => void) | null>(null);
+  const auditUnsubRef = useRef<(() => void) | null>(null);
   const lineStatusUnsubRef = useRef<(() => void) | null>(null);
   const hasLegacyOperationsRef = useRef<boolean>(false);
   const pendingTxDocsRef = useRef<Map<string, WorkspaceTransactionDoc>>(new Map());
@@ -278,13 +309,15 @@ export function useFirebaseSyncManager({
   const dispatchAppendTx = useCallback(
     (txDoc: WorkspaceTransactionDoc) => {
       const currentState = stateRef.current;
-      const canWriteTx = cloudAuthRole === 'ADMINISTRATOR' || cloudAuthRole === 'OPERATOR';
+      const canWriteTx =
+        cloudAuthRole === 'ADMINISTRATOR' ||
+        cloudAuthRole === 'OPERATOR' ||
+        currentState.currentUserRole !== 'MANAGEMENT';
       if (
         setupStatus !== 'ready' ||
         !(auth.currentUser || firebaseUser) ||
         !canWriteTx ||
-        !currentState.cloudOwnerUid ||
-        isCloudWritePaused()
+        !currentState.cloudOwnerUid
       ) {
         return;
       }
@@ -299,6 +332,58 @@ export function useFirebaseSyncManager({
       });
     },
     [setupStatus, firebaseUser, cloudAuthRole, stateRef]
+  );
+
+  const logAuditTrail = useCallback(
+    (
+      params: Omit<
+        RecordAuditLogParams,
+        'workspaceId' | 'userId' | 'userName' | 'userEmail' | 'role'
+      >
+    ) => {
+      const currentState = stateRef.current;
+      const effective = getEffectiveRoleForState(currentState);
+      const actorName =
+        currentState.currentSession?.name ||
+        firebaseUser?.displayName ||
+        firebaseUser?.email ||
+        'User';
+      const entry = buildAuditLogEntry({
+        ...params,
+        workspaceId: currentState.cloudWorkspaceId || 'main',
+        userId:
+          firebaseUser?.uid ||
+          auth.currentUser?.uid ||
+          currentState.currentSession?.id ||
+          'local_user',
+        userName: actorName,
+        userEmail: getActiveActorEmail(),
+        role: effective.role
+      });
+      setState(prev => ({
+        ...prev,
+        auditLogs: [entry, ...(prev.auditLogs || [])].slice(0, 300)
+      }));
+      void persistAuditLogEntry(entry, { enqueueOnOffline: true });
+      return entry;
+    },
+    [firebaseUser, getActiveActorEmail, getEffectiveRoleForState, setState, stateRef]
+  );
+
+  const syncShiftOeeSnapshot = useCallback(
+    (options?: { dateStr?: string; shift?: ShiftNumber; lineId?: string }) => {
+      const currentState = stateRef.current;
+      if (currentState.currentUserRole === 'MANAGEMENT') return;
+      const dateStr = options?.dateStr || new Date().toISOString().slice(0, 10);
+      const shift = options?.shift || getCurrentShift().shift;
+      void saveShiftOeeSnapshot({
+        state: currentState,
+        dateStr,
+        shift,
+        lineId: options?.lineId
+      });
+    },
+    [stateRef]
   );
 
   const getBufferedAutoTxDocs = useCallback((): Map<string, WorkspaceTransactionDoc> => {
@@ -729,6 +814,52 @@ export function useFirebaseSyncManager({
     };
   }, [setupStatus, firebaseUser, cloudAuthRole, state.cloudWorkspaceId, getBufferedAutoTxDocs, setState]);
 
+  // Attach real-time Firestore listener for /workspaces/{workspaceId}/audit_logs (Admin Only)
+  useEffect(() => {
+    if (
+      setupStatus !== 'ready' ||
+      !firebaseUser ||
+      cloudAuthRole !== 'ADMINISTRATOR' ||
+      !effectiveRole.isCloudAdmin
+    ) {
+      return;
+    }
+    const workspaceId = state.cloudWorkspaceId || 'main';
+    const unsubAudit = subscribeAuditLogs(
+      workspaceId,
+      200,
+      remoteLogs => {
+        setState(prev => {
+          const seen = new Set<string>();
+          const merged: AuditLogEntry[] = [];
+          for (const item of [...remoteLogs, ...(prev.auditLogs || [])]) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              merged.push(item);
+            }
+          }
+          merged.sort((a, b) => (b.timestamp > a.timestamp ? 1 : b.timestamp < a.timestamp ? -1 : 0));
+          return {
+            ...prev,
+            auditLogs: merged.slice(0, 300)
+          };
+        });
+      },
+      err => {
+        if (!isQuotaExceededError(err)) {
+          console.warn('Audit log subscription warning:', err);
+        }
+      }
+    );
+    auditUnsubRef.current = unsubAudit;
+    return () => {
+      unsubAudit();
+      if (auditUnsubRef.current === unsubAudit) {
+        auditUnsubRef.current = null;
+      }
+    };
+  }, [setupStatus, firebaseUser, cloudAuthRole, effectiveRole.isCloudAdmin, state.cloudWorkspaceId, setState]);
+
   // One-time automatic Admin migration of legacy transaction arrays from data/operations -> /transactions
   useEffect(() => {
     if (
@@ -949,7 +1080,7 @@ export function useFirebaseSyncManager({
     }
   };
 
-  // Flush any queued batched Firestore writes cleanly
+  // Flush any queued batched Firestore writes cleanly (with Offline-First Sync Queue fallback)
   const flushPendingCloudWrites = useCallback(async () => {
     const timers = cloudWriteTimersRef.current;
     if (timers.debounceTimer) {
@@ -959,10 +1090,6 @@ export function useFirebaseSyncManager({
     if (timers.maxWaitTimer) {
       clearTimeout(timers.maxWaitTimer);
       timers.maxWaitTimer = null;
-    }
-
-    if (isCloudWritePaused()) {
-      return;
     }
 
     const pending = pendingCloudSectionsRef.current;
@@ -993,7 +1120,19 @@ export function useFirebaseSyncManager({
       return;
     }
 
+    const workspaceId = latestState.cloudWorkspaceId || 'main';
     refreshCloudSnapshotsBaseline(latestState);
+
+    if (!getBrowserOnlineStatus() || isCloudWritePaused()) {
+      enqueueOfflineSyncItem({
+        type: 'SECTION_SYNC',
+        workspaceId,
+        dedupeKey: `section_sync_${workspaceId}`,
+        payload: { sections: sectionsToSave }
+      });
+      return;
+    }
+
     try {
       await saveWorkspaceSectionsToCloud(sectionsToSave, latestState, cloudAuthRole, {
         preserveLegacyOperationsKeys:
@@ -1002,18 +1141,182 @@ export function useFirebaseSyncManager({
     } catch (err) {
       if (isQuotaExceededError(err)) {
         tripCloudWriteQuotaPause();
-        // Re-queue sections for retry if quota resets or user retries manually
-        pendingCloudSectionsRef.current = {
-          meta: pendingCloudSectionsRef.current.meta || Boolean(sectionsToSave.meta),
-          secrets: pendingCloudSectionsRef.current.secrets || Boolean(sectionsToSave.secrets),
-          master: pendingCloudSectionsRef.current.master || Boolean(sectionsToSave.master),
-          operations: pendingCloudSectionsRef.current.operations || Boolean(sectionsToSave.operations)
-        };
+        enqueueOfflineSyncItem({
+          type: 'SECTION_SYNC',
+          workspaceId,
+          dedupeKey: `section_sync_${workspaceId}`,
+          payload: { sections: sectionsToSave },
+          lastError: 'Kuota Firestore sedang penuh'
+        });
+        return;
+      }
+      if (isNetworkOrOfflineError(err)) {
+        enqueueOfflineSyncItem({
+          type: 'SECTION_SYNC',
+          workspaceId,
+          dedupeKey: `section_sync_${workspaceId}`,
+          payload: { sections: sectionsToSave },
+          lastError: err instanceof Error ? err.message : String(err)
+        });
         return;
       }
       console.error('Cloud sync save error:', err);
     }
   }, [setupStatus, firebaseUser, cloudAuthRole, refreshCloudSnapshotsBaseline, stateRef]);
+
+  const executeQueuedOfflineItem = useCallback(
+    async (item: OfflineQueueItem) => {
+      if (isCloudWritePaused()) return 'quota_paused' as const;
+      if (!auth.currentUser || !getBrowserOnlineStatus()) return 'retry' as const;
+
+      try {
+        switch (item.type) {
+          case 'TX_APPEND': {
+            const txDoc = item.payload.txDoc as WorkspaceTransactionDoc | undefined;
+            if (!txDoc) return 'drop' as const;
+            await appendTransaction(item.workspaceId, txDoc, { skipOfflineQueue: true });
+            return 'ok' as const;
+          }
+          case 'TX_UPDATE': {
+            const txDoc = item.payload.txDoc as WorkspaceTransactionDoc | undefined;
+            if (!txDoc) return 'drop' as const;
+            await updateTransactionDoc(item.workspaceId, txDoc, { skipOfflineQueue: true });
+            return 'ok' as const;
+          }
+          case 'OEE_SNAPSHOT': {
+            const snap = item.payload.snapshot as ShiftOeeSnapshotDoc | undefined;
+            if (!snap) return 'drop' as const;
+            const res = await persistShiftOeeSnapshotDoc(snap, { enqueueOnOffline: false });
+            return res.saved ? ('ok' as const) : ('retry' as const);
+          }
+          case 'AUDIT_LOG': {
+            const entry = item.payload.entry as AuditLogEntry | undefined;
+            if (!entry) return 'drop' as const;
+            const res = await persistAuditLogEntry(entry, { enqueueOnOffline: false });
+            return res.saved ? ('ok' as const) : ('drop' as const);
+          }
+          case 'IIOT_TELEMETRY': {
+            const event = item.payload.event as Omit<IiotTelemetryEventDoc, 'receivedAt' | 'sourceUid'> | undefined;
+            if (!event) return 'drop' as const;
+            const res = await recordIiotTelemetryEvent(event, { enqueueOnOffline: false });
+            return res.saved ? ('ok' as const) : ('retry' as const);
+          }
+          case 'SECTION_SYNC': {
+            const sections = item.payload.sections as
+              | { meta?: boolean; secrets?: boolean; master?: boolean; operations?: boolean }
+              | undefined;
+            if (!sections || !cloudAuthRole) return 'drop' as const;
+            await saveWorkspaceSectionsToCloud(sections, stateRef.current, cloudAuthRole, {
+              preserveLegacyOperationsKeys:
+                cloudAuthRole !== 'ADMINISTRATOR' && hasLegacyOperationsRef.current
+            });
+            return 'ok' as const;
+          }
+          default:
+            return 'drop' as const;
+        }
+      } catch (err) {
+        if (isQuotaExceededError(err)) {
+          tripCloudWriteQuotaPause();
+          return 'quota_paused' as const;
+        }
+        if (isNetworkOrOfflineError(err)) {
+          return 'retry' as const;
+        }
+        const msg = String(err instanceof Error ? err.message : err).toLowerCase();
+        if (msg.includes('permission') || msg.includes('missing or insufficient')) {
+          console.warn('Dropping unauthorized queued item:', item.type, item.id);
+          return 'drop' as const;
+        }
+        return 'retry' as const;
+      }
+    },
+    [cloudAuthRole, stateRef]
+  );
+
+  const handleSyncOfflineQueueNow = useCallback(
+    async (options?: { silentIfEmpty?: boolean }) => {
+      if (!getBrowserOnlineStatus()) {
+        if (!options?.silentIfEmpty) {
+          showToast('Jaringan perangkat masih offline. Antrean tetap tersimpan aman secara lokal.', true);
+        }
+        return;
+      }
+      if (isCloudWritePaused()) {
+        if (!options?.silentIfEmpty) {
+          showToast('Kuota tulis Firestore sedang penuh. Gunakan tombol Uji & Lanjutkan Sync pada banner kuota.', true);
+        }
+        return;
+      }
+
+      setIsSyncingCloud(true);
+      try {
+        flushAutoCartonBuffer();
+        await flushPendingCloudWrites();
+        const result = await flushOfflineQueue(executeQueuedOfflineItem, { force: true });
+        if (result.flushedCount > 0) {
+          showToast(`${result.flushedCount} transaksi antrean offline berhasil disinkronkan ke Cloud.`);
+        } else if (!options?.silentIfEmpty && result.remainingCount === 0) {
+          showToast('Semua data sudah tersinkronisasi penuh dengan Cloud Firestore.');
+        } else if (!options?.silentIfEmpty && result.remainingCount > 0 && !result.pausedByQuota) {
+          showToast(`Masih tersisa ${result.remainingCount} antrean menunggu koneksi stabil.`, true);
+        }
+      } finally {
+        setIsSyncingCloud(false);
+      }
+    },
+    [executeQueuedOfflineItem, flushAutoCartonBuffer, flushPendingCloudWrites, showToast]
+  );
+
+  // Automatic online/offline detection & FIFO flush when plant Wi-Fi recovers
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => {
+      setOfflineQueueOnlineOverride(true);
+      if (setupStatus === 'ready' && (auth.currentUser || firebaseUser) && !isCloudWritePaused()) {
+        void handleSyncOfflineQueueNow({ silentIfEmpty: true });
+      }
+    };
+    const onOffline = () => {
+      setOfflineQueueOnlineOverride(false);
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [firebaseUser, handleSyncOfflineQueueNow, setupStatus]);
+
+  // Exponential backoff retry scheduler when online & queue still has pending items
+  useEffect(() => {
+    if (
+      offlineQueueStatus.pendingCount === 0 ||
+      !offlineQueueStatus.isOnline ||
+      offlineQueueStatus.isFlushing ||
+      isCloudWritePaused() ||
+      setupStatus !== 'ready' ||
+      !(auth.currentUser || firebaseUser)
+    ) {
+      return;
+    }
+    const waitMs = Math.max(
+      1200,
+      Math.min(60000, (offlineQueueStatus.nextRetryAt ?? Date.now()) - Date.now())
+    );
+    const timer = setTimeout(() => {
+      void flushOfflineQueue(executeQueuedOfflineItem);
+    }, waitMs);
+    return () => clearTimeout(timer);
+  }, [
+    offlineQueueStatus.pendingCount,
+    offlineQueueStatus.isOnline,
+    offlineQueueStatus.isFlushing,
+    offlineQueueStatus.nextRetryAt,
+    setupStatus,
+    firebaseUser,
+    executeQueuedOfflineItem
+  ]);
 
   const handleResetQuotaAndRetrySync = useCallback(async () => {
     if (isTestingQuotaReset) return;
@@ -1375,6 +1678,7 @@ export function useFirebaseSyncManager({
     setQuotaBannerDismissed,
     isTestingQuotaReset,
     liveDashboardLineStatus,
+    offlineQueueStatus,
     authViewKey,
     isApplyingRemoteRef,
     pendingTxDocsRef,
@@ -1382,12 +1686,15 @@ export function useFirebaseSyncManager({
     markExplicitOperationsWrite,
     getActiveActorEmail,
     dispatchAppendTx,
+    logAuditTrail,
+    syncShiftOeeSnapshot,
     flushAutoCartonBuffer,
     handleLoginSuccess,
     runSetupCheck,
     handleCompleteFirstAdminSetup,
     handleGoogleCloudLogin,
     flushPendingCloudWrites,
+    handleSyncOfflineQueueNow,
     handleResetQuotaAndRetrySync,
     performCompleteLogout,
     handleFirebaseSignOut

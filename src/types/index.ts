@@ -567,8 +567,14 @@ export interface AdminGoogleUser {
   role?: 'SUPER_ADMIN' | 'ADMIN';
 }
 
-// 4 Jenis Peran Efektif (Role-Based Access Control)
-export type UserRole = 'ADMINISTRATOR' | 'OFFLINE_PIN_ADMIN' | 'OPERATOR' | 'MANAGEMENT';
+// Jenis Peran Efektif (Role-Based Access Control)
+export type UserRole =
+  | 'ADMINISTRATOR'
+  | 'OFFLINE_PIN_ADMIN'
+  | 'SUPERVISOR'
+  | 'UNIT_HEAD'
+  | 'OPERATOR'
+  | 'MANAGEMENT';
 
 export interface WorkspaceAccessConfig {
   workspaceId?: string;
@@ -630,6 +636,34 @@ export interface SecurityAuditLog {
   role: UserRole;
   ipOrDevice?: string;
   notes?: string;
+}
+
+export type AuditLogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'OVERRIDE';
+
+export type AuditLogModule =
+  | 'MASTER_BOM'
+  | 'STOCK_ADJUSTMENT'
+  | 'OEE_DOWNTIME'
+  | 'SHIFT_CORRECTION'
+  | 'PRODUCTION_USAGE'
+  | 'SHIFT_HANDOVER'
+  | 'SYSTEM';
+
+export interface AuditLogEntry {
+  id: string;
+  workspaceId: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  role: UserRole;
+  module: AuditLogModule;
+  action: AuditLogAction;
+  targetId: string;
+  targetLabel?: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  reasonNote?: string;
 }
 
 export type WeeklyPlanDayKey = 'senin' | 'selasa' | 'rabu' | 'kamis' | 'jumat' | 'sabtu' | 'minggu';
@@ -719,4 +753,5 @@ export interface AppState {
   } | null;
   tank: TankState;
   securityLogs?: SecurityAuditLog[];
+  auditLogs?: AuditLogEntry[];
 }

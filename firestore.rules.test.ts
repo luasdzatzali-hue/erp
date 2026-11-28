@@ -285,6 +285,63 @@ export const DIRTY_DOZEN_PAYLOADS = [
       sourceUid: 'admin_uid'
     },
     expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 23,
+    name: 'Audit Log Tampering (Update/Delete Attempt)',
+    auth: { uid: 'admin_uid', email: 'luasdzatzali@gmail.com', email_verified: true },
+    operation: 'delete',
+    path: '/workspaces/main/audit_logs/aud_1',
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 24,
+    name: 'Operator Scraping Admin Audit Logs (PII Isolation)',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'list',
+    path: '/workspaces/main/audit_logs',
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 25,
+    name: 'Audit Log UserId Spoofing',
+    auth: { uid: 'op_uid', email: 'op@factory.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/audit_logs/aud_spoof_1',
+    data: {
+      id: 'aud_spoof_1',
+      workspaceId: 'main',
+      timestamp: '2026-11-28T08:00:00.000Z',
+      createdAt: 'SERVER_TIME',
+      userId: 'admin_uid',
+      userName: 'Fake Admin',
+      role: 'ADMINISTRATOR',
+      module: 'PRODUCTION_USAGE',
+      action: 'CREATE',
+      targetId: 'use_1'
+    },
+    expected: 'PERMISSION_DENIED'
+  },
+  {
+    id: 26,
+    name: 'Closed-Shift Override Audit Without Mandatory ReasonNote',
+    auth: { uid: 'admin_uid', email: 'luasdzatzali@gmail.com', email_verified: true },
+    operation: 'create',
+    path: '/workspaces/main/audit_logs/aud_noreason_1',
+    data: {
+      id: 'aud_noreason_1',
+      workspaceId: 'main',
+      timestamp: '2026-11-28T08:00:00.000Z',
+      createdAt: 'SERVER_TIME',
+      userId: 'admin_uid',
+      userName: 'Admin',
+      role: 'ADMINISTRATOR',
+      module: 'SHIFT_CORRECTION',
+      action: 'OVERRIDE',
+      targetId: 'use_old_1'
+    },
+    expected: 'PERMISSION_DENIED'
   }
 ];
+
 

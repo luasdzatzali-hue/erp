@@ -154,6 +154,10 @@ export default function App() {
             isSyncingCloud={erp.isSyncingCloud}
             isCloudConnected={Boolean(erp.firebaseUser && erp.cloudAuthRole)}
             isCloudQuotaExceeded={erp.cloudQuotaStatus.isQuotaExceeded}
+            offlinePendingCount={erp.offlineQueueStatus.pendingCount}
+            isOfflineFlushing={erp.offlineQueueStatus.isFlushing}
+            isNetworkOnline={erp.offlineQueueStatus.isOnline}
+            onSyncOfflineQueueNow={() => void erp.handleSyncOfflineQueueNow()}
             currentViewTitle={erp.viewTitles[state.currentTab] || 'ProdTrack MES'}
           />
 

@@ -15,6 +15,9 @@ import {
 } from 'firebase/firestore';
 import {
   AppState,
+  AuditLogAction,
+  AuditLogEntry,
+  AuditLogModule,
   CartonProductionLog,
   MaterialReceipt,
   MaterialRejectLog,
@@ -23,7 +26,8 @@ import {
   MaterialUsage,
   ShiftNumber,
   SKU,
-  TankTransferLog
+  TankTransferLog,
+  UserRole
 } from '../types';
 import {
   auth,
@@ -36,7 +40,18 @@ import {
   stripUndefinedDeep,
   tripCloudWriteQuotaPause
 } from '../utils/firebaseSync';
-import { normalizeEmail } from '../utils/security';
+import { normalizeEmail, sanitizeTextInput } from '../utils/security';
+import {
+  calculateLineShiftOee,
+  calculateShiftAllLinesOee,
+  IiotTelemetryEventDoc,
+  ShiftOeeSnapshotDoc
+} from '../utils/oeeEngine';
+import {
+  enqueueOfflineSyncItem,
+  getBrowserOnlineStatus,
+  isNetworkOrOfflineError
+} from '../utils/offlineQueue';
 
 export type FirestoreTransactionType =
   | 'REQUEST'
@@ -155,11 +170,23 @@ export async function appendTransaction(
     actorEmail?: string;
     shift?: ShiftNumber | 0 | null;
     skuCode?: string;
-  })
+  }),
+  options?: { skipOfflineQueue?: boolean }
 ): Promise<WorkspaceTransactionDoc> {
   const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main');
   const normalized = normalizeTransactionDoc(tx);
-  if (isCloudWritePaused()) {
+  const enqueue = !options?.skipOfflineQueue;
+
+  if (!auth.currentUser || !getBrowserOnlineStatus() || isCloudWritePaused()) {
+    if (enqueue) {
+      enqueueOfflineSyncItem({
+        id: `oq_tx_${normalized.id}`,
+        type: 'TX_APPEND',
+        workspaceId: safeWorkspaceId,
+        dedupeKey: `tx_append_${safeWorkspaceId}_${normalized.id}`,
+        payload: { txDoc: normalized }
+      });
+    }
     return normalized;
   }
   const path = `workspaces/${safeWorkspaceId}/transactions/${normalized.id}`;
@@ -172,6 +199,29 @@ export async function appendTransaction(
   } catch (error) {
     if (isQuotaExceededError(error)) {
       tripCloudWriteQuotaPause();
+      if (enqueue) {
+        enqueueOfflineSyncItem({
+          id: `oq_tx_${normalized.id}`,
+          type: 'TX_APPEND',
+          workspaceId: safeWorkspaceId,
+          dedupeKey: `tx_append_${safeWorkspaceId}_${normalized.id}`,
+          payload: { txDoc: normalized },
+          lastError: 'Kuota Firestore sedang penuh'
+        });
+      }
+      return normalized;
+    }
+    if (isNetworkOrOfflineError(error)) {
+      if (enqueue) {
+        enqueueOfflineSyncItem({
+          id: `oq_tx_${normalized.id}`,
+          type: 'TX_APPEND',
+          workspaceId: safeWorkspaceId,
+          dedupeKey: `tx_append_${safeWorkspaceId}_${normalized.id}`,
+          payload: { txDoc: normalized },
+          lastError: error instanceof Error ? error.message : String(error)
+        });
+      }
       return normalized;
     }
     handleFirestoreError(error, OperationType.CREATE, path);
@@ -183,11 +233,25 @@ export async function appendTransaction(
  */
 export async function updateTransactionDoc(
   workspaceId: string,
-  tx: WorkspaceTransactionDoc
+  tx: WorkspaceTransactionDoc,
+  options?: { skipOfflineQueue?: boolean }
 ): Promise<void> {
-  if (isCloudWritePaused()) return;
   const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main');
   const normalized = normalizeTransactionDoc(tx);
+  const enqueue = !options?.skipOfflineQueue;
+
+  if (!auth.currentUser || !getBrowserOnlineStatus() || isCloudWritePaused()) {
+    if (enqueue) {
+      enqueueOfflineSyncItem({
+        id: `oq_txu_${normalized.id}`,
+        type: 'TX_UPDATE',
+        workspaceId: safeWorkspaceId,
+        dedupeKey: `tx_update_${safeWorkspaceId}_${normalized.id}`,
+        payload: { txDoc: normalized }
+      });
+    }
+    return;
+  }
   const path = `workspaces/${safeWorkspaceId}/transactions/${normalized.id}`;
 
   try {
@@ -197,6 +261,29 @@ export async function updateTransactionDoc(
   } catch (error) {
     if (isQuotaExceededError(error)) {
       tripCloudWriteQuotaPause();
+      if (enqueue) {
+        enqueueOfflineSyncItem({
+          id: `oq_txu_${normalized.id}`,
+          type: 'TX_UPDATE',
+          workspaceId: safeWorkspaceId,
+          dedupeKey: `tx_update_${safeWorkspaceId}_${normalized.id}`,
+          payload: { txDoc: normalized },
+          lastError: 'Kuota Firestore sedang penuh'
+        });
+      }
+      return;
+    }
+    if (isNetworkOrOfflineError(error)) {
+      if (enqueue) {
+        enqueueOfflineSyncItem({
+          id: `oq_txu_${normalized.id}`,
+          type: 'TX_UPDATE',
+          workspaceId: safeWorkspaceId,
+          dedupeKey: `tx_update_${safeWorkspaceId}_${normalized.id}`,
+          payload: { txDoc: normalized },
+          lastError: error instanceof Error ? error.message : String(error)
+        });
+      }
       return;
     }
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -708,3 +795,494 @@ export function mergeMigratedTransactionsIntoState(
     rejectLogs: merged.rejectLogs
   };
 }
+
+// ============================================================================
+// Shift OEE Snapshots (1 Summary Doc / Shift / Line for >90% Read Savings)
+// ============================================================================
+
+function clampSnapshotPct(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.max(0, Math.min(100, Math.round(val * 100) / 100));
+}
+
+function clampMinutes(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.max(0, Math.min(1440, Math.round(val * 100) / 100));
+}
+
+function clampKg(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.max(0, Math.min(1000000, Math.round(val * 1000) / 1000));
+}
+
+export function buildShiftOeeSnapshotFirestoreDoc(
+  snapshot: ShiftOeeSnapshotDoc,
+  uid: string
+): Record<string, unknown> {
+  const safeWorkspaceId = sanitizeTransactionId(snapshot.workspaceId || 'main', 'ws').slice(0, 64);
+  const safeLineId = sanitizeTransactionId(snapshot.lineId || 'line', 'line').slice(0, 64);
+  const safeSnapshotId = sanitizeTransactionId(
+    snapshot.id || `${snapshot.shiftId}_${safeLineId}`,
+    'oee'
+  );
+  const safeUid = sanitizeTransactionId(uid || 'system', 'uid');
+  const bd = snapshot.sixBigLossesBreakdown;
+
+  const sanitizeBucket = (b?: { minutes?: number; lossKg?: number }) => ({
+    minutes: clampMinutes(Number(b?.minutes ?? 0)),
+    lossKg: clampKg(Number(b?.lossKg ?? 0))
+  });
+
+  return {
+    id: safeSnapshotId,
+    workspaceId: safeWorkspaceId,
+    shiftId: String(snapshot.shiftId || `${snapshot.date}-S${snapshot.shift}`).slice(0, 32),
+    date: String(snapshot.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    shift: snapshot.shift === 1 || snapshot.shift === 2 || snapshot.shift === 3 ? snapshot.shift : 1,
+    lineId: safeLineId,
+    lineName: sanitizeTextInput(snapshot.lineName || safeLineId, 120),
+    skuCode: String(snapshot.skuCode || 'UNASSIGNED').trim().slice(0, 64) || 'UNASSIGNED',
+    availability: clampSnapshotPct(snapshot.availability),
+    performance: clampSnapshotPct(snapshot.performance),
+    quality: clampSnapshotPct(snapshot.quality),
+    oeeScore: clampSnapshotPct(snapshot.oeeScore),
+    sixBigLossesBreakdown: {
+      equipmentFailure: sanitizeBucket(bd?.equipmentFailure),
+      setupAdjustment: sanitizeBucket(bd?.setupAdjustment),
+      idlingMinorStops: sanitizeBucket(bd?.idlingMinorStops),
+      reducedSpeed: sanitizeBucket(bd?.reducedSpeed),
+      processDefects: sanitizeBucket(bd?.processDefects),
+      reducedYield: sanitizeBucket(bd?.reducedYield)
+    },
+    materialVariancePct: Math.max(-100, Math.min(10000, Number(snapshot.materialVariancePct) || 0)),
+    plannedProductionTimeMinutes: clampMinutes(snapshot.plannedProductionTimeMinutes),
+    operatingTimeMinutes: clampMinutes(snapshot.operatingTimeMinutes),
+    totalOutputCartons: Math.max(0, Math.min(10000000, Math.round(Number(snapshot.totalOutputCartons) || 0))),
+    goodOutputCartons: Math.max(0, Math.min(10000000, Number(snapshot.goodOutputCartons) || 0)),
+    standardBomMaterialKg: Math.max(0, Math.min(10000000, Number(snapshot.standardBomMaterialKg) || 0)),
+    actualMaterialUsedKg: Math.max(0, Math.min(10000000, Number(snapshot.actualMaterialUsedKg) || 0)),
+    updatedByUid: safeUid
+  };
+}
+
+export async function persistShiftOeeSnapshotDoc(
+  snapshot: ShiftOeeSnapshotDoc,
+  options?: { enqueueOnOffline?: boolean }
+): Promise<{ saved: boolean; queued: boolean }> {
+  const user = auth.currentUser;
+  const workspaceId = sanitizeTransactionId(snapshot.workspaceId || 'main', 'ws').slice(0, 64);
+  const enqueueOnOffline = options?.enqueueOnOffline ?? true;
+
+  if (!user || !getBrowserOnlineStatus() || isCloudWritePaused()) {
+    if (enqueueOnOffline) {
+      enqueueOfflineSyncItem({
+        type: 'OEE_SNAPSHOT',
+        workspaceId,
+        dedupeKey: `oee_snap_${workspaceId}_${snapshot.id}`,
+        payload: { snapshot }
+      });
+    }
+    return { saved: false, queued: enqueueOnOffline };
+  }
+
+  const firestoreBody = buildShiftOeeSnapshotFirestoreDoc(snapshot, user.uid);
+  const snapshotId = String(firestoreBody.id);
+  const path = `workspaces/${workspaceId}/shift_oee_snapshots/${snapshotId}`;
+
+  try {
+    await runFirestoreWriteWithGuard(() =>
+      setDoc(doc(db, 'workspaces', workspaceId, 'shift_oee_snapshots', snapshotId), {
+        ...firestoreBody,
+        updatedAt: serverTimestamp()
+      })
+    );
+    return { saved: true, queued: false };
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          type: 'OEE_SNAPSHOT',
+          workspaceId,
+          dedupeKey: `oee_snap_${workspaceId}_${snapshotId}`,
+          payload: { snapshot },
+          lastError: 'Kuota Firestore sedang penuh'
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    if (isNetworkOrOfflineError(error)) {
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          type: 'OEE_SNAPSHOT',
+          workspaceId,
+          dedupeKey: `oee_snap_${workspaceId}_${snapshotId}`,
+          payload: { snapshot },
+          lastError: error instanceof Error ? error.message : String(error)
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function saveShiftOeeSnapshot(params: {
+  state: AppState;
+  dateStr: string;
+  shift: ShiftNumber;
+  lineId?: string;
+  nowMs?: number;
+}): Promise<ShiftOeeSnapshotDoc[]> {
+  const { state, dateStr, shift, lineId, nowMs } = params;
+  const snapshots: ShiftOeeSnapshotDoc[] = lineId
+    ? [
+        calculateLineShiftOee({
+          state,
+          lineId,
+          dateStr,
+          shift,
+          nowMs
+        }).snapshot
+      ]
+    : calculateShiftAllLinesOee(state, dateStr, shift, nowMs).lineResults.map(r => r.snapshot);
+
+  for (const snap of snapshots) {
+    await persistShiftOeeSnapshotDoc(snap, { enqueueOnOffline: true });
+  }
+  return snapshots;
+}
+
+export async function fetchHistoricalShiftOeeSnapshots(
+  workspaceId: string,
+  limitCount = 60
+): Promise<ShiftOeeSnapshotDoc[]> {
+  if (!auth.currentUser) return [];
+  const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main', 'ws').slice(0, 64);
+  const boundedLimit = Math.min(Math.max(1, Math.floor(limitCount)), 200);
+  const path = `workspaces/${safeWorkspaceId}/shift_oee_snapshots`;
+
+  try {
+    const q = query(
+      collection(db, 'workspaces', safeWorkspaceId, 'shift_oee_snapshots'),
+      orderBy('updatedAt', 'desc'),
+      limit(boundedLimit)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => {
+      const data = d.data();
+      return {
+        ...(data as unknown as ShiftOeeSnapshotDoc),
+        id: typeof data.id === 'string' ? data.id : d.id,
+        updatedAt:
+          data.updatedAt && typeof data.updatedAt.toDate === 'function'
+            ? data.updatedAt.toDate().toISOString()
+            : typeof data.updatedAt === 'string'
+            ? data.updatedAt
+            : undefined
+      };
+    });
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      return [];
+    }
+    if (isNetworkOrOfflineError(error)) {
+      return [];
+    }
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+// ============================================================================
+// IIoT Telemetry Stream Helpers (ESP32 / PLC Gateway Pipeline)
+// ============================================================================
+
+export async function recordIiotTelemetryEvent(
+  event: Omit<IiotTelemetryEventDoc, 'receivedAt' | 'sourceUid'>,
+  options?: { enqueueOnOffline?: boolean }
+): Promise<{ saved: boolean; queued: boolean }> {
+  const user = auth.currentUser;
+  const workspaceId = sanitizeTransactionId(event.workspaceId || 'main', 'ws').slice(0, 64);
+  const safeId = sanitizeTransactionId(event.id, 'tel');
+  const enqueueOnOffline = options?.enqueueOnOffline ?? true;
+
+  if (!user || !getBrowserOnlineStatus() || isCloudWritePaused()) {
+    if (enqueueOnOffline) {
+      enqueueOfflineSyncItem({
+        id: `oq_tel_${safeId}`,
+        type: 'IIOT_TELEMETRY',
+        workspaceId,
+        payload: { event: { ...event, id: safeId, workspaceId } }
+      });
+    }
+    return { saved: false, queued: enqueueOnOffline };
+  }
+
+  const path = `workspaces/${workspaceId}/iiot_telemetry/${safeId}`;
+  const docBody = stripUndefinedDeep({
+    id: safeId,
+    workspaceId,
+    lineId: sanitizeTransactionId(event.lineId, 'line').slice(0, 64),
+    machineId: event.machineId ? sanitizeTextInput(event.machineId, 64) : undefined,
+    skuCode: event.skuCode ? sanitizeTextInput(event.skuCode, 64) : undefined,
+    status: event.status,
+    pulseCount: Math.max(0, Math.min(1000000, Math.round(Number(event.pulseCount) || 0))),
+    cycleTimeSec: Math.max(0, Math.min(86400, Number(event.cycleTimeSec) || 0)),
+    idleMinutes:
+      event.idleMinutes !== undefined
+        ? Math.max(0, Math.min(1440, Number(event.idleMinutes) || 0))
+        : undefined,
+    recordedAt: normalizeTimestampIso(event.recordedAt),
+    receivedAt: serverTimestamp(),
+    sourceUid: sanitizeTransactionId(user.uid, 'uid')
+  });
+
+  try {
+    await runFirestoreWriteWithGuard(() =>
+      setDoc(doc(db, 'workspaces', workspaceId, 'iiot_telemetry', safeId), docBody)
+    );
+    return { saved: true, queued: false };
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          id: `oq_tel_${safeId}`,
+          type: 'IIOT_TELEMETRY',
+          workspaceId,
+          payload: { event: { ...event, id: safeId, workspaceId } }
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    if (isNetworkOrOfflineError(error)) {
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          id: `oq_tel_${safeId}`,
+          type: 'IIOT_TELEMETRY',
+          workspaceId,
+          payload: { event: { ...event, id: safeId, workspaceId } }
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+// ============================================================================
+// Immutable Audit Trail Service (/workspaces/{workspaceId}/audit_logs/{auditId})
+// ============================================================================
+
+function serializeBoundedAuditValue(value: unknown, maxLen = 3800): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const json = typeof value === 'string' ? value : JSON.stringify(stripUndefinedDeep(value));
+    if (!json) return undefined;
+    return json.length > maxLen ? `${json.slice(0, maxLen - 3)}...` : json;
+  } catch {
+    return String(value).slice(0, maxLen);
+  }
+}
+
+export interface RecordAuditLogParams {
+  workspaceId?: string;
+  userId?: string;
+  userName: string;
+  userEmail?: string;
+  role: UserRole;
+  module: AuditLogModule;
+  action: AuditLogAction;
+  targetId: string;
+  targetLabel?: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  reasonNote?: string;
+  enqueueOnOffline?: boolean;
+}
+
+export function buildAuditLogEntry(params: RecordAuditLogParams): AuditLogEntry {
+  const safeWorkspaceId = sanitizeTransactionId(params.workspaceId || 'main', 'ws').slice(0, 64);
+  const safeId = sanitizeTransactionId(
+    `aud_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    'aud'
+  );
+  const resolvedUid = sanitizeTransactionId(
+    params.userId || auth.currentUser?.uid || 'local_operator',
+    'uid'
+  );
+
+  return {
+    id: safeId,
+    workspaceId: safeWorkspaceId,
+    timestamp: new Date().toISOString(),
+    userId: resolvedUid,
+    userName: sanitizeTextInput(params.userName || 'System', 120) || 'System',
+    userEmail: params.userEmail ? normalizeEmail(params.userEmail).slice(0, 160) : undefined,
+    role: params.role,
+    module: params.module,
+    action: params.action,
+    targetId: String(params.targetId || safeId).trim().slice(0, 128) || safeId,
+    targetLabel: params.targetLabel ? sanitizeTextInput(params.targetLabel, 160) : undefined,
+    previousValue: params.previousValue,
+    newValue: params.newValue,
+    reasonNote: params.reasonNote ? sanitizeTextInput(params.reasonNote, 500) : undefined
+  };
+}
+
+export async function persistAuditLogEntry(
+  entry: AuditLogEntry,
+  options?: { enqueueOnOffline?: boolean }
+): Promise<{ saved: boolean; queued: boolean }> {
+  const user = auth.currentUser;
+  const workspaceId = sanitizeTransactionId(entry.workspaceId || 'main', 'ws').slice(0, 64);
+  const auditId = sanitizeTransactionId(entry.id, 'aud');
+  const enqueueOnOffline = options?.enqueueOnOffline ?? true;
+
+  if (!user || !getBrowserOnlineStatus() || isCloudWritePaused()) {
+    if (enqueueOnOffline) {
+      enqueueOfflineSyncItem({
+        id: `oq_aud_${auditId}`,
+        type: 'AUDIT_LOG',
+        workspaceId,
+        payload: { entry: { ...entry, id: auditId, workspaceId } }
+      });
+    }
+    return { saved: false, queued: enqueueOnOffline };
+  }
+
+  const prevJson = serializeBoundedAuditValue(entry.previousValue);
+  const nextJson = serializeBoundedAuditValue(entry.newValue);
+  const path = `workspaces/${workspaceId}/audit_logs/${auditId}`;
+
+  const docBody = stripUndefinedDeep({
+    id: auditId,
+    workspaceId,
+    timestamp: normalizeTimestampIso(entry.timestamp),
+    createdAt: serverTimestamp(),
+    userId: sanitizeTransactionId(user.uid, 'uid'),
+    userName: sanitizeTextInput(entry.userName || user.displayName || user.email || 'User', 120) || 'User',
+    userEmail: entry.userEmail
+      ? normalizeEmail(entry.userEmail).slice(0, 160)
+      : user.email
+      ? normalizeEmail(user.email).slice(0, 160)
+      : undefined,
+    role: entry.role,
+    module: entry.module,
+    action: entry.action,
+    targetId: String(entry.targetId || auditId).trim().slice(0, 128) || auditId,
+    targetLabel: entry.targetLabel ? sanitizeTextInput(entry.targetLabel, 160) : undefined,
+    previousValueJson: prevJson,
+    newValueJson: nextJson,
+    reasonNote: entry.reasonNote ? sanitizeTextInput(entry.reasonNote, 500) : undefined
+  });
+
+  try {
+    await runFirestoreWriteWithGuard(() =>
+      setDoc(doc(db, 'workspaces', workspaceId, 'audit_logs', auditId), docBody)
+    );
+    return { saved: true, queued: false };
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      tripCloudWriteQuotaPause();
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          id: `oq_aud_${auditId}`,
+          type: 'AUDIT_LOG',
+          workspaceId,
+          payload: { entry: { ...entry, id: auditId, workspaceId } },
+          lastError: 'Kuota Firestore sedang penuh'
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    if (isNetworkOrOfflineError(error)) {
+      if (enqueueOnOffline) {
+        enqueueOfflineSyncItem({
+          id: `oq_aud_${auditId}`,
+          type: 'AUDIT_LOG',
+          workspaceId,
+          payload: { entry: { ...entry, id: auditId, workspaceId } },
+          lastError: error instanceof Error ? error.message : String(error)
+        });
+      }
+      return { saved: false, queued: enqueueOnOffline };
+    }
+    // Non-fatal fallback for client role mismatches so local audit trail still stays intact
+    console.warn(`Audit log cloud write rejected at ${path}:`, error);
+    return { saved: false, queued: false };
+  }
+}
+
+export async function recordAuditLog(params: RecordAuditLogParams): Promise<AuditLogEntry> {
+  const entry = buildAuditLogEntry(params);
+  await persistAuditLogEntry(entry, { enqueueOnOffline: params.enqueueOnOffline ?? true });
+  return entry;
+}
+
+export function subscribeAuditLogs(
+  workspaceId: string,
+  limitCount = 200,
+  callback: (logs: AuditLogEntry[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!auth.currentUser) return () => {};
+  const safeWorkspaceId = sanitizeTransactionId(workspaceId || 'main', 'ws').slice(0, 64);
+  const boundedLimit = Math.min(Math.max(1, Math.floor(limitCount || 200)), 300);
+  const path = `workspaces/${safeWorkspaceId}/audit_logs`;
+
+  const q = query(
+    collection(db, 'workspaces', safeWorkspaceId, 'audit_logs'),
+    orderBy('createdAt', 'desc'),
+    limit(boundedLimit)
+  );
+
+  return onSnapshot(
+    q,
+    snapshot => {
+      const entries: AuditLogEntry[] = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        if (!d) return;
+        const parseJsonField = (raw: unknown): unknown => {
+          if (typeof raw !== 'string' || !raw.trim()) return undefined;
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return raw;
+          }
+        };
+        entries.push({
+          id: typeof d.id === 'string' && d.id ? d.id : docSnap.id,
+          workspaceId: typeof d.workspaceId === 'string' ? d.workspaceId : safeWorkspaceId,
+          timestamp: typeof d.timestamp === 'string' ? d.timestamp : new Date().toISOString(),
+          userId: typeof d.userId === 'string' ? d.userId : '',
+          userName: typeof d.userName === 'string' ? d.userName : 'User',
+          userEmail: typeof d.userEmail === 'string' ? d.userEmail : undefined,
+          role: (d.role as UserRole) || 'OPERATOR',
+          module: (d.module as AuditLogModule) || 'SYSTEM',
+          action: (d.action as AuditLogAction) || 'UPDATE',
+          targetId: typeof d.targetId === 'string' ? d.targetId : docSnap.id,
+          targetLabel: typeof d.targetLabel === 'string' ? d.targetLabel : undefined,
+          previousValue: parseJsonField(d.previousValueJson),
+          newValue: parseJsonField(d.newValueJson),
+          reasonNote: typeof d.reasonNote === 'string' ? d.reasonNote : undefined
+        });
+      });
+      callback(entries);
+    },
+    err => {
+      if (isQuotaExceededError(err)) {
+        tripCloudWriteQuotaPause();
+      }
+      if (onError) onError(err);
+      try {
+        handleFirestoreError(err, OperationType.LIST, path);
+      } catch {
+        // Prevent uncaught error inside onSnapshot callback
+      }
+    }
+  );
+}
+

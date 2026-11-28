@@ -394,7 +394,8 @@ export const DEFAULT_STATE: AppState = {
     minTempTarget: 45.0,
     maxTempTarget: 55.0,
     isSimulationActive: true
-  }
+  },
+  auditLogs: []
 };
 
 export const SAMPLE_MATERIALS: Material[] = [
@@ -978,7 +979,8 @@ export function getCleanBlankState(): AppState {
       minTempTarget: 45.0,
       maxTempTarget: 55.0,
       isSimulationActive: false
-    }
+    },
+    auditLogs: []
   };
 }
 
@@ -1200,7 +1202,10 @@ export function loadStoredState(): AppState {
           tank: {
             ...DEFAULT_STATE.tank,
             ...parsed.tank
-          }
+          },
+          auditLogs: Array.isArray(cleanParsed.auditLogs)
+            ? cleanParsed.auditLogs.slice(0, 300)
+            : []
         };
 
         const { state: prunedState, prunedCount } = pruneOldLocalTransactions(
@@ -1432,12 +1437,14 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
     const needsCartonCompaction = cartonLogs.length > 120;
     const needsTankTrim = tankLogs.length > 200;
     const needsRunsTrim = runs.length > 90;
-    if (!needsCartonCompaction && !needsTankTrim && !needsRunsTrim) {
+    const needsAuditTrim = Array.isArray(state.auditLogs) && state.auditLogs.length > 250;
+    if (!needsCartonCompaction && !needsTankTrim && !needsRunsTrim && !needsAuditTrim) {
       return state;
     }
     return {
       ...state,
       activeSkuRuns: compactActiveRuns(runs, 80),
+      ...(needsAuditTrim ? { auditLogs: state.auditLogs!.slice(0, 250) } : {}),
       transactions: {
         ...state.transactions,
         cartonProductions: needsCartonCompaction
@@ -1452,6 +1459,7 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
     return {
       ...state,
       activeSkuRuns: compactActiveRuns(runs, 20),
+      ...(Array.isArray(state.auditLogs) ? { auditLogs: state.auditLogs.slice(0, 150) } : {}),
       transactions: {
         ...state.transactions,
         cartonProductions: coalesceCartonProductionLogs(cartonLogs).slice(0, 300),
@@ -1472,6 +1480,7 @@ function compactStateForStorage(state: AppState, level: 0 | 1 | 2): AppState {
   return {
     ...state,
     activeSkuRuns: compactActiveRuns(runs, 5),
+    ...(Array.isArray(state.auditLogs) ? { auditLogs: state.auditLogs.slice(0, 50) } : {}),
     transactions: {
       ...state.transactions,
       cartonProductions: coalesceCartonProductionLogs(cartonLogs)

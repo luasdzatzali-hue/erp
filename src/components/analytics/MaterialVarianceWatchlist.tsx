@@ -324,7 +324,8 @@ export const MaterialVarianceWatchlist: React.FC<MaterialVarianceWatchlistProps>
       );
       if (matchingUsage && erp?.handleUpdateUsage) {
         erp.handleUpdateUsage(matchingUsage.id, {
-          notes: `[Root Cause] ${trimmedNote}`
+          notes: `[Root Cause] ${trimmedNote}`,
+          reasonNote: trimmedNote
         });
       } else {
         erp?.showToast(`Catatan root cause untuk ${rootCauseRow.materialName} tersimpan.`);

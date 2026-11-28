@@ -1,10 +1,12 @@
 import {
   AppState,
   EffectiveRoleResolution,
+  ShiftNumber,
   UserRole,
   WorkspaceAccessConfig
 } from '../types';
 import { normalizeEmail } from './security';
+import { getCurrentShift } from './shifts';
 
 export interface ResolveEffectiveRoleContext {
   firebaseUserEmail?: string | null;
@@ -134,6 +136,23 @@ export function resolveEffectiveRole(
     };
   }
 
+  if (baseRole === 'SUPERVISOR' || baseRole === 'UNIT_HEAD') {
+    return {
+      role: baseRole,
+      isAdmin: false,
+      isCloudAdmin: hasRegisteredGoogleAdminEmail,
+      isOfflinePinAdmin: false,
+      isOperator: false,
+      isManagement: false,
+      canWriteCloudMaster: hasRegisteredGoogleAdminEmail,
+      canWriteCloudOperations: hasLiveFirebaseContext
+        ? context?.cloudAuthRole === 'ADMINISTRATOR' || context?.cloudAuthRole === 'OPERATOR'
+        : true,
+      hasRegisteredGoogleAdminEmail,
+      activeGoogleEmail: candidateEmail || undefined
+    };
+  }
+
   if (baseRole === 'OFFLINE_PIN_ADMIN') {
     return {
       role: 'OFFLINE_PIN_ADMIN',
@@ -183,3 +202,116 @@ export function resolveEffectiveRole(
     activeGoogleEmail: candidateEmail || undefined
   };
 }
+
+export type ShiftMutationOperation =
+  | 'INPUT'
+  | 'EDIT_TRANSACTION'
+  | 'DELETE_TRANSACTION'
+  | 'EDIT_DOWNTIME'
+  | 'DELETE_DOWNTIME'
+  | 'OVERRIDE';
+
+export interface ShiftMutationPermissionResult {
+  allowed: boolean;
+  isClosedShift: boolean;
+  requiresReasonNote: boolean;
+  denialReason?: string;
+}
+
+export function isSupervisoryOrAdminRole(role: UserRole): boolean {
+  return (
+    role === 'ADMINISTRATOR' ||
+    role === 'OFFLINE_PIN_ADMIN' ||
+    role === 'SUPERVISOR' ||
+    role === 'UNIT_HEAD'
+  );
+}
+
+export function canModifyMasterBom(
+  effective: Pick<EffectiveRoleResolution, 'role' | 'isAdmin' | 'isOperator' | 'isManagement'>
+): boolean {
+  if (effective.isManagement || effective.role === 'MANAGEMENT') return false;
+  if (effective.isOperator || effective.role === 'OPERATOR') return false;
+  return effective.isAdmin || effective.role === 'ADMINISTRATOR' || effective.role === 'OFFLINE_PIN_ADMIN';
+}
+
+export function canMutateShiftRecord(params: {
+  effectiveRole: Pick<EffectiveRoleResolution, 'role' | 'isOperator' | 'isManagement' | 'isAdmin'>;
+  operation: ShiftMutationOperation;
+  recordDate?: string;
+  recordShift?: ShiftNumber;
+  reasonNote?: string;
+  now?: Date;
+  activeDateStr?: string;
+  activeShift?: ShiftNumber;
+}): ShiftMutationPermissionResult {
+  const { effectiveRole, operation, recordDate, recordShift, reasonNote } = params;
+  const nowDate = params.now ?? new Date();
+  const currentDate = params.activeDateStr || nowDate.toISOString().slice(0, 10);
+  const currentShift = params.activeShift || getCurrentShift(nowDate).shift;
+
+  const isClosedByDate = Boolean(recordDate && recordDate !== currentDate);
+  const isClosedByShift = Boolean(recordShift && recordShift !== currentShift);
+  const isClosedShift = isClosedByDate || isClosedByShift;
+
+  if (effectiveRole.isManagement || effectiveRole.role === 'MANAGEMENT') {
+    return {
+      allowed: false,
+      isClosedShift,
+      requiresReasonNote: false,
+      denialReason: 'Akses ditolak: Akun Management hanya memiliki izin lihat (Read-Only).'
+    };
+  }
+
+  if (effectiveRole.isOperator || effectiveRole.role === 'OPERATOR') {
+    if (isClosedShift) {
+      return {
+        allowed: false,
+        isClosedShift: true,
+        requiresReasonNote: false,
+        denialReason:
+          'Akses ditolak: Operator dilarang mengedit atau menghapus data shift yang sudah tertutup. Hubungi Supervisor, Unit Head, atau Administrator.'
+      };
+    }
+    if (operation === 'DELETE_DOWNTIME' || operation === 'EDIT_DOWNTIME' || operation === 'OVERRIDE') {
+      return {
+        allowed: false,
+        isClosedShift,
+        requiresReasonNote: false,
+        denialReason:
+          'Akses ditolak: Perubahan atau penghapusan log downtime OEE / override hanya dapat dilakukan oleh Supervisor, Unit Head, atau Administrator.'
+      };
+    }
+    return {
+      allowed: true,
+      isClosedShift: false,
+      requiresReasonNote: false
+    };
+  }
+
+  // ADMINISTRATOR / OFFLINE_PIN_ADMIN / SUPERVISOR / UNIT_HEAD
+  const requiresReasonNote =
+    isClosedShift ||
+    operation === 'EDIT_TRANSACTION' ||
+    operation === 'DELETE_TRANSACTION' ||
+    operation === 'EDIT_DOWNTIME' ||
+    operation === 'DELETE_DOWNTIME' ||
+    operation === 'OVERRIDE';
+
+  if (requiresReasonNote && (!reasonNote || reasonNote.trim().length < 3)) {
+    return {
+      allowed: false,
+      isClosedShift,
+      requiresReasonNote: true,
+      denialReason:
+        'Catatan alasan wajib diisi (minimal 3 karakter) untuk koreksi data shift, override, atau edit/hapus log OEE.'
+    };
+  }
+
+  return {
+    allowed: true,
+    isClosedShift,
+    requiresReasonNote
+  };
+}
+

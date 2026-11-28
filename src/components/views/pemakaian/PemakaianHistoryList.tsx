@@ -10,6 +10,7 @@ import {
   FileText,
   History,
   Layers,
+  Lock,
   MessageCircle,
   PackageX,
   Printer,
@@ -22,6 +23,7 @@ import { MaterialUsage, StorageLocation } from '../../../types';
 import { useErp } from '../../../context/ErpContext';
 import { calculateUsageBreakdown } from '../../../utils/reportBreakdown';
 import { computeShiftVarianceAndSblSummary, getRejectCategoryLabel } from '../../../utils/rejectAnalytics';
+import { canMutateShiftRecord } from '../../../utils/roleAccess';
 import { formatIndonesianDate, getCurrentShift, SHIFTS_CONFIG, ShiftNumber } from '../../../utils/shifts';
 import { loadWhatsAppRecipients, normalizeWhatsAppPhone } from '../../../utils/whatsappReport';
 import { formatPauseDurationMs } from './utils';
@@ -49,7 +51,16 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
   shiftStats,
   onOpenRejectDrawer
 }) => {
-  const { state, handleUpdateUsage, handleDeleteUsage, setIsPdfReportModalOpen, showToast } = useErp();
+  const {
+    state,
+    getEffectiveRoleForState,
+    handleUpdateUsage,
+    handleDeleteUsage,
+    setIsPdfReportModalOpen,
+    showToast
+  } = useErp();
+
+  const effectiveRole = getEffectiveRoleForState(state);
 
   const [usageViewMode, setUsageViewMode] = useState<'breakdown-sku-wip' | 'list'>('breakdown-sku-wip');
   const [usageFilterSkuId, setUsageFilterSkuId] = useState<string>('all');
@@ -61,7 +72,9 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
   const [editLocation, setEditLocation] = useState<StorageLocation>('CK');
   const [editOperator, setEditOperator] = useState<string>('');
   const [editNotes, setEditNotes] = useState<string>('');
+  const [editReasonNote, setEditReasonNote] = useState<string>('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteReasonNote, setDeleteReasonNote] = useState<string>('');
 
   // WhatsApp export modal state
   const [isWaModalOpen, setIsWaModalOpen] = useState(false);
@@ -139,27 +152,47 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
   }, [state.transactions.usages, state.master.skus, state.master.wips, state.master.materials, searchTerm]);
 
   const beginEditUsage = (u: MaterialUsage) => {
+    const check = canMutateShiftRecord({
+      effectiveRole,
+      operation: 'EDIT_TRANSACTION',
+      recordDate: u.date,
+      recordShift: u.shift,
+      reasonNote: 'PRECHECK'
+    });
+    if (!check.allowed) {
+      showToast(check.denialReason || 'Akses ditolak untuk mengubah transaksi ini', true);
+      return;
+    }
     setEditingUsageId(u.id);
     setEditQty(String(u.usageQty));
     setEditLocation(u.sourceLocation);
     setEditOperator(u.operatorName || '');
     setEditNotes(u.notes || '');
+    setEditReasonNote('');
     setConfirmDeleteId(null);
+    setDeleteReasonNote('');
   };
 
-  const saveEditUsage = (usageId: string) => {
+  const saveEditUsage = (u: MaterialUsage) => {
     const parsedQty = parseFloat(editQty);
     if (!Number.isFinite(parsedQty) || parsedQty < 0) {
       showToast('Qty pemakaian harus berupa angka >= 0', true);
       return;
     }
-    handleUpdateUsage(usageId, {
+    const requiresReason = !effectiveRole.isOperator;
+    if (requiresReason && editReasonNote.trim().length < 3) {
+      showToast('Catatan alasan koreksi wajib diisi (minimal 3 karakter) untuk Audit Trail', true);
+      return;
+    }
+    handleUpdateUsage(u.id, {
       usageQty: parsedQty,
       sourceLocation: editLocation,
       operatorName: editOperator.trim(),
-      notes: editNotes.trim()
+      notes: editNotes.trim(),
+      reasonNote: editReasonNote.trim() || undefined
     });
     setEditingUsageId(null);
+    setEditReasonNote('');
   };
 
   const handleExportCsv = () => {
@@ -634,6 +667,15 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                       const mObj = state.master.materials.find(m => m.id === u.materialId);
                       const isEditing = editingUsageId === u.id;
                       const isConfirmDelete = confirmDeleteId === u.id;
+                      const shiftPermCheck = canMutateShiftRecord({
+                        effectiveRole,
+                        operation: 'EDIT_TRANSACTION',
+                        recordDate: u.date,
+                        recordShift: u.shift,
+                        reasonNote: 'PRECHECK'
+                      });
+                      const isRowLocked = !shiftPermCheck.allowed;
+                      const requiresAuditReason = !effectiveRole.isOperator && !effectiveRole.isManagement;
 
                       return (
                         <tr key={u.id} className="hover:bg-elevated transition">
@@ -712,6 +754,15 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                                   placeholder="Catatan"
                                   className="w-full bg-canvas border border-border-strong rounded px-2 py-1 text-[11px] text-ink-primary"
                                 />
+                                {requiresAuditReason && (
+                                  <input
+                                    type="text"
+                                    value={editReasonNote}
+                                    onChange={e => setEditReasonNote(e.target.value)}
+                                    placeholder="Alasan koreksi wajib (min 3 char)..."
+                                    className="w-full bg-canvas border border-amber-500/70 rounded px-2 py-1 text-[11px] text-ink-primary"
+                                  />
+                                )}
                               </div>
                             ) : (
                               <>
@@ -738,7 +789,7 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                               <div className="inline-flex items-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => saveEditUsage(u.id)}
+                                  onClick={() => saveEditUsage(u)}
                                   className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white"
                                   title="Simpan Perubahan"
                                 >
@@ -746,7 +797,10 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setEditingUsageId(null)}
+                                  onClick={() => {
+                                    setEditingUsageId(null);
+                                    setEditReasonNote('');
+                                  }}
                                   className="p-1.5 rounded-lg bg-elevated hover:bg-accent text-ink-secondary"
                                   title="Batal Edit"
                                 >
@@ -754,25 +808,52 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                                 </button>
                               </div>
                             ) : isConfirmDelete ? (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDeleteUsage(u.id);
-                                    setConfirmDeleteId(null);
-                                  }}
-                                  className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold"
-                                >
-                                  Hapus
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="px-2 py-1 rounded-lg bg-elevated text-ink-secondary text-[10px]"
-                                >
-                                  Batal
-                                </button>
+                              <div className="inline-flex flex-col items-end gap-1">
+                                {requiresAuditReason && (
+                                  <input
+                                    type="text"
+                                    value={deleteReasonNote}
+                                    onChange={e => setDeleteReasonNote(e.target.value)}
+                                    placeholder="Alasan hapus wajib..."
+                                    className="w-36 bg-canvas border border-rose-500/70 rounded px-2 py-0.5 text-[10px] text-ink-primary"
+                                  />
+                                )}
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (requiresAuditReason && deleteReasonNote.trim().length < 3) {
+                                        showToast('Catatan alasan penghapusan wajib diisi (minimal 3 karakter)', true);
+                                        return;
+                                      }
+                                      handleDeleteUsage(u.id, deleteReasonNote.trim() || undefined);
+                                      setConfirmDeleteId(null);
+                                      setDeleteReasonNote('');
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold whitespace-nowrap shrink-0"
+                                  >
+                                    Hapus
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setConfirmDeleteId(null);
+                                      setDeleteReasonNote('');
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-elevated text-ink-secondary text-[10px] whitespace-nowrap shrink-0"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
                               </div>
+                            ) : isRowLocked ? (
+                              <span
+                                title={shiftPermCheck.denialReason || 'Data shift tertutup terkunci'}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-canvas border border-border-subtle text-[10px] font-mono text-ink-muted cursor-not-allowed"
+                              >
+                                <Lock className="w-3 h-3 shrink-0" />
+                                <span>Terkunci</span>
+                              </span>
                             ) : (
                               <div className="inline-flex items-center gap-1">
                                 <button
@@ -787,6 +868,7 @@ export const PemakaianHistoryList: React.FC<PemakaianHistoryListProps> = ({
                                   type="button"
                                   onClick={() => {
                                     setConfirmDeleteId(u.id);
+                                    setDeleteReasonNote('');
                                     setEditingUsageId(null);
                                   }}
                                   className="p-1.5 rounded-lg bg-elevated hover:bg-rose-500/20 border border-border-subtle text-ink-rose transition"

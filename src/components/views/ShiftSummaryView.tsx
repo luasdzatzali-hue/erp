@@ -14,7 +14,12 @@ import {
   Layers,
   CheckCircle2,
   MessageCircle,
-  PackageX
+  PackageX,
+  Edit3,
+  Trash2,
+  Check,
+  X,
+  Lock
 } from 'lucide-react';
 import {
   AppState,
@@ -35,6 +40,8 @@ import {
   computeShiftVarianceAndSblSummary,
   getRejectCategoryLabel
 } from '../../utils/rejectAnalytics';
+import { useOptionalErp } from '../../context/ErpContext';
+import { canMutateShiftRecord, resolveEffectiveRole } from '../../utils/roleAccess';
 import { WhatsAppSblModal } from '../WhatsAppSblModal';
 
 interface ShiftSummaryViewProps {
@@ -106,6 +113,24 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
     stopLog?: ProductionStopLog;
     recapLogs?: ProductionStopLog[];
   } | null>(null);
+
+  const erp = useOptionalErp();
+  const effectiveRole = erp ? erp.getEffectiveRoleForState(state) : resolveEffectiveRole(state);
+  const canEditDowntime =
+    Boolean(erp?.handleUpdateProductionStop && erp?.handleDeleteProductionStop) &&
+    canMutateShiftRecord({
+      effectiveRole,
+      operation: 'EDIT_DOWNTIME',
+      recordDate: selectedDate,
+      recordShift: selectedShift,
+      reasonNote: 'PRECHECK'
+    }).allowed;
+
+  const [editingStopId, setEditingStopId] = useState<string | null>(null);
+  const [editStopMinutes, setEditStopMinutes] = useState<string>('');
+  const [editStopReasonNote, setEditStopReasonNote] = useState<string>('');
+  const [confirmDeleteStopId, setConfirmDeleteStopId] = useState<string | null>(null);
+  const [deleteStopReasonNote, setDeleteStopReasonNote] = useState<string>('');
 
   const shiftMeta = SHIFTS_CONFIG[selectedShift];
   const isViewingCurrentShift = selectedDate === todayStr && selectedShift === liveShiftInfo.shift;
@@ -773,6 +798,7 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                 <th className="py-2.5 px-3 text-right">Durasi</th>
                 <th className="py-2.5 px-3">Tindakan / PIC</th>
                 <th className="py-2.5 px-3 text-center">Laporan WA</th>
+                <th className="py-2.5 px-3 text-center no-print">Koreksi OEE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -782,6 +808,8 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                   .reverse()
                   .map(log => {
                     const canSendWa = isWhatsAppEligibleSblCategory(log.category);
+                    const isEditingStop = editingStopId === log.id;
+                    const isDeletingStop = confirmDeleteStopId === log.id;
                     return (
                       <tr key={log.id} className="hover:bg-elevated transition">
                         <td className="py-2.5 px-3 font-mono text-ink-secondary whitespace-nowrap tabular-nums">
@@ -805,11 +833,23 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                           {log.reasonTitle}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-ink-rose tabular-nums whitespace-nowrap">
-                          <div>{log.durationMinutes} mnt</div>
-                          {log.resumedAt && log.estimatedRepairMinutes && (
-                            <div className="text-[10px] font-normal text-ink-emerald">
-                              Est. {log.estimatedRepairMinutes}m → Aktual {log.actualRepairMinutes ?? log.durationMinutes}m
-                            </div>
+                          {isEditingStop ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={editStopMinutes}
+                              onChange={e => setEditStopMinutes(e.target.value)}
+                              className="w-20 bg-canvas border border-amber-500/70 rounded px-2 py-1 text-right text-xs font-mono text-ink-primary"
+                            />
+                          ) : (
+                            <>
+                              <div>{log.durationMinutes} mnt</div>
+                              {log.resumedAt && log.estimatedRepairMinutes && (
+                                <div className="text-[10px] font-normal text-ink-emerald">
+                                  Est. {log.estimatedRepairMinutes}m → Aktual {log.actualRepairMinutes ?? log.durationMinutes}m
+                                </div>
+                              )}
+                            </>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-ink-secondary text-[11px]">
@@ -829,12 +869,136 @@ export const ShiftSummaryView: React.FC<ShiftSummaryViewProps> = ({
                             <span className="text-[10px] text-slate-600">-</span>
                           )}
                         </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap no-print">
+                          {!canEditDowntime ? (
+                            <span
+                              title="Hanya Supervisor, Unit Head, atau Administrator yang dapat mengoreksi/menghapus log downtime OEE"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-canvas border border-border-subtle text-[10px] font-mono text-ink-muted"
+                            >
+                              <Lock className="w-3 h-3 shrink-0" />
+                              <span>Terkunci</span>
+                            </span>
+                          ) : isEditingStop ? (
+                            <div className="inline-flex flex-col items-end gap-1">
+                              <input
+                                type="text"
+                                value={editStopReasonNote}
+                                onChange={e => setEditStopReasonNote(e.target.value)}
+                                placeholder="Alasan wajib (min 3 char)..."
+                                className="w-36 bg-canvas border border-amber-500/70 rounded px-2 py-0.5 text-[10px] text-ink-primary"
+                              />
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const mins = parseInt(editStopMinutes, 10);
+                                    if (!Number.isFinite(mins) || mins < 0) {
+                                      showToast?.('Durasi downtime harus berupa angka >= 0', true);
+                                      return;
+                                    }
+                                    if (editStopReasonNote.trim().length < 3) {
+                                      showToast?.('Catatan alasan wajib diisi (minimal 3 karakter)', true);
+                                      return;
+                                    }
+                                    erp?.handleUpdateProductionStop(
+                                      log.id,
+                                      { durationMinutes: mins },
+                                      editStopReasonNote.trim()
+                                    );
+                                    setEditingStopId(null);
+                                    setEditStopReasonNote('');
+                                  }}
+                                  className="p-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+                                  title="Simpan Koreksi Downtime"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingStopId(null);
+                                    setEditStopReasonNote('');
+                                  }}
+                                  className="p-1 rounded bg-elevated text-ink-secondary"
+                                  title="Batal"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : isDeletingStop ? (
+                            <div className="inline-flex flex-col items-end gap-1">
+                              <input
+                                type="text"
+                                value={deleteStopReasonNote}
+                                onChange={e => setDeleteStopReasonNote(e.target.value)}
+                                placeholder="Alasan hapus wajib..."
+                                className="w-36 bg-canvas border border-rose-500/70 rounded px-2 py-0.5 text-[10px] text-ink-primary"
+                              />
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (deleteStopReasonNote.trim().length < 3) {
+                                      showToast?.('Catatan alasan hapus wajib diisi (minimal 3 karakter)', true);
+                                      return;
+                                    }
+                                    erp?.handleDeleteProductionStop(log.id, deleteStopReasonNote.trim());
+                                    setConfirmDeleteStopId(null);
+                                    setDeleteStopReasonNote('');
+                                  }}
+                                  className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold"
+                                >
+                                  Hapus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmDeleteStopId(null);
+                                    setDeleteStopReasonNote('');
+                                  }}
+                                  className="px-2 py-0.5 rounded bg-elevated text-ink-secondary text-[10px]"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStopId(log.id);
+                                  setEditStopMinutes(String(log.durationMinutes));
+                                  setEditStopReasonNote('');
+                                  setConfirmDeleteStopId(null);
+                                }}
+                                className="p-1.5 rounded bg-elevated hover:bg-accent border border-border-subtle text-brand transition"
+                                title="Edit Durasi Downtime OEE (Supervisor/Admin)"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDeleteStopId(log.id);
+                                  setDeleteStopReasonNote('');
+                                  setEditingStopId(null);
+                                }}
+                                className="p-1.5 rounded bg-elevated hover:bg-rose-500/20 border border-border-subtle text-ink-rose transition"
+                                title="Hapus Log Downtime OEE (Supervisor/Admin)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-ink-secondary text-xs">
+                  <td colSpan={9} className="py-6 text-center text-ink-secondary text-xs">
                     <span className="inline-flex items-center space-x-1.5 text-ink-emerald font-medium">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Tidak ada kejadian stop masalah (SBL) pada {shiftMeta.name} tanggal {selectedDate}.</span>

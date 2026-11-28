@@ -78,6 +78,7 @@ function useErpController() {
     dispatchAppendTx: firebaseSync.dispatchAppendTx,
     flushAutoCartonBuffer: firebaseSync.flushAutoCartonBuffer,
     markExplicitOperationsWrite: firebaseSync.markExplicitOperationsWrite,
+    logAuditTrail: firebaseSync.logAuditTrail,
     showToast
   });
 
@@ -93,6 +94,8 @@ function useErpController() {
     dispatchAppendTx: firebaseSync.dispatchAppendTx,
     flushAutoCartonBuffer: firebaseSync.flushAutoCartonBuffer,
     markExplicitOperationsWrite: firebaseSync.markExplicitOperationsWrite,
+    logAuditTrail: firebaseSync.logAuditTrail,
+    syncShiftOeeSnapshot: firebaseSync.syncShiftOeeSnapshot,
     isApplyingRemoteRef: firebaseSync.isApplyingRemoteRef,
     autoCartonBufferRef: firebaseSync.autoCartonBufferRef,
     pendingTxDocsRef: firebaseSync.pendingTxDocsRef,

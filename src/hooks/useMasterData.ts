@@ -17,7 +17,9 @@ import {
   WipTank
 } from '../types';
 import { getMaterialCompositeKey } from '../utils/materialParser';
+import { canModifyMasterBom } from '../utils/roleAccess';
 import {
+  RecordAuditLogParams,
   toTransactionDocFromAdjustment,
   toTransactionDocFromTankLog,
   WorkspaceTransactionDoc
@@ -32,6 +34,9 @@ export interface UseMasterDataParams {
   dispatchAppendTx: (txDoc: WorkspaceTransactionDoc) => void;
   flushAutoCartonBuffer: (targetLineOrRunKey?: string) => void;
   markExplicitOperationsWrite: () => void;
+  logAuditTrail?: (
+    params: Omit<RecordAuditLogParams, 'workspaceId' | 'userId' | 'userName' | 'userEmail' | 'role'>
+  ) => unknown;
   showToast: (msg: string, isError?: boolean) => void;
 }
 
@@ -44,8 +49,16 @@ export function useMasterData({
   dispatchAppendTx,
   flushAutoCartonBuffer,
   markExplicitOperationsWrite,
+  logAuditTrail,
   showToast
 }: UseMasterDataParams) {
+  const assertCanModifyMasterBom = (): boolean => {
+    if (!canModifyMasterBom(getEffectiveRoleForState(stateRef.current))) {
+      showToast('Akses ditolak: Hanya Administrator yang berwenang mengubah Master BOM & Konfigurasi.', true);
+      return false;
+    }
+    return true;
+  };
   // Tank update
   const handleUpdateTank = (updated: Partial<TankState>) => {
     setState(prev => ({
@@ -59,6 +72,13 @@ export function useMasterData({
 
   // 2. Reset Master Data
   const handleResetMasterData = () => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevCounts = {
+      materials: stateRef.current.master.materials.length,
+      wips: stateRef.current.master.wips.length,
+      skus: stateRef.current.master.skus.length,
+      recipes: (stateRef.current.master.recipes || []).length
+    };
     setState(prev => ({
       ...prev,
       master: {
@@ -73,11 +93,21 @@ export function useMasterData({
         productionLines: prev.master.productionLines || []
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'DELETE',
+      targetId: 'master_all',
+      targetLabel: 'Reset Seluruh Master BOM',
+      previousValue: prevCounts,
+      newValue: { materials: 0, wips: 0, skus: 0, recipes: 0 },
+      reasonNote: 'Reset Master Data oleh Administrator'
+    });
     showToast('Kategori 2: Master Data (Material, WIP, SKU, Mesin, Tangki & BOM) berhasil di-reset');
   };
 
   // Add Material
   const handleAddMaterial = (matData: Omit<Material, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newMat: Material = {
       ...matData,
       id: `mat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -90,10 +120,19 @@ export function useMasterData({
         materials: [...prev.master.materials, newMat]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newMat.id,
+      targetLabel: `Material: ${newMat.name} (${newMat.code})`,
+      newValue: { name: newMat.name, code: newMat.code, weightKg: newMat.weightKg, source: newMat.source }
+    });
   };
 
   // Update Material
   const handleUpdateMaterial = (materialId: string, updates: Partial<Material>) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevMat = stateRef.current.master.materials.find(m => m.id === materialId);
     setState(prev => ({
       ...prev,
       master: {
@@ -109,10 +148,22 @@ export function useMasterData({
         )
       }
     }));
+    if (prevMat) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'UPDATE',
+        targetId: materialId,
+        targetLabel: `Material: ${updates.name || prevMat.name}`,
+        previousValue: { name: prevMat.name, code: prevMat.code, weightKg: prevMat.weightKg, minStockAlert: prevMat.minStockAlert },
+        newValue: updates
+      });
+    }
   };
 
   // Delete Material
   const handleDeleteMaterial = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevMat = stateRef.current.master.materials.find(m => m.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -129,6 +180,16 @@ export function useMasterData({
         })
       }
     }));
+    if (prevMat) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: id,
+        targetLabel: `Material: ${prevMat.name} (${prevMat.code || id})`,
+        previousValue: { name: prevMat.name, code: prevMat.code, weightKg: prevMat.weightKg },
+        reasonNote: 'Hapus material dari Master BOM'
+      });
+    }
     showToast('Material berhasil dihapus');
   };
 
@@ -219,11 +280,22 @@ export function useMasterData({
       }
     }));
 
+    logAuditTrail?.({
+      module: 'STOCK_ADJUSTMENT',
+      action: 'OVERRIDE',
+      targetId: materialId,
+      targetLabel: `Adjust Saldo Awal: ${targetMat.name}`,
+      previousValue: { ck: prevCk, wineroto: prevWineroto, tank: prevTank, totalKg: prevTotal },
+      newValue: { ck: newCk, wineroto: newWineroto, tank: newTank, totalKg: newTotal, deltaKg: deltaTotal },
+      reasonNote: adjustments.reason || 'Penyesuaian Saldo Awal Material oleh Administrator'
+    });
+
     showToast('Saldo awal material berhasil disesuaikan oleh Administrator');
   };
 
   // Import Materials (Internal Storage & Google Drive Batch Loader)
   const handleImportMaterials = (newMaterials: Material[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     setState(prev => {
       let finalMaterials: Material[] = [];
 
@@ -262,10 +334,18 @@ export function useMasterData({
         }
       };
     });
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: mode === 'replace' ? 'OVERRIDE' : 'CREATE',
+      targetId: 'import_materials',
+      targetLabel: `Import Master Material (${mode})`,
+      newValue: { importedCount: newMaterials.length, mode }
+    });
   };
 
   // Add WIP
   const handleAddWip = (wipData: Omit<WIP, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newWip: WIP = {
       ...wipData,
       id: `wip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -277,10 +357,19 @@ export function useMasterData({
         wips: [...prev.master.wips, newWip]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newWip.id,
+      targetLabel: `WIP: ${newWip.name}`,
+      newValue: { code: newWip.code, batchWeightKg: newWip.batchWeightKg }
+    });
   };
 
   // Delete WIP
   const handleDeleteWip = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevWip = stateRef.current.master.wips.find(w => w.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -291,11 +380,23 @@ export function useMasterData({
         recipes: (prev.master.recipes || []).filter(r => r.wipId !== id)
       }
     }));
+    if (prevWip) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: id,
+        targetLabel: `WIP: ${prevWip.name}`,
+        previousValue: { name: prevWip.name, code: prevWip.code },
+        reasonNote: 'Hapus WIP dari Master BOM'
+      });
+    }
     showToast('WIP berhasil dihapus');
   };
 
   // Update WIP (Multi-mesin, nama, bobot batch)
   const handleUpdateWip = (wipId: string, updates: Partial<WIP>) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevWip = stateRef.current.master.wips.find(w => w.id === wipId);
     setState(prev => ({
       ...prev,
       master: {
@@ -303,10 +404,21 @@ export function useMasterData({
         wips: prev.master.wips.map(w => (w.id === wipId ? { ...w, ...updates } : w))
       }
     }));
+    if (prevWip) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'UPDATE',
+        targetId: wipId,
+        targetLabel: `WIP: ${updates.name || prevWip.name}`,
+        previousValue: { name: prevWip.name, batchWeightKg: prevWip.batchWeightKg },
+        newValue: updates
+      });
+    }
   };
 
   // Add SKU
   const handleAddSku = (skuData: Omit<SKU, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newSku: SKU = {
       ...skuData,
       id: `sku_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -318,10 +430,19 @@ export function useMasterData({
         skus: [...prev.master.skus, newSku]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newSku.id,
+      targetLabel: `SKU: ${newSku.name}`,
+      newValue: { code: newSku.code, targetHour: newSku.targetHour, cartonWeightKg: newSku.cartonWeightKg }
+    });
   };
 
   // Update SKU
   const handleUpdateSku = (skuId: string, updates: Partial<SKU>) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevSku = stateRef.current.master.skus.find(s => s.id === skuId);
     setState(prev => ({
       ...prev,
       master: {
@@ -337,10 +458,22 @@ export function useMasterData({
         )
       }
     }));
+    if (prevSku) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'UPDATE',
+        targetId: skuId,
+        targetLabel: `SKU: ${updates.name || prevSku.name}`,
+        previousValue: { name: prevSku.name, targetHour: prevSku.targetHour, cartonWeightKg: prevSku.cartonWeightKg },
+        newValue: updates
+      });
+    }
   };
 
   // Delete SKU
   const handleDeleteSku = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevSku = stateRef.current.master.skus.find(s => s.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -349,11 +482,22 @@ export function useMasterData({
         skuWips: prev.master.skuWips.filter(sw => sw.skuId !== id)
       }
     }));
+    if (prevSku) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: id,
+        targetLabel: `SKU: ${prevSku.name}`,
+        previousValue: { name: prevSku.name, code: prevSku.code },
+        reasonNote: 'Hapus SKU dari Master BOM'
+      });
+    }
     showToast('SKU berhasil dihapus');
   };
 
   // Import SKUs (Internal Storage & Google Drive Batch Loader)
   const handleImportSkus = (newSkus: SKU[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     let finalSkus: SKU[] = [];
 
     if (mode === 'replace') {
@@ -403,6 +547,7 @@ export function useMasterData({
 
   // Add SkuWip link
   const handleAddSkuWip = (swData: Omit<SkuWip, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newSW: SkuWip = {
       ...swData,
       id: `sw_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -414,10 +559,19 @@ export function useMasterData({
         skuWips: [...prev.master.skuWips, newSW]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newSW.id,
+      targetLabel: `Relasi BOM SKU-WIP (${newSW.skuId} -> ${newSW.wipId})`,
+      newValue: { kgWipPerCartonSku: newSW.kgWipPerCartonSku }
+    });
   };
 
   // Delete SkuWip link
   const handleDeleteSkuWip = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevSw = stateRef.current.master.skuWips.find(sw => sw.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -425,11 +579,20 @@ export function useMasterData({
         skuWips: prev.master.skuWips.filter(sw => sw.id !== id)
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'DELETE',
+      targetId: id,
+      targetLabel: `Relasi BOM SKU-WIP`,
+      previousValue: prevSw,
+      reasonNote: 'Hapus relasi WIP ke SKU'
+    });
     showToast('Relasi WIP ke SKU dihapus');
   };
 
   // Import SkuWip links (Local File & Google Drive Batch Loader)
   const handleImportSkuWips = (newSkuWips: SkuWip[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     let finalSkuWips: SkuWip[] = [];
 
     if (mode === 'replace') {
@@ -469,6 +632,14 @@ export function useMasterData({
       }
     }));
 
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: mode === 'replace' ? 'OVERRIDE' : 'CREATE',
+      targetId: 'import_sku_wips',
+      targetLabel: `Import Relasi SKU-WIP (${mode})`,
+      newValue: { count: finalSkuWips.length }
+    });
+
     showToast(
       mode === 'replace'
         ? `Berhasil mengganti seluruh relasi WIP per karton SKU (${finalSkuWips.length} relasi)`
@@ -478,6 +649,7 @@ export function useMasterData({
 
   // Add WipMat link
   const handleAddWipMat = (wmData: Omit<WipMaterial, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newWM: WipMaterial = {
       ...wmData,
       id: `wm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -493,6 +665,7 @@ export function useMasterData({
 
   // Delete WipMat link
   const handleDeleteWipMat = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
     setState(prev => ({
       ...prev,
       master: {
@@ -500,11 +673,19 @@ export function useMasterData({
         wipMats: prev.master.wipMats.filter(wm => wm.materialId !== id)
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'DELETE',
+      targetId: id,
+      targetLabel: 'Relasi Material ke WIP',
+      reasonNote: 'Hapus relasi material ke WIP'
+    });
     showToast('Relasi Material ke WIP dihapus');
   };
 
   // Recipe Management (Resep Berdasarkan Material untuk WIP)
   const handleAddRecipe = (recipeData: Omit<WipRecipe, 'id' | 'createdAt'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newRecipeId = `rcp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const initialItems = (recipeData.items || []).map(it => ({
       ...it,
@@ -556,12 +737,21 @@ export function useMasterData({
         }
       };
     });
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newRecipeId,
+      targetLabel: `Resep: ${newRecipe.recipeName} (${newRecipe.recipeCode})`,
+      newValue: { wipId: newRecipe.wipId, itemsCount: initialItems.length, totalWeightKg: newRecipe.totalWeightKg }
+    });
     showToast(
       `Resep "${newRecipe.recipeName}" (${newRecipe.recipeCode}) berhasil disimpan dengan ${initialItems.length} material`
     );
   };
 
   const handleUpdateRecipe = (recipeId: string, updates: Partial<WipRecipe>) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevRec = (stateRef.current.master.recipes || []).find(r => r.id === recipeId);
     setState(prev => {
       const target = (prev.master.recipes || []).find(r => r.id === recipeId);
       const wipId = target?.wipId;
@@ -582,10 +772,22 @@ export function useMasterData({
         }
       };
     });
+    if (prevRec) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'UPDATE',
+        targetId: recipeId,
+        targetLabel: `Resep: ${updates.recipeName || prevRec.recipeName}`,
+        previousValue: { recipeName: prevRec.recipeName, totalWeightKg: prevRec.totalWeightKg, isDefault: prevRec.isDefault },
+        newValue: updates
+      });
+    }
     showToast('Resep berhasil diperbarui');
   };
 
   const handleDeleteRecipe = (recipeId: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevRec = (stateRef.current.master.recipes || []).find(r => r.id === recipeId);
     setState(prev => ({
       ...prev,
       master: {
@@ -593,10 +795,21 @@ export function useMasterData({
         recipes: (prev.master.recipes || []).filter(r => r.id !== recipeId)
       }
     }));
+    if (prevRec) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: recipeId,
+        targetLabel: `Resep: ${prevRec.recipeName} (${prevRec.recipeCode})`,
+        previousValue: { recipeCode: prevRec.recipeCode, itemsCount: prevRec.items.length },
+        reasonNote: 'Hapus resep dari Master BOM'
+      });
+    }
     showToast('Resep berhasil dihapus');
   };
 
   const handleAddMaterialToRecipe = (recipeId: string, itemData: Omit<WipRecipeItem, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newItem: WipRecipeItem = {
       ...itemData,
       id: `ri_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -648,6 +861,13 @@ export function useMasterData({
         }
       };
     });
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'UPDATE',
+      targetId: recipeId,
+      targetLabel: `Tambah Material Resep: ${itemData.materialName || itemData.materialId}`,
+      newValue: { amount: itemData.amount, unit: itemData.unit, amountKg: itemData.amountKg }
+    });
     showToast(
       `Material ${itemData.materialName || ''} ditambahkan ke resep (${itemData.amount} ${itemData.unit})`
     );
@@ -657,6 +877,7 @@ export function useMasterData({
     recipeId: string,
     itemsData: Array<Omit<WipRecipeItem, 'id'>>
   ) => {
+    if (!assertCanModifyMasterBom()) return;
     if (!itemsData || itemsData.length === 0) return;
 
     setState(prev => {
@@ -725,7 +946,10 @@ export function useMasterData({
     newAmount: number,
     newUnit: 'kg' | 'gr'
   ) => {
+    if (!assertCanModifyMasterBom()) return;
     const amountKg = newUnit === 'gr' ? newAmount / 1000 : newAmount;
+    const prevRec = (stateRef.current.master.recipes || []).find(r => r.id === recipeId);
+    const prevItem = prevRec?.items.find(it => it.id === itemId);
     setState(prev => {
       let targetWipId = '';
       let targetMatId = '';
@@ -776,10 +1000,23 @@ export function useMasterData({
         }
       };
     });
+    if (prevItem) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'UPDATE',
+        targetId: `${recipeId}:${itemId}`,
+        targetLabel: `Takaran Resep ${prevRec?.recipeName || recipeId} · ${prevItem.materialName}`,
+        previousValue: { amount: prevItem.amount, unit: prevItem.unit, amountKg: prevItem.amountKg },
+        newValue: { amount: newAmount, unit: newUnit, amountKg }
+      });
+    }
     showToast('Takaran material dalam resep berhasil diperbarui');
   };
 
   const handleDeleteMaterialFromRecipe = (recipeId: string, itemId: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevRec = (stateRef.current.master.recipes || []).find(r => r.id === recipeId);
+    const prevItem = prevRec?.items.find(it => it.id === itemId);
     setState(prev => {
       let removedMaterialId = '';
       let targetWipId = '';
@@ -813,11 +1050,22 @@ export function useMasterData({
         }
       };
     });
+    if (prevItem) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: `${recipeId}:${itemId}`,
+        targetLabel: `Hapus Item Resep: ${prevItem.materialName}`,
+        previousValue: prevItem,
+        reasonNote: 'Hapus material dari resep formulasi'
+      });
+    }
     showToast('Material dihapus dari resep');
   };
 
   // Import Resep Formulasi (Google Drive & Local File Batch Loader)
   const handleImportRecipes = (newRecipes: WipRecipe[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     setState(prev => {
       let finalRecipes: WipRecipe[] = [];
       if (mode === 'replace') {
@@ -874,11 +1122,19 @@ export function useMasterData({
         }
       };
     });
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: mode === 'replace' ? 'OVERRIDE' : 'CREATE',
+      targetId: 'import_recipes',
+      targetLabel: `Import Resep Formulasi (${mode})`,
+      newValue: { count: newRecipes.length }
+    });
     showToast(`Berhasil mengimpor ${newRecipes.length} resep formulasi`);
   };
 
   // Add Machine
   const handleAddMachine = (machData: Omit<ProductionMachine, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newMach: ProductionMachine = {
       ...machData,
       id: `mach_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -890,10 +1146,19 @@ export function useMasterData({
         machines: [...prev.master.machines, newMach]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newMach.id,
+      targetLabel: `Mesin: ${newMach.code} - ${newMach.name}`,
+      newValue: { code: newMach.code, name: newMach.name }
+    });
   };
 
   // Delete Machine
   const handleDeleteMachine = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevMach = stateRef.current.master.machines.find(m => m.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -902,11 +1167,22 @@ export function useMasterData({
         wips: prev.master.wips.map(w => (w.assignedMachineId === id ? { ...w, assignedMachineId: undefined } : w))
       }
     }));
+    if (prevMach) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: id,
+        targetLabel: `Mesin: ${prevMach.code} - ${prevMach.name}`,
+        previousValue: { code: prevMach.code, name: prevMach.name },
+        reasonNote: 'Hapus mesin dari master data'
+      });
+    }
     showToast('Mesin berhasil dihapus dari master data');
   };
 
   // Import Machines
   const handleImportMachines = (newMachines: ProductionMachine[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     setState(prev => {
       let finalMachines: ProductionMachine[] = [];
 
@@ -947,6 +1223,7 @@ export function useMasterData({
 
   // Add Tank
   const handleAddTank = (tankData: Omit<WipTank, 'id'>) => {
+    if (!assertCanModifyMasterBom()) return;
     const newTank: WipTank = {
       ...tankData,
       id: `tank_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
@@ -958,10 +1235,19 @@ export function useMasterData({
         tanks: [...prev.master.tanks, newTank]
       }
     }));
+    logAuditTrail?.({
+      module: 'MASTER_BOM',
+      action: 'CREATE',
+      targetId: newTank.id,
+      targetLabel: `Tangki: ${newTank.code} - ${newTank.name}`,
+      newValue: { code: newTank.code, type: newTank.type, capacityKg: newTank.capacityKg }
+    });
   };
 
   // Delete Tank
   const handleDeleteTank = (id: string) => {
+    if (!assertCanModifyMasterBom()) return;
+    const prevTank = stateRef.current.master.tanks.find(t => t.id === id);
     setState(prev => ({
       ...prev,
       master: {
@@ -970,11 +1256,22 @@ export function useMasterData({
         wips: prev.master.wips.map(w => (w.targetTankId === id ? { ...w, targetTankId: undefined } : w))
       }
     }));
+    if (prevTank) {
+      logAuditTrail?.({
+        module: 'MASTER_BOM',
+        action: 'DELETE',
+        targetId: id,
+        targetLabel: `Tangki: ${prevTank.code} - ${prevTank.name}`,
+        previousValue: { code: prevTank.code, name: prevTank.name },
+        reasonNote: 'Hapus tangki dari master data'
+      });
+    }
     showToast('Tangki berhasil dihapus dari master data');
   };
 
   // Import Tanks
   const handleImportTanks = (newTanks: WipTank[], mode: 'replace' | 'append') => {
+    if (!assertCanModifyMasterBom()) return;
     setState(prev => {
       let finalTanks: WipTank[] = [];
 
@@ -1019,6 +1316,7 @@ export function useMasterData({
       showToast('Akses ditolak: Hanya Administrator yang berwenang melakukan kalibrasi isi tangki', true);
       return;
     }
+    const prevTank = stateRef.current.master.tanks.find(t => t.id === tankId);
 
     markExplicitOperationsWrite();
     setState(prev => ({
@@ -1028,6 +1326,18 @@ export function useMasterData({
         tanks: prev.master.tanks.map(t => (t.id === tankId ? { ...t, ...updates } : t))
       }
     }));
+
+    if (prevTank && updates.currentLevelKg !== undefined && updates.currentLevelKg !== prevTank.currentLevelKg) {
+      logAuditTrail?.({
+        module: 'STOCK_ADJUSTMENT',
+        action: 'OVERRIDE',
+        targetId: tankId,
+        targetLabel: `Kalibrasi Tangki: ${prevTank.code} (${prevTank.name})`,
+        previousValue: { currentLevelKg: prevTank.currentLevelKg },
+        newValue: { currentLevelKg: updates.currentLevelKg },
+        reasonNote: 'Kalibrasi manual level tangki WIP oleh Administrator'
+      });
+    }
   };
 
   // Top Up / Transfer WIP into Tank
@@ -1075,7 +1385,7 @@ export function useMasterData({
   };
 
   // Production Line Customization CRUD (Line A, B, C, D, etc.)
-  const isAdminSession = () => getEffectiveRoleForState().isAdmin;
+  const isAdminSession = () => canModifyMasterBom(getEffectiveRoleForState());
 
   const handleAddProductionLine = (lineData: Omit<ProductionLine, 'id'>) => {
     if (!isAdminSession()) {
